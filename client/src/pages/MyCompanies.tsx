@@ -44,7 +44,7 @@ export default function MyCompanies() {
         {(tenants.data ?? []).map(item => (
           <li key={item.tenantId} className="flex flex-wrap items-center justify-between gap-3 p-3">
             <div className="min-w-0"><p className="font-medium">{item.legalName}</p><p dir="ltr" className="text-xs text-muted-foreground">{item.slug}</p>
-              {item.tenantId === tenantId && <p className="text-xs text-emerald-800">{t.current}</p>}{status(item.status) && <p className="text-xs text-amber-800">{status(item.status)}</p>}</div>
+              {item.tenantId === tenantId && <p className="text-xs text-success-soft-foreground">{t.current}</p>}{status(item.status) && <p className="text-xs text-warning-soft-foreground">{status(item.status)}</p>}</div>
             {item.status === "active" && <Link href={`/projects/${item.tenantId}`} className="inline-flex min-h-[44px] items-center rounded-md border border-border px-4 text-sm font-medium hover:bg-accent">{t.open}</Link>}
           </li>
         ))}
@@ -90,10 +90,10 @@ function CompanyDetails({ tenantId, t, isArabic, onSaved }: { tenantId: string; 
             {(profile.data.logo || logo) && logo !== null && <Button type="button" variant="outline" className="min-h-[44px]" onClick={() => setLogo(null)}>{t.logoRemove}</Button>}
           </div>
           <p id="company-logo-hint" className="mt-1 text-xs text-muted-foreground">{uploading ? t.logoUploading : t.logoHint}</p>
-          {logoUpload.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(logoUpload.error, isArabic)}</p>}
+          {logoUpload.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(logoUpload.error, isArabic)}</p>}
         </div>
-        {save.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(save.error, isArabic)}</p>}
-        {save.isSuccess && <p role="status" className="text-sm text-emerald-800 sm:col-span-2">{t.saved}</p>}
+        {save.error && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{getLocalizedProjectError(save.error, isArabic)}</p>}
+        {save.isSuccess && <p role="status" className="text-sm text-success-soft-foreground sm:col-span-2">{t.saved}</p>}
         <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={save.isPending || uploading || legalName.trim().length < 2}>{save.isPending ? t.saving : t.save}</Button></div>
       </form>
     </section>
@@ -115,7 +115,7 @@ function NewCompany({ t, isArabic, onCreated }: { t: (typeof T)["ar"]; isArabic:
         <div><Label htmlFor="new-slug">{t.newSlug}</Label><Input id="new-slug" dir="ltr" className="mt-2 min-h-[44px]" value={slug} onChange={event => setSlug(event.target.value.toLowerCase())} required /><FieldError id="new-slug-error" message={fieldErrors["new-slug"] ?? (slug !== "" ? slugFieldError(slug, language) : null)} /></div>
         <div><Label htmlFor="new-plan">{t.plan}</Label><Select id="new-plan" className="mt-2 md:min-h-11" aria-required placeholder={t.pick} options={(plans.data ?? []).map(plan => ({ value: plan.code, label: language === "en" ? `${plan.name} · ${plan.packageCode}` : planLabel(plan, language) }))} value={planCode || undefined} onValueChange={setPlanCode} /><FieldError id="new-plan-error" message={fieldErrors["new-plan"]} /></div>
         <div><Label htmlFor="new-seats">{t.seats}</Label><Input id="new-seats" type="number" min={1} max={100000} className="mt-2 min-h-[44px]" value={seats} onChange={event => setSeats(event.target.value)} required /><FieldError id="new-seats-error" message={fieldErrors["new-seats"]} /></div>
-        {signup.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(signup.error, isArabic)}</p>}
+        {signup.error && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{getLocalizedProjectError(signup.error, isArabic)}</p>}
         <div className="sm:col-span-2"><Button className="min-h-[44px]" disabled={signup.isPending || !planCode}>{signup.isPending ? t.creating : t.create}</Button></div>
       </form>
     </section>

@@ -61,8 +61,8 @@ export function ManualLinkPanel(props: {
           {props.tool ? <p className="text-xs text-muted-foreground">{props.tool === "point" ? t.hintPoint : t.hintPolygon}</p> : null}
         </>
       ) : null}
-      {props.notice?.kind === "linked" ? <p role="status" className="text-sm text-emerald-800">{t.linked(props.notice.code ?? "")}</p> : null}
-      {props.notice && props.notice.kind !== "linked" ? <p role="alert" className="text-sm text-red-800">{props.notice.kind === "already" ? t.already : t.few}</p> : null}
+      {props.notice?.kind === "linked" ? <p role="status" className="text-sm text-success-soft-foreground">{t.linked(props.notice.code ?? "")}</p> : null}
+      {props.notice && props.notice.kind !== "linked" ? <p role="alert" className="text-sm text-danger-soft-foreground">{props.notice.kind === "already" ? t.already : t.few}</p> : null}
     </div>
   );
 }

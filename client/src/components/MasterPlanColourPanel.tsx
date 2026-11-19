@@ -70,7 +70,7 @@ export function MasterPlanColourPanel(props: {
         ) : null}
         <button type="button" className="min-h-[44px] rounded-lg border border-border bg-white px-3 text-sm" onClick={props.onExportPng}>{t.exportPng}</button>
       </div>
-      {props.failed ? <p role="note" className="text-xs text-amber-900">{t.noSource}</p> : null}
+      {props.failed ? <p role="note" className="text-xs text-warning-soft-foreground">{t.noSource}</p> : null}
       {props.activityCode && props.counts ? (
         <>
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label={t.colourBy} data-colour-key>

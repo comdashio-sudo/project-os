@@ -69,7 +69,7 @@ export function SectionMessage({ title, isArabic, language, kind, detail, onRetr
         error: "یہ حصہ لوڈ نہیں ہو سکا۔ ڈیش بورڈ کا باقی حصہ دستیاب ہے۔",
         partial: "صرف جزوی ڈیٹا دستیاب ہے؛ غائب ذرائع نیچے بتائے گئے ہیں۔",
       } });
-  const tone = kind === "error" ? "border-red-200 bg-red-50 text-red-800" : kind === "partial" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-border bg-muted/30 text-muted-foreground";
+  const tone = kind === "error" ? "border-destructive/30 bg-danger-soft text-danger-soft-foreground" : kind === "partial" ? "border-warning/40 bg-warning-soft text-warning-soft-foreground" : "border-border bg-muted/30 text-muted-foreground";
   return <section aria-label={title} className={`rounded-[var(--radius-lg)] border p-5 ${tone}`}>
     <div className="flex items-center gap-2 text-sm">
       {kind === "loading" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
@@ -89,7 +89,7 @@ export type SourceQuery = { error: unknown; isFetching?: boolean; refetch?: () =
 export function SourceNotice({ query, isArabic, title, fallback, className = "" }: { query: SourceQuery; isArabic: boolean; title: string; fallback?: string; className?: string }) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   if (!query.error) return null;
-  return <div role="alert" aria-label={title} className={`rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 ${className}`}>
+  return <div role="alert" aria-label={title} className={`rounded-xl border border-warning/40 bg-warning-soft p-3 text-sm text-warning-soft-foreground ${className}`}>
     <p className="font-semibold">{pickLanguage(lang, { ar: `تعذّر تحميل: ${title}`, en: `Could not load: ${title}`, ur: `لوڈ نہیں ہو سکا: ${title}` })}</p>
     <p className="mt-1">{getLocalizedProjectError(query.error, lang)}{fallback ? ` ${fallback}` : ""}</p>
     {query.refetch && <button type="button" disabled={query.isFetching} className="mt-2 min-h-[44px] rounded-lg border border-amber-700 bg-white px-4 font-semibold disabled:opacity-60" onClick={() => void query.refetch?.()}>{pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}

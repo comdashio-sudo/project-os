@@ -56,7 +56,7 @@ export function violationsOf(file, source) {
 // Q-19 (4): a Tailwind palette class (text-slate-500, bg-red-50, ring-amber-200 ...) is a colour written beside the tokens: the approved identity cannot
 // reach it. These are being converted to tokens in batches, so this rule is a CEILING ON THE TOTAL that only goes down: the build fails when the count
 // rises above PALETTE_CEILING, and asks for the ceiling to be lowered when it falls (each batch lowers it in the same PR). The aim is zero.
-export const PALETTE_CEILING = 427;
+export const PALETTE_CEILING = 51;
 const PALETTE = /\b(?:bg|text|border|ring|divide|fill|stroke|from|to|via|outline|placeholder|accent|decoration|caret|shadow)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?:50|[1-9]00|950)\b/g;
 export function paletteCount(source) { return count(withoutCommentsOf(source), PALETTE); }
 export function paletteTotal() {

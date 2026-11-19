@@ -31,7 +31,7 @@ export default function CashFlowMonthly({ tenantId, projectId, currency }: { ten
   const query = trpc.profitability.cashFlow.useQuery({ tenantId, projectId });
   const money = (value: number) => formatMoney(value, currency, isArabic);
   if (query.isLoading) return <p role="status" className="mt-6 text-sm text-muted-foreground">{t.loading}</p>;
-  if (!query.data) return <div className="mt-6"><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(query.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => query.refetch()}>{t.retry}</Button></div>;
+  if (!query.data) return <div className="mt-6"><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(query.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => query.refetch()}>{t.retry}</Button></div>;
   const { months, lowestCumulative } = query.data;
   // The export uses the same headers and the same rows as the table below; the rows are the raw amounts, not the formatted text.
   const columns: ExportColumn<(typeof months)[number]>[] = [
@@ -55,12 +55,12 @@ export default function CashFlowMonthly({ tenantId, projectId, currency }: { ten
               <tbody>{months.map(row => (
                 <tr key={row.month} className="border-t">
                   <td className="py-1.5 pe-3">{row.month}</td><td className="whitespace-nowrap pe-3">{money(row.receipts)}</td><td className="whitespace-nowrap pe-3">{money(row.outflows)}</td>
-                  <td className={`whitespace-nowrap pe-3 ${row.net < 0 ? "text-red-700" : ""}`}>{money(row.net)}</td><td className={`whitespace-nowrap pe-3 font-semibold ${row.cumulative < 0 ? "text-red-700" : ""}`}>{money(row.cumulative)}</td>
+                  <td className={`whitespace-nowrap pe-3 ${row.net < 0 ? "text-danger-soft-foreground" : ""}`}>{money(row.net)}</td><td className={`whitespace-nowrap pe-3 font-semibold ${row.cumulative < 0 ? "text-danger-soft-foreground" : ""}`}>{money(row.cumulative)}</td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
-          {lowestCumulative && lowestCumulative.cumulative < 0 && <p role="status" className="mt-2 text-sm text-red-700">{t.lowest(lowestCumulative.month, money(lowestCumulative.cumulative))}</p>}
+          {lowestCumulative && lowestCumulative.cumulative < 0 && <p role="status" className="mt-2 text-sm text-danger-soft-foreground">{t.lowest(lowestCumulative.month, money(lowestCumulative.cumulative))}</p>}
         </>
       )}
       <p className="mt-2 text-xs text-muted-foreground">{t.basis}</p>

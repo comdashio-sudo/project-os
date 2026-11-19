@@ -77,8 +77,8 @@ export default function UnitCard() {
 
   if (options.isLoading || (unit && card.isLoading)) return shell(<p role="status" className="text-sm text-muted-foreground">{t.loading}</p>);
   const failure = options.error ?? card.error;
-  if (failure) return shell(<><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(failure, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void card.refetch(); }}>{t.retry}</Button></>);
-  if (!unit) return shell(<p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.unitUnknown}</p>);
+  if (failure) return shell(<><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(failure, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void card.refetch(); }}>{t.retry}</Button></>);
+  if (!unit) return shell(<p role="alert" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.unitUnknown}</p>);
   const data = card.data;
   if (!data) return shell(<p role="status" className="text-sm text-muted-foreground">{t.loading}</p>);
 
@@ -105,7 +105,7 @@ export default function UnitCard() {
         <p><span className="block text-xs text-muted-foreground">{t.unitLabel}</span><b className="text-lg">{data.unit.number}</b></p>
         <p><span className="block text-xs text-muted-foreground">{t.zone} / {t.block}</span><b>{data.unit.zone} / {data.unit.block}</b></p>
         <p><span className="block text-xs text-muted-foreground">{t.model}</span><b>{data.unit.modelCode}</b></p>
-        <p><span className="block text-xs text-muted-foreground">{t.openNcrs}</span><b className={data.openNcrs > 0 ? "text-red-700" : ""}>{data.openNcrs}</b></p>
+        <p><span className="block text-xs text-muted-foreground">{t.openNcrs}</span><b className={data.openNcrs > 0 ? "text-danger-soft-foreground" : ""}>{data.openNcrs}</b></p>
         <label className="block text-sm font-medium sm:col-span-4">{t.activity}
           <Select className="mt-1" aria-label={t.allActivities} value={activity?.code ?? ALL_ACTIVITIES} onValueChange={value => { setShownCount(PAGE); navigate(`${back}/unit/${encodeURIComponent(unitNumber)}${value !== ALL_ACTIVITIES ? `?activity=${encodeURIComponent(value)}` : ""}`); }} options={[{ value: ALL_ACTIVITIES, label: t.allActivities }, ...activities.map(item => ({ value: item.code, label: `${item.code} — ${item.name}` }))]} /></label>
         {data.activity && (
@@ -113,8 +113,8 @@ export default function UnitCard() {
             <p className="text-sm"><b>{t.status}:</b> {name(data.status ?? "NOT_STARTED")}</p>
             {!states.isError && (() => { const qc = states.data?.activities.find(item => item.code === data.activity?.code); return <p className="text-sm" data-qc-receipt><b>{t.qcReceipt}:</b> {qc?.qcReceived === true ? t.qcReceived : qc?.qcReceived === false ? t.qcNotReceived : t.qcNone}{qc?.qcOn ? <> · <bdi dir="ltr">{qc.qcOn}</bdi></> : null}</p>; })()}
             {data.qc && <>
-              <p className={`text-sm font-semibold ${data.qc.accepted ? "text-emerald-700" : "text-red-700"}`}>{t.quality}: {data.qc.accepted ? t.accepted : t.notAccepted} <span className="font-normal text-muted-foreground">({t.policy}: {name("mode" + data.qc.policy)} · {t.ncrRule}: {name("mode" + data.qc.ncrMode)})</span></p>
-              {data.qc.heldByNcr && <p role="note" className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{t.heldByNcr}</p>}
+              <p className={`text-sm font-semibold ${data.qc.accepted ? "text-success-soft-foreground" : "text-danger-soft-foreground"}`}>{t.quality}: {data.qc.accepted ? t.accepted : t.notAccepted} <span className="font-normal text-muted-foreground">({t.policy}: {name("mode" + data.qc.policy)} · {t.ncrRule}: {name("mode" + data.qc.ncrMode)})</span></p>
+              {data.qc.heldByNcr && <p role="note" className="rounded-lg bg-warning-soft p-2 text-sm text-warning-soft-foreground">{t.heldByNcr}</p>}
             </>}
           </div>
         )}
