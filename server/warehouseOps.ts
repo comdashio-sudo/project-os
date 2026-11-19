@@ -24,7 +24,7 @@ import {
   warehouseStocktakeLines,
   warehouseStocktakes,
 } from "../drizzle/schema";
-import { assertInventoryReason, assertProjectWithinTenant, createMaterialIssueForTenant, getDb, getTenantAccessSnapshot, stockPositionOf } from "./db";
+import { assertInventoryReason, assertProjectWithinTenant, createMaterialIssueForTenant, getDb, getTenantAccessSnapshot, inventoryMoneyVisible, stockPositionOf } from "./db";
 import { assertTenantAccess, holdsPermission } from "./domain/authorization";
 import { adjustmentAtAverage, pricedReceipt, transferValuation, valuedIssue } from "./domain/inventoryValuation";
 
@@ -39,6 +39,11 @@ async function authorizeInventory(input: { userId: number; tenantId: string; pro
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.inventory.manage", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   return db;
+}
+/** Q-32 (adviser 18-11, reviewer A): stock value is project money — what a return or a count gives back carries it only for the project-money readers. */
+async function seesStockMoney(input: { userId: number; tenantId: string; projectId: string }) {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  return Boolean(snapshot && inventoryMoneyVisible(snapshot, input.projectId));
 }
 
 async function activeWarehouse(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, key: { tenantId: string; projectId: string; warehouseId: string }) {
@@ -64,7 +69,7 @@ export async function returnMaterialToWarehouseForTenant(input: { userId: number
   await activeWarehouse(db, { tenantId: input.tenantId, projectId: input.projectId, warehouseId });
 
   const returnId = crypto.randomUUID(); const transactionId = crypto.randomUUID(); const costEntryId = crypto.randomUUID();
-  let result!: { id: string; quantity: number; totalCost: number; returnableAfter: number };
+  let result!: { id: string; quantity: number; totalCost: number | null; returnableAfter: number };
   await db.transaction(async tx => {
     // The issue row is the lock: two returns of the same issue queue behind each other and the second sees the first.
     await tx.execute(sql`SELECT id FROM material_issues WHERE id = ${issue.id} FOR UPDATE`);
@@ -94,7 +99,7 @@ export async function returnMaterialToWarehouseForTenant(input: { userId: number
       metadata: JSON.stringify({ projectId: input.projectId, warehouseId, materialIssueId: issue.id, materialId: issue.materialId, quantity: input.quantity, totalCost, costEntryId, inventoryTransactionId: transactionId }) });
     result = { id: returnId, quantity: input.quantity, totalCost, returnableAfter: round3(returnable - input.quantity) };
   });
-  return result;
+  return (await seesStockMoney(input)) ? result : { ...result, totalCost: null };
 }
 
 // ------------------------------------------------------------------------------------------------------------------ transfer between projects
@@ -177,7 +182,8 @@ export async function recordStocktakeForTenant(input: { userId: number; tenantId
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "warehouse.stocktake_recorded", entityType: "warehouse_stocktake", entityId: stocktakeId,
       metadata: JSON.stringify({ projectId: input.projectId, warehouseId: input.warehouseId, lines: report.length, adjusted: report.filter(row => row.adjusted).length }) });
   });
-  return { id: stocktakeId, lines: report, adjusted: report.filter(row => row.adjusted).length };
+  const money = await seesStockMoney(input);
+  return { id: stocktakeId, lines: money ? report : report.map(row => ({ ...row, valueDelta: null })), adjusted: report.filter(row => row.adjusted).length };
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------ find a material
