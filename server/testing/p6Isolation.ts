@@ -39,6 +39,8 @@ export async function clearP6Tenant(connection: Connection, tenantId: string) {
   await connection.query("DELETE FROM memberships WHERE tenantId = ?", [tenantId]);
   await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [tenantId]);
   await connection.query("DELETE FROM subscriptions WHERE tenantId = ?", [tenantId]);
+  await connection.query("DELETE FROM schedule_snapshot_activities WHERE tenantId = ?", [tenantId]); // Q-23
+  await connection.query("DELETE FROM schedule_snapshots WHERE tenantId = ?", [tenantId]); // Q-23
   await connection.query("DELETE FROM projects WHERE tenantId = ?", [tenantId]);
   await connection.query("DELETE FROM companies WHERE id = ?", [tenantId]);
 }
