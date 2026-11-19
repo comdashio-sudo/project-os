@@ -5,14 +5,15 @@ export type SiteStatus = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPL
 export type SiteUnit = { unitNumber: number; modelCode: string; blockCode: string; status: SiteStatus | null };
 export type ColourKey = SiteStatus | "NOT_IN_MODEL" | "NOT_MATCHED";
 
+// Q-19: the progress states of the approved identity (index.css :root): darker = further along; not started is white in a border.
 export const SITE_COLOUR: Record<ColourKey, string> = {
-  NOT_STARTED: "var(--muted-foreground)",
-  IN_PROGRESS: "var(--warning)",
-  UNDER_REVIEW: "var(--info)",
-  COMPLETE: "var(--success)",
+  NOT_STARTED: "var(--state-none)",
+  IN_PROGRESS: "var(--state-progress)",
+  UNDER_REVIEW: "var(--state-advanced)",
+  COMPLETE: "var(--state-complete)",
   // Q-5's QC receipt, kept apart from the site's status
-  RECEIVED: "var(--success)",
-  NOT_RECEIVED: "var(--destructive)",
+  RECEIVED: "var(--state-complete)",
+  NOT_RECEIVED: "var(--state-start)",
   NOT_IN_MODEL: "var(--border)",
   NOT_MATCHED: "var(--background)",
 };
