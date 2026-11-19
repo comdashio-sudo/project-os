@@ -53,4 +53,30 @@ describe("ProjectSetupWizard", () => {
     expect(h.save).not.toHaveBeenCalled();
     expect(screen.queryByText("No companies added yet.")).toBeNull();
   });
+
+  it("Q-37 (b) NEGATIVE: the project is created but saving its data fails — a retry saves again and NEVER creates a second project", async () => {
+    h.save.mockRejectedValueOnce(Object.assign(new Error("PROJECT_OS_DATABASE_UNAVAILABLE"), { data: { code: "INTERNAL_SERVER_ERROR" } }));
+    render(<ProjectSetupWizard />);
+    type("Project code", "PX-3"); type("Project name", "Retry villas");
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save and continue" })); });
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(document.querySelector("[data-created-only]")!.textContent).toContain("will not be created a second time");
+    expect((screen.getByLabelText(/^Project code/) as HTMLInputElement).disabled).toBe(true);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save and continue" })); });
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(h.save).toHaveBeenCalledTimes(2);
+    expect(h.save).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: "p-new" }));
+    expect(screen.getByText("No companies added yet.")).toBeTruthy();
+  });
+
+  it("Q-37 (b): each step says its goal, the required fields their rule, and once saved what is done and what remains", async () => {
+    render(<ProjectSetupWizard />);
+    expect(document.querySelector("[data-step-goal]")!.textContent).toContain("Code, name and type are required");
+    expect(screen.getByText("2 to 80 characters, unique in the company. It cannot be changed after creation.")).toBeTruthy();
+    expect(document.querySelector("[data-wizard-status]")).toBeNull();
+    type("Project code", "PX-4"); type("Project name", "Goals villas");
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save and continue" })); });
+    expect(document.querySelector("[data-step-goal]")!.textContent).toContain("Add the companies working on the project");
+    expect(document.querySelector("[data-wizard-status]")!.textContent).toBe("Done: Data and logos · Remaining (optional): Team");
+  });
 });
