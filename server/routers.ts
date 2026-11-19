@@ -1,6 +1,6 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation } from "./workConfirmations";
-import { getLiveSchedule } from "./scheduleSnapshots";
+import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
 import { getReportPeriod } from "./reportPeriods";
@@ -916,6 +916,8 @@ export const appRouter = router({
   schedule: router({
     // Q-23: the live schedule — today against the baseline snapshot, critical by P6 float, planned against actual at the data date, a two-week look-ahead
     live: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getLiveSchedule({ userId: ctx.user.id, ...input })),
+    // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
+    compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),
   costs: router({
     createActual: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), amount: z.number().finite().positive(), incurredAt: z.date(), category: z.enum(["materials", "labour", "subcontract", "other"]).optional() })).mutation(({ ctx, input }) => createCostEntry({ userId: ctx.user.id, ...input })),

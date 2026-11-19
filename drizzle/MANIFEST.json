@@ -38,6 +38,7 @@
     "0035_stocktakes.sql": "260bf76874b69f1d22cfe987cf73cd501675eb38f11ebcf61080b208d5fa67e5",
     "0036_qc_receipt_batch_id.sql": "098616f44e12c038577f2b83cef7b43905e9ff1dec8b3a773dae3c66ae117935",
     "0037_schedule_snapshots.sql": "d26a397b86ba18920fe3299c6f1e49151b6acf0506cf5ec930112d00dee70153",
-    "0038_work_confirmations.sql": "a86fb6fff794c9d65da5142a5977610dd41a11285782283d9fadd502baaf00e1"
+    "0038_p6_same_project_guards.sql": "cf92a6fab0398b6391422f88505cca09b97d268c757f5552712d6a5f6f1dda6c",
+    "0039_work_confirmations.sql": "0ee7be4f35f20318761c01047ef6d3badc9ce1ef614431decc86e7aa2006621e"
   }
 }
