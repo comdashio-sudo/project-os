@@ -132,7 +132,10 @@ export async function rollbackScheduleUpdate(tx: Writer, input: { tenantId: stri
   const after = mineOf.find(row => row.source === "p6_update"); const before = mineOf.find(row => row.source === "p6_update_before");
   if (!after || !before) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SCHEDULE_ROLLBACK_NO_SNAPSHOT" });
   if (!latest || latest.id !== after.id) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_SCHEDULE_ROLLBACK_NOT_LATEST" });
-  const ids = (await tx.select({ id: dataImportRowResults.entityId }).from(dataImportRowResults).where(and(eq(dataImportRowResults.importId, input.importId), eq(dataImportRowResults.action, "updated"))))
+  // the row results have no tenant column of their own: they are read through their import, of this company and project (review of #403, CLAUDE.md §4)
+  const ids = (await tx.select({ id: dataImportRowResults.entityId }).from(dataImportRowResults)
+    .innerJoin(dataImports, and(eq(dataImports.id, dataImportRowResults.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId)))
+    .where(and(eq(dataImportRowResults.importId, input.importId), eq(dataImportRowResults.action, "updated"))))
     .map(row => row.id).filter((id): id is string => Boolean(id));
   if (!ids.length) return { restored: 0 };
   const fields = { actualStartAt: scheduleSnapshotActivities.actualStartAt, actualFinishAt: scheduleSnapshotActivities.actualFinishAt, status: scheduleSnapshotActivities.status, percentComplete: scheduleSnapshotActivities.percentComplete, remainingHours: scheduleSnapshotActivities.remainingHours };
