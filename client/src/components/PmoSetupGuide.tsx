@@ -23,7 +23,7 @@ export function PmoFieldHelp({ field }: { field: PmoSetupField }) {
   const { language } = useLanguage();
   const help = PMO_SETUP_GUIDE.fields[field];
   return (
-    <span data-field-help={field} className="mt-1 block text-xs font-normal text-muted-foreground">
+    <span data-field-help={field} className="mt-1 block basis-full text-xs font-normal leading-normal text-muted-foreground">
       <span className={help.required ? "font-semibold text-foreground" : "font-semibold"}>{(help.required ? PMO_SETUP_GUIDE.required : PMO_SETUP_GUIDE.optional)[language]}</span> · {help.text[language]}
     </span>
   );
