@@ -75,7 +75,7 @@ describe("PmcSitePlan", () => {
     fireEvent.change(screen.getByLabelText("Activity"), { target: { value: "WALLS" } });
     expect((h.inputs[h.inputs.length - 1] as { activityCode?: string }).activityCode).toBe("WALLS");
     expect(polygons()[0].getAttribute("fill")).toBe("var(--status-done)");
-    expect(polygons()[1].getAttribute("fill")).toBe("var(--status-late)");
+    expect(polygons()[1].getAttribute("fill")).toBe("var(--status-progress)");
     // NEGATIVE (D-75): no polygon is painted with a fixed hex colour; every fill is a theme token
     for (const polygon of polygons()) expect(polygon.getAttribute("fill")).not.toMatch(/^#[0-9a-f]{3,8}$/i);
     expect(polygons()[1].getAttribute("aria-label")).toBe("Unit 2: In progress");
