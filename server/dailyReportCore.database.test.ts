@@ -167,4 +167,21 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
     expect(onB.reportNumber).toBe("DR-0001"); // project B has no prefix and its own sequence
     expect(await code(callers.owner.siteReports.get({ ...at(B), reportId: report.id }))).toBe("PROJECT_OS_SITE_REPORT_NOT_FOUND");
   });
+
+  // Q-24 (P-120): a report kept on the phone while offline is not sent over a report saved after it was kept — refused, shown, the newer one stands;
+  // one kept after the last save goes through, once (the same identifier again answers the stored result).
+  it("Q-24: a report kept offline before a newer save of the same day is refused (CHANGED_SINCE) and the newer stands; one kept after it is saved, once", async () => {
+    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "sunny", lines: [] });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const keptAt = new Date().toISOString();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const newer = await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "windy", lines: [] });
+    expect(await code(callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "rainy", lines: [], queuedAt: keptAt, clientRequestId: crypto.randomUUID() }))).toBe("PROJECT_OS_SITE_REPORT_CHANGED_SINCE");
+    expect((await callers.engineer.siteReports.get({ ...at(), reportId: newer.id })).report.weather).toBe("windy");
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const queuedAt = new Date().toISOString(); const clientRequestId = crypto.randomUUID();
+    const sent = await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "rainy", lines: [], queuedAt, clientRequestId });
+    expect(await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "rainy", lines: [], queuedAt, clientRequestId })).toEqual(sent);
+    expect((await callers.engineer.siteReports.get({ ...at(), reportId: newer.id })).report.weather).toBe("rainy");
+  });
 });

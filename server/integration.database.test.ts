@@ -120,6 +120,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection.query("DELETE FROM evm_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM project_health_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM internal_notifications WHERE projectId IN (?, ?)", [projectA, projectB]);
+    await connection.query("DELETE FROM schedule_snapshot_activities WHERE projectId IN (?, ?)", [projectA, projectB]); // Q-23
+    await connection.query("DELETE FROM schedule_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]); // Q-23
     await connection.query("DELETE FROM activities WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM wbs_items WHERE projectId IN (?, ?)", [projectA, projectB]);
     await connection.query("DELETE FROM tenant_license_feature_overrides WHERE tenantLicenseId IN (SELECT id FROM tenant_licenses WHERE tenantId IN (?, ?))", [tenantA, tenantB]);
@@ -302,6 +304,8 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await connection?.query("DELETE FROM memberships WHERE userId IN (SELECT id FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user'))");
     await connection?.query("DELETE FROM tenant_license_feature_overrides WHERE tenantLicenseId IN (SELECT id FROM tenant_licenses WHERE createdByUserId IN (SELECT id FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user')))");
     await connection?.query("DELETE FROM tenant_licenses WHERE createdByUserId IN (SELECT id FROM users WHERE openId IN ('integration-test-user','integration-unassigned-user','integration-finance-user'))");
+    await connection?.query("DELETE FROM schedule_snapshot_activities WHERE projectId IN (?, ?)", [projectA, projectB]); // Q-23
+    await connection?.query("DELETE FROM schedule_snapshots WHERE projectId IN (?, ?)", [projectA, projectB]); // Q-23
     await connection?.query("DELETE FROM projects WHERE id IN (?, ?)", [projectA, projectB]);
     await connection?.query("DELETE FROM programs WHERE tenantId IN (?, ?)", [tenantA, tenantB]);
     await connection?.query("DELETE FROM portfolios WHERE tenantId IN (?, ?)", [tenantA, tenantB]);

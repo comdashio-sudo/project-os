@@ -6,7 +6,7 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcBlocks, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
+import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcBlocks, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
 import { applyCellStatus, authorize, getPmcProgress, mine, type Scope } from "./pmcService";
 import { expandVillaRange } from "./pmcSiteService";
 import { siteToday, villaKey } from "./wo22Shared";
@@ -31,7 +31,30 @@ export async function listProgressActivities(input: Scope) {
   return Array.from(byCode.values()).sort((a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name));
 }
 
-export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; status: ProgressStatus; date: string };
+export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; status: ProgressStatus; date: string; queuedAt?: string };
+
+/**
+ * Q-24 (P-120): a save kept on the phone while offline carries `queuedAt` — when it was kept. When it is finally sent, any target cell written AFTER that
+ * moment (by anyone) is a conflict: the save is refused whole, the villas named (SITE_CHANGED_SINCE), and nothing is written — the phone shows it and the
+ * person decides, instead of an old entry silently overwriting newer work. `updated_at` is the row's write time (kept by a trigger), never the date the
+ * engineer chose for the change. A save sent online carries no `queuedAt`.
+ */
+export async function assertCellsNotChangedSince(tx: Parameters<Parameters<Awaited<ReturnType<typeof authorize>>["transaction"]>[0]>[0], input: Scope & { queuedAt?: string },
+  table: typeof pmcUnitActivityProgress | typeof pmcQcReceipts, targets: Array<{ unitId: string; villa: string; activityDefinitionId: string }>) {
+  if (!input.queuedAt) return;
+  const kept = new Date(input.queuedAt);
+  if (Number.isNaN(kept.getTime())) throw refuse([{ code: "SITE_FIELD_MISSING", detail: "queuedAt" }]);
+  // a phone clock ahead (or a made-up value) must not switch the check off (review of #407): more than five minutes in the future is refused, said as such
+  if (kept.getTime() > Date.now() + 5 * 60_000) throw refuse([{ code: "SITE_CLOCK_AHEAD" }]);
+  const since = kept;
+  // the target cells are locked while checked and written, so a save landing between the check and the write waits (review of #407)
+  const rows = await tx.select({ unitId: table.unitId, activityDefinitionId: table.activityDefinitionId, updatedAt: table.updatedAt }).from(table)
+    .where(and(eq(table.tenantId, input.tenantId), eq(table.projectId, input.projectId), inArray(table.unitId, targets.map(target => target.unitId)))).for("update")
+    .then(found => found.filter(row => row.updatedAt.getTime() > since.getTime()));
+  const changed = new Set(rows.map(row => `${row.unitId}/${row.activityDefinitionId}`));
+  const villas = targets.filter(target => changed.has(`${target.unitId}/${target.activityDefinitionId}`)).map(target => target.villa);
+  if (villas.length) throw refuse(villas.map(villa => ({ code: "SITE_CHANGED_SINCE", villa })));
+}
 
 /** The checks every villa-batch shares (Q-4 progress, Q-5 QC): the fields, the date (not in the future, Riyadh's day), then the villas (a list, a range or a
  * block, never two at once) resolved against the project and the activity's models. Refused whole, villa by villa, before anything is written. */
@@ -82,6 +105,7 @@ export async function updatePmcProgress(input: ProgressUpdateInput) {
   const changedAt = input.date === siteToday() ? new Date() : new Date(`${input.date}T09:00:00Z`);
   const batchId = randomUUID();
   const result = await db.transaction(async tx => {
+    await assertCellsNotChangedSince(tx, input, pmcUnitActivityProgress, targets);
     let changed = 0; const warnings = new Set<string>();
     for (const target of targets) {
       const cell = await applyCellStatus(tx, { ...input, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, status: input.status, note: `batch ${batchId}` }, changedAt);
