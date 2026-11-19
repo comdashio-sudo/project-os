@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { buildSpreadsheet } from "./domain/excelWorkbook";
 import { appRouter } from "./routers";
+import { ownerOriginalWeights } from "./testing/ownerWeightsFixtures";
 
 // Q-3 on a real database, through the real router, as the restricted application role: a villa list with no zone column (block | villa | model), then the weights
 // table (CSI | sub-item | activity | weight, plus columns the tool does not know) applied to every model, imported again without duplicates; a table that does not
@@ -11,6 +12,7 @@ const T = "50000000-0000-4000-8000-0000000003a1";
 const T_OTHER = "50000000-0000-4000-8000-0000000003b1";
 const P = "50000000-0000-4000-8000-0000000003a2";
 const P_OTHER = "50000000-0000-4000-8000-0000000003b2";
+const P_OWNER = "50000000-0000-4000-8000-0000000003a3"; // Q-48: a second project of the same company for the owner-shaped file
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 
 const MODELS = ["A", "B", "C", "D", "E"];
@@ -54,7 +56,7 @@ async function clear() {
   await connection.query("DELETE FROM memberships WHERE tenantId IN (?, ?)", t);
   await connection.query("DELETE FROM tenant_entitlements WHERE tenantId IN (?, ?)", t);
   await connection.query("DELETE FROM subscriptions WHERE tenantId IN (?, ?)", t);
-  await connection.query("DELETE FROM projects WHERE id IN (?, ?)", [P, P_OTHER]);
+  await connection.query("DELETE FROM projects WHERE id IN (?, ?, ?)", [P, P_OTHER, P_OWNER]);
   await connection.query("DELETE FROM companies WHERE id IN (?, ?)", t);
   await connection.query("DELETE FROM users WHERE openId IN ('q3w-manager','q3w-reader')");
 }
@@ -68,7 +70,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-3: the weights table a
     users.manager = rows.find(r => r.openId === "q3w-manager")!.id;
     users.reader = rows.find(r => r.openId === "q3w-reader")!.id;
     await connection.query("INSERT INTO companies (id, legalName, slug) VALUES (?, 'Q3 Weights Tenant', 'q3w-import'), (?, 'Q3 Weights Other', 'q3w-other')", [T, T_OTHER]);
-    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'Q3-A', 'Import project', 'villas', 'SAR', 'active'), (?, ?, 'Q3-B', 'Other project', 'villas', 'SAR', 'active')", [P, T, P_OTHER, T_OTHER]);
+    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'Q3-A', 'Import project', 'villas', 'SAR', 'active'), (?, ?, 'Q3-B', 'Other project', 'villas', 'SAR', 'active'), (?, ?, 'Q48-A', 'Owner-shaped project', 'villas', 'SAR', 'active')", [P, T, P_OTHER, T_OTHER, P_OWNER, T]);
     await connection.query("INSERT INTO subscriptions (id, tenantId, packageCode, status, startsAt) VALUES ('q3w-sub-a', ?, 'ALL-IN-ONE', 'active', NOW()), ('q3w-sub-b', ?, 'ALL-IN-ONE', 'active', NOW())", [T, T_OTHER]);
     await connection.query("INSERT INTO tenant_entitlements (id, tenantId, subscriptionId, productCode, active, startsAt) VALUES ('q3w-ent-a', ?, 'q3w-sub-a', 'PROJECT', true, NOW()), ('q3w-ent-b', ?, 'q3w-sub-b', 'PROJECT', true, NOW())", [T, T_OTHER]);
     for (const [pid, code] of [["q3w-perm-read", "project.pmc.read"], ["q3w-perm-update", "project.pmc.update"], ["q3w-perm-manage", "project.pmc.manage"]]) await connection.query("INSERT IGNORE INTO permissions (id, code, name, productCode) VALUES (?, ?, ?, 'PROJECT')", [pid, code, code]);
@@ -122,6 +124,26 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-3: the weights table a
     await expect(manager().pmc.confirmImport({ ...scope, kind: "weights", format: "xlsx", base64: short, approvedHash: report.fileHash })).rejects.toThrow();
     const [rows] = await connection.query<{ weightPercent: string }[]>("SELECT weightPercent FROM pmc_activity_definitions WHERE tenantId = ? AND name = 'Paint'", [T]);
     expect(rows.map(row => Number(row.weightPercent))).toEqual([40, 40]);
+  });
+
+  it("Q-48: the owner-shaped file (a) is analysed and saved as it is — 5 activities x 2 models at 100 each; importing it again is a no-op", async () => {
+    const owner = { tenantId: T, projectId: P_OWNER };
+    const list = await sheet(["البلوك", "الفيلا", "النموذج"], [["B1", 1, "A"], ["B2", 2, "B"]]);
+    const villaReport = await manager().pmc.analyzeImport({ ...owner, kind: "locations", format: "xlsx", base64: list });
+    await manager().pmc.confirmImport({ ...owner, kind: "locations", format: "xlsx", base64: list, approvedHash: villaReport.fileHash });
+    const original = asBase64(Buffer.from(await ownerOriginalWeights()));
+    const report = await manager().pmc.analyzeImport({ ...owner, kind: "weights", format: "xlsx", base64: original });
+    expect(report.errors).toEqual([]);
+    expect(report.details).toMatchObject({ ignoredZeroWeight: 1, scaledFromFractions: true, skippedTotals: 1 });
+    expect((report.details as { ignoredColumns?: Array<{ header: string }> }).ignoredColumns?.map(column => column.header)).toContain("القسم");
+    expect(report.counts).toEqual({ create: 10, update: 0, unchanged: 0 });
+    await manager().pmc.confirmImport({ ...owner, kind: "weights", format: "xlsx", base64: original, approvedHash: report.fileHash });
+    const [rows] = await connection.query<{ modelCode: string; total: string; n: number }[]>("SELECT d.modelCode, SUM(d.weightPercent) AS total, COUNT(*) AS n FROM pmc_activity_definitions d WHERE d.tenantId = ? AND d.projectId = ? GROUP BY d.modelCode ORDER BY d.modelCode", [T, P_OWNER]);
+    expect(rows.map(row => `${row.modelCode}:${Number(row.n)}:${Number(row.total)}`)).toEqual(["A:5:100", "B:5:100"]);
+    // the same file again: nothing new, nothing doubled
+    const again = await manager().pmc.analyzeImport({ ...owner, kind: "weights", format: "xlsx", base64: original });
+    expect(again.counts).toEqual({ create: 0, update: 0, unchanged: 10 });
+    expect(again.canConfirm).toBe(false);
   });
 
   it("isolation: the manager of this company cannot import into another company's project, and a reader cannot import at all", async () => {
