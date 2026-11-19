@@ -2373,6 +2373,36 @@ export const projectErrorMessages = {
     en: "Write the reason for the change.",
     ur: "تبدیلی کی وجہ لکھیں۔",
   },
+  PROJECT_OS_STRATEGY_COLLECTED_AT_FUTURE: {
+    ar: "تاريخ جمع المعلومة لم يأتِ بعد. اختر اليوم أو تاريخًا مضى.",
+    en: "The date the information was gathered is in the future. Choose today or an earlier date.",
+    ur: "معلومات جمع کرنے کی تاریخ ابھی نہیں آئی۔ آج یا گزری ہوئی تاریخ منتخب کریں۔",
+  },
+  PROJECT_OS_STRATEGY_COMPETITOR_EXISTS: {
+    ar: "في الشركة منافس بهذا الاسم.",
+    en: "The company already has a competitor with this name.",
+    ur: "کمپنی میں اس نام کا حریف پہلے سے موجود ہے۔",
+  },
+  PROJECT_OS_STRATEGY_COMPETITOR_NOT_FOUND: {
+    ar: "المنافس غير موجود في هذه الشركة.",
+    en: "The competitor was not found in this company.",
+    ur: "یہ حریف اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_SOURCE_REQUIRED: {
+    ar: "اذكر مصدر المعلومة: رابطًا أو ملاحظة.",
+    en: "Name the source of the information: a link or a note.",
+    ur: "معلومات کا ماخذ بتائیں: لنک یا نوٹ۔",
+  },
+  PROJECT_OS_STRATEGY_SWOT_EVIDENCE_REQUIRED: {
+    ar: "نقطة SWOT تحتاج نصها والدليل عليها.",
+    en: "A SWOT point needs its statement and the evidence behind it.",
+    ur: "SWOT نکتے کے لیے اس کا متن اور اس کا ثبوت ضروری ہے۔",
+  },
+  PROJECT_OS_STRATEGY_SWOT_NOT_FOUND: {
+    ar: "نقطة SWOT غير موجودة في هذه الشركة.",
+    en: "The SWOT point was not found in this company.",
+    ur: "یہ SWOT نکتہ اس کمپنی میں نہیں ملا۔",
+  },
   PROJECT_OS_STRATEGY_MARKET_SOURCE_REQUIRED: {
     ar: "مؤشر السوق يحتاج مصدرًا: رابطًا أو ملاحظة بمكان المعلومة.",
     en: "A market indicator needs a source: a link or a note saying where the figure came from.",

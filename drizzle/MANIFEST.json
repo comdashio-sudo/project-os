@@ -38,6 +38,7 @@
     "0035_stocktakes.sql": "260bf76874b69f1d22cfe987cf73cd501675eb38f11ebcf61080b208d5fa67e5",
     "0036_qc_receipt_batch_id.sql": "098616f44e12c038577f2b83cef7b43905e9ff1dec8b3a773dae3c66ae117935",
     "0037_strategy_assumptions.sql": "331c9dee7c02028045e60936215297be385906b88f3387a8f3f2ff821700f1ed",
-    "0038_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff"
+    "0038_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff",
+    "0039_strategy_competitors_swot.sql": "617b64f3913edce956b79145f1c80fcc9aca37fbe4d6c7273ba6909dbb83583e"
   }
 }
