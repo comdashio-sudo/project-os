@@ -14,9 +14,9 @@ export const tap = "min-h-[44px] min-w-[44px]";
 export const fieldInput = `${tap} w-full rounded-xl border bg-card px-3 text-base`;
 
 const tabsText = {
-  ar: { nav: "شاشات الميدان", progress: "تحديث الإنجاز", qc: "استلام QC", report: "التقرير اليومي", submittals: "تسليمات الاستشاري", quality: "الجودة", unit: "بطاقة وحدة", unitNumber: "رقم الوحدة", open: "فتح" },
-  en: { nav: "Field screens", progress: "Progress update", qc: "QC receipt", report: "Daily report", submittals: "Consultant submittals", quality: "Quality", unit: "Unit card", unitNumber: "Unit number", open: "Open" },
-  ur: { nav: "سائٹ کی اسکرینیں", progress: "پیش رفت کی تازہ کاری", qc: "کیو سی وصولی", report: "روزانہ رپورٹ", submittals: "کنسلٹنٹ سبمٹلز", quality: "معیار", unit: "یونٹ کارڈ", unitNumber: "یونٹ نمبر", open: "کھولیں" },
+  ar: { nav: "شاشات الميدان", entry: "الإدخال الميداني", siteUpdate: "تحديث إنجاز الموقع", progress: "تحديث الإنجاز", qc: "استلام QC", report: "التقرير اليومي", submittals: "تسليمات الاستشاري", quality: "الجودة", unit: "بطاقة وحدة", unitNumber: "رقم الوحدة", open: "فتح" },
+  en: { nav: "Field screens", entry: "Field entry", siteUpdate: "Update site progress", progress: "Progress update", qc: "QC receipt", report: "Daily report", submittals: "Consultant submittals", quality: "Quality", unit: "Unit card", unitNumber: "Unit number", open: "Open" },
+  ur: { nav: "سائٹ کی اسکرینیں", entry: "فیلڈ اندراج", siteUpdate: "سائٹ کی پیش رفت اپ ڈیٹ کریں", progress: "پیش رفت کی تازہ کاری", qc: "کیو سی وصولی", report: "روزانہ رپورٹ", submittals: "کنسلٹنٹ سبمٹلز", quality: "معیار", unit: "یونٹ کارڈ", unitNumber: "یونٹ نمبر", open: "کھولیں" },
 };
 
 /** The ways between the field screens, and a unit number that opens the unit's card. */
@@ -26,9 +26,10 @@ function FieldTabs({ tenantId, projectId, current }: { tenantId: string; project
   const [, navigate] = useLocation();
   const [unit, setUnit] = React.useState("");
   const base = `/m/${tenantId}/${projectId}`;
-  const tabs = [["progress", `${base}/progress`, t.progress], ["qc", `${base}/qc`, t.qc], ["report", `${base}/report`, t.report], ["submittals", `/projects/${tenantId}/${projectId}/submittals`, t.submittals], ["quality", `/projects/${tenantId}/${projectId}/quality`, t.quality]] as const;
-  // Q-33: a tab is drawn only when its page's server reads would answer (shared/pageAccess.ts); the daily report and submittals tabs are not in the table yet
-  const can = { progress: useCanPage("progress", projectId), qc: useCanPage("qc", projectId), quality: useCanPage("quality", projectId) } as Record<string, boolean>;
+  const tabs = [["entry", base, t.entry], ["siteUpdate", `${base}/site-update`, t.siteUpdate], ["progress", `${base}/progress`, t.progress], ["qc", `${base}/qc`, t.qc], ["report", `${base}/report`, t.report], ["submittals", `/projects/${tenantId}/${projectId}/submittals`, t.submittals], ["quality", `/projects/${tenantId}/${projectId}/quality`, t.quality]] as const;
+  // Q-33: a tab is drawn only when its page's server reads would answer (shared/pageAccess.ts); the submittals tab is not in the table yet.
+  // Q-36 (step 5): the field entry and the site update are field screens too, and the daily report has its gate now (#410)
+  const can = { entry: useCanPage("fieldEntry", projectId), siteUpdate: useCanPage("siteUpdate", projectId), progress: useCanPage("progress", projectId), qc: useCanPage("qc", projectId), report: useCanPage("dailyReport", projectId), quality: useCanPage("quality", projectId) } as Record<string, boolean>;
   return (
     <nav aria-label={t.nav} className="flex flex-wrap items-center gap-2">
       {tabs.filter(([key]) => can[key] !== false).map(([key, href, label]) => <Link key={key} href={href} aria-current={current === key ? "page" : undefined} className={`${tap} inline-flex items-center rounded-xl px-3 text-sm font-semibold ${current === key ? "bg-primary text-primary-foreground" : "border bg-card text-foreground"}`}>{label}</Link>)}

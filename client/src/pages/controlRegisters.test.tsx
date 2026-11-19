@@ -128,6 +128,7 @@ vi.mock("@/lib/trpc", () => ({
     },
     navigation: { get: { useQuery: () => ({ isLoading: false, error: null, data: [] }) } },
     pmc: { siteMap: { useQuery: () => ({ data: undefined, error: null }) }, qcMap: { useQuery: () => ({ data: undefined, error: null }) }, stalledUnits: { useQuery: () => ({ data: undefined, isError: false, error: null }) } },
+    reportPeriods: { monthly: { useQuery: () => ({ isLoading: false, error: null, data: undefined }) } },
     masterPlans: {
       list: { useQuery: () => ({ isLoading: false, error: null, data: { plans: [], versions: [], entities: [] }, refetch: vi.fn() }) },
       visualizationRules: { useQuery: () => ({ isLoading: false, error: null, data: [], refetch: vi.fn() }) },

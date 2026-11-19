@@ -6,7 +6,7 @@ import { trpc } from "@/lib/trpc";
 import { useCan, usePermissionsLoading } from "@/lib/permissions";
 import { NoPermission } from "@/components/ScreenStates";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { LanguageToggle } from "@/components/LanguageToggle";
+import { FieldShell } from "@/components/FieldShell";
 import { Link, useParams } from "wouter";
 import { pickLanguage } from "@/lib/language";
 
@@ -122,11 +122,8 @@ export default function QuickIssue() {
   const again = () => { setDone(null); setPicked(null); setQuery(""); setQuantity("1"); };
 
   return (
-    <main className="min-h-screen bg-background px-4 py-4 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="mb-2 flex justify-end"><LanguageToggle /></div>
-      <div className="mx-auto max-w-md space-y-4">
-        <Link href={`/m/${tenantId}/${projectId}`} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{t.back}</Link>
-        <h1 className="text-xl font-semibold">{t.title}</h1>
+    // Q-36 (step 5): the field screens' one frame (FieldShell); the way back is to the field entry. No tabs here: this screen has its own unit box
+    <FieldShell title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
         {issueDenied && <NoPermission isArabic={isArabic} scope="section" />}
         {options.isLoading && <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>}
         {options.error && <div><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(options.error, isArabic)}</p><Button className={tap} variant="outline" onClick={() => options.refetch()}>{t.retry}</Button></div>}
@@ -189,7 +186,6 @@ export default function QuickIssue() {
             )}
           </div>
         )}
-      </div>
-    </main>
+    </FieldShell>
   );
 }

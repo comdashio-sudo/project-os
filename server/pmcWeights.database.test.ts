@@ -146,6 +146,31 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-3: the weights table a
     expect(again.canConfirm).toBe(false);
   });
 
+  it("Q-49: the owner file's «Activity Title» is stored as each activity's English name; the catalogue screen sets and clears it for every model, audited", async () => {
+    const owner = { tenantId: T, projectId: P_OWNER };
+    const [stored] = await connection.query<{ code: string; modelCode: string; nameEn: string | null }[]>("SELECT code, modelCode, nameEn FROM pmc_activity_definitions WHERE tenantId = ? AND projectId = ? AND code = 'WIR.3.1.1' ORDER BY modelCode", [T, P_OWNER]);
+    expect(stored.map(item => `${item.modelCode}:${item.nameEn}`)).toEqual(["A:Footings", "B:Footings"]);
+    const saved = await manager().pmc.saveActivityEnglishName({ ...owner, activityCode: "WIR.3.1.1", nameEn: "  Footings and pads " });
+    expect(saved).toEqual({ activityCode: "WIR.3.1.1", nameEn: "Footings and pads", saved: 2 });
+    const structure = await manager().pmc.structure(owner);
+    expect(structure.models.map(model => model.activities.find(activity => activity.code === "WIR.3.1.1")!.nameEn)).toEqual(["Footings and pads", "Footings and pads"]);
+    const [audit] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'pmc.activity_english_name_saved'", [T]);
+    expect(audit.map(item => JSON.parse(item.metadata))).toEqual([{ activityCode: "WIR.3.1.1", before: ["Footings"], after: "Footings and pads", definitions: 2 }]);
+    // cleared: the Arabic name is what remains; the weights and codes did not move
+    await manager().pmc.saveActivityEnglishName({ ...owner, activityCode: "WIR.3.1.1", nameEn: "" });
+    const [cleared] = await connection.query<{ nameEn: string | null; weightPercent: string; name: string }[]>("SELECT nameEn, weightPercent, name FROM pmc_activity_definitions WHERE tenantId = ? AND projectId = ? AND code = 'WIR.3.1.1'", [T, P_OWNER]);
+    expect(cleared.map(item => [item.nameEn, Number(item.weightPercent), item.name])).toEqual([[null, 25, "صب القواعد"], [null, 25, "صب القواعد"]]);
+  });
+
+  it("Q-49 NEGATIVE: an unknown code is NOT_FOUND (no silent 0 rows); a reader and the other company's project are refused; nothing changes", async () => {
+    const owner = { tenantId: T, projectId: P_OWNER };
+    await expect(manager().pmc.saveActivityEnglishName({ ...owner, activityCode: "NO-SUCH", nameEn: "x" })).rejects.toThrow("PROJECT_OS_PMC_ACTIVITY_NOT_FOUND");
+    await expect(callerFor(users.reader, "q3w-reader").pmc.saveActivityEnglishName({ ...owner, activityCode: "WIR.3.1.2", nameEn: "x" })).rejects.toThrow();
+    await expect(manager().pmc.saveActivityEnglishName({ tenantId: T_OTHER, projectId: P_OTHER, activityCode: "WIR.3.1.2", nameEn: "x" })).rejects.toThrow();
+    const [rows] = await connection.query<{ nameEn: string | null }[]>("SELECT nameEn FROM pmc_activity_definitions WHERE tenantId = ? AND code = 'WIR.3.1.2'", [T]);
+    expect(rows.map(item => item.nameEn)).toEqual(["Columns", "Columns"]);
+  });
+
   it("isolation: the manager of this company cannot import into another company's project, and a reader cannot import at all", async () => {
     await expect(manager().pmc.analyzeImport({ tenantId: T_OTHER, projectId: P_OTHER, kind: "weights", format: "xlsx", base64: await weights(fullTable) })).rejects.toThrow();
     await expect(callerFor(users.reader, "q3w-reader").pmc.analyzeImport({ ...scope, kind: "weights", format: "xlsx", base64: await weights(fullTable) })).rejects.toThrow();
