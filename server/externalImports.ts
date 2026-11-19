@@ -51,19 +51,19 @@ export async function authorizeExternalImport(input: ExternalScope & { moduleCod
 }
 
 /** Reads and checks the file; writes nothing. */
-/** `mappingOverride`: a person's choice of columns (Q-31, PMC files only; the other modules have fixed columns). */
+/** `mappingOverride`: a person's choice of columns (Q-31: PMC files and the four operational ledgers; the master-plan and equipment files keep fixed columns). */
 export async function analyzeExternalImport(input: ExternalScope & { moduleCode: ExternalModule; format: ExternalFormat; bytes: Buffer; mappingOverride?: Record<string, string> }): Promise<ExternalAnalysis> {
   if (isLedgerModule(input.moduleCode)) {
     const db = await getDb();
     if (!db) throw new Error("Database connection is not available");
-    const plan = await planLedgerImport(db, input, input.moduleCode, input.format, input.bytes);
+    const plan = await planLedgerImport(db, input, input.moduleCode, input.format, input.bytes, input.mappingOverride);
     if (plan.readsEmployeeRecords) await auditEmployeeRecordsRead(db, input, input.moduleCode, "analysis", plan.totalRows);
     // a conflict (a posted cost edited in the sheet, an order that left draft, a row changed since the export) blocks the file exactly as a validation error does
     const conflicts = plan.entries.filter(item => item.kind === "conflict").map(item => ({ rowNumber: item.rowNumber, code: item.conflict ?? "IMPORT_CONFLICT" }));
     const errors = [...plan.errors, ...conflicts];
     const badRows = new Set(errors.map(error => error.rowNumber).filter(row => row > 0)).size;
     const count = (kind: string) => plan.entries.filter(item => item.kind === kind).length;
-    return { totalRows: plan.totalRows, validRows: Math.max(0, plan.totalRows - badRows), errors, report: { ledger: { new: count("new"), modified: count("modified"), unchanged: count("unchanged"), conflict: conflicts.length, rejected: plan.errors.length, missing: plan.missing.length, hash: ledgerPlanHash(plan) } }, canConfirm: plan.apply !== null };
+    return { totalRows: plan.totalRows, validRows: Math.max(0, plan.totalRows - badRows), errors, report: { ledger: { new: count("new"), modified: count("modified"), unchanged: count("unchanged"), conflict: conflicts.length, rejected: plan.errors.length, missing: plan.missing.length, hash: ledgerPlanHash(plan), columns: plan.columns } }, canConfirm: plan.apply !== null };
   }
   if (input.moduleCode === "equipment") {
     const db = await getDb();
@@ -90,7 +90,7 @@ export async function applyExternalImport(input: ExternalScope & { moduleCode: E
     const db = await getDb();
     if (!db) throw new Error("Database connection is not available");
     // the plan is made again against the project as it is NOW: a conflict or a rejection since the preview stops the import, and so does any difference from what the person approved
-    const plan = await planLedgerImport(db, input, input.moduleCode, input.format, input.bytes);
+    const plan = await planLedgerImport(db, input, input.moduleCode, input.format, input.bytes, input.mappingOverride);
     if (plan.errors.length || plan.entries.some(item => item.kind === "conflict")) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_VERSION_CONFLICT" });
     if (input.approvedDiffHash && input.approvedDiffHash !== ledgerPlanHash(plan)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DIFF_CHANGED" });
     if (!plan.apply) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOTHING_TO_CONFIRM" });
