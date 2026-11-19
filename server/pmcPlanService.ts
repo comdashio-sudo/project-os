@@ -7,7 +7,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { auditLogs, pmcSitePlans, pmcUnits, projects } from "../drizzle/schema";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb } from "./db";
 import { imageSize, parseGeoJsonUnits } from "./domain/pmcGeometry";
-import { siteMap, unitCard } from "./domain/pmcScreens";
+import { siteMap, unitCard, withActivityNames, datasetHasEnglishNames } from "./domain/pmcScreens";
 import { authorizePmcRead, loadPmcDataset } from "./pmcScreensService";
 import { takeDirectUpload } from "./directUploadKeys";
 import { storageGetSignedUrl, storagePut } from "./storage";
@@ -69,10 +69,11 @@ export async function savePmcUnitGeometries(input: Scope & { geojson: string }) 
 }
 
 /** The plan (with a short-lived link to the image) and every unit with its polygon and colour source. */
-export async function getPmcSiteMap(input: Scope & { activityCode?: string; now?: Date }) {
+export async function getPmcSiteMap(input: Scope & { activityCode?: string; now?: Date; names?: "ar" | "en"; language?: "ar" | "en" | "ur" }) {
   const db = await authorizePmcRead(input);
   const [plan] = await db.select().from(pmcSitePlans).where(and(eq(pmcSitePlans.tenantId, input.tenantId), eq(pmcSitePlans.projectId, input.projectId))).orderBy(desc(pmcSitePlans.createdAt)).limit(1);
-  const dataset = await loadPmcDataset(db, input, input.now ?? new Date());
+  // Q-49: the activity names in the chosen language (display only)
+  const dataset = withActivityNames(await loadPmcDataset(db, input, input.now ?? new Date()), input.names, input.language);
   const [project] = await db.select({ currency: projects.currency }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1);
   return {
     currency: project?.currency ?? "SAR",
@@ -80,12 +81,13 @@ export async function getPmcSiteMap(input: Scope & { activityCode?: string; now?
     activities: Array.from(new Map(dataset.definitions.map(d => [d.code, { code: d.code, name: d.name }])).values()).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })),
     units: siteMap(dataset, input.activityCode),
     withoutPolygon: dataset.units.filter(unit => !unit.geometry).length,
+    hasEnglishNames: datasetHasEnglishNames(dataset),
   };
 }
 
-export async function getPmcUnitCard(input: Scope & { unitNumber: number; now?: Date }) {
+export async function getPmcUnitCard(input: Scope & { unitNumber: number; now?: Date; names?: "ar" | "en"; language?: "ar" | "en" | "ur" }) {
   const db = await authorizePmcRead(input);
-  const dataset = await loadPmcDataset(db, input, input.now ?? new Date());
+  const dataset = withActivityNames(await loadPmcDataset(db, input, input.now ?? new Date()), input.names, input.language);
   const card = unitCard(dataset, input.unitNumber);
   if (!card) throw refuse("NOT_FOUND", "PROJECT_OS_PMC_UNIT_NOT_FOUND");
   return card;

@@ -251,7 +251,7 @@ describe("ProjectControls section resilience", () => {
     state.performanceEmpty = false;
     state.performanceRefused = true;
     render(<ProjectControls />);
-    const refused = screen.getAllByLabelText("Project performance data").find(node => node.getAttribute("class")?.includes("bg-red-50")) as HTMLElement;
+    const refused = screen.getAllByLabelText("Project performance data").find(node => node.getAttribute("class")?.includes("bg-danger-soft")) as HTMLElement;
     expect(refused).toBeTruthy();
     expect(refused.textContent).not.toContain("No performance snapshot yet");
     expect(refused.textContent).not.toContain("recorded yet");

@@ -140,7 +140,7 @@ export default function ProjectQuality() {
   const back = `/m/${tenantId}/${projectId}`;
   const loadError = options.error ?? inspections.error ?? ncrList.error;
   if (options.isLoading || inspections.isLoading || ncrList.isLoading) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
-  if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void inspections.refetch(); void ncrList.refetch(); }}>{t.retry}</Button></FieldShell>;
+  if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void inspections.refetch(); void ncrList.refetch(); }}>{t.retry}</Button></FieldShell>;
 
   const tabButton = (value: typeof tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-primary text-white" : "border bg-white text-foreground"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
   const draft = rules ?? (policy ? { qcCompletionMode: policy.qcCompletionMode as Mode, materialApprovalMode: policy.materialApprovalMode as Mode, ncrAcceptanceMode: policy.ncrAcceptanceMode as Mode, codes: policy.qcAcceptedCodes } : null);
@@ -149,9 +149,9 @@ export default function ProjectQuality() {
   return (
     <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}>
       <div role="tablist" className="flex flex-wrap gap-2">{tabButton("inspections", t.tabInspections)}{tabButton("ncrs", `${t.tabNcrs} (${ncrs.filter(item => item.status !== "closed" && item.status !== "cancelled").length} ${t.openCount})`)}{tabButton("rules", t.tabRules)}</div>
-      {message && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}
-      {warning && <p role="note" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{warning}</p>}
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
+      {message && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{message}</p>}
+      {warning && <p role="note" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{warning}</p>}
+      {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
 
       {tab === "inspections" && (
         <section aria-label={t.tabInspections} className="space-y-3">
@@ -162,8 +162,8 @@ export default function ProjectQuality() {
                 <label className="block text-sm font-medium">{t.requestCode}<input className={`${fieldInput} mt-1`} value={form.code} onChange={event => setForm({ ...form, code: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.unitNumbers}<input className={`${fieldInput} mt-1`} inputMode="numeric" value={form.units} onChange={event => setForm({ ...form, units: event.target.value, activityId: "" })} /></label>
                 {typed.length === 0 && <p className="text-sm text-muted-foreground sm:col-span-2">{t.needUnits}</p>}
-                {unitsUnknown && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsUnknown}</p>}
-                {unitsMixed && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsMixed}</p>}
+                {unitsUnknown && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{t.unitsUnknown}</p>}
+                {unitsMixed && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{t.unitsMixed}</p>}
                 <label className="block text-sm font-medium sm:col-span-2">{t.activity}<Select className="mt-1" value={form.activityId} placeholder={t.pickActivity} disabled={activityChoices.length === 0} onValueChange={value => setForm({ ...form, activityId: value })} options={activityChoices.map(activity => ({ value: activity.id, label: `${activity.code} — ${activity.name}` }))} /></label>
                 <label className="block text-sm font-medium">{t.consultant}<input className={`${fieldInput} mt-1`} value={form.consultant} onChange={event => setForm({ ...form, consultant: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.contractor}<input className={`${fieldInput} mt-1`} value={form.contractor} onChange={event => setForm({ ...form, contractor: event.target.value })} /></label>
@@ -185,11 +185,11 @@ export default function ProjectQuality() {
                       <p className="text-sm">{t.unit}: <bdi dir="ltr">{request.unitIds.map(id => unitById.get(id)?.number ?? "?").join(", ")}</bdi> · <bdi dir="ltr">{activityById.get(request.activityDefinitionId)?.code ?? "?"}</bdi></p>
                       <p className="text-xs text-muted-foreground">{t.consultant}: <bdi>{request.consultantLabel ?? t.none}</bdi> · {t.contractor}: <bdi>{request.contractorLabel ?? t.none}</bdi> · {showDate(request.requestedAt, language)}</p></div>
                     <div className="text-end text-sm">
-                      {request.responseCode ? <p className="font-semibold">{t.answer}: {request.responseCode} · <span className={accepted ? "text-emerald-700" : "text-red-700"}>{accepted ? t.acceptedBadge : t.notAcceptedBadge}</span></p> : <p className="text-muted-foreground">{t.age}: {dayAge(request.requestedAt)} {t.days}</p>}
+                      {request.responseCode ? <p className="font-semibold">{t.answer}: {request.responseCode} · <span className={accepted ? "text-success-soft-foreground" : "text-danger-soft-foreground"}>{accepted ? t.acceptedBadge : t.notAcceptedBadge}</span></p> : <p className="text-muted-foreground">{t.age}: {dayAge(request.requestedAt)} {t.days}</p>}
                       {current && <p className="text-xs text-muted-foreground">{t.step}: {stepName(current.stepCode)} ({request.steps.findIndex(step => step.id === current.id) + 1}/{STEPS.length})</p>}
                     </div>
                   </div>
-                  {heldByNcr(request) && <p role="note" className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{t.holdNote}</p>}
+                  {heldByNcr(request) && <p role="note" className="rounded-lg bg-warning-soft p-2 text-sm text-warning-soft-foreground">{t.holdNote}</p>}
                   <WriteGate permission="project.pmc.update" projectId={projectId}>
                     {current && !atResult && <div className="flex flex-wrap gap-2">
                       <Button variant="outline" className={tap} disabled={advance.isPending} onClick={() => advance.mutate({ ...scope, inspectionRequestId: request.id, stepCode: current.stepCode as (typeof STEPS)[number], outcome: "complete" })}>{t.advance}</Button>
@@ -215,7 +215,7 @@ export default function ProjectQuality() {
                 <label className="block text-sm font-medium sm:col-span-2">{t.ncrDescription}<textarea className="mt-1 min-h-[72px] w-full rounded-xl border bg-white p-3 text-base" value={ncr.description} onChange={event => setNcr({ ...ncr, description: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.ncrUnit}<input className={`${fieldInput} mt-1`} inputMode="numeric" value={ncr.unit} onChange={event => setNcr({ ...ncr, unit: event.target.value, activityId: "" })} /></label>
                 <label className="block text-sm font-medium">{t.ncrActivity}<Select className="mt-1" value={ncr.activityId || NONE} disabled={ncrChoices.length === 0} onValueChange={value => setNcr({ ...ncr, activityId: value === NONE ? "" : value })} options={[{ value: NONE, label: t.none }, ...ncrChoices.map(activity => ({ value: activity.id, label: `${activity.code} — ${activity.name}` }))]} /></label>
-                {ncr.unit.trim() && !ncrUnit && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsUnknown}</p>}
+                {ncr.unit.trim() && !ncrUnit && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{t.unitsUnknown}</p>}
               </div>
               <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreateNcr || createNcr.isPending} onClick={() => { setMessage(null); createNcr.mutate({ ...scope, ncrNumber: ncr.number.trim(), title: ncr.title.trim(), description: ncr.description.trim(), dueAt: ncr.due ? new Date(`${ncr.due}T12:00:00Z`) : undefined, pmcUnitId: ncrUnit?.id, pmcActivityDefinitionId: ncr.activityId || undefined }); }}>{t.createNcr}</Button>
             </details>
@@ -242,7 +242,7 @@ export default function ProjectQuality() {
 
       {tab === "rules" && (
         <section aria-label={t.tabRules} className="space-y-3">
-          {policyQuery.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(policyQuery.error, isArabic)}</p>}
+          {policyQuery.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(policyQuery.error, isArabic)}</p>}
           {!isManager && <p role="note" className="rounded-xl bg-muted p-3 text-sm text-foreground">{t.rulesManager}</p>}
           {draft && (
             <div className="space-y-3 rounded-xl border bg-white p-3">
