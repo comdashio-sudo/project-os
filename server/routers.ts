@@ -85,6 +85,7 @@ import { createCompanyLogoUpload, getCompanyProfile, updateCompanyProfile } from
 import { listPmcQcHistory, pmcQcCounters, pmcVillaStates, updatePmcQcReceipts, pmcQcMap } from "./pmcQcReceipts";
 import { getStalledUnits, setStallThreshold } from "./stalledUnits";
 import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
+import { undoPmcProgressBatch, undoPmcQcReceiptBatch } from "./pmcUndo";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
 
@@ -216,6 +217,8 @@ export const appRouter = router({
     stalledUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getStalledUnits({ userId: ctx.user.id, ...input })),
     setStallThreshold: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), thresholdDays: z.number().int().min(1, { message: "PROJECT_OS_STALL_THRESHOLD_INVALID" }).max(60, { message: "PROJECT_OS_STALL_THRESHOLD_INVALID" }) })).mutation(({ ctx, input }) => setStallThreshold({ userId: ctx.user.id, ...input })),
     // Q-5: the QC engineer's receipts (server/pmcQcReceipts.ts): one atomic batch, the counters per activity, the history, a villa's two states
+    undoProgressBatch: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), batchId: z.string().uuid() })).mutation(({ ctx, input }) => undoPmcProgressBatch({ userId: ctx.user.id, ...input })),
+    undoQcReceiptBatch: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), batchId: z.string().uuid() })).mutation(({ ctx, input }) => undoPmcQcReceiptBatch({ userId: ctx.user.id, ...input })),
     updateQcReceipts: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), received: z.boolean(), date: z.string().trim().max(10) })).mutation(({ ctx, input }) => updatePmcQcReceipts({ userId: ctx.user.id, ...input })),
     qcCounters: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => pmcQcCounters({ userId: ctx.user.id, ...input })),
     qcHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcQcHistory({ userId: ctx.user.id, ...input })),

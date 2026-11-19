@@ -109,6 +109,6 @@ REVOKE ALL ON FUNCTION project_os_append_only_refuse() FROM PUBLIC;
 --> statement-breakpoint
 -- refuse to finish without what the rules stand on: the same-company change key and the three refusing triggers, each set to fire always
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'strategy_assumption_changes_assumption_fk' AND contype = 'f' AND array_length(conkey, 1) = 2) THEN RAISE EXCEPTION '0036: the same-company change key is missing'; END IF;
-  IF (SELECT COUNT(*) FROM pg_trigger WHERE tgrelid = 'strategy_assumption_changes'::regclass AND tgname LIKE 'strategy_assumption_changes_refuse_%' AND tgenabled = 'A') <> 3 THEN RAISE EXCEPTION '0036: the append-only triggers are missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'strategy_assumption_changes_assumption_fk' AND contype = 'f' AND array_length(conkey, 1) = 2) THEN RAISE EXCEPTION '0037: the same-company change key is missing'; END IF;
+  IF (SELECT COUNT(*) FROM pg_trigger WHERE tgrelid = 'strategy_assumption_changes'::regclass AND tgname LIKE 'strategy_assumption_changes_refuse_%' AND tgenabled = 'A') <> 3 THEN RAISE EXCEPTION '0037: the append-only triggers are missing'; END IF;
 END $$;
