@@ -63,7 +63,7 @@ export const operationalRoleProfiles = {
     en: { purpose: "Manage workforce and sensitive payroll", focus: "Employees, attendance, KPIs, and payroll structure", boundary: "Cannot also be accountant in the same scope" }, ur: { purpose: "افرادی قوت اور حساس تنخواہ کا انتظام کریں", focus: "ملازمین، حاضری، KPIs اور تنخواہ کا ڈھانچہ", boundary: "اسی دائرے میں اکاؤنٹنٹ نہیں ہو سکتا" },
   },
   EXECUTIVE: {
-    ar: { purpose: "رؤية المحفظة واتخاذ القرار", focus: "لوحة القيادة التنفيذية", boundary: "للاطلاع فقط؛ لا يكتب في أي مشروع" },
+    ar: { purpose: "رؤية المحفظة واتخاذ القرار", focus: "لوحة الإدارة التنفيذية", boundary: "للاطلاع فقط؛ لا يكتب في أي مشروع" },
     en: { purpose: "See the portfolio and decide", focus: "The executive dashboard", boundary: "Read-only; writes to no project" }, ur: { purpose: "پورٹ فولیو دیکھیں اور فیصلہ کریں", focus: "ایگزیکٹو ڈیش بورڈ", boundary: "صرف پڑھنے کے لیے؛ کسی پروجیکٹ میں نہیں لکھتا" },
   },
   PMO_LEAD: {
