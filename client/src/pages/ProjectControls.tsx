@@ -1,6 +1,7 @@
 import { indicatorBasisLine } from "@/lib/indicatorBasis";
 import { PAGE_NAMES } from "@shared/pageNames";
 import { PageHeader, PageMain } from "@/components/pageFrame";
+import { ProjectHero } from "@/components/project/ProjectHero";
 import { MetricCard, formatDate, formatNumber } from "@/components/ds";
 import { UPLOAD_ANY_FILE_FALLBACK_GROUP, uploadAnyFileHref } from "@/lib/uploadAnyFile";
 import { Badge } from "@/components/ui/badge";
@@ -241,8 +242,8 @@ export default function ProjectControls() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1 basis-64">
               <p dir="ltr" className="text-start text-xs font-semibold text-muted-foreground">{data.project.code}</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl"><bdi>{data.project.name}</bdi></h1>
-              <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{t.subtitle}</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-[34px] md:leading-tight"><bdi>{data.project.name}</bdi></h1>
+              <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{t.subtitle}</p><p className="mt-3 inline-flex min-h-11 items-center rounded-[var(--radius)] border border-border bg-background px-3 text-sm" data-testid="board-today">{formatDate(new Date(), language)}</p>
             </div>
             {/* the smart-import screen (Agent 1); until it has a route, the page's own data-imports group (client/src/lib/uploadAnyFile.ts) */}
             {upload ? <button type="button" onClick={upload} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"><FileUp className="h-4 w-4" aria-hidden="true" />{pickLanguage(language, { ar: "ارفع أي ملف", en: "Upload any file", ur: "کوئی بھی فائل اپ لوڈ کریں" })}</button> : null}
@@ -260,6 +261,8 @@ export default function ProjectControls() {
           </nav>
           </PageHeader>
         </section>
+        {/* Q-19 (3): the weighted progress against the plan, on the dark hero card (the site's PMC weights; readers of PMC only) */}
+        {canOpenPmc ? <ProjectHero tenantId={tenantId} projectId={projectId} /> : null}
         {scheduleQuery.data && financialsQuery.data ? <ProjectStart counts={{ activities: data.activities.length, budgets: data.budgets.length, progress: data.progress.length }} onUpload={upload} onManual={canWriteSchedule || canWriteRecords ? () => goToOverviewLane("manager-schedule", true) : undefined} /> : null}
 
         <div id="controls-panel-overview" className="flex flex-col gap-5 [&>*]:min-w-0">

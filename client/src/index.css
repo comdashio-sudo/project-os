@@ -170,6 +170,9 @@
   --color-info-soft-foreground: var(--info-soft-foreground);
   --color-hero: var(--hero);
   --color-hero-foreground: var(--hero-foreground);
+  --color-hero-muted: var(--hero-muted);
+  --color-hero-track: var(--hero-track);
+  --color-hero-behind: var(--hero-behind);
 }
 
 :root {
@@ -217,6 +220,8 @@
   --danger-soft: #fde4e5; --danger-soft-foreground: #8f1b22;
   --info: #1c5fd1; --info-foreground: #ffffff; --info-soft: #e1ecfd; --info-soft-foreground: #174a9e;
   --hero: #0c1023; --hero-foreground: #f2f4fb;
+  /* Q-19 (3): the hero card's secondary text, its progress track and the behind-plan figure (all ≥ 4.5:1 on --hero except the track, which is decor) */
+  --hero-muted: #AEB3D1; --hero-track: #232A55; --hero-behind: #FCD34D;
 }
 
 .dark {
