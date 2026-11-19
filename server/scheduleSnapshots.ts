@@ -42,7 +42,9 @@ export async function captureScheduleSnapshot(tx: Writer, input: { tenantId: str
   return { snapshotId: id, isBaseline: !baseline, dataDate, dataDateFromFile: Boolean(input.dataDate) };
 }
 
-const days = (later: Date | null, earlier: Date | null) => (later && earlier ? Math.round((later.getTime() - earlier.getTime()) / DAY) : null);
+// calendar days (UTC dates), not elapsed hours: P6 plans a finish at 17:00 and an update file gives the date alone — two days late reads 2, not 1.3 → 1
+const dayOf = (date: Date) => Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+const days = (later: Date | null, earlier: Date | null) => (later && earlier ? Math.round((dayOf(later) - dayOf(earlier)) / DAY) : null);
 const num = (value: string | number | null) => (value === null || value === undefined ? null : Number(value));
 
 export type LiveActivity = {

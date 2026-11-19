@@ -87,7 +87,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-23: schedule snapshots
     const row = (activity: string) => live.rows.find(item => item.code === activity)!;
     expect([row("A1000").startVarianceDays, row("A1000").finishVarianceDays, row("A1010").startVarianceDays, row("A1020").startVarianceDays, row("A1100").startVarianceDays]).toEqual([1, 2, 1, 1, 0]);
     const [baseline1490] = await one<{ plannedFinishAt: Date }>("SELECT s.plannedFinishAt FROM schedule_snapshot_activities s INNER JOIN schedule_snapshots h ON h.id = s.snapshotId AND h.isBaseline = true WHERE s.tenantId = ? AND s.projectId = ? AND s.code = 'A1490'", [T, P]);
-    expect(row("A1490").finishVarianceDays).toBe(Math.round((at + 30 * DAY - new Date(baseline1490.plannedFinishAt).getTime()) / DAY));
+    const utcDay = (ms: number) => { const d = new Date(ms); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+    expect(row("A1490").finishVarianceDays).toBe((utcDay(at + 30 * DAY) - utcDay(new Date(baseline1490.plannedFinishAt).getTime())) / DAY);
     expect(live.summary).toEqual({
       activities: 50,
       critical: await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ? AND status <> 'completed' AND totalFloatHours <= 0", [T, P]),
@@ -95,7 +96,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-23: schedule snapshots
       started: 5,
       plannedToFinish: await n("SELECT COUNT(*) AS n FROM schedule_snapshot_activities s INNER JOIN schedule_snapshots h ON h.id = s.snapshotId AND h.isBaseline = true WHERE s.tenantId = ? AND s.projectId = ? AND s.plannedFinishAt <= ?", [T, P, new Date(at)]),
       finished: 2,
-      lateFinishing: await n("SELECT COUNT(*) AS n FROM activities a INNER JOIN schedule_snapshot_activities s ON s.activityId = a.id INNER JOIN schedule_snapshots h ON h.id = s.snapshotId AND h.isBaseline = true WHERE a.tenantId = ? AND a.projectId = ? AND COALESCE(a.actualFinishAt, a.plannedFinishAt) > s.plannedFinishAt + INTERVAL '12 hours'", [T, P]),
+      lateFinishing: await n("SELECT COUNT(*) AS n FROM activities a INNER JOIN schedule_snapshot_activities s ON s.activityId = a.id INNER JOIN schedule_snapshots h ON h.id = s.snapshotId AND h.isBaseline = true WHERE a.tenantId = ? AND a.projectId = ? AND (COALESCE(a.actualFinishAt, a.plannedFinishAt) AT TIME ZONE 'UTC')::date > (s.plannedFinishAt AT TIME ZONE 'UTC')::date", [T, P]),
       lookAhead: 1,
     });
     expect(live.summary.critical).toBeGreaterThan(0);
