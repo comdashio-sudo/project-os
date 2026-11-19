@@ -1,4 +1,5 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
+import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation } from "./workConfirmations";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
@@ -820,6 +821,19 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMaterialCatalogForTenant({ userId: ctx.user.id, ...input })),
     createMaster: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(1).max(120), description: z.string().trim().min(2).max(255), unitOfMeasure: z.string().trim().min(1).max(40), category: z.string().trim().min(2).max(120), referenceSpecification: z.string().trim().max(255).optional() })).mutation(({ ctx, input }) => createMaterialMasterForTenant({ userId: ctx.user.id, ...input })),
     saveProjectOverride: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), materialId: z.string().uuid(), projectDescription: z.string().trim().max(255).optional(), referenceSpecification: z.string().trim().max(255).optional(), reorderLevel: z.number().finite().positive().nullable().optional(), active: z.boolean() })).mutation(({ ctx, input }) => saveProjectMaterialOverrideForTenant({ userId: ctx.user.id, ...input, reorderLevel: input.reorderLevel ?? undefined })),
+  }),
+  // Q-43 (P2-06): proof of a subcontractor's work without prices (server/workConfirmations.ts).
+  workConfirmations: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid().optional() })).query(({ ctx, input }) => listWorkConfirmations({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({
+      tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid(), confirmationNumber: z.string().trim().min(1).max(60),
+      periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().trim().max(500).nullish(),
+      lines: z.array(z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("unit"), pmcUnitId: z.string().uuid(), pmcActivityDefinitionId: z.string().uuid(), percent: z.number().finite(), note: z.string().trim().max(300).nullish() }),
+        z.object({ kind: z.literal("quantity"), boqItemId: z.string().uuid(), quantity: z.number().finite(), note: z.string().trim().max(300).nullish() }),
+      ])).min(1).max(500),
+    })).mutation(({ ctx, input }) => createWorkConfirmation({ userId: ctx.user.id, ...input })),
+    transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), confirmationId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "cancelled"]), reason: z.string().trim().max(500).nullish() })).mutation(({ ctx, input }) => transitionWorkConfirmation({ userId: ctx.user.id, ...input })),
   }),
   // G-104 (D-32 part 2): the stocktake document — open, count, approve (server/stocktakes.ts).
   stocktakes: router({
