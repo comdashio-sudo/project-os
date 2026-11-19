@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DAILY_REPORT_READERS, PAGE_ACCESS, SITE_HUB_PAGES, SITE_HUB_READERS, pageAllowed } from "../../shared/pageAccess";
+import { DAILY_REPORT_READERS, PAGE_ACCESS, REPORTS_HUB_PAGES, REPORTS_HUB_READERS, SITE_HUB_PAGES, SITE_HUB_READERS, pageAllowed } from "../../shared/pageAccess";
 import { READ_PERMISSIONS } from "../siteReports";
 
 // Q-36 (step 2 b): the side menu's «الموقع والتنفيذ» item, the entry page's gate and each card's gate read one table, so the entry is shown exactly to whoever
@@ -21,3 +21,16 @@ describe("Q-36 (2 b): the site entry's readers", () => {
     expect(SITE_HUB_READERS).not.toContain("project.inventory.manage");
   });
 });
+
+describe("Q-36 (2 c): the reports entry's readers", () => {
+  it("each report page has a single «any of» group — the weekly and monthly ones the daily report's own readers — and the entry's readers are their union", () => {
+    for (const page of REPORTS_HUB_PAGES) expect(PAGE_ACCESS[page]).toHaveLength(1);
+    expect(PAGE_ACCESS.weeklyReport).toEqual([DAILY_REPORT_READERS]);
+    expect(PAGE_ACCESS.monthlyReport).toEqual([DAILY_REPORT_READERS]);
+    expect([...REPORTS_HUB_READERS].sort()).toEqual(Array.from(new Set(REPORTS_HUB_PAGES.flatMap(page => [...PAGE_ACCESS[page][0]]))).sort());
+  });
+  it("NEGATIVE: the warehouse keeper's code opens no report", () => {
+    expect(REPORTS_HUB_PAGES.filter(page => pageAllowed(page, group => group.includes("project.inventory.manage")))).toEqual([]);
+  });
+});
+

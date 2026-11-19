@@ -7,13 +7,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const D = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const P = "pppppppp-pppp-4ppp-8ppp-pppppppppppp";
-const h = vi.hoisted(() => ({ complete: vi.fn(), transition: vi.fn(), data: undefined as unknown }));
+const h = vi.hoisted(() => ({ complete: vi.fn(), transition: vi.fn(), data: undefined as unknown, deadlines: { projects: [], counts: { activities: 0, actions: 0, rfis: 0, submittals: 0, total: 0 } } as unknown }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "t" }), Link: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/components/ProductShell", () => ({ ProductShell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized error" }));
 vi.mock("@/lib/trpc", () => ({ trpc: { executive: {
   myWork: { useQuery: () => ({ data: h.data, isLoading: false, error: null, refetch: vi.fn() }) },
+  myDeadlines: { useQuery: () => ({ data: h.deadlines, isLoading: false, error: null, refetch: vi.fn() }) },
   completeMyAction: { useMutation: () => ({ mutate: h.complete, isPending: false, error: null }) },
   transitionDecision: { useMutation: () => ({ mutate: h.transition, isPending: false, error: null }) },
 } } }));
@@ -50,5 +51,20 @@ describe("Q-45 (c): «مهامي»", () => {
     cleanup(); h.data = { actions: [], decisions: [] }; render(<MyWork />);
     expect(screen.getByText(/No open action is assigned to you/)).toBeTruthy();
     expect(screen.getByText(/No decision waits on a step from you/)).toBeTruthy();
+  });
+
+  it("Q-26: «Past its due date» lists, per project, only the groups the server returned, with the days late; nothing overdue says so", () => {
+    h.data = { actions: [], decisions: [] };
+    h.deadlines = { counts: { activities: 1, actions: 0, rfis: 1, submittals: 0, total: 2 }, projects: [{ projectId: P, code: "P-1", name: "One (synthetic)", activities: [{ id: "a1", code: "A100", name: "Pour slab", plannedFinishAt: new Date("2026-11-15T00:00:00Z"), daysLate: 4 }], actions: [], rfis: [{ id: "r1", number: "RFI-7", title: "Rebar detail", dueAt: new Date("2026-11-17T00:00:00Z"), daysLate: 2 }], submittals: [] }] };
+    render(<MyWork />);
+    const project = document.querySelector(`[data-deadline-project="${P}"]`)!;
+    expect(project.textContent).toContain("P-1 · One (synthetic)");
+    expect(project.querySelector('[data-deadline-group="activities"]')!.textContent).toContain("A100 Pour slab — 4 day(s) late");
+    expect(project.querySelector('[data-deadline-group="rfis"]')!.textContent).toContain("RFI-7 Rebar detail — 2 day(s) late");
+    expect(project.querySelector('[data-deadline-group="actions"]')).toBeNull();
+    cleanup();
+    h.deadlines = { projects: [], counts: { activities: 0, actions: 0, rfis: 0, submittals: 0, total: 0 } };
+    render(<MyWork />);
+    expect(screen.getByText("Nothing is past its due date in your projects.")).toBeTruthy();
   });
 });
