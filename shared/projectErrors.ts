@@ -1103,6 +1103,41 @@ export const projectErrorMessages = {
     en: "The count has no lines; add at least one material.",
     ur: "گنتی میں کوئی قطار نہیں ہے؛ کم از کم ایک مادّہ شامل کریں۔",
   },
+  PROJECT_OS_DECISION_OWNER_INVALID: {
+    ar: "مالك القرار يجب أن يكون عضوًا نشطًا في الشركة.",
+    en: "The decision owner must be an active member of the company.",
+    ur: "فیصلے کا مالک کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
+  PROJECT_OS_DECISION_NOT_FOUND: {
+    ar: "القرار غير موجود في هذا المشروع.",
+    en: "The decision is not on this project.",
+    ur: "یہ فیصلہ اس پروجیکٹ میں موجود نہیں۔",
+  },
+  PROJECT_OS_DECISION_TRANSITION_INVALID: {
+    ar: "لا تصح هذه الخطوة من حالة القرار الحالية (مسودة ← رفع ← اعتماد أو رفض ← تنفيذ، ولا رجوع).",
+    en: "This step is not allowed from the decision's current state (draft → submitted → approved or rejected → implemented, no going back).",
+    ur: "فیصلے کی موجودہ حالت سے یہ قدم درست نہیں (مسودہ ← پیش ← منظور یا مسترد ← نافذ، واپسی نہیں)۔",
+  },
+  PROJECT_OS_DECISION_OWNER_REQUIRED: {
+    ar: "حدّد مالك القرار قبل رفعه.",
+    en: "Name the decision owner before submitting it.",
+    ur: "پیش کرنے سے پہلے فیصلے کا مالک مقرر کریں۔",
+  },
+  PROJECT_OS_DECISION_OWNER_ONLY: {
+    ar: "لا يعتمد القرار أو يرفضه إلا مالكه.",
+    en: "Only the decision owner can approve or reject it.",
+    ur: "صرف فیصلے کا مالک اسے منظور یا مسترد کر سکتا ہے۔",
+  },
+  PROJECT_OS_DECISION_REASON_REQUIRED: {
+    ar: "سبب الرفض إلزامي.",
+    en: "A reason is required to reject.",
+    ur: "مسترد کرنے کی وجہ لازمی ہے۔",
+  },
+  PROJECT_OS_DECISION_TEXT_REQUIRED: {
+    ar: "اكتب نص القرار.",
+    en: "Write the decision's text.",
+    ur: "فیصلے کا متن لکھیں۔",
+  },
   PROJECT_OS_UNDO_BATCH_NOT_FOUND: {
     ar: "لا يوجد حفظ بهذا المعرّف في هذا المشروع يمكن التراجع عنه.",
     en: "There is no save with this id on this project to undo.",
