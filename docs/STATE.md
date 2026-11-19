@@ -3334,3 +3334,8 @@
 | `warehouses.stocktake` (تسوية فورية بيد شخص واحد، بلا شاشة) موقوف: بعد فحص الصلاحية يرفض بـ`PROJECT_OS_STOCKTAKE_QUICK_STOPPED` برسالة مترجمة توجّه إلى «الجرد بالاعتماد». لا حذف بيانات: الجرود والحركات المسجلة تبقى. سالب: المالك والأمين مرفوضان، ولا جرد ولا حركة تُكتب، والرصيد والتكلفة كما هما | `PROVEN` | `server/warehouseOps.ts`؛ `server/warehouse.operations.database.test.ts` |
 | قراءتان جديدتان بصلاحية `project.inventory.manage` على المشروع: `warehouses.returnableIssues` (سطور الصرف وما يمكن إرجاعه، **كميات فقط، بلا مال**) و`warehouses.transferTargets` (المشاريع الأخرى التي يملك عليها الشخص صلاحية المستودع، ومستودعاتها النشطة). أمين مشروع A: لا هدف تحويل، ومرفوض على B | `PROVEN` | المصدر نفسه |
 | الواجهة: قسم «إرجاع من الصرف» و«تحويل إلى مشروع آخر» في صفحة المستودع على الإجراءين القائمين، ثلاث لغات، ≥44px. يُخفى عمن لا يدير المستودع ولا يستدعي أي قراءة | `PROVEN` | `client/src/pages/WarehouseReturnTransfer.tsx`؛ `WarehouseReturnTransfer.test.tsx` (4) |
+
+### CI: وظائف Playwright على `ubuntu-24.04` (2026-11-19، المبرمج أ)
+- **العَرَض:** على `main` منذ تحوّل `ubuntu-latest` إلى صورة 26.04 (`ubuntu26/20261111.196`)، تفشل لقطات الواجهة باللغات الثلاث والرحلات الثلاث قبل أي اختبار. الرسالة: `ERROR: Playwright does not support chromium on ubuntu26.04-x64` (مثلًا تشغيل `main` على `2fb4dce`).
+- **ما عُدّل:** `runs-on: ubuntu-24.04` في الوظائف التي تثبّت Playwright وحدها: `ci.yml` (لقطات الواجهة، والرحلات) و`perf-weekly.yml`. لم يُمسّ أي إعداد في GitHub، والوظائف الأخرى باقية على `ubuntu-latest`.
+- **الحالة:** `WRITTEN` حتى يُشغَّل `main` بعد الدمج. يُرفع التثبيت حين يصدر Playwright دعم 26.04 — `OPEN`.
