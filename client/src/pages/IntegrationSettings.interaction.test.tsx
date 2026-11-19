@@ -18,7 +18,7 @@ vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<t
 vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
-vi.mock("@/lib/permissions", () => ({ useCan: () => h.manager, WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock("@/lib/permissions", () => ({ useCanPage: () => true, useCan: () => h.manager, WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localized error" }));
 vi.mock("@/lib/trpc", () => {
   const mutation = (name: string, result?: () => unknown) => ({ useMutation: (config: { onSuccess?: (r: unknown, v: unknown) => void }) => ({ mutate: (input: unknown) => { (h as never as Record<string, ReturnType<typeof vi.fn>>)[name](input); config.onSuccess?.(result ? result() : {}, input); }, isPending: false, variables: undefined, error: h.error }) });

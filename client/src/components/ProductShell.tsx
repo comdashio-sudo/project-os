@@ -105,7 +105,7 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
     <>
       <SourceNotice query={navigation} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.navigation)} />
       <SourceNotice query={tenants} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.companies)} />
-      <SourceNotice query={projects} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.projects)} />
+      {canReadProjects && <SourceNotice query={projects} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.projects)} />}
     </>
   );
   const crumbs: Crumb[] = [{ label: pickLanguage(language, WORKSPACE), href: "/" }];

@@ -22,7 +22,7 @@ vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, chi
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
 vi.mock("@/components/ExportExcelButton", () => ({ ExportExcelButton: ({ rows: exported }: { rows: unknown[] }) => <button type="button">export {exported.length}</button> }));
-vi.mock("@/lib/permissions", () => ({ WriteGate: ({ permission, children, reason }: { permission: string[]; children: React.ReactNode; reason?: { en: string } }) => ((permission.includes("project.design.approve") ? h.canReply : h.canWrite) ? <>{children}</> : reason ? <p>{reason.en}</p> : null) }));
+vi.mock("@/lib/permissions", () => ({ useCanPage: () => true, WriteGate: ({ permission, children, reason }: { permission: string[]; children: React.ReactNode; reason?: { en: string } }) => ((permission.includes("project.design.approve") ? h.canReply : h.canWrite) ? <>{children}</> : reason ? <p>{reason.en}</p> : null) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localized error" }));
 vi.mock("@/lib/trpc", () => {
   const mutation = (name: "create" | "send" | "reply" | "close") => ({ useMutation: (config: { onSuccess?: () => void }) => ({ mutate: (input: unknown) => { h[name](input); config.onSuccess?.(); }, isPending: false, error: h.error }) });
