@@ -19,7 +19,7 @@ export function UndoLastSave({ savedAt, onUndo, pending, error, undone }: { save
   });
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 15_000); return () => window.clearInterval(timer); }, []);
-  if (undone) return <p role="status" data-undo-done className="text-sm text-emerald-700">{t.undone}</p>;
+  if (undone) return <p role="status" data-undo-done className="text-sm text-success-soft-foreground">{t.undone}</p>;
   if (now - savedAt > UNDO_WINDOW_MS) return null;
   return (
     <div data-undo-last-save className="flex flex-col gap-2 rounded-md border p-3 text-sm">

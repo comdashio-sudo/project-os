@@ -21,12 +21,12 @@ class RouteErrorBoundary extends React.Component<Props, State> {
       ur: { title: "یہ صفحہ دکھائی نہیں جا سکی", body: "صفحہ دکھاتے وقت کچھ غلط ہو گیا۔ پلیٹ فارم کا باقی حصہ کام کر رہا ہے اور آپ کا کوئی ڈیٹا ضائع نہیں ہوا۔", retry: "دوبارہ کوشش کریں", home: "ورک اسپیس پر واپس جائیں" },
     });
     return (
-      <main role="alert" dir={(this.props.isRtl ?? this.props.isArabic) ? "rtl" : "ltr"} className="mx-auto mt-16 max-w-md rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900">
+      <main role="alert" dir={(this.props.isRtl ?? this.props.isArabic) ? "rtl" : "ltr"} className="mx-auto mt-16 max-w-md rounded-2xl border border-destructive/30 bg-danger-soft p-6 text-danger-soft-foreground">
         <h1 className="text-lg font-semibold">{t.title}</h1>
         <p className="mt-2 text-sm">{t.body}</p>
         <div className="mt-4 flex gap-3">
-          <button type="button" className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold" onClick={() => this.setState({ failed: false })}>{t.retry}</button>
-          <Link href="/" className="inline-flex min-h-[44px] items-center rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold">{t.home}</Link>
+          <button type="button" className="min-h-[44px] rounded-lg border border-destructive/30 bg-white px-4 text-sm font-semibold" onClick={() => this.setState({ failed: false })}>{t.retry}</button>
+          <Link href="/" className="inline-flex min-h-[44px] items-center rounded-lg border border-destructive/30 bg-white px-4 text-sm font-semibold">{t.home}</Link>
         </div>
       </main>
     );

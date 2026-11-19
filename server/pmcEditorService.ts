@@ -4,7 +4,9 @@
 // PMC permission and the PMC licence feature), every write in one transaction with its audit row. The import code is not used or changed here.
 import { TRPCError } from "@trpc/server";
 import { and, asc, between, eq, inArray } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcActivityStages, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones } from "../drizzle/schema";
+import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcActivityStages, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones, wbsItems } from "../drizzle/schema";
+import { buildSpreadsheet } from "./domain/excelWorkbook";
+import type { ExportLocale } from "@shared/exportLocale";
 import { validateActivityWeights } from "./domain/pmc";
 import { isUniqueViolation } from "./_core/database";
 import { syncPmcProgressToEvm } from "./pmcEvmBridge";
@@ -95,6 +97,29 @@ export async function savePmcActivityEnglishName(input: Scope & { activityCode: 
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.activity_english_name_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ activityCode: input.activityCode, before: Array.from(new Set(definitions.map(definition => definition.nameEn ?? null))), after: nameEn, definitions: changed.length }) });
     return { activityCode: input.activityCode, nameEn, saved: changed.length };
   });
+}
+
+/**
+ * Q-49: the catalogue as a file that imports back — the catalogue template's own columns, each name beside its English one. Importing it again changes
+ * nothing; an English name typed into it is an update, never a duplicate activity (planCatalog). The headers are the importer's own words: Arabic for
+ * Arabic and Urdu, English for English. Read permission only: it is the project's own catalogue.
+ */
+const CATALOG_HEADERS = {
+  ar: ["النموذج", "رمز المجموعة", "اسم المجموعة", "اسم المجموعة بالإنجليزية", "رمز المرحلة", "اسم المرحلة", "اسم المرحلة بالإنجليزية", "رمز النشاط", "اسم النشاط", "اسم النشاط بالإنجليزية", "الوزن", "رمز WBS"],
+  en: ["Model", "Group code", "Group name", "Group name (EN)", "Stage code", "Stage name", "Stage name (EN)", "Activity code", "Activity name", "Activity name (EN)", "Weight", "WBS code"],
+} as const;
+export async function exportPmcCatalog(input: Scope & { locale: ExportLocale }) {
+  const db = await authorize(input, "project.pmc.read");
+  const rows = await db.select({ modelCode: pmcActivityDefinitions.modelCode, groupCode: pmcActivityGroups.code, groupName: pmcActivityGroups.name, groupNameEn: pmcActivityGroups.nameEn, stageCode: pmcActivityStages.code, stageName: pmcActivityStages.name, stageNameEn: pmcActivityStages.nameEn, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent, wbsCode: wbsItems.code })
+    .from(pmcActivityDefinitions)
+    .innerJoin(pmcActivityGroups, and(eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId), mine(pmcActivityGroups, input)))
+    .innerJoin(pmcActivityStages, and(eq(pmcActivityStages.id, pmcActivityDefinitions.stageId), mine(pmcActivityStages, input)))
+    .leftJoin(wbsItems, and(eq(wbsItems.id, pmcActivityDefinitions.wbsItemId), mine(wbsItems, input)))
+    .where(mine(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.modelCode), asc(pmcActivityDefinitions.code));
+  const headers = CATALOG_HEADERS[input.locale === "en" ? "en" : "ar"];
+  const bytes = await buildSpreadsheet({ sheetName: input.locale === "en" ? "Catalogue" : "الدليل", headers: [...headers], format: "xlsx",
+    rows: rows.map(row => [row.modelCode, row.groupCode, row.groupName, row.groupNameEn ?? "", row.stageCode, row.stageName, row.stageNameEn ?? "", row.code, row.name, row.nameEn ?? "", Number(row.weightPercent), row.wbsCode ?? ""]) });
+  return { fileName: "pmc-catalogue.xlsx", base64: Buffer.from(bytes).toString("base64"), rows: rows.length };
 }
 
 /** Units of one block (or a unit range) by the activities of their model, with each cell's status; at most MAX_GRID_UNITS units. */

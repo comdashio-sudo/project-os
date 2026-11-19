@@ -132,10 +132,10 @@ export default function ProjectSubmittals() {
   const back = `/m/${tenantId}/${projectId}`;
   if (list.isLoading || codes.isLoading) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
   const loadError = list.error ?? codes.error;
-  if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void list.refetch(); void codes.refetch(); }}>{t.retry}</Button></FieldShell>;
+  if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void list.refetch(); void codes.refetch(); }}>{t.retry}</Button></FieldShell>;
 
   const canCreate = form.number.trim() !== "" && form.title.trim().length >= 2 && (form.type !== "material_approval" || form.materialId !== "");
-  const tile = (label: string, value: string, flag?: boolean) => <div className={`rounded-xl border bg-white p-3 ${flag ? "border-red-300" : ""}`}><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-semibold">{value}</p></div>;
+  const tile = (label: string, value: string, flag?: boolean) => <div className={`rounded-xl border bg-white p-3 ${flag ? "border-destructive/30" : ""}`}><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-semibold">{value}</p></div>;
 
   return (
     <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}>
@@ -162,8 +162,8 @@ export default function ProjectSubmittals() {
           <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreate || create.isPending} onClick={() => { setMessage(null); create.mutate({ ...scope, submittalType: form.type, submittalNumber: form.number.trim(), title: form.title.trim(), consultant: form.consultant.trim() || undefined, dueAt: form.due ? new Date(`${form.due}T12:00:00Z`) : undefined, materialId: form.type === "material_approval" ? form.materialId : undefined }); }}>{create.isPending ? t.saving : t.save}</Button>
         </details>
       </WriteGate>
-      {message && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
+      {message && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{message}</p>}
+      {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
 
       <section aria-label={t.filters} className="grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-5">
         <label className="block text-sm font-medium sm:col-span-2">{t.search}<input className={`${fieldInput} mt-1`} type="search" value={query} onChange={event => setQuery(event.target.value)} /></label>
@@ -189,12 +189,12 @@ export default function ProjectSubmittals() {
         : (
           <ul className="space-y-2" aria-label={t.title}>
             {shown.map(row => (
-              <li key={row.id} className={`space-y-2 rounded-xl border bg-white p-3 ${row.overdue ? "border-red-300" : ""}`} data-submittal={row.submittalNumber} data-status={row.status}>
+              <li key={row.id} className={`space-y-2 rounded-xl border bg-white p-3 ${row.overdue ? "border-destructive/30" : ""}`} data-submittal={row.submittalNumber} data-status={row.status}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div><p className="text-base font-semibold">{row.submittalNumber} <span className="text-xs font-normal text-muted-foreground">{t.revision} {row.revision}</span></p><p className="text-sm"><bdi>{row.title}</bdi></p>
                     <p className="text-xs text-muted-foreground">{typeName(row.submittalType)} · <bdi>{consultantName(row.consultant)}</bdi></p></div>
                   <div className="text-end text-sm"><p className="font-semibold">{statusName(row.status)}{row.replyCode ? ` · ${row.replyCode}` : ""}</p>
-                    {row.daysAtConsultant !== null && <p className={row.overdue ? "text-red-700" : "text-muted-foreground"}>{row.daysAtConsultant} {t.days}{row.overdue ? ` · ${t.overdue}` : ""}</p>}</div>
+                    {row.daysAtConsultant !== null && <p className={row.overdue ? "text-danger-soft-foreground" : "text-muted-foreground"}>{row.daysAtConsultant} {t.days}{row.overdue ? ` · ${t.overdue}` : ""}</p>}</div>
                 </div>
                 <p className="text-xs text-muted-foreground">{t.sentAt}: {showDate(row.sentAt, language)} · {t.dueAt}: {showDate(row.dueAt, language)}{row.replyCode && approvedOf.has(row.replyCode) ? ` · ${approvedOf.get(row.replyCode) ? t.approvedCode : t.notApprovedCode}` : ""}</p>
                 <div className="flex flex-wrap gap-2">
