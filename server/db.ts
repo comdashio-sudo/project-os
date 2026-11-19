@@ -2655,6 +2655,8 @@ export async function getOwnPerformanceAvailabilityForTenant(input: { userId: nu
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  // A company whose PROJECT licence is off is refused here like every other tenant read (gate6.matrix), before anything is read.
+  if (!snapshot.entitledProducts.includes("PROJECT")) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const [own] = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.tenantId, input.tenantId), eq(employees.linkedUserId, input.userId), eq(employees.employmentStatus, "active"))).limit(1);
   let canRead = true;

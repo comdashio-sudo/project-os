@@ -1807,7 +1807,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
-      await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectA })).resolves.toEqual({ linked: true, canRead: false });
+      await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
       await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
       await expect(caller.performance.objections.create({ tenantId: tenantA, projectId: projectA, statement: "The operating evidence should be reviewed before any interpretation." })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {

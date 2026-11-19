@@ -2879,11 +2879,11 @@
 
 | البند | الحالة | الدليل |
 |---|---|---|
-| `performance.availability`: مرتبط ومخوَّل ← `{linked:true, canRead:true}`؛ بلا ربط ← `linked:false` بلا رفض؛ بطاقة موقوفة ← `linked:false`؛ الاشتراك معطَّل ← `canRead:false`؛ شركة أخرى ← `PROJECT_OS_TENANT_ACCESS_DENIED`؛ مشروع خارج الشركة ← `PROJECT_OS_PROJECT_NOT_FOUND`؛ ورفض `performance.get` للحالات نفسها باقٍ | `PROVEN` | `server/integration.database.test.ts` 76/76 على قاعدة الاختبار المبنية من الفرع — 2026-11-19 |
+| `performance.availability`: مرتبط ومخوَّل ← `{linked:true, canRead:true}`؛ بلا ربط ← `linked:false` بلا رفض؛ بطاقة موقوفة ← `linked:false`؛ الاشتراك معطَّل ← `PROJECT_OS_PRODUCT_NOT_ENTITLED` (كبقية قراءات المستأجر، بوابة gate6.matrix)؛ شركة أخرى ← `PROJECT_OS_TENANT_ACCESS_DENIED`؛ مشروع خارج الشركة ← `PROJECT_OS_PROJECT_NOT_FOUND`؛ ورفض `performance.get` للحالات نفسها باقٍ | `PROVEN` | `server/integration.database.test.ts` 76/76 على قاعدة الاختبار المبنية من الفرع — 2026-11-19 |
 | الصفحة: بلا ربط ← السبب بالعربية والإنجليزية والأردية ولا طلب للمؤشرات ولا نموذج اعتراض؛ مرتبط بلا صلاحية ← «لا تملك الصلاحية…»؛ مرتبط ومخوَّل ← تُطلب المؤشرات؛ رفض `get` نفسه يظهر بلا إعادة محاولة؛ فشل الشبكة يُعاد ويعرض «حاول مجددًا» | `PROVEN` | `client/src/pages/MyPerformance.access.test.tsx` 6/6 (+3)، و`MyPerformance.test.tsx` و`MyPerformance.screenStates.test.tsx` |
 | تدقيق الواجهة محليًا بشركة العرض المختلقة (67 مسارًا × 1280 و390): hard=0 في en، وفي ar وur (بعد مسح اختيار اللغة المحفوظ بين التشغيلات، لأن CI يبني قاعدة لكل لغة) | `PROVEN` | `node tests/ui/audit.mjs` على خادم محلي من الفرع — 2026-11-19 |
 | CI أخضر على main بعد الدمج، وتشغيل migrate-production، و`/api/readyz` وفرع الإنتاج = main | `OPEN` | يُكتب بعد الدمج |
-| الفحوص | `PROVEN` | `pnpm check` ناجح (0 مخالفات تصميم)؛ `pnpm test` 4160/0 (بعد دمج main)؛ `pnpm coverage:trpc` ناجح؛ `pnpm build` ناجح — 2026-11-19 |
+| الفحوص | `PROVEN` | `pnpm check` ناجح (0 مخالفات تصميم)؛ `pnpm test` 4160/0 (بعد دمج main)؛ `pnpm coverage:trpc` ناجح؛ `pnpm build` ناجح؛ مجموعة القاعدة كاملة (`node scripts/run-integration-database-test.mjs`) 885/0، ومنها `gate6.matrix` (رفض الشركة بلا رخصة، ملاحظة مراجعة المبرمج ج) — 2026-11-19 |
 
 ### Q-52 (ب): لا معاينات Vercel لفروع الطلبات (2026-11-19، المبرمج ب، بلا ترحيلة)
 
