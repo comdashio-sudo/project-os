@@ -1,4 +1,5 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
+import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation } from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
@@ -68,7 +69,7 @@ import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicke
 import { reportDashboardSectionIssueForTenant } from "./db";
 import { getEmailNotificationPreferences, setEmailNotificationPreference, adjustPayrollAllocationForTenant, allocatePayrollEntryByHoursForTenant, allocateApprovedPayrollCostForTenant, archiveEmployeeForTenant, createEmployeeAttendanceForTenant, createEmployeeForTenant, createEmployeeTimeEntryForTenant, createEmploymentContractForTenant, createPayrollRunForTenant, getEmployeeAttendanceForTenant, getEmployeeIdentityForTenant, getEmployeeTimeEntriesForTenant, getEmployeesForTenant, getEmploymentContractsForTenant, getPayrollAllocationOptionsForTenant, getPayrollAllocationProjectsForTenant, getPayrollCapabilitiesForTenant, getPayrollRunDetailsForTenant, getPayrollRunsForTenant, getSalaryStructureForTenant, saveSalaryStructureForTenant, transitionEmployeeAttendanceForTenant, transitionEmployeeTimeEntryForTenant, transitionPayrollRunForTenant } from "./db";
 import { createEmployeeAssignmentForTenant, getEmployeeAssignmentOptionsForTenant, getEmployeeAssignmentsForTenant } from "./db";
-import { createEmployeePerformanceExclusionForTenant, createEmployeePerformanceObjectionForTenant, getEmployeePerformanceForTenant, transitionEmployeePerformanceObjectionForTenant } from "./db";
+import { createEmployeePerformanceExclusionForTenant, createEmployeePerformanceObjectionForTenant, getEmployeePerformanceForTenant, getOwnPerformanceAvailabilityForTenant, transitionEmployeePerformanceObjectionForTenant } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { addDesignRevision, approveDesignDrawing, cancelDesignDrawing, createDesignSubmittal, createDesignTransmittal, getDesignDashboard, listDesignComments, listDesignDrawings, listDesignRevisions, listDesignSubmittals, listDesignTransmittals, raiseDesignComment, registerDesignDrawing, transitionDesignComment, transitionDesignSubmittal, transitionDesignTransmittal } from "./designService";
@@ -812,6 +813,8 @@ export const appRouter = router({
     }),
   }),
   performance: router({
+    // Q-52: may this account read its own indicators here (linked employee record + read_own)? Asked before get, so «not linked» is not a refused request
+    availability: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getOwnPerformanceAvailabilityForTenant({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), employeeId: z.string().uuid().optional() })).query(({ ctx, input }) => getEmployeePerformanceForTenant({ userId: ctx.user.id, ...input })),
     exclude: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), employeeId: z.string().uuid(), sourceType: z.enum(["activity", "action", "rfi", "ncr", "quality_inspection", "field_report", "material_request"]), sourceId: z.string().uuid(), reason: z.string().trim().min(10).max(1000) })).mutation(({ ctx, input }) => createEmployeePerformanceExclusionForTenant({ userId: ctx.user.id, ...input })),
     objections: router({
@@ -856,6 +859,19 @@ export const appRouter = router({
     createMaster: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(1).max(120), description: z.string().trim().min(2).max(255), unitOfMeasure: z.string().trim().min(1).max(40), category: z.string().trim().min(2).max(120), referenceSpecification: z.string().trim().max(255).optional() })).mutation(({ ctx, input }) => createMaterialMasterForTenant({ userId: ctx.user.id, ...input })),
     saveProjectOverride: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), materialId: z.string().uuid(), projectDescription: z.string().trim().max(255).optional(), referenceSpecification: z.string().trim().max(255).optional(), reorderLevel: z.number().finite().positive().nullable().optional(), active: z.boolean() })).mutation(({ ctx, input }) => saveProjectMaterialOverrideForTenant({ userId: ctx.user.id, ...input, reorderLevel: input.reorderLevel ?? undefined })),
   }),
+  // Q-43 (P2-06): proof of a subcontractor's work without prices (server/workConfirmations.ts).
+  workConfirmations: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid().optional() })).query(({ ctx, input }) => listWorkConfirmations({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({
+      tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid(), confirmationNumber: z.string().trim().min(1).max(60),
+      periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().trim().max(500).nullish(),
+      lines: z.array(z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("unit"), pmcUnitId: z.string().uuid(), pmcActivityDefinitionId: z.string().uuid(), percent: z.number().finite(), note: z.string().trim().max(300).nullish() }),
+        z.object({ kind: z.literal("quantity"), boqItemId: z.string().uuid(), quantity: z.number().finite(), note: z.string().trim().max(300).nullish() }),
+      ])).min(1).max(500),
+    })).mutation(({ ctx, input }) => createWorkConfirmation({ userId: ctx.user.id, ...input })),
+    transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), confirmationId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "cancelled"]), reason: z.string().trim().max(500).nullish() })).mutation(({ ctx, input }) => transitionWorkConfirmation({ userId: ctx.user.id, ...input })),
+  }),
   // Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (server/strategyAssumptions.ts).
   strategy: router({
     assumptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), module: z.enum(["general", "market"]).optional() })).query(({ ctx, input }) => listStrategyAssumptions({ userId: ctx.user.id, ...input })),
@@ -899,7 +915,7 @@ export const appRouter = router({
   procurement: router({
     register: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProcurementRegisterForTenant({ userId: ctx.user.id, ...input })),
     createSupplier: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(1).max(80), legalName: z.string().trim().min(2).max(240), contactName: z.string().trim().max(160).optional(), contactEmail: z.string().trim().email().max(254).optional(), contactPhone: z.string().trim().max(60).optional() })).mutation(({ ctx, input }) => createSupplierForTenant({ userId: ctx.user.id, ...input })),
-    createRequisition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), requisitionNumber: z.string().trim().min(1).max(120), supplierId: z.string().uuid().optional(), materialId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), activityId: z.string().uuid().optional(), description: z.string().trim().min(5).max(10_000), requestedQuantity: z.number().finite().positive(), unitOfMeasure: z.string().trim().min(1).max(40), requiredAt: z.date() })).mutation(({ ctx, input }) => createProcurementRequisitionForTenant({ userId: ctx.user.id, ...input })),
+    createRequisition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), requisitionNumber: z.string().trim().min(1).max(120), supplierId: z.string().uuid().optional(), materialId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), activityId: z.string().uuid().optional(), description: z.string().trim().min(5).max(10_000), requestedQuantity: z.number().finite().positive(), unitOfMeasure: z.string().trim().min(1).max(40), requiredAt: z.date(), warehouseId: z.string().uuid().optional(), subcontractId: z.string().uuid().optional() })).mutation(({ ctx, input }) => createProcurementRequisitionForTenant({ userId: ctx.user.id, ...input })),
     transitionRequisition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), requisitionId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "cancelled", "closed"]) })).mutation(({ ctx, input }) => transitionProcurementRequisitionForTenant({ userId: ctx.user.id, ...input })),
     linkPurchaseOrder: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), requisitionId: z.string().uuid(), purchaseOrderId: z.string().uuid() })).mutation(({ ctx, input }) => linkProcurementRequisitionPurchaseOrderForTenant({ userId: ctx.user.id, ...input })),
   }),
