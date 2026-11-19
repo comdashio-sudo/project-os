@@ -35,8 +35,8 @@ export async function captureScheduleSnapshot(tx: Writer, input: { tenantId: str
   const dataDate = input.dataDate ?? new Date();
   await tx.insert(scheduleSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, importId: input.importId, source: input.source, dataDate, isBaseline: !baseline, activityCount: 0, createdByUserId: input.userId });
   await tx.execute(sql`
-    INSERT INTO schedule_snapshot_activities (id, tenant_id, project_id, snapshot_id, activity_id, code, planned_start_at, planned_finish_at, actual_start_at, actual_finish_at, total_float_hours, percent_complete, status)
-    SELECT gen_random_uuid(), a.tenant_id, a.project_id, ${id}, a.id, a.code, a.planned_start_at, a.planned_finish_at, a.actual_start_at, a.actual_finish_at, a.total_float_hours, a.percent_complete, a.status::text
+    INSERT INTO schedule_snapshot_activities (id, tenant_id, project_id, snapshot_id, activity_id, code, planned_start_at, planned_finish_at, actual_start_at, actual_finish_at, total_float_hours, percent_complete, remaining_hours, status)
+    SELECT gen_random_uuid(), a.tenant_id, a.project_id, ${id}, a.id, a.code, a.planned_start_at, a.planned_finish_at, a.actual_start_at, a.actual_finish_at, a.total_float_hours, a.percent_complete, a.remaining_hours, a.status::text
     FROM activities a WHERE a.tenant_id = ${input.tenantId} AND a.project_id = ${input.projectId}`);
   await tx.execute(sql`UPDATE schedule_snapshots SET activity_count = (SELECT count(*) FROM schedule_snapshot_activities WHERE snapshot_id = ${id} AND tenant_id = ${input.tenantId}), updated_at = now() WHERE id = ${id} AND tenant_id = ${input.tenantId}`);
   return { snapshotId: id, isBaseline: !baseline, dataDate, dataDateFromFile: Boolean(input.dataDate) };

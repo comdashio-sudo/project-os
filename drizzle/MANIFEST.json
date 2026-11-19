@@ -37,6 +37,6 @@
     "0034_weekly_reports.sql": "2bb34759997a87172e4af72d2da947950427911317b162e5473d65d6d77bdc01",
     "0035_stocktakes.sql": "260bf76874b69f1d22cfe987cf73cd501675eb38f11ebcf61080b208d5fa67e5",
     "0036_qc_receipt_batch_id.sql": "098616f44e12c038577f2b83cef7b43905e9ff1dec8b3a773dae3c66ae117935",
-    "0037_schedule_snapshots.sql": "a3f1a6e7a0804175428f6b5540825d522f19ea87b7943fc46fafbc8fe3b0f3c0"
+    "0037_schedule_snapshots.sql": "f1cdb85f33a8329d00ffa4414b028b9a5a0f4052f184ce5a0d47b483cb5bc4af"
   }
 }
