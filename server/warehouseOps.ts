@@ -6,7 +6,7 @@
 //  - a stock count's difference becomes an inventory adjustment only (valued at the shelf's average); it is NOT booked as a project cost (no financial rule for shrinkage is described, OPEN);
 //  - stock moved to another project carries exactly the value the source gave up, and books no cost on either side.
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import {
   auditLogs,
   costEntries,
@@ -18,13 +18,14 @@ import {
   pmcUnits,
   pmcZones,
   projectWarehouses,
+  projects,
   warehouseInventoryTransactions,
   warehouseInventoryTransfers,
   warehouseStocktakeLines,
   warehouseStocktakes,
 } from "../drizzle/schema";
 import { assertInventoryReason, assertProjectWithinTenant, createMaterialIssueForTenant, getDb, getTenantAccessSnapshot, stockPositionOf } from "./db";
-import { assertTenantAccess } from "./domain/authorization";
+import { assertTenantAccess, holdsPermission } from "./domain/authorization";
 import { adjustmentAtAverage, pricedReceipt, transferValuation, valuedIssue } from "./domain/inventoryValuation";
 
 const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -137,8 +138,13 @@ export async function transferBetweenProjectsForTenant(input: { userId: number; 
 
 // ------------------------------------------------------------------------------------------------------------------------------ stock count
 
+/** Q-41 (adviser 18-11): the quick count adjusted the shelf at once by one person's hand, with no screen calling it. It is stopped: a count goes through
+ *  the approved stocktake (server/stocktakes.ts — whoever opens it does not approve it), so the duties stay separated. Nothing recorded before is touched. */
+const QUICK_STOCKTAKE_STOPPED = true;
+
 export async function recordStocktakeForTenant(input: { userId: number; tenantId: string; projectId: string; warehouseId: string; note: string; reference?: string; countedAt: Date; lines: Array<{ materialId: string; countedQuantity: number }> }) {
   const db = await authorizeInventory(input);
+  if (QUICK_STOCKTAKE_STOPPED) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_STOCKTAKE_QUICK_STOPPED" });
   assertInventoryReason(input.note);
   if (!input.lines.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_STOCKTAKE_EMPTY" });
   if (new Set(input.lines.map(line => line.materialId)).size !== input.lines.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_STOCKTAKE_DUPLICATE_MATERIAL" });
@@ -233,4 +239,45 @@ export async function getIssueCellOptionsForTenant(input: { userId: number; tena
       .where(where(pmcActivityDefinitions)).orderBy(asc(pmcActivityDefinitions.code)),
   ]);
   return { warehouses, units, activities: definitions.filter(item => item.linked).map(({ linked: _linked, ...item }) => item), activitiesWithoutWbs: definitions.filter(item => !item.linked).length };
+}
+
+// ------------------------------------------------------------------------------------------------------------------------- screens (Q-41)
+
+/** Q-41: the issues of this project that can still come back to the shelf — quantities only (the return books the money; this read shows none). For the
+ *  «إرجاع» button on an issue line; the same permission as the return itself. */
+export async function listReturnableIssuesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await authorizeInventory(input);
+  const issues = await db.select({ id: materialIssues.id, materialId: materialIssues.materialId, issuedQuantity: materialIssues.issuedQuantity, issuedAt: materialIssues.issuedAt })
+    .from(materialIssues).where(and(eq(materialIssues.tenantId, input.tenantId), eq(materialIssues.projectId, input.projectId))).orderBy(desc(materialIssues.issuedAt)).limit(200);
+  if (!issues.length) return [];
+  const [returned, materials] = await Promise.all([
+    db.select({ materialIssueId: materialReturns.materialIssueId, quantity: sql<string>`COALESCE(SUM(${materialReturns.quantity}), 0)` }).from(materialReturns)
+      .where(and(eq(materialReturns.tenantId, input.tenantId), inArray(materialReturns.materialIssueId, issues.map(issue => issue.id)))).groupBy(materialReturns.materialIssueId),
+    db.select({ id: materialMasters.id, code: materialMasters.code, description: materialMasters.description, unit: materialMasters.unitOfMeasure }).from(materialMasters)
+      .where(and(eq(materialMasters.tenantId, input.tenantId), inArray(materialMasters.id, Array.from(new Set(issues.map(issue => issue.materialId)))))),
+  ]);
+  const returnedOf = new Map(returned.map(row => [row.materialIssueId, Number(row.quantity)]));
+  const materialOf = new Map(materials.map(row => [row.id, row]));
+  return issues
+    .map(issue => ({ id: issue.id, issuedAt: issue.issuedAt, material: materialOf.get(issue.materialId) ?? null, issuedQuantity: Number(issue.issuedQuantity), returnable: round3(Number(issue.issuedQuantity) - (returnedOf.get(issue.id) ?? 0)) }))
+    .filter(issue => issue.returnable > 0);
+}
+
+/** Q-41: where stock of this project can be moved — the OTHER projects of the company on which this person also manages inventory, with their active
+ *  warehouses. The transfer itself checks both projects again; this only fills the «تحويل إلى مشروع آخر» form. */
+export async function listTransferTargetsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await authorizeInventory(input);
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  const rows = await db.select({ warehouseId: projectWarehouses.id, warehouseCode: projectWarehouses.code, warehouseName: projectWarehouses.name, projectId: projects.id, projectCode: projects.code, projectName: projects.name })
+    .from(projectWarehouses).innerJoin(projects, eq(projects.id, projectWarehouses.projectId))
+    .where(and(eq(projectWarehouses.tenantId, input.tenantId), eq(projects.tenantId, input.tenantId), eq(projectWarehouses.active, true), ne(projectWarehouses.projectId, input.projectId)))
+    .orderBy(asc(projects.code), asc(projectWarehouses.code));
+  const allowed = rows.filter(row => holdsPermission(snapshot!, ["project.inventory.manage"], { type: "project", id: row.projectId }));
+  const byProject = new Map<string, { id: string; code: string; name: string; warehouses: { id: string; code: string; name: string }[] }>();
+  for (const row of allowed) {
+    const entry = byProject.get(row.projectId) ?? { id: row.projectId, code: row.projectCode, name: row.projectName, warehouses: [] };
+    entry.warehouses.push({ id: row.warehouseId, code: row.warehouseCode, name: row.warehouseName });
+    byProject.set(row.projectId, entry);
+  }
+  return Array.from(byProject.values());
 }

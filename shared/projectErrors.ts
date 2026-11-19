@@ -1153,6 +1153,11 @@ export const projectErrorMessages = {
     en: "The action's owner must be an active member of the company.",
     ur: "کام کا مالک کمپنی کا فعال رکن ہونا چاہیے۔",
   },
+  PROJECT_OS_STOCKTAKE_QUICK_STOPPED: {
+    ar: "الجرد السريع موقوف؛ سجّل الجرد من «الجرد بالاعتماد» في صفحة المستودع، فيعتمده شخص غير الذي فتحه.",
+    en: "The quick count is stopped; record the count through «Approved stocktake» on the warehouse page, approved by someone other than the person who opened it.",
+    ur: "فوری گنتی بند ہے؛ گنتی گودام کے صفحے پر «منظور شدہ گنتی» سے درج کریں، جسے کھولنے والے کے علاوہ کوئی اور منظور کرے۔",
+  },
   PROJECT_OS_STOCKTAKE_QUANTITY_INVALID: {
     ar: "الكمية المعدودة يجب أن تكون صفرًا أو أكثر.",
     en: "A counted quantity must be zero or more.",
