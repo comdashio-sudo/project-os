@@ -85,7 +85,7 @@ export function MeasureOverlay({ picks, flipY, size }: { picks: PlanPoint[]; fli
   if (picks.length === 0) return null;
   const shown = picks.map(p => ({ x: p.x, y: flipY(p.y) }));
   return (
-    <g pointerEvents="none" data-testid="measure-overlay" className="text-red-600">
+    <g pointerEvents="none" data-testid="measure-overlay" className="text-danger-soft-foreground">
       {shown.length === 2 ? <line x1={shown[0].x} y1={shown[0].y} x2={shown[1].x} y2={shown[1].y} stroke="currentColor" strokeWidth={size / 3} /> : null}
       {shown.map((p, index) => <circle key={index} cx={p.x} cy={p.y} r={size} fill="currentColor" className="stroke-white" strokeWidth={size / 4} />)}
     </g>
@@ -107,7 +107,7 @@ export function MeasurePanel(props: {
   const [problem, setProblem] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
   const button = "min-h-[44px] rounded-lg border border-border px-3 text-sm";
-  const active = "min-h-[44px] rounded-lg bg-slate-900 px-3 text-sm text-white";
+  const active = "min-h-[44px] rounded-lg bg-foreground px-3 text-sm text-white";
   const { tool, picks, calibration } = props;
 
   async function save() {
@@ -153,8 +153,8 @@ export function MeasurePanel(props: {
         </div>
       ) : null}
       {tool === "measure" && calibration && picks.length === 2 ? <p className="text-base font-semibold" aria-live="polite">{t.length(formatMeters(measureMeters(calibration, picks[0], picks[1])))}</p> : null}
-      {problem ? <p role="alert" className="text-sm text-red-800">{problem}</p> : null}
-      {savedNote ? <p role="status" className="text-sm text-emerald-800">{t.savedCalibration}</p> : null}
+      {problem ? <p role="alert" className="text-sm text-danger-soft-foreground">{problem}</p> : null}
+      {savedNote ? <p role="status" className="text-sm text-success-soft-foreground">{t.savedCalibration}</p> : null}
     </div>
   );
 }

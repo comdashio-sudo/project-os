@@ -51,7 +51,7 @@ export async function authorizeExternalImport(input: ExternalScope & { moduleCod
 }
 
 /** Reads and checks the file; writes nothing. */
-/** `mappingOverride`: a person's choice of columns (Q-31: PMC files and the four operational ledgers; the master-plan and equipment files keep fixed columns). */
+/** `mappingOverride`: a person's choice of columns (Q-31: PMC files, the four operational ledgers and the equipment list; the master-plan files keep fixed columns). */
 export async function analyzeExternalImport(input: ExternalScope & { moduleCode: ExternalModule; format: ExternalFormat; bytes: Buffer; mappingOverride?: Record<string, string> }): Promise<ExternalAnalysis> {
   if (isLedgerModule(input.moduleCode)) {
     const db = await getDb();
@@ -68,9 +68,11 @@ export async function analyzeExternalImport(input: ExternalScope & { moduleCode:
   if (input.moduleCode === "equipment") {
     const db = await getDb();
     if (!db) throw new Error("Database connection is not available");
-    const plan = await planEquipmentImport(db, input, await readEquipmentRows(input.bytes, input.format));
-    const invalidRows = new Set(plan.errors.map(error => error.rowNumber).filter(row => row > 0)).size;
-    return { totalRows: plan.totalRows, validRows: Math.max(0, plan.totalRows - invalidRows), errors: plan.errors, report: { equipment: { create: plan.creates.length, update: plan.updates.length, unchanged: plan.unchanged } }, canConfirm: !plan.errors.length && plan.creates.length + plan.updates.length > 0 };
+    const file = await readEquipmentRows(input.bytes, input.format, input.mappingOverride);
+    const plan = await planEquipmentImport(db, input, file.rows);
+    const errors = [...file.errors, ...plan.errors];
+    const invalidRows = new Set(errors.map(error => error.rowNumber).filter(row => row > 0)).size;
+    return { totalRows: plan.totalRows, validRows: Math.max(0, plan.totalRows - invalidRows), errors, report: { equipment: { create: plan.creates.length, update: plan.updates.length, unchanged: plan.unchanged, columns: file.columns } }, canConfirm: !errors.length && plan.creates.length + plan.updates.length > 0 };
   }
   const kind = pmcKindOf(input.moduleCode);
   if (kind) {
@@ -100,7 +102,10 @@ export async function applyExternalImport(input: ExternalScope & { moduleCode: E
   if (input.moduleCode === "equipment") {
     const db = await getDb();
     if (!db) throw new Error("Database connection is not available");
-    return applyEquipmentImport(db, input, await readEquipmentRows(input.bytes, input.format));
+    // the columns the person chose (Q-31): the write reads the file exactly as the report did
+    const file = await readEquipmentRows(input.bytes, input.format, input.mappingOverride);
+    if (file.errors.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" });
+    return applyEquipmentImport(db, input, file.rows);
   }
   const kind = pmcKindOf(input.moduleCode);
   if (kind) {

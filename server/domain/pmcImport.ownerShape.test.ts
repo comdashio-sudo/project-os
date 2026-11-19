@@ -27,13 +27,13 @@ describe("the owner's original file, shape (a)", () => {
   it("POSITIVE: read with no manual mapping — header in row 3 under two title rows, the owner's words, the division and the scope column left aside and shown", async () => {
     const parsed = await parse(await ownerOriginalWeights());
     expect(parsed.errors).toEqual([]);
-    expect(mapped(parsed)).toMatchObject({ csi: "بند CSI", sub: "تصنيف داخلي", activityCode: "Activity Code", activityName: "البند الفرعي", weight: "NEW Percentage", modelCode: null });
+    expect(mapped(parsed)).toMatchObject({ csi: "بند CSI", sub: "تصنيف داخلي", activityCode: "Activity Code", activityName: "البند الفرعي", weight: "NEW Percentage", modelCode: null, activityNameEn: "Activity Title" });
     expect(parsed.rows.map(row => [row.rowNumber, row.cells.activityName, row.cells.sub])).toEqual([
       [4, "صب القواعد", "هيكل"], [5, "صب الأعمدة", "هيكل"], [6, "صب السقف", "هيكل"], [7, "دهان داخلي", "تشطيب"], [8, "دهان خارجي", "تشطيب"], [9, "تنظيف نهائي", "تشطيب"],
     ]);
     expect(parsed.notes?.skippedTotals).toBe(1);
     const ignored = Object.fromEntries((parsed.notes?.ignoredColumns ?? []).map(column => [column.header, column.samples]));
-    expect(Object.keys(ignored)).toEqual(["م", "القسم", "وزن القسم", "قيمة القسم", "Activity Title", "Old Percentage", "(L)", "تفصيل البند في الجدول الزمني"]);
+    expect(Object.keys(ignored)).toEqual(["م", "القسم", "وزن القسم", "قيمة القسم", "Old Percentage", "(L)", "تفصيل البند في الجدول الزمني"]);
     expect(ignored["(L)"]).toEqual(["Whole Building", "Ground floor", "First floor"]);
   });
 

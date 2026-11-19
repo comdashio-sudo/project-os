@@ -23,6 +23,8 @@ const copy = {
   ar: {
     units: "إنشاء وحدات بالجملة", unitsHint: "وحدات متتالية في بلوك واحد ونموذج واحد. إن وُجد رقم منها في المشروع لا يُنشأ شيء.", block: "البلوك", model: "النموذج", from: "من الرقم", to: "إلى الرقم",
     count: (n: number) => `${formatNumber(n)} وحدة`, create: "إنشاء الوحدات", created: (n: number, from: number, to: number) => `أُنشئت ${formatNumber(n)} وحدة (${from}–${to}).`,
+    exportCatalog: "تصدير الدليل (Excel بالاسمين)", exportCatalogHint: "يُعاد استيراده من «الاستيراد ← الكتالوج والأوزان» بلا تكرار؛ اكتب فيه الأسماء الإنجليزية ثم استورده.",
+    englishName: "الاسم بالإنجليزية (اختياري)", saveName: "حفظ الاسم", savedName: "حُفظ الاسم الإنجليزي لكل نماذج النشاط.",
     weights: "أوزان الأنشطة", weightsHint: "أوزان أنشطة النموذج معًا؛ لا تُحفظ حتى يكون مجموعها 100% تمامًا.", activity: "النشاط", weight: "الوزن %", total: "المجموع", saveWeights: "حفظ الأوزان", savedWeights: "حُفظت الأوزان.", distribute: "توزيع نسبي حتى 100%", difference: "الفرق", section: "القسم", sub: "البند الفرعي", noModels: "لا نماذج بعد: يُنشأ النموذج وأنشطته من استيراد الأنشطة.",
     grid: "مصفوفة الحالة", gridHint: "انقر الخانة لنقلها إلى الحالة التالية.", show: "عرض", unit: "الوحدة", notInModel: "ليس في نموذج الوحدة", truncated: "تُعرض أول 200 وحدة؛ ضيّق النطاق.", noUnits: "لا وحدات في هذا النطاق.", readOnly: "للعرض فقط: لا تملك صلاحية تحديث الحالة.",
     statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "قيد التنفيذ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل" } as Record<Status, string>, short: { NOT_STARTED: "—", IN_PROGRESS: "جارٍ", UNDER_REVIEW: "مراجعة", COMPLETE: "✓" } as Record<Status, string>, cellLabel: (unit: number, activity: string, now: string, then: string) => `الوحدة ${unit} · ${activity}: ${now}، انقر لتصبح ${then}`,
@@ -30,6 +32,8 @@ const copy = {
   en: {
     units: "Create units in bulk", unitsHint: "Consecutive units in one block and one model. If any of the numbers exists in the project, nothing is created.", block: "Block", model: "Model", from: "From number", to: "To number",
     count: (n: number) => `${formatNumber(n)} units`, create: "Create the units", created: (n: number, from: number, to: number) => `${formatNumber(n)} units created (${from}–${to}).`,
+    exportCatalog: "Export the catalogue (Excel, both names)", exportCatalogHint: "It imports back from «Import → Catalogue and weights» without duplicates; type the English names in it, then import it.",
+    englishName: "English name (optional)", saveName: "Save name", savedName: "The English name was saved for every model of the activity.",
     weights: "Activity weights", weightsHint: "A model's activity weights together; they cannot be saved until they total exactly 100%.", activity: "Activity", weight: "Weight %", total: "Total", saveWeights: "Save the weights", savedWeights: "The weights were saved.", distribute: "Distribute proportionally to 100%", difference: "Difference", section: "Section", sub: "Sub-item", noModels: "No models yet: a model and its activities come from the activities import.",
     grid: "Status matrix", gridHint: "Click a cell to move it to its next status.", show: "Show", unit: "Unit", notInModel: "Not in the unit's model", truncated: "The first 200 units are shown; narrow the range.", noUnits: "No units in this range.", readOnly: "View only: you cannot update the status.",
     statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<Status, string>, short: { NOT_STARTED: "—", IN_PROGRESS: "WIP", UNDER_REVIEW: "Rev", COMPLETE: "✓" } as Record<Status, string>, cellLabel: (unit: number, activity: string, now: string, then: string) => `Unit ${unit} · ${activity}: ${now}, click to make it ${then}`,
@@ -37,6 +41,8 @@ const copy = {
   ur: {
     units: "یونٹس ایک ساتھ بنائیں", unitsHint: "ایک بلاک اور ایک ماڈل میں مسلسل یونٹس۔ اگر کوئی نمبر پروجیکٹ میں موجود ہو تو کچھ نہیں بنتا۔", block: "بلاک", model: "ماڈل", from: "نمبر سے", to: "نمبر تک",
     count: (n: number) => `${formatNumber(n)} یونٹس`, create: "یونٹس بنائیں", created: (n: number, from: number, to: number) => `${formatNumber(n)} یونٹس بن گئے (${from}–${to})۔`,
+    exportCatalog: "کیٹلاگ برآمد کریں (Excel، دونوں نام)", exportCatalogHint: "اسے «درآمد ← کیٹلاگ اور وزن» سے بغیر تکرار کے دوبارہ درآمد کیا جا سکتا ہے؛ اس میں انگریزی نام لکھیں پھر درآمد کریں۔",
+    englishName: "انگریزی نام (اختیاری)", saveName: "نام محفوظ کریں", savedName: "انگریزی نام سرگرمی کے ہر ماڈل کے لیے محفوظ ہو گیا۔",
     weights: "سرگرمیوں کے وزن", weightsHint: "ماڈل کی سرگرمیوں کے وزن ایک ساتھ؛ مجموعہ ٹھیک 100% ہونے تک محفوظ نہیں ہوتے۔", activity: "سرگرمی", weight: "وزن %", total: "مجموعہ", saveWeights: "وزن محفوظ کریں", savedWeights: "وزن محفوظ ہو گئے۔", distribute: "تناسب سے 100% تک تقسیم کریں", difference: "فرق", section: "سیکشن", sub: "ذیلی آئٹم", noModels: "ابھی کوئی ماڈل نہیں: ماڈل اور اس کی سرگرمیاں سرگرمیوں کی درآمد سے آتی ہیں۔",
     grid: "حیثیت کا میٹرکس", gridHint: "خانے پر کلک کریں تاکہ وہ اگلی حیثیت پر جائے۔", show: "دکھائیں", unit: "یونٹ", notInModel: "یونٹ کے ماڈل میں نہیں", truncated: "پہلے 200 یونٹس دکھائے گئے ہیں؛ حد کم کریں۔", noUnits: "اس حد میں کوئی یونٹ نہیں۔", readOnly: "صرف دیکھنے کے لیے: آپ حیثیت تازہ نہیں کر سکتے۔",
     statuses: { NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", UNDER_REVIEW: "جائزے میں", COMPLETE: "مکمل" } as Record<Status, string>, short: { NOT_STARTED: "—", IN_PROGRESS: "جاری", UNDER_REVIEW: "جائزہ", COMPLETE: "✓" } as Record<Status, string>, cellLabel: (unit: number, activity: string, now: string, then: string) => `یونٹ ${unit} · ${activity}: ${now}، کلک کریں تاکہ ${then} ہو`,
@@ -105,7 +111,28 @@ function BulkUnits({ tenantId, projectId, blocks, models, start, onDone }: { ten
   );
 }
 
-function Weights({ tenantId, projectId, models, onDone }: { tenantId: string; projectId: string; models: Array<{ modelCode: string; totalWeight: number; activities: Array<{ id: string; code: string; name: string; weightPercent: number; section?: string; sub?: string }> }>; onDone: () => void }) {
+/**
+ * Q-49: an activity's optional English name, saved on its own (for every model of the code) — display only, the weights above are untouched. The Arabic
+ * name stays the required one; an empty field clears the English name.
+ */
+function EnglishName({ tenantId, projectId, code, stored }: { tenantId: string; projectId: string; code: string; stored: string }) {
+  const { language } = useLanguage(); const t = pickLanguage(language, copy);
+  const [value, setValue] = React.useState(stored);
+  React.useEffect(() => setValue(stored), [stored]);
+  const refresh = useRefresh();
+  const save = trpc.pmc.saveActivityEnglishName.useMutation({ onSuccess: () => refresh() });
+  const changed = value.trim() !== stored.trim();
+  return (
+    <div className="flex flex-wrap items-center gap-2" data-english-name={code}>
+      <input aria-label={`${t.englishName}: ${code}`} className="min-h-11 w-48 rounded-[var(--radius)] border border-input bg-card px-2 text-sm text-foreground" dir="ltr" lang="en" maxLength={255} value={value} onChange={event => setValue(event.target.value)} />
+      <Button variant="secondary" className="min-h-11" loading={save.isPending} disabled={!changed} onClick={() => save.mutate({ tenantId, projectId, activityCode: code, nameEn: value.trim() || null })}>{t.saveName}</Button>
+      {save.error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(save.error, language)}</p> : null}
+      {save.isSuccess && !changed ? <p role="status" className="text-xs text-success">{t.savedName}</p> : null}
+    </div>
+  );
+}
+
+function Weights({ tenantId, projectId, models, onDone }: { tenantId: string; projectId: string; models: Array<{ modelCode: string; totalWeight: number; activities: Array<{ id: string; code: string; name: string; weightPercent: number; section?: string; sub?: string; nameEn?: string | null }> }>; onDone: () => void }) {
   const { language } = useLanguage(); const t = pickLanguage(language, copy);
   const [modelCode, setModelCode] = React.useState<string | undefined>(models[0]?.modelCode);
   React.useEffect(() => { if (!modelCode && models[0]) setModelCode(models[0].modelCode); }, [models, modelCode]);
@@ -114,6 +141,10 @@ function Weights({ tenantId, projectId, models, onDone }: { tenantId: string; pr
   React.useEffect(() => { setDraft(Object.fromEntries((model?.activities ?? []).map(activity => [activity.id, String(activity.weightPercent)]))); }, [model]);
   const refresh = useRefresh();
   const save = trpc.pmc.saveActivityWeights.useMutation({ onSuccess: () => { refresh(); onDone(); } });
+  // Q-49: the catalogue with both names, as a file that imports back
+  const exportCatalog = trpc.pmc.exportCatalog.useMutation({
+    onSuccess: file => { const bytes = Uint8Array.from(atob(file.base64), c => c.charCodeAt(0)); const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const link = document.createElement("a"); link.href = url; link.download = file.fileName; link.click(); URL.revokeObjectURL(url); },
+  });
   const total = Math.round((model?.activities ?? []).reduce((sum, activity) => sum + (Number(draft[activity.id]) || 0), 0) * 10000) / 10000;
   const complete = Math.abs(total - 100) <= 0.0001;
   // Q-3: the owner's own tool has a «distribute proportionally» button — every weight scaled by the same factor so the model totals exactly 100% (the last one takes the rounding)
@@ -137,15 +168,18 @@ function Weights({ tenantId, projectId, models, onDone }: { tenantId: string; pr
         {/* review of #252: on a phone the weight fields were cut at the start edge of a plain scroller; TableScroll says when it scrolls and fades the edge */}
         <TableScroll label={t.weights}>
           <table className="w-full text-sm" aria-label={t.weights}>
-            <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.section}</th><th scope="col" className="py-2 text-start">{t.activity}</th><th scope="col" className="py-2 text-start">{t.weight}</th></tr></thead>
+            <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-2 text-start">{t.section}</th><th scope="col" className="py-2 text-start">{t.activity}</th><th scope="col" className="py-2 text-start">{t.weight}</th><th scope="col" className="py-2 ps-3 text-start">{t.englishName}</th></tr></thead>
             <tbody className="divide-y divide-border">{(model?.activities ?? []).map(activity => (
               <tr key={activity.id}><td className="py-2 pe-3 align-top text-xs text-muted-foreground">{activity.section ?? ""}{activity.sub && activity.sub !== activity.section ? <><br />{activity.sub}</> : null}</td><th scope="row" className="py-2 text-start font-normal"><bdi>{activity.code}</bdi> · {activity.name}</th>
-                <td className="py-1"><input aria-label={`${t.weight}: ${activity.code}`} className={field} dir="ltr" inputMode="decimal" value={draft[activity.id] ?? ""} onChange={event => setDraft(current => ({ ...current, [activity.id]: event.target.value }))} /></td></tr>
+                <td className="py-1"><input aria-label={`${t.weight}: ${activity.code}`} className={field} dir="ltr" inputMode="decimal" value={draft[activity.id] ?? ""} onChange={event => setDraft(current => ({ ...current, [activity.id]: event.target.value }))} /></td>
+                <td className="py-1 ps-3"><EnglishName tenantId={tenantId} projectId={projectId} code={activity.code} stored={activity.nameEn ?? ""} /></td></tr>
             ))}</tbody>
           </table>
         </TableScroll>
         <div className="flex flex-wrap items-center gap-3">
           {!complete && total > 0 && <Button variant="secondary" onClick={distribute}>{t.distribute}</Button>}
+          <Button variant="secondary" loading={exportCatalog.isPending} onClick={() => exportCatalog.mutate({ tenantId, projectId, locale: language })} title={t.exportCatalogHint} data-export-catalog>{t.exportCatalog}</Button>
+          {exportCatalog.error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(exportCatalog.error, language)}</p> : null}
           <Button loading={save.isPending} disabled={!complete || !model} onClick={() => model && save.mutate({ tenantId, projectId, modelCode: model.modelCode, weights: model.activities.map(activity => ({ activityDefinitionId: activity.id, weightPercent: Number(draft[activity.id]) || 0 })) })}>{t.saveWeights}</Button>
           {save.error ? <p role="alert" className="text-sm font-medium text-destructive">{getLocalizedProjectError(save.error, language)}</p> : null}
           {save.isSuccess ? <p role="status" className="text-sm text-success">{t.savedWeights}</p> : null}

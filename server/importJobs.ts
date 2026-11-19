@@ -292,10 +292,10 @@ export async function requestImportConfirmation(input: { userId: number; tenantI
 export async function requestImportReanalysis(input: { userId: number; tenantId: string; projectId: string; importId: string; mappingOverride: Record<string, string> }) {
   const { db, snapshot } = await importAccess(input);
   const record = await readRecord(db, input);
-  // Q-31 (P0-02): the columns of a PMC file or an operational ledger (costs, orders, employees, hours) can be chosen by a person; the master-plan and
-  // equipment files keep fixed columns (upload the corrected file)
+  // Q-31 (P0-02): the columns of a PMC file, an operational ledger (costs, orders, employees, hours) or the equipment list can be chosen by a person;
+  // the master-plan files keep fixed columns (upload the corrected file)
   const external = isExternalModule(record.moduleCode);
-  if (external && !pmcKindOf(record.moduleCode as ExternalModule) && !isLedgerModule(record.moduleCode)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+  if (external && !pmcKindOf(record.moduleCode as ExternalModule) && !isLedgerModule(record.moduleCode) && record.moduleCode !== "equipment") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
   if (external) await authorizeExternalImport({ ...input, moduleCode: record.moduleCode as ExternalModule });
   else assertTenantAccess(snapshot!, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } });
   if (record.status !== "uploaded" && record.status !== "validated" && record.status !== "failed") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });

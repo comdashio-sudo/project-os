@@ -11,6 +11,7 @@ import QuickIssue from "./QuickIssue";
 const state = vi.hoisted(() => ({ allowed: true, loading: false, capabilities: {} as Record<string, boolean>, enabled: new Map<string, boolean>() }));
 vi.mock("@/lib/permissions", () => ({
   useCan: () => state.allowed,
+  useCanPage: () => true,
   usePermissionsLoading: () => state.loading,
   WriteGate: ({ children }: { children: React.ReactNode }) => (state.allowed ? <>{children}</> : null),
 }));

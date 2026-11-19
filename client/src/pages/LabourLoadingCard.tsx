@@ -45,7 +45,7 @@ export default function LabourLoadingCard({ tenantId, projectId, currency }: { t
   const save = trpc.labourSettings.save.useMutation({ onSuccess: () => { setEditing(false); setMessage(t.saved); labour.refetch(); settings.refetch(); } });
 
   if (labour.isLoading || settings.isLoading) return <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>;
-  if (!labour.data || !settings.data) return <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(labour.error ?? settings.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => { labour.refetch(); settings.refetch(); }}>{t.retry}</Button></div>;
+  if (!labour.data || !settings.data) return <div><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(labour.error ?? settings.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => { labour.refetch(); settings.refetch(); }}>{t.retry}</Button></div>;
   const data = labour.data;
   const s = settings.data;
   const dayList = s.workingDays.map(day => t.dayNames[day]).join(pickLanguage(language, { ar: "، ", en: ", ", ur: "، " }));
@@ -63,8 +63,8 @@ export default function LabourLoadingCard({ tenantId, projectId, currency }: { t
       <p className="mt-1 text-sm text-muted-foreground">{data.approvedEntries === 0 ? t.none : t.priced(data.loadedEntries, data.resourceEntries, data.hours)}</p>
       <p className="mt-2 text-sm" data-testid="labour-settings">{t.settings}: {t.gosi} {Math.round(s.employerGosiRateSaudi * 10000) / 100}% · {t.gosiNon} {Math.round(s.employerGosiRateNonSaudi * 10000) / 100}% · {t.eosFirst} {s.eosFirstPeriodMonthsPerYear} ({s.eosFirstPeriodYears}) · {t.eosLater} {s.eosLaterMonthsPerYear} · {t.indirect} {s.indirectLoadingPercent}% · {t.hours} {s.hoursPerDay} · {t.days}: {dayList}{s.isDefault ? ` — ${t.defaults}` : ""}</p>
       <p className="mt-1 text-xs text-muted-foreground">{t.note}</p>
-      <p className="mt-1 text-xs font-medium text-amber-800" data-testid="labour-estimate-note">{t.estimateNote}</p>
-      {message && <p role="status" className="mt-2 text-sm text-emerald-700">{message}</p>}
+      <p className="mt-1 text-xs font-medium text-warning-soft-foreground" data-testid="labour-estimate-note">{t.estimateNote}</p>
+      {message && <p role="status" className="mt-2 text-sm text-success-soft-foreground">{message}</p>}
       {s.canEdit && !editing && <Button variant="outline" className="mt-3 min-h-[44px]" onClick={open}>{t.edit}</Button>}
       {editing && (
         <WriteGate permission={"project.settings.labour"} reason={{ ar: "لا تملك صلاحية ضبط تحميل تكلفة العمالة، فالشاشة للعرض فقط.", en: "You do not have permission to configure labour cost loading; this view is read-only for you.", ur: "آپ کے پاس مزدوری کی لاگت کی لوڈنگ ترتیب دینے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔" }}><form noValidate className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); const errors = formFieldErrors(event.currentTarget, language); setFieldErrors(errors); if (Object.keys(errors).length === 0) submit(); }}>
@@ -76,7 +76,7 @@ export default function LabourLoadingCard({ tenantId, projectId, currency }: { t
           <label className="text-sm">{t.indirect}<input id="labour-indirect" aria-label={t.indirect} type="number" step="0.1" min="0" max="300" className="mt-1 block min-h-[44px] w-full rounded-lg border px-2" value={form.indirect} onChange={event => setForm(f => ({ ...f, indirect: event.target.value }))} /></label><FieldError id="labour-indirect-error" message={fieldErrors["labour-indirect"]} />
           <label className="text-sm">{t.hours}<input id="labour-hours" aria-label={t.hours} type="number" step="0.5" min="1" max="24" className="mt-1 block min-h-[44px] w-full rounded-lg border px-2" value={form.hours} onChange={event => setForm(f => ({ ...f, hours: event.target.value }))} /></label><FieldError id="labour-hours-error" message={fieldErrors["labour-hours"]} />
           <fieldset className="text-sm"><legend>{t.days}</legend><div className="mt-1 flex flex-wrap gap-2">{t.dayNames.map((name, day) => <label key={day} className="flex min-h-[44px] items-center gap-1 rounded-lg border px-2"><input type="checkbox" aria-label={name} checked={form.days.includes(day)} onChange={() => toggleDay(day)} />{name}</label>)}</div></fieldset>
-          {save.error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{getLocalizedProjectError(save.error, isArabic)}</p>}
+          {save.error && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{getLocalizedProjectError(save.error, isArabic)}</p>}
           <div className="flex gap-2 sm:col-span-2"><Button type="submit" className="min-h-[44px]" disabled={save.isPending || form.days.length === 0}>{t.save}</Button><Button type="button" variant="outline" className="min-h-[44px]" onClick={() => setEditing(false)}>{t.cancel}</Button></div>
         </form></WriteGate>
       )}

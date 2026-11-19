@@ -90,13 +90,13 @@ export default function IntegrationSettings() {
   const tabButton = (value: Tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-primary text-white" : "border bg-white text-foreground"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
   if (!isManager) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="note" className="rounded-xl bg-muted p-4 text-sm text-foreground">{t.managersOnly}</p></FieldShell>;
   if (meta.isLoading) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
-  if (meta.error || !meta.data) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(meta.error, isArabic)}</p><Button className={tap} variant="outline" onClick={() => void meta.refetch()}>{t.retry}</Button></FieldShell>;
+  if (meta.error || !meta.data) return <FieldShell wide title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(meta.error, isArabic)}</p><Button className={tap} variant="outline" onClick={() => void meta.refetch()}>{t.retry}</Button></FieldShell>;
   const info = meta.data;
 
   return (
     <FieldShell wide title={t.title} backHref={back} backLabel={t.back}>
       <div role="tablist" className="flex flex-wrap gap-2">{tabButton("connections", t.tabConnections)}{tabButton("keys", t.tabKeys)}{tabButton("webhooks", t.tabWebhooks)}{tabButton("mappings", t.tabMappings)}{tabButton("log", t.tabLog)}</div>
-      {message && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}
+      {message && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{message}</p>}
       {tab === "connections" && <Connections tenantId={tenantId} t={t} tt={tt} isArabic={isArabic} language={language} utils={utils} onMessage={setMessage} />}
       {tab === "keys" && <Keys tenantId={tenantId} t={t} tt={tt} isArabic={isArabic} language={language} scopes={info.scopes as readonly string[]} utils={utils} />}
       {tab === "webhooks" && <Webhooks tenantId={tenantId} t={t} isArabic={isArabic} language={language} events={info.events as readonly string[]} utils={utils} />}
@@ -132,7 +132,7 @@ function Connections({ tenantId, t, tt, isArabic, language, utils, onMessage }: 
   const rows = list.data ?? [];
   return (
     <section aria-label={t.tabConnections} className="space-y-3">
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
+      {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
       <details className="rounded-xl border bg-white p-3" open={rows.length === 0}>
         <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.create}</summary>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -143,12 +143,12 @@ function Connections({ tenantId, t, tt, isArabic, language, utils, onMessage }: 
           <label className="block text-sm font-medium">{t.username}<input className={`${fieldInput} mt-1`} autoComplete="off" value={form.username} onChange={event => setForm({ ...form, username: event.target.value })} /></label>
           <label className="block text-sm font-medium sm:col-span-2">{t.secret}<input className={`${fieldInput} mt-1`} type="password" autoComplete="new-password" value={form.secret} onChange={event => setForm({ ...form, secret: event.target.value })} /></label>
           <label className="block text-sm font-medium sm:col-span-2">{t.settings}<textarea className="mt-1 min-h-[72px] w-full rounded-xl border bg-white p-3 font-mono text-sm" dir="ltr" value={form.settings} onChange={event => setForm({ ...form, settings: event.target.value })} /></label>
-          {!settingsValid && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.settingsInvalid}</p>}
+          {!settingsValid && <p role="alert" className="text-sm text-danger-soft-foreground sm:col-span-2">{t.settingsInvalid}</p>}
           <label className={`${tap} flex items-center gap-2 text-sm sm:col-span-2`}><input type="checkbox" checked={form.scheduledDaily} onChange={event => setForm({ ...form, scheduledDaily: event.target.checked })} />{t.scheduled}</label>
         </div>
         <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreate || create.isPending} onClick={() => { onMessage(null); create.mutate({ tenantId, system: form.system, name: form.name.trim(), baseUrl: form.baseUrl.trim(), database: form.database.trim() || undefined, username: form.username.trim() || undefined, secret: form.secret, settings, scheduledDaily: form.scheduledDaily }); }}>{create.isPending ? t.creating : t.create}</Button>
       </details>
-      {list.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(list.error, isArabic)}</p>}
+      {list.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(list.error, isArabic)}</p>}
       {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noConnections}</p> : (
         <ul className="space-y-2">{rows.map(row => {
           const result = results[row.id];
@@ -157,7 +157,7 @@ function Connections({ tenantId, t, tt, isArabic, language, utils, onMessage }: 
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div><p className="text-base font-semibold">{row.name} · {SYSTEM_NAME[row.system] ?? row.system}</p><p className="text-xs text-muted-foreground" dir="ltr">{row.baseUrl}{row.database ? ` · ${row.database}` : ""}{row.username ? ` · ${row.username}` : ""}</p>
                   <p className="text-xs text-muted-foreground">{t.lastRun}: {row.lastRunAt ? showDate(row.lastRunAt, language) : t.never} · {row.active ? t.active : t.inactive}{row.scheduledDaily ? ` · ${t.scheduled}` : ""}</p></div>
-                {row.connector && <p data-connector-status={row.connector.status} className={`rounded-lg px-2 py-1 text-xs font-semibold ${proven(row.connector) ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>{tt[connectorWord(row.connector)]}</p>}
+                {row.connector && <p data-connector-status={row.connector.status} className={`rounded-lg px-2 py-1 text-xs font-semibold ${proven(row.connector) ? "bg-success-soft text-success-soft-foreground" : "bg-warning-soft text-warning-soft-foreground"}`}>{tt[connectorWord(row.connector)]}</p>}
               </div>
               {row.connector && <p className="text-xs text-muted-foreground">{t.reads}: {row.connector.pulls.join(", ")} · {t.writes}: {row.connector.pushes.length ? row.connector.pushes.join(", ") : t.readOnly}</p>}
               <div className="flex flex-wrap items-center gap-2">
@@ -167,7 +167,7 @@ function Connections({ tenantId, t, tt, isArabic, language, utils, onMessage }: 
                 <Button variant="outline" className={tap} disabled={setActive.isPending} onClick={() => setActive.mutate({ tenantId, connectionId: row.id, active: !row.active })}>{row.active ? t.deactivate : t.activate}</Button>
                 <Button variant="outline" className={tap} disabled={setActive.isPending} onClick={() => setActive.mutate({ tenantId, connectionId: row.id, active: row.active, scheduledDaily: !row.scheduledDaily })}>{row.scheduledDaily ? t.dailyOff : t.dailyOn}</Button>
               </div>
-              {result && <p role="status" data-result={result.kind} className={`rounded-lg p-2 text-sm ${result.ok ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-800"}`}>{result.kind === "run" ? `${t.runResult}: ` : ""}{result.text}</p>}
+              {result && <p role="status" data-result={result.kind} className={`rounded-lg p-2 text-sm ${result.ok ? "bg-success-soft text-success-soft-foreground" : "bg-danger-soft text-danger-soft-foreground"}`}>{result.kind === "run" ? `${t.runResult}: ` : ""}{result.text}</p>}
             </li>
           );
         })}</ul>
@@ -188,8 +188,8 @@ function Keys({ tenantId, t, tt, isArabic, language, scopes, utils }: Common & {
   const error = create.error ?? revoke.error ?? list.error;
   return (
     <section aria-label={t.tabKeys} className="space-y-3">
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
-      {shown && <div role="alert" data-new-key className="space-y-1 rounded-xl border-2 border-amber-400 bg-amber-50 p-3"><p className="text-sm font-semibold">{t.copyNow}</p><code className="block break-all rounded bg-white p-2 text-sm" dir="ltr">{shown}</code><Button variant="outline" className={tap} onClick={() => setShown(null)}>{t.okLabel}</Button></div>}
+      {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
+      {shown && <div role="alert" data-new-key className="space-y-1 rounded-xl border-2 border-warning/40 bg-warning-soft p-3"><p className="text-sm font-semibold">{t.copyNow}</p><code className="block break-all rounded bg-white p-2 text-sm" dir="ltr">{shown}</code><Button variant="outline" className={tap} onClick={() => setShown(null)}>{t.okLabel}</Button></div>}
       <details className="rounded-xl border bg-white p-3" open={rows.length === 0}>
         <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.newKey}</summary>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -203,7 +203,7 @@ function Keys({ tenantId, t, tt, isArabic, language, scopes, utils }: Common & {
       {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noKeys}</p> : (
         <ul className="space-y-2">{rows.map(row => (
           <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-white p-3" data-key={row.name}>
-            <div><p className="text-base font-semibold">{row.name} {row.revokedAt && <span className="text-sm font-normal text-red-700">· {t.revoked}</span>}</p>
+            <div><p className="text-base font-semibold">{row.name} {row.revokedAt && <span className="text-sm font-normal text-danger-soft-foreground">· {t.revoked}</span>}</p>
               <p className="text-xs text-muted-foreground" dir="ltr">{row.keyPrefix}… · {row.scopes} · {row.rateLimitPerMinute}{t.perMinute}</p>
               <p className="text-xs text-muted-foreground">{t.lastUsed}: {row.lastUsedAt ? showDate(row.lastUsedAt, language) : t.never}</p></div>
             {!row.revokedAt && <Button variant="outline" className={tap} disabled={revoke.isPending} onClick={() => revoke.mutate({ tenantId, keyId: row.id })}>{t.revoke}</Button>}
@@ -228,8 +228,8 @@ function Webhooks({ tenantId, t, isArabic, language, events, utils }: Common & {
   const error = create.error ?? toggle.error ?? test.error ?? list.error;
   return (
     <section aria-label={t.tabWebhooks} className="space-y-3">
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
-      {secret && <div role="alert" data-new-secret className="space-y-1 rounded-xl border-2 border-amber-400 bg-amber-50 p-3"><p className="text-sm font-semibold">{t.secretNow}</p><code className="block break-all rounded bg-white p-2 text-sm" dir="ltr">{secret}</code><Button variant="outline" className={tap} onClick={() => setSecret(null)}>{t.okLabel}</Button></div>}
+      {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
+      {secret && <div role="alert" data-new-secret className="space-y-1 rounded-xl border-2 border-warning/40 bg-warning-soft p-3"><p className="text-sm font-semibold">{t.secretNow}</p><code className="block break-all rounded bg-white p-2 text-sm" dir="ltr">{secret}</code><Button variant="outline" className={tap} onClick={() => setSecret(null)}>{t.okLabel}</Button></div>}
       <details className="rounded-xl border bg-white p-3" open={rows.length === 0}>
         <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.newHook}</summary>
         <div className="mt-2 grid gap-2">
@@ -263,7 +263,7 @@ function Mappings({ tenantId, t, tt, isArabic, onMessage, utils }: Common & { tt
   const error = save.error ?? list.error;
   return (
     <section aria-label={t.tabMappings} className="space-y-3">
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
+      {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
       <div className="grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-2">
         <label className="block text-sm font-medium">{t.system}<Select className="mt-1" value={system} onValueChange={setSystem} options={["generic", ...SYSTEMS].map(value => ({ value, label: SYSTEM_NAME[value] ?? value }))} /></label>
         <label className="block text-sm font-medium">{t.mapType}<Select className="mt-1" value={form.type} onValueChange={value => setForm({ ...form, type: value as (typeof MAP_TYPES)[number] })} options={MAP_TYPES.map(value => ({ value, label: tt[value] }))} /></label>
@@ -289,13 +289,13 @@ function SyncLog({ tenantId, t, tt, isArabic, language }: Common & { tt: Record<
   const error = runs.error ?? items.error;
   return (
     <section aria-label={t.tabLog} className="space-y-3">
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
+      {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
       {rows.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noRuns}</p> : (
         <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-sm" data-runs>
           <thead><tr className="bg-muted"><th scope="col" className="p-2 text-start">{t.when}</th><th scope="col" className="p-2 text-start">{t.system}</th><th scope="col" className="p-2 text-start">{t.entity}</th><th scope="col" className="p-2 text-start">{t.trigger}</th><th scope="col" className="p-2 text-center">{t.received}</th><th scope="col" className="p-2 text-center">{t.accepted}</th><th scope="col" className="p-2 text-center">{t.rejected}</th><th scope="col" className="p-2 text-start">{t.outcome}</th><th scope="col" className="p-2"><span className="sr-only">{t.items}</span></th></tr></thead>
           <tbody>{rows.map(run => <tr key={run.id} className="border-t" data-run={run.id}>
             <td className="p-2">{showDate(run.startedAt, language)}</td><td className="p-2" dir="ltr">{run.system}</td><td className="p-2" dir="ltr">{run.direction === "out" ? "→ " : "← "}{run.entityType ?? "—"}</td><td className="p-2" dir="ltr">{run.trigger}</td>
-            <td className="p-2 text-center">{run.received}</td><td className="p-2 text-center">{run.accepted}</td><td className={`p-2 text-center ${run.rejected > 0 ? "font-semibold text-red-700" : ""}`}>{run.rejected}</td><td className="p-2">{tt[runKey[run.status] ?? run.status] ?? run.status}</td>
+            <td className="p-2 text-center">{run.received}</td><td className="p-2 text-center">{run.accepted}</td><td className={`p-2 text-center ${run.rejected > 0 ? "font-semibold text-danger-soft-foreground" : ""}`}>{run.rejected}</td><td className="p-2">{tt[runKey[run.status] ?? run.status] ?? run.status}</td>
             <td className="p-2"><Button variant="outline" className={tap} onClick={() => { setOpenRun(run.id); setOutcome("all"); }}>{t.items}</Button></td></tr>)}</tbody></table></div>
       )}
       {openRun && (

@@ -1,4 +1,3 @@
-import { useCanPage } from "@/lib/permissions";
 import { Select, formatNumber } from "@/components/ds";
 import { riyalLabel } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { getProjectError } from "@shared/projectErrors";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { LanguageToggle } from "@/components/LanguageToggle";
+import { FieldShell } from "@/components/FieldShell";
 import { Link, useParams } from "wouter";
 import { SourceNotice } from "@/components/SectionResilience";
 import { isRetryable } from "@/components/ScreenStates";
@@ -32,7 +31,7 @@ const text = {
     receive: "استلام مواد", pickOrder: "اختر أمر الشراء", receivedQty: "الكمية المستلمة", noOrders: "لا أوامر شراء صادرة لهذا المشروع.", received: "استُلمت", from: "من", grn: "إذن الاستلام", rejectedHint: "الكمية المرفوضة تُسجَّل من شاشة الاستلام المكتبية بدليلها.",
    checkingIdentity: "التحقق من هويتك", offlineOff: "الحفظ دون اتصال معطّل إلى أن يعود؛ أعد المحاولة قبل أن تحفظ إدخالًا." },
   en: {
-    title: "Quick site entry", back: "Back to project board", notAllowed: "Your role does not allow logging progress or issuing material from this screen.", progress: "Log progress", issue: "Issue material", loading: "Loading…", retry: "Retry",
+    title: "Field entry", back: "Back to project board", notAllowed: "Your role does not allow logging progress or issuing material from this screen.", progress: "Log progress", issue: "Issue material", loading: "Loading…", retry: "Retry",
     pickItem: "Pick the work item", nowAt: "Now at", never: "not recorded", save: "Save", saving: "Saving…", saved: "Saved", another: "Record another", noWbs: "This project has no work items yet.", plus5: "+5", minus5: "−5",
     issueToUnit: "Issue to a unit's activity (search or QR)", pickMaterial: "Pick the material", quantity: "Quantity", unitCost: "Unit cost", warehouse: "Warehouse", workItem: "Work item", change: "Change", onHand: "On hand", total: "Total", noMaterials: "No materials in the catalogue yet.", noWarehouses: "This project has no active warehouse.", issued: "Issued", to: "to",
     team: "Team hours", workDate: "Work day", teamEmpty: "No assignment covers this day.", attendanceMissing: "Attendance not approved yet", entered: "Entered", hours: "hours", saveTeam: "Save team hours", teamSaved: "Hours saved", rows: "rows", rowErrors: "Nothing was saved. Fix these rows:",
@@ -40,7 +39,7 @@ const text = {
     averageCost: "Average cost", usesAverage: "Issued at the stock's average cost", directToSite: "Direct delivery to site (no warehouse, cost charged now)", intoWarehouse: "Goes into the warehouse; cost is charged when it is issued", noWarehouseToReceive: "There is no active warehouse to receive into. Record it as a direct delivery to site or add a warehouse.",
     receive: "Receive material", pickOrder: "Pick the purchase order", receivedQty: "Quantity received", noOrders: "This project has no issued purchase orders.", received: "Received", from: "from", grn: "Receipt note", rejectedHint: "Rejected quantity, with its evidence, is recorded from the desk receipt screen.",
    checkingIdentity: "Checking who you are", offlineOff: "Saving offline is off until it is back; try again before you save an entry." }, ur: {
-    title: "سائٹ سے فوری اندراج", back: "پروجیکٹ بورڈ پر واپس", notAllowed: "آپ کا کردار اس اسکرین سے پیش رفت درج کرنے یا مادّہ اجرا کرنے کی اجازت نہیں دیتا۔", progress: "پیش رفت درج کریں", issue: "مادّہ اجرا کریں", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
+    title: "فیلڈ اندراج", back: "پروجیکٹ بورڈ پر واپس", notAllowed: "آپ کا کردار اس اسکرین سے پیش رفت درج کرنے یا مادّہ اجرا کرنے کی اجازت نہیں دیتا۔", progress: "پیش رفت درج کریں", issue: "مادّہ اجرا کریں", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
     pickItem: "کام کی آئٹم منتخب کریں", nowAt: "اب تک", never: "درج نہیں ہوئی", save: "محفوظ کریں", saving: "محفوظ کیا جا رہا ہے…", saved: "محفوظ ہو گیا", another: "ایک اور درج کریں", noWbs: "اس پروجیکٹ میں ابھی کوئی کام کی آئٹم نہیں ہے۔", plus5: "+5", minus5: "−5",
     issueToUnit: "یونٹ کی سرگرمی پر اجرا (تلاش یا QR)", pickMaterial: "مادّہ منتخب کریں", quantity: "مقدار", unitCost: "فی یونٹ لاگت", warehouse: "گودام", workItem: "کام کی آئٹم", change: "تبدیل کریں", onHand: "دستیاب", total: "کل", noMaterials: "کیٹلاگ میں ابھی کوئی مادّہ نہیں ہے۔", noWarehouses: "اس پروجیکٹ میں کوئی فعال گودام نہیں ہے۔", issued: "اجرا ہوا", to: "کو",
     team: "ٹیم کے گھنٹے", workDate: "کام کا دن", teamEmpty: "اس دن کے لیے کوئی تفویض نہیں۔", attendanceMissing: "حاضری ابھی منظور نہیں ہوئی", entered: "درج شدہ", hours: "گھنٹے", saveTeam: "ٹیم کے گھنٹے محفوظ کریں", teamSaved: "گھنٹے محفوظ ہو گئے", rows: "قطاریں", rowErrors: "کچھ محفوظ نہیں ہوا۔ یہ قطاریں درست کریں:",
@@ -96,7 +95,7 @@ function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, kee
       <ul className="space-y-2">
         {[...context.wbs].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })).map(item => (
           <li key={item.id}>
-            <button type="button" aria-pressed={item.id === itemId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === itemId ? "border-primary bg-teal-50" : "bg-card"}`} onClick={() => { setItemId(item.id); setPercent(null); }}>
+            <button type="button" aria-pressed={item.id === itemId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === itemId ? "border-primary bg-accent" : "bg-card"}`} onClick={() => { setItemId(item.id); setPercent(null); }}>
               <span className="font-semibold">{item.code} · {item.name}</span>
               <span className="block text-xs text-muted-foreground">{t.nowAt}: {item.lastPercent === null ? t.never : `${item.lastPercent}%`}</span>
             </button>
@@ -159,7 +158,7 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
       <ul className="max-h-72 space-y-2 overflow-y-auto">
         {context.materials.map(item => (
           <li key={item.id}>
-            <button type="button" aria-pressed={item.id === materialId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === materialId ? "border-primary bg-teal-50" : "bg-card"}`} onClick={() => { setMaterialId(item.id); setUnitCost(item.lastUnitCost === null ? "" : String(item.lastUnitCost)); }}>
+            <button type="button" aria-pressed={item.id === materialId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === materialId ? "border-primary bg-accent" : "bg-card"}`} onClick={() => { setMaterialId(item.id); setUnitCost(item.lastUnitCost === null ? "" : String(item.lastUnitCost)); }}>
               <span className="font-semibold">{item.code} · {item.description}</span>
               <span className="block text-xs text-muted-foreground">{item.unitOfMeasure}</span>
             </button>
@@ -225,7 +224,7 @@ function ReceiptEntry({ tenantId, projectId, context, t, onSaved, isArabic, keep
       <ul className="space-y-2">
         {orders.map(item => (
           <li key={item.id}>
-            <button type="button" aria-pressed={item.id === orderId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === orderId ? "border-primary bg-teal-50" : "bg-card"}`} onClick={() => { setOrderId(item.id); setMaterialId(null); }}>
+            <button type="button" aria-pressed={item.id === orderId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === orderId ? "border-primary bg-accent" : "bg-card"}`} onClick={() => { setOrderId(item.id); setMaterialId(null); }}>
               <span className="font-semibold">{item.purchaseOrderNumber}</span>
               <span className="block text-xs text-muted-foreground">{item.supplierName}</span>
             </button>
@@ -331,7 +330,6 @@ export default function FieldEntry() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, isRtl, language } = useLanguage();
   const t = pickLanguage(language, text);
-  const canOpenControls = useCanPage("controls", projectId);
   const [chosen, setTab] = useState<"progress" | "issue" | "receive" | "team" | null>(null);
   const me = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const client = trpc.useUtils().client;
@@ -354,12 +352,8 @@ export default function FieldEntry() {
   const tab = chosen && can[chosen] ? chosen : can.progress ? "progress" : can.issue ? "issue" : can.receive ? "receive" : can.team ? "team" : "progress";
   const nothingAllowed = Boolean(data) && !can.progress && !can.issue && !can.receive && !can.team;
   return (
-    <main className="min-h-screen bg-background px-4 py-4 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="mb-2 flex justify-end"><LanguageToggle /></div>
-      <div className="mx-auto max-w-md space-y-4">
-        {/* Q-33: the controls page needs project.read; the way back is drawn only for whoever can open it */}
-        {canOpenControls && <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{t.back}</Link>}
-        <h1 className="text-xl font-semibold">{t.title}</h1>
+    // Q-36 (step 5): the field screens' one frame (FieldShell) — the language switch, the way back (drawn only for whoever can open the board), the title, the ways between the field screens
+    <FieldShell title={t.title} backHref={`/projects/${tenantId}/${projectId}/controls`} backLabel={t.back} tenantId={tenantId} projectId={projectId} current="entry">
         <SourceNotice query={me} isArabic={isArabic} title={t.checkingIdentity} fallback={t.offlineOff} />
         <QueueBanner items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} onRetry={queue.retry} t={t} isArabic={isArabic} language={language} />
         <div role="tablist" className={`grid gap-2 ${tabs.length >= 4 ? "grid-cols-2" : tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
@@ -377,7 +371,6 @@ export default function FieldEntry() {
             : tab === "receive"
               ? <ReceiptEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
               : <TeamHoursEntry tenantId={tenantId} projectId={projectId} personId={me.data?.id ?? null} t={t} isArabic={isArabic} language={language} keepOffline={queue.keep} online={queue.online} />)}
-      </div>
-    </main>
+    </FieldShell>
   );
 }
