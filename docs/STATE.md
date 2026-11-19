@@ -2001,8 +2001,8 @@
 |---|---|---|
 | `/projects/:t/:p/reports` (`client/src/pages/ProjectReports.tsx`): ثلاث بطاقات — التقرير الأسبوعي، التقرير الشهري، مقارنة الموقع والاستشاري — كل بطاقة لمن يفتح صفحتها؛ لا قراءة ولا كتابة في الصفحة نفسها | `PROVEN` | `ProjectReports.test.tsx` (3: موجب، سالب، عربي/أردو) |
 | `shared/pageAccess.ts`: `weeklyReport` و`monthlyReport` (قرّاء التقرير اليومي، كفحص الخادم `READ_PERMISSIONS`) و`siteConsultant` (`project.pmc.read`)، و`REPORTS_HUB_READERS` اتحادها؛ بند القائمة `project-reports` بعد «الموقع والتنفيذ»؛ والصفحات الثلاث صارت ببوابة «لا صلاحية» (`gatedPage`) كبقية صفحات المشروع | `PROVEN` | `siteHub.test.ts` (+2)، `navigation.test.ts` (+2، سالب: أمين المستودع ومشروع آخر) |
-| `pageAccess.database.test.ts`: الصفحات الثلاث تظهر ⇔ تجيب قراءاتها الحقيقية للأدوار الستة | `UNVERIFIED` | يُشغَّل قبل فتح الطلب |
-| البوابات حتى الآن: `pnpm check` 0؛ `pnpm test` 4097/0 | `PROVEN` | 2026-11-19 |
+| `pageAccess.database.test.ts`: الصفحات الثلاث تظهر ⇔ تجيب قراءاتها الحقيقية للأدوار الستة (فروق 0) | `PROVEN` | 7/7 ضمن `pnpm test:db` 861/0 |
+| البوابات: `pnpm check` 0؛ `pnpm test` 4097/0؛ `pnpm test:db` 861/0 | `PROVEN` | 2026-11-19 |
 
 ### Q-37 (P1-04 + P1-05 + P2-10): شرح داخل الشاشات بلا تغيير العلاقات (2026-11-19، المبرمج ج، واجهة ونصوص فقط؛ بلا ترحيلة ولا صلاحية)
 
