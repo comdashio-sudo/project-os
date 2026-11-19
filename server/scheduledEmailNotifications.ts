@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { isAuthorizedScheduledRequest } from "./scheduledLicenseExpiry";
 import { getDb } from "./db";
 import { runEmailNotificationCycle } from "./emailNotifications";
+import { enqueueDeadlineDigests } from "./deadlineAlerts";
 import { enqueueStalledUnitDigests } from "./stalledUnitsDigest";
 import { logError } from "./_core/logger";
 
@@ -24,5 +25,5 @@ export function createScheduledEmailNotificationsHandler(dependencies: Dependenc
 
 export const scheduledEmailNotificationsHandler = createScheduledEmailNotificationsHandler({
   cronSecret: () => process.env.CRON_SECRET,
-  run: async () => { const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const stalledUnits = await enqueueStalledUnitDigests(db, new Date()); return { stalledUnits, ...(await runEmailNotificationCycle({ db })) }; },
+  run: async () => { const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const stalledUnits = await enqueueStalledUnitDigests(db, new Date()); const deadlines = await enqueueDeadlineDigests(db, new Date()); return { stalledUnits, deadlines, ...(await runEmailNotificationCycle({ db })) }; },
 });
