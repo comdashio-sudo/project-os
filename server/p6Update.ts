@@ -2,6 +2,7 @@
 // matched by ACTIVITY ID against the activities of the imported schedule, and only the actual start and finish dates (and what follows from them: in progress / completed) are written.
 // `analyze` counts what would change, against the project's own rows, and writes nothing; `confirm` applies exactly that, in one transaction, with the audit row.
 //   «N activities will be updated, of which S started, F finished, and K have an id that is not in the schedule»
+import { captureScheduleSnapshot } from "./scheduleSnapshots";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -107,6 +108,7 @@ export async function confirmScheduleUpdate(input: Scope & { bytes: Uint8Array; 
     let rowNumber = 0;
     for (const batch of chunks(changes)) await tx.insert(dataImportRowResults).values(batch.map(change => ({ id: randomUUID(), importId, rowNumber: (rowNumber += 1), rowKey: change.code.slice(0, 160), action: "updated" as const, entityId: change.id })));
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "schedule.p6_update_confirmed", entityType: "data_import", entityId: importId, metadata: JSON.stringify({ projectId: input.projectId, fileHash, updated: current.updated, started: current.started, finished: current.finished, moved: current.moved, unknown: current.unknown }) });
+    await captureScheduleSnapshot(tx, { tenantId: input.tenantId, projectId: input.projectId, importId, source: "p6_update", dataDate: null, userId: input.userId }); // Q-23: the file carries no data date — the save's moment
     return { importId, plan: current };
   });
 }
