@@ -2162,6 +2162,40 @@ CREATE TABLE "schedule_calendars" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "schedule_snapshot_activities" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"snapshot_id" varchar(36) NOT NULL,
+	"activity_id" varchar(36) NOT NULL,
+	"code" varchar(80) NOT NULL,
+	"planned_start_at" timestamp with time zone,
+	"planned_finish_at" timestamp with time zone,
+	"actual_start_at" timestamp with time zone,
+	"actual_finish_at" timestamp with time zone,
+	"total_float_hours" numeric(10, 2),
+	"percent_complete" numeric(5, 2),
+	"remaining_hours" numeric(10, 2),
+	"status" varchar(24) NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "schedule_snapshots" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"import_id" varchar(36),
+	"source" varchar(24) NOT NULL,
+	"data_date" timestamp with time zone,
+	"is_baseline" boolean DEFAULT false NOT NULL,
+	"activity_count" integer NOT NULL,
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "schedule_snapshots_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
+);
+--> statement-breakpoint
 CREATE TABLE "scheduled_jobs" (
 	"id" varchar(64) PRIMARY KEY NOT NULL,
 	"purpose" "scheduled_jobs_purpose" NOT NULL,
@@ -3245,6 +3279,12 @@ ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_employee_id_em
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_calendars" ADD CONSTRAINT "schedule_calendars_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_calendars" ADD CONSTRAINT "schedule_calendars_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshot_activities" ADD CONSTRAINT "schedule_snapshot_activities_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshot_activities" ADD CONSTRAINT "schedule_snapshot_activities_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshot_activities" ADD CONSTRAINT "schedule_snapshot_activities_snapshot_fk" FOREIGN KEY ("snapshot_id","tenant_id","project_id") REFERENCES "public"."schedule_snapshots"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshots" ADD CONSTRAINT "schedule_snapshots_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshots" ADD CONSTRAINT "schedule_snapshots_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshots" ADD CONSTRAINT "schedule_snapshots_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "self_service_signup_attempts" ADD CONSTRAINT "self_service_signup_attempts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3650,6 +3690,9 @@ CREATE UNIQUE INDEX "roles_tenant_code_unique" ON "roles" USING btree ("tenant_i
 CREATE UNIQUE INDEX "salary_structures_tenant_employee_unique" ON "salary_structures" USING btree ("tenant_id","employee_id");--> statement-breakpoint
 CREATE INDEX "salary_structures_tenant_active_idx" ON "salary_structures" USING btree ("tenant_id","active");--> statement-breakpoint
 CREATE UNIQUE INDEX "schedule_calendars_project_external_unique" ON "schedule_calendars" USING btree ("project_id","external_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "schedule_snapshot_activities_snapshot_activity_unique" ON "schedule_snapshot_activities" USING btree ("snapshot_id","activity_id");--> statement-breakpoint
+CREATE INDEX "schedule_snapshots_tenant_project_created_idx" ON "schedule_snapshots" USING btree ("tenant_id","project_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "schedule_snapshots_one_baseline_per_project" ON "schedule_snapshots" USING btree ("project_id") WHERE "schedule_snapshots"."is_baseline";--> statement-breakpoint
 CREATE INDEX "scheduled_jobs_task_uid_idx" ON "scheduled_jobs" USING btree ("schedule_cron_task_uid");--> statement-breakpoint
 CREATE INDEX "ssa_user_created_idx" ON "self_service_signup_attempts" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "ssa_email_created_idx" ON "self_service_signup_attempts" USING btree ("email_hash","created_at");--> statement-breakpoint

@@ -14,6 +14,7 @@ import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import { refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { bulkUpdate } from "./bulkUpdate";
 import { authorizeNewImport } from "./db";
+import { captureScheduleSnapshot, p6DataDate } from "./scheduleSnapshots";
 import { parseXerFile, plannedCostByActivity, readP6, type P6Model } from "./domain/smartImport/p6Xer";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -205,6 +206,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     let rowNumber = 0;
     for (const batch of chunks(model.activities)) await tx.insert(dataImportRowResults).values(batch.map(item => ({ id: randomUUID(), importId, rowNumber: (rowNumber += 1), rowKey: item.code.slice(0, 160), action: (existingActivities.has(item.code) ? "updated" : "created") as "created" | "updated", entityId: activityId.get(item.code)! })));
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "schedule.p6_import_confirmed", entityType: "data_import", entityId: importId, metadata: JSON.stringify({ projectId: input.projectId, fileHash, counts, currency }) });
+    await captureScheduleSnapshot(tx, { tenantId: input.tenantId, projectId: input.projectId, importId, source: "p6_import", dataDate: p6DataDate(model.project.dataDate), userId: input.userId }); // Q-23: the schedule as this import left it
     (plan as P6Plan & { importId?: string }).importId = importId;
   }
   return plan;
