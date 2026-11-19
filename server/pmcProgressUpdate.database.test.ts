@@ -133,4 +133,36 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-4: the site engineer's
     await expect(manager().pmc.updateProgress({ tenantId: T_OTHER, projectId: P_OTHER, activityCode: "FOOT", villas: ["2"], status: "COMPLETE", date: today })).rejects.toThrow();
     expect(await progressOf(2)).toBe(0);
   });
+
+  // Q-24 (P-120): the phone kept three entries while offline and sends them when the connection returns — each applied once (the same identifiers sent
+  // again answer the stored result and write nothing); an entry kept BEFORE a newer save of the same villa is refused and named, never written over it.
+  it("Q-24: three entries sent after the connection returns are written once (a resend writes nothing); one kept before a newer save is refused, villa named", async () => {
+    await new Promise(resolve => setTimeout(resolve, 20)); // the cells' last writes (earlier tests) come before the moment the phone kept the entries
+    const queuedAt = new Date().toISOString();
+    const kept = [
+      { clientRequestId: crypto.randomUUID(), activityCode: "FOOT", villas: ["2"], status: "IN_PROGRESS" as const },
+      { clientRequestId: crypto.randomUUID(), activityCode: "PAINT", villas: ["1"], status: "COMPLETE" as const },
+      { clientRequestId: crypto.randomUUID(), activityCode: "FOOT", villas: ["4"], status: "COMPLETE" as const },
+    ];
+    const before = await count("pmc_unit_activity_history");
+    const first = [] as Array<{ changed: number }>;
+    for (const entry of kept) first.push(await manager().pmc.updateProgress({ ...scope, ...entry, date: today, queuedAt }));
+    expect(first.map(result => result.changed)).toEqual([1, 1, 1]);
+    expect(await count("pmc_unit_activity_history")).toBe(before + 3);
+    // the reply was lost, the phone sends the same three again: the stored answers come back, and not one row more
+    for (const [index, entry] of kept.entries()) expect((await manager().pmc.updateProgress({ ...scope, ...entry, date: today, queuedAt })).batchId).toBe((first[index] as { batchId?: string }).batchId);
+    expect(await count("pmc_unit_activity_history")).toBe(before + 3);
+    // CONFLICT: an entry kept offline, then someone saves the same villa online; the old entry arrives later and is refused, the villa named, nothing written
+    const keptAt = new Date().toISOString();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    await manager().pmc.updateProgress({ ...scope, activityCode: "FOOT", villas: ["2"], status: "COMPLETE", date: today });
+    const refused = await manager().pmc.updateProgress({ ...scope, activityCode: "FOOT", villas: ["2", "3"], status: "NOT_STARTED", date: today, queuedAt: keptAt, clientRequestId: crypto.randomUUID() }).then(() => null, caught => caught);
+    expect(issueCodes(refused)).toEqual(["SITE_CHANGED_SINCE:2"]);
+    expect(await progressOf(2)).toBe(40); // still COMPLETE: the newer save stands
+    expect(await progressOf(3)).toBe(100); // the villa that had not changed was not written either: refused whole
+    // a phone clock ahead must not switch the check off (review of #407): refused, said as such, nothing written
+    const ahead = await manager().pmc.updateProgress({ ...scope, activityCode: "FOOT", villas: ["2"], status: "NOT_STARTED", date: today, queuedAt: new Date(Date.now() + 3_600_000).toISOString(), clientRequestId: crypto.randomUUID() }).then(() => null, caught => caught);
+    expect(issueCodes(ahead)).toEqual(["SITE_CLOCK_AHEAD"]);
+    expect(await progressOf(2)).toBe(40);
+  });
 });
