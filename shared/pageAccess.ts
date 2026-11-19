@@ -23,6 +23,8 @@ export const PAGE_ACCESS = {
   stalled: [["project.pmc.read"]],
   // meetings.list — listProjectMeetings (server/meetings.ts), Q-25
   meetings: [["project.read", "project.manage"]],
+  // schedule.live — getLiveSchedule (server/scheduleSnapshots.ts), Q-23
+  schedule: [["project.read", "project.manage"]],
   profitability: [["project.read"]],
   commercial: [["project.read"]],
 } as const satisfies Record<string, PageAccess>;

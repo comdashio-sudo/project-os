@@ -1,5 +1,6 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
+import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
 import { getReportPeriod } from "./reportPeriods";
@@ -201,7 +202,7 @@ export const appRouter = router({
     structure: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStructure({ userId: ctx.user.id, ...input })),
     // Q-4: the site engineer's progress update on the weights table (server/pmcProgressUpdate.ts): the activities, one atomic update for several villas, the history
     progressActivities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressActivities({ userId: ctx.user.id, ...input })),
-    updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10) })).mutation(({ ctx, input }) => updatePmcProgress({ userId: ctx.user.id, ...input })),
+    updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10), queuedAt: z.string().datetime().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "pmc.updateProgress" }, () => updatePmcProgress({ userId: ctx.user.id, ...input }))),
     progressHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcProgressHistory({ userId: ctx.user.id, ...input })),
     // Q-14 (a): the stalled villas (working days since the last progress or QC movement) and the project's threshold (server/stalledUnits.ts)
     stalledUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getStalledUnits({ userId: ctx.user.id, ...input })),
@@ -209,7 +210,7 @@ export const appRouter = router({
     // Q-5: the QC engineer's receipts (server/pmcQcReceipts.ts): one atomic batch, the counters per activity, the history, a villa's two states
     undoProgressBatch: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), batchId: z.string().uuid() })).mutation(({ ctx, input }) => undoPmcProgressBatch({ userId: ctx.user.id, ...input })),
     undoQcReceiptBatch: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), batchId: z.string().uuid() })).mutation(({ ctx, input }) => undoPmcQcReceiptBatch({ userId: ctx.user.id, ...input })),
-    updateQcReceipts: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), received: z.boolean(), date: z.string().trim().max(10) })).mutation(({ ctx, input }) => updatePmcQcReceipts({ userId: ctx.user.id, ...input })),
+    updateQcReceipts: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), received: z.boolean(), date: z.string().trim().max(10), queuedAt: z.string().datetime().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "pmc.updateQcReceipts" }, () => updatePmcQcReceipts({ userId: ctx.user.id, ...input }))),
     qcCounters: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => pmcQcCounters({ userId: ctx.user.id, ...input })),
     qcHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcQcHistory({ userId: ctx.user.id, ...input })),
     // Q-8: one activity's QC state per villa, for the master plan's colouring
@@ -480,7 +481,7 @@ export const appRouter = router({
     pmoActions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => ({ actions: (await getPmoDashboard({ userId: ctx.user.id, ...input })).actions })),
     pmoPlanning: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
       const dashboard = await getPmoDashboard({ userId: ctx.user.id, ...input });
-      return { planningOverview: dashboard.planningOverview };
+      return { planningOverview: dashboard.planningOverview, activitySignals: dashboard.activitySignals, commercialSignals: dashboard.commercialSignals, programTotals: dashboard.programTotals, portfolioTotals: dashboard.portfolioTotals, programs: dashboard.programs, portfolios: dashboard.portfolios, projects: dashboard.projects.map(project => ({ id: project.id, code: project.code, name: project.name })) };
     }),
     pmoTodayExceptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(async ({ ctx, input }) => {
       const dashboard = await getPmoDashboard({ userId: ctx.user.id, ...input });
@@ -513,7 +514,7 @@ export const appRouter = router({
       materials: z.array(z.object({ material: z.string().trim().min(1).max(160), quantity: z.number().finite().positive().max(1e9), unit: z.string().trim().min(1).max(24), supplier: z.string().trim().max(160).optional(), consultantSubmittalId: z.string().uuid().optional() })).max(200).optional(),
       hse: z.array(z.object({ kind: z.enum(HSE_KINDS), description: z.string().trim().min(1).max(2000), peopleCount: z.number().int().min(0).max(100000).optional(), actionTaken: z.string().trim().max(2000).optional() })).max(200).optional(),
       obstacleItems: z.array(z.object({ issue: z.string().trim().min(1).max(2000), impact: z.string().trim().max(2000).optional(), responsible: z.string().trim().max(160).optional(), action: z.string().trim().max(2000).optional(), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })).max(100).optional(),
-      tomorrow: z.array(z.object({ area: z.string().trim().max(160).optional(), activity: z.string().trim().min(1).max(255), quantity: z.number().finite().min(0).max(1e9).optional(), unit: z.string().trim().max(24).optional(), resources: z.string().trim().max(2000).optional() })).max(200).optional() })).mutation(({ ctx, input }) => saveSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
+      tomorrow: z.array(z.object({ area: z.string().trim().max(160).optional(), activity: z.string().trim().min(1).max(255), quantity: z.number().finite().min(0).max(1e9).optional(), unit: z.string().trim().max(24).optional(), resources: z.string().trim().max(2000).optional() })).max(200).optional(), queuedAt: z.string().datetime().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "siteReports.save" }, () => saveSiteDailyReportForTenant({ userId: ctx.user.id, ...input }))),
     // Q-12: the HSE engineer's and the QA/QC engineer's section of the day's report (server/siteReports.ts saveSiteDailyReportSectionForTenant)
     saveSection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), section: z.enum(["hse", "qc"]),
       materials: z.array(z.object({ material: z.string().trim().min(1).max(160), quantity: z.number().finite().positive().max(1e9), unit: z.string().trim().min(1).max(24), supplier: z.string().trim().max(160).optional(), consultantSubmittalId: z.string().uuid().optional() })).max(200).optional(),
@@ -908,6 +909,12 @@ export const appRouter = router({
   }),
   activities: router({
     create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), code: z.string().trim().min(1).max(80), name: z.string().trim().min(2).max(255), plannedValue: z.number().finite().nonnegative().optional(), plannedStartAt: z.date(), plannedFinishAt: z.date() })).mutation(({ ctx, input }) => createActivity({ userId: ctx.user.id, ...input })),
+  }),
+  schedule: router({
+    // Q-23: the live schedule — today against the baseline snapshot, critical by P6 float, planned against actual at the data date, a two-week look-ahead
+    live: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getLiveSchedule({ userId: ctx.user.id, ...input })),
+    // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
+    compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),
   costs: router({
     createActual: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), wbsItemId: z.string().uuid().optional(), amount: z.number().finite().positive(), incurredAt: z.date(), category: z.enum(["materials", "labour", "subcontract", "other"]).optional() })).mutation(({ ctx, input }) => createCostEntry({ userId: ctx.user.id, ...input })),

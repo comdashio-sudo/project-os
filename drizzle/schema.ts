@@ -1597,6 +1597,56 @@ export const projectMeetingItems = pgTable(
   ],
 );
 
+// Q-23 (P-105..P-107): the live schedule. Every P6 import or update keeps a SNAPSHOT of the project's activities as they stood after it (dates, float, completion),
+// in the same transaction, so a later read can show each activity's deviation from the baseline (the first snapshot, or the one marked baseline), the
+// planned-against-actual at the data date, and two updates side by side. Snapshots are a record: never edited, never deleted by the application. Migration 0036.
+export const scheduleSnapshots = pgTable(
+  "schedule_snapshots",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    importId: varchar("import_id", { length: 36 }),
+    source: varchar("source", { length: 24 }).notNull(),
+    dataDate: timestamp("data_date", { withTimezone: true }),
+    isBaseline: boolean("is_baseline").default(false).notNull(),
+    activityCount: integer("activity_count").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    unique("schedule_snapshots_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+    index("schedule_snapshots_tenant_project_created_idx").on(table.tenantId, table.projectId, table.createdAt),
+    uniqueIndex("schedule_snapshots_one_baseline_per_project").on(table.projectId).where(sql`${table.isBaseline}`),
+  ],
+);
+export const scheduleSnapshotActivities = pgTable(
+  "schedule_snapshot_activities",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    snapshotId: varchar("snapshot_id", { length: 36 }).notNull(),
+    activityId: varchar("activity_id", { length: 36 }).notNull(),
+    code: varchar("code", { length: 80 }).notNull(),
+    plannedStartAt: timestamp("planned_start_at", { withTimezone: true }),
+    plannedFinishAt: timestamp("planned_finish_at", { withTimezone: true }),
+    actualStartAt: timestamp("actual_start_at", { withTimezone: true }),
+    actualFinishAt: timestamp("actual_finish_at", { withTimezone: true }),
+    totalFloatHours: numeric("total_float_hours", { precision: 10, scale: 2 }),
+    percentComplete: numeric("percent_complete", { precision: 5, scale: 2 }),
+    remainingHours: numeric("remaining_hours", { precision: 10, scale: 2 }),
+    status: varchar("status", { length: 24 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.snapshotId, table.tenantId, table.projectId], foreignColumns: [scheduleSnapshots.id, scheduleSnapshots.tenantId, scheduleSnapshots.projectId], name: "schedule_snapshot_activities_snapshot_fk" }),
+    uniqueIndex("schedule_snapshot_activities_snapshot_activity_unique").on(table.snapshotId, table.activityId),
+  ],
+);
+
 export const stocktakes = pgTable(
   "stocktakes",
   {

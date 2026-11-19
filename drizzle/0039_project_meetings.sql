@@ -95,6 +95,6 @@ END $$;
 --> statement-breakpoint
 DO $$ BEGIN
   IF (SELECT COUNT(*) FROM pg_constraint WHERE conname IN ('actions_meeting_fk', 'project_meetings_previous_fk', 'project_meeting_attendees_meeting_fk', 'project_meeting_items_meeting_fk') AND contype = 'f' AND array_length(conkey, 1) = 3) <> 4 THEN
-    RAISE EXCEPTION '0037: a same-project meeting key is missing';
+    RAISE EXCEPTION '0039: a same-project meeting key is missing';
   END IF;
 END $$;

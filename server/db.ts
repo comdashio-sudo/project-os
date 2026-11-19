@@ -1386,6 +1386,10 @@ export const BOQ_MONEY_READERS = ["project.cashflow.read", "project.wbs.manage"]
 export function projectMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
   return holdsPermission(snapshot, PROJECT_MONEY_READERS, { type: "project", id: projectId });
 }
+/** Q-45 (b): who sees the value of a project's purchase orders — whoever sees its money (205-1), and whoever manages its procurement. */
+export function purchaseOrderMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
+  return projectMoneyVisible(snapshot, projectId) || holdsPermission(snapshot, "project.procurement.manage", { type: "project", id: projectId });
+}
 export function contractMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
   return holdsPermission(snapshot, CONTRACT_MONEY_READERS, { type: "project", id: projectId });
 }
@@ -1603,7 +1607,58 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     materialShortages,
     today,
   });
-  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions };
+  // Q-45 (b, adviser 18-11): overdue and critical activities per project, and the same signals added up per program and portfolio — every number from the
+  // database. «Critical» is total float ≤ 0 as P6 computed it; a project none of whose activities carries a float (scheduled by hand) is null: «غير متاح».
+  const activitySignalRows = projectRows.length
+    ? await db.select({
+      projectId: activities.projectId,
+      overdue: sql<string>`COUNT(*) FILTER (WHERE ${activities.status} <> 'completed' AND ${activities.plannedFinishAt} IS NOT NULL AND ${activities.plannedFinishAt} < now())`,
+      critical: sql<string>`COUNT(*) FILTER (WHERE ${activities.status} <> 'completed' AND ${activities.totalFloatHours} IS NOT NULL AND ${activities.totalFloatHours} <= 0)`,
+      withFloat: sql<string>`COUNT(${activities.totalFloatHours})`,
+    }).from(activities).where(and(eq(activities.tenantId, input.tenantId), inArray(activities.projectId, projectRows.map(project => project.id)))).groupBy(activities.projectId)
+    : [];
+  const activitySignalByProject = new Map(activitySignalRows.map(row => [row.projectId, { overdue: Number(row.overdue), critical: Number(row.withFloat) > 0 ? Number(row.critical) : null }]));
+  const activitySignals = projectRows.map(project => ({ projectId: project.id, overdueActivities: activitySignalByProject.get(project.id)?.overdue ?? 0, criticalActivities: activitySignalByProject.get(project.id)?.critical ?? null }));
+  // Q-45 (b, third batch): open purchase orders and cost against budget per project. The COUNT of open orders is not money and is shown to every reader;
+  // the amounts — the orders' value, the current budget and the posted actual cost — only to whoever may see that project's money (205-1), and the
+  // orders' value also to whoever manages its procurement. Everyone else gets null, which the screen says as «hidden», never 0.
+  const visibleIds = projectRows.map(project => project.id);
+  const [openOrderRows, budgetRows, actualRows] = visibleIds.length ? await Promise.all([
+    db.select({ projectId: purchaseOrders.projectId, n: sql<string>`count(*)`, amount: sql<string>`COALESCE(SUM(${purchaseOrders.amount}), 0)` }).from(purchaseOrders)
+      .where(and(eq(purchaseOrders.tenantId, input.tenantId), inArray(purchaseOrders.projectId, visibleIds), inArray(purchaseOrders.status, ["submitted", "approved", "issued"]))).groupBy(purchaseOrders.projectId),
+    db.select({ projectId: budgetLines.projectId, amount: sql<string>`COALESCE(SUM(${budgetLines.currentAmount}), 0)` }).from(budgetLines)
+      .where(and(eq(budgetLines.tenantId, input.tenantId), inArray(budgetLines.projectId, visibleIds))).groupBy(budgetLines.projectId),
+    db.select({ projectId: costEntries.projectId, amount: sql<string>`COALESCE(SUM(${costEntries.amount}), 0)` }).from(costEntries)
+      .where(and(eq(costEntries.tenantId, input.tenantId), inArray(costEntries.projectId, visibleIds), eq(costEntries.entryType, "actual"), eq(costEntries.status, "posted"))).groupBy(costEntries.projectId),
+  ]) : [[], [], []];
+  const commercialSignals = projectRows.map(project => {
+    const seesMoney = projectMoneyVisible(snapshot, project.id);
+    const seesOrders = purchaseOrderMoneyVisible(snapshot, project.id);
+    const orders = openOrderRows.find(row => row.projectId === project.id);
+    return {
+      projectId: project.id, currency: project.currency,
+      openPurchaseOrders: Number(orders?.n ?? 0),
+      openPurchaseOrderAmount: seesOrders ? Number(orders?.amount ?? 0) : null,
+      budget: seesMoney ? Number(budgetRows.find(row => row.projectId === project.id)?.amount ?? 0) : null,
+      actualCost: seesMoney ? Number(actualRows.find(row => row.projectId === project.id)?.amount ?? 0) : null,
+    };
+  });
+  const planningByProject = new Map(planningOverview.projects.map(item => [item.id, item]));
+  const rollUp = (members: typeof projectRows) => {
+    const signals = members.map(project => activitySignals.find(item => item.projectId === project.id)!);
+    const knownCritical = signals.filter(item => item.criticalActivities !== null);
+    return {
+      projects: members.length,
+      overdueActivities: signals.reduce((total, item) => total + item.overdueActivities, 0),
+      criticalActivities: knownCritical.length ? knownCritical.reduce((total, item) => total + (item.criticalActivities ?? 0), 0) : null,
+      openHighRisks: members.reduce((total, project) => total + (planningByProject.get(project.id)?.openRiskCount ?? 0), 0),
+      criticalIssues: members.reduce((total, project) => total + (planningByProject.get(project.id)?.criticalIssueCount ?? 0), 0),
+      overdueActions: members.reduce((total, project) => total + (planningByProject.get(project.id)?.overdueActionCount ?? 0), 0),
+    };
+  };
+  const programTotals = programRows.map(program => ({ programId: program.id, ...rollUp(projectRows.filter(project => project.programId === program.id)) }));
+  const portfolioTotals = portfolioRows.map(portfolio => ({ portfolioId: portfolio.id, ...rollUp(projectRows.filter(project => project.portfolioId === portfolio.id)) }));
+  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions, activitySignals, programTotals, portfolioTotals, commercialSignals };
 }
 
 export async function getContractsCommitmentsForTenant(input: { userId: number; tenantId: string; projectId: string }) {

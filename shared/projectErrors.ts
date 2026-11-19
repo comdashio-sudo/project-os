@@ -1828,6 +1828,36 @@ export const projectErrorMessages = {
     en: "One of the attendees chosen is not an active member of this company.",
     ur: "منتخب حاضرین میں سے ایک اس کمپنی کا فعال رکن نہیں۔",
   },
+  PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND: {
+    ar: "إحدى لقطتي المقارنة غير موجودة في هذا المشروع.",
+    en: "One of the two snapshots to compare is not in this project.",
+    ur: "موازنے کے دو اسنیپ شاٹس میں سے ایک اس پروجیکٹ میں نہیں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_NO_SNAPSHOT: {
+    ar: "هذا التحديث أُكّد قبل حفظ لقطات الجدول الزمني، فلا توجد قيم سابقة دقيقة لإعادتها. استورد تحديثًا صحيحًا فوقه بدل التراجع.",
+    en: "This update was confirmed before schedule snapshots were kept, so there are no exact previous values to put back. Import a correct update over it instead.",
+    ur: "یہ تازہ کاری شیڈول اسنیپ شاٹس محفوظ ہونے سے پہلے تصدیق ہوئی تھی، اس لیے واپس رکھنے کے لیے درست پچھلی قدریں نہیں۔ واپسی کے بجائے درست تازہ کاری اوپر درآمد کریں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_NOT_LATEST: {
+    ar: "بعد هذا التحديث استيراد أو تحديث آخر للجدول الزمني. تراجع عن الأحدث أولًا.",
+    en: "Another schedule import or update came after this one. Undo the latest one first.",
+    ur: "اس کے بعد شیڈول کی ایک اور درآمد یا تازہ کاری ہوئی ہے۔ پہلے تازہ ترین کو واپس کریں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_CHANGED_SINCE: {
+    ar: "بعض الأنشطة التي غيّرها هذا التحديث عُدّلت بعده، فالتراجع يمحو عملًا لاحقًا. لم يُغيَّر شيء.",
+    en: "Some activities this update changed were edited after it, so undoing it would erase later work. Nothing was changed.",
+    ur: "اس تازہ کاری سے بدلی گئی کچھ سرگرمیاں بعد میں دوبارہ بدلی گئیں، اس لیے واپسی بعد کا کام مٹا دے گی۔ کچھ نہیں بدلا۔",
+  },
+  PROJECT_OS_CLIENT_CLOCK_AHEAD: {
+    ar: "ساعة هذا الهاتف متقدمة على الوقت الحقيقي، فلا يمكن التحقق من أن ما حفظته لا يمحو عملًا أحدث. صحّح ساعة الهاتف ثم احفظ من جديد.",
+    en: "This phone's clock is ahead of the real time, so it cannot be checked that what you kept does not erase newer work. Correct the phone's clock, then save again.",
+    ur: "اس فون کی گھڑی اصل وقت سے آگے ہے، اس لیے جانچ نہیں ہو سکتی کہ آپ کا محفوظ کیا نئے کام کو نہ مٹائے۔ فون کی گھڑی درست کریں پھر دوبارہ محفوظ کریں۔",
+  },
+  PROJECT_OS_SITE_REPORT_CHANGED_SINCE: {
+    ar: "حُفظ تقرير هذا اليوم بعد أن حفظتَ نسختك على الهاتف دون اتصال، فلم تُرسل نسختك حتى لا تمحو الأحدث. افتح التقرير وأضف ما ينقصه ثم احذف النسخة المحفوظة.",
+    en: "This day's report was saved after you kept your version on the phone offline, so yours was not sent, to avoid erasing the newer one. Open the report, add what is missing, then discard the kept version.",
+    ur: "اس دن کی رپورٹ آپ کے آف لائن محفوظ کرنے کے بعد محفوظ ہوئی، اس لیے آپ کا نسخہ نہیں بھیجا گیا تاکہ نیا نہ مٹے۔ رپورٹ کھولیں، جو کمی ہو شامل کریں، پھر محفوظ نسخہ حذف کریں۔",
+  },
   PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES: {
     ar: "هذا الاستيراد عدّل صفوفًا كانت موجودة، ولم تُحفظ قيمها السابقة، فلا يمكن إعادتها. استورد النسخة الصحيحة فوقه بدل التراجع.",
     en: "This import changed rows that already existed and their previous values were not kept, so they cannot be restored. Import the correct version over it instead.",

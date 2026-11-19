@@ -20,5 +20,6 @@ export function attemptState(row: { status: string; errorCount: number }): Attem
 export const canDiscardAttempt = (state: AttemptState) => state === "rejected" || state === "awaiting";
 export const canRollbackAttempt = (state: AttemptState) => state === "imported";
 /** Modules whose created rows can be taken back (and so replaced). Opening stock is a ledger of stock movements: it is never erased by an undo. One list for the server and the screen. */
-export const ROLLBACK_MODULES = ["wbs", "budget", "contracts", "materials", "schedule"] as const;
+// p6update (G-208, Q-23): undone by putting the previous values back from the snapshot taken before it; p6 (a full XER import) still is not
+export const ROLLBACK_MODULES = ["wbs", "budget", "contracts", "materials", "schedule", "p6update"] as const;
 export const canRollbackModule = (moduleCode: string) => (ROLLBACK_MODULES as readonly string[]).includes(moduleCode);

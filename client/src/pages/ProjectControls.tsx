@@ -248,6 +248,7 @@ export default function ProjectControls() {
             ))}
             <WriteGate permission={PAGE_ACCESS.stalled[0]} projectId={projectId}><StalledUnitsLink tenantId={tenantId} projectId={projectId} /></WriteGate>
             <WriteGate permission={PAGE_ACCESS.meetings[0]} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="meetings" label={pickLanguage(language, PAGE_NAMES.meetings)} /></WriteGate>
+            <WriteGate permission={PAGE_ACCESS.schedule[0]} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="schedule" label={pickLanguage(language, PAGE_NAMES.liveSchedule)} /></WriteGate>
           </nav>
           </PageHeader>
         </section>
