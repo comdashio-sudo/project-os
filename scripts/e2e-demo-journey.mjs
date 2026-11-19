@@ -79,9 +79,12 @@ async function levels() {
   const portfolio = (await call("pmo", "scopes.portfolio", { tenantId })).totals;
   const company = await call("board", "scopes.company", { tenantId });
   const warehouseId = (await one("SELECT id FROM project_warehouses WHERE tenant_id = $1 AND code = 'WH-MAIN'", [tenantId])).id;
-  const warehouse = await call("keeper", "scopes.warehouse", { tenantId, projectId, warehouseId });
+  // 205-1 (Q-32 #372, Q-39 #385): stock value and the portfolio's amounts are money. The keeper reads the shelf's quantities, the PMO lead the portfolio's
+  // counts and progress; the amounts are read as the project manager (a money reader) and checked at the board, which reads the company's money by design.
+  const warehouse = await call("pm", "scopes.warehouse", { tenantId, projectId, warehouseId });
+  const keeperWarehouse = await call("keeper", "scopes.warehouse", { tenantId, projectId, warehouseId });
   const row = company.projects.find(item => item.projectId === projectId);
-  return { project, portfolio, company: company.totals, companyRow: row, warehouse };
+  return { project, portfolio, portfolioRow: (await call("pmo", "scopes.portfolio", { tenantId })).projects.find(item => item.projectId === projectId), company: company.totals, companyRow: row, warehouse, keeperWarehouse };
 }
 const figures = state => ({ ev: state.project.evm.ev, ac: state.project.evm.ac, eac: state.project.evm.eac, profit: state.project.expectedProfit.value, progress: state.project.progress.percent });
 
@@ -171,7 +174,8 @@ try {
   check("the forecast fell by exactly that earned value (EAC = AC + BAC − EV)", near(f1.eac - base.eac, -expectedDEv, 0.02), { moved: money(f1.eac - base.eac) });
   check("the expected profit rose by exactly the same amount", near(f1.profit - base.profit, expectedDEv, 0.02), { moved: money(f1.profit - base.profit) });
   check("the project's overall progress moved by one villa's share, +0.02 points", near(f1.progress - base.progress, 0.02, 0.006), { moved: round(f1.progress - base.progress, 4) });
-  check("the portfolio level carries the same profit movement", near(S1.portfolio.expectedProfit - S0.portfolio.expectedProfit, expectedDEv, 0.02), { moved: money(S1.portfolio.expectedProfit - S0.portfolio.expectedProfit) });
+  // 205-1 (Q-39 #385): the PMO lead holds pmo.read without the project's money — the portfolio shows the project's progress, and no amount at all
+  check("the portfolio level (PMO lead) carries the progress movement and no amount (205-1)", S1.portfolioRow?.expectedProfit?.reason === "MONEY_HIDDEN" && S1.portfolio.expectedProfit === null && near(S1.portfolioRow.progress.percent - S0.portfolioRow.progress.percent, f1.progress - base.progress, 0.006), { row: S1.portfolioRow?.expectedProfit, total: S1.portfolio.expectedProfit });
   check("the company (board) level carries the same profit movement, to the project's row and to the total", near(S1.companyRow.expectedProfit.value - S0.companyRow.expectedProfit.value, expectedDEv, 0.02) && near(S1.company.expectedProfit - S0.company.expectedProfit, expectedDEv, 0.02));
   await siteScreen.context.close(); await pmScreen.context.close();
 
@@ -325,7 +329,10 @@ try {
   check("earned value did not move (an issue is not progress)", near(f3.ev, f3pre.ev));
   check("the forecast rose by the same cost", near(f3.eac - f3pre.eac, dAc, 0.02));
   check("the expected profit fell by the same cost", near(f3.profit - f3pre.profit, -dAc, 0.02), { moved: money(f3.profit - f3pre.profit) });
-  check("the portfolio and the board carry the same fall", near(S3.portfolio.expectedProfit - S3pre.portfolio.expectedProfit, -dAc, 0.02) && near(S3.company.expectedProfit - S3pre.company.expectedProfit, -dAc, 0.02));
+  check("the board carries the same fall, and the portfolio (PMO lead) still shows no amount (205-1)", near(S3.company.expectedProfit - S3pre.company.expectedProfit, -dAc, 0.02) && S3.portfolio.expectedProfit === null);
+  // Q-32 (#372): the keeper sees the shelf's quantities, not its value
+  const keeperAfter = S3.keeperWarehouse.stock.find(item => item.code === "CEM-50");
+  check("the keeper sees five bags less on the shelf, and no value (205-1)", near(S3pre.keeperWarehouse.stock.find(item => item.code === "CEM-50").quantity - keeperAfter.quantity, 5, 0.001) && keeperAfter.value === null && S3.keeperWarehouse.totals.stockValue === null, { keeper: keeperAfter, total: S3.keeperWarehouse.totals.stockValue });
   const stockAfter = S3.warehouse.stock.find(item => item.code === "CEM-50");
   check("the warehouse level shows five bags less, and the shelf value down by their cost", near(stockBefore.quantity - stockAfter.quantity, 5, 0.001) && near(stockBefore.value - stockAfter.value, dAc, 0.05) && near(S3pre.warehouse.totals.stockValue - S3.warehouse.totals.stockValue, dAc, 0.05), { before: stockBefore, after: stockAfter });
   check("the stock value at the company level fell by the same cost", near(S3pre.company.stockValue - S3.company.stockValue, dAc, 0.05));

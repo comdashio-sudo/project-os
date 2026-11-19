@@ -105,6 +105,22 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-23: schedule snapshots
     expect(row("A1000").critical).toBe(false); // complete: never critical, whatever its float
   }, 120_000);
 
+  it("comparing two snapshots: the baseline against the first update says what the update did, activity by activity; another project's snapshot and a reader of another project are refused", async () => {
+    const [baseline] = await one<{ id: string }>("SELECT id FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND isBaseline = true", [T, P]);
+    const [firstUpdate] = await one<{ id: string }>("SELECT id FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND source = 'p6_update' ORDER BY createdAt LIMIT 1", [T, P]);
+    const result = await callerFor(users.reader, "q23-reader").schedule.compare({ tenantId: T, projectId: P, fromSnapshotId: baseline.id, toSnapshotId: firstUpdate.id });
+    // the update file: A1000..A1040 start (one day late each); A1000 finishes 2023-10-17 (planned 2023-10-15: two days later); A1010 finishes on its planned day
+    expect(result.summary).toEqual({ changed: 5, added: 0, removed: 0, started: 5, finished: 2, finishLater: 1, finishEarlier: 0, becameCritical: 0, noLongerCritical: 0 }); // A1000 had zero float, but it FINISHED: a complete activity is not «no longer critical»
+    expect(result.changes.map(change => [change.code, change.kinds, change.finishMovedDays])).toEqual([
+      ["A1000", ["started", "finished", "finish_moved"], 2],
+      ["A1010", ["started", "finished"], 0], ["A1020", ["started"], 0], ["A1030", ["started"], 0], ["A1040", ["started"], 0],
+    ]);
+    // NEGATIVE: a snapshot id that is not this project's, and a reader scoped to another project
+    expect(await code(callerFor(users.reader, "q23-reader").schedule.compare({ tenantId: T, projectId: PB, fromSnapshotId: baseline.id, toSnapshotId: firstUpdate.id }))).toBe("PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND");
+    expect(await code(callerFor(users.scoped, "q23-scoped").schedule.compare({ tenantId: T, projectId: P, fromSnapshotId: baseline.id, toSnapshotId: firstUpdate.id }))).toMatch(/^PROJECT_OS_.*DENIED|FORBIDDEN/);
+    expect(await code(callerFor(users.outsider, "q23-outsider").schedule.compare({ tenantId: T, projectId: P, fromSnapshotId: baseline.id, toSnapshotId: firstUpdate.id }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+  });
+
   // G-208: undoing an activity update puts back what it changed, from the snapshot taken before it — never a delete; refused (nothing written) when it is not
   // the latest, or when an activity it changed was edited since, or for a reader without project.manage.
   it("G-208: an activity update is undone — refused for a reader, when not the latest, and when an activity it changed was edited since; then the activities are as before it", async () => {
