@@ -6,6 +6,8 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
+import { useCanPage } from "@/lib/permissions";
+import type { PageKey } from "@shared/pageAccess";
 
 /** Every control a thumb has to hit is at least 44 px (the phone screens of the field work). */
 export const tap = "min-h-[44px] min-w-[44px]";
@@ -25,15 +27,26 @@ function FieldTabs({ tenantId, projectId, current }: { tenantId: string; project
   const [unit, setUnit] = React.useState("");
   const base = `/m/${tenantId}/${projectId}`;
   const tabs = [["progress", `${base}/progress`, t.progress], ["qc", `${base}/qc`, t.qc], ["report", `${base}/report`, t.report], ["submittals", `/projects/${tenantId}/${projectId}/submittals`, t.submittals], ["quality", `/projects/${tenantId}/${projectId}/quality`, t.quality]] as const;
+  // Q-33: a tab is drawn only when its page's server reads would answer (shared/pageAccess.ts); the daily report and submittals tabs are not in the table yet
+  const can = { progress: useCanPage("progress", projectId), qc: useCanPage("qc", projectId), quality: useCanPage("quality", projectId) } as Record<string, boolean>;
   return (
     <nav aria-label={t.nav} className="flex flex-wrap items-center gap-2">
-      {tabs.map(([key, href, label]) => <Link key={key} href={href} aria-current={current === key ? "page" : undefined} className={`${tap} inline-flex items-center rounded-xl px-3 text-sm font-semibold ${current === key ? "bg-primary text-primary-foreground" : "border bg-card text-foreground"}`}>{label}</Link>)}
+      {tabs.filter(([key]) => can[key] !== false).map(([key, href, label]) => <Link key={key} href={href} aria-current={current === key ? "page" : undefined} className={`${tap} inline-flex items-center rounded-xl px-3 text-sm font-semibold ${current === key ? "bg-primary text-primary-foreground" : "border bg-card text-foreground"}`}>{label}</Link>)}
       <CheckedForm className="flex flex-wrap items-center gap-1" onSubmit={event => { event.preventDefault(); if (unit.trim()) navigate(`${base}/unit/${encodeURIComponent(unit.trim())}`); }}>
         <input aria-label={t.unitNumber} placeholder={t.unitNumber} inputMode="numeric" required className={`${tap} w-28 rounded-xl border bg-card px-3 text-sm`} value={unit} onChange={event => setUnit(event.target.value)} />
         <button type="submit" className={`${tap} rounded-xl border bg-card px-3 text-sm font-semibold`}>{t.unit}</button>
       </CheckedForm>
     </nav>
   );
+}
+
+/** Q-33: the way back is drawn only when it leads somewhere the person can open (the field entry and the controls page need project.read). */
+const pageOfHref = (href: string): PageKey | null => (/^\/m\/[^/]+\/[^/]+$/.test(href) ? "fieldEntry" : /^\/projects\/[^/]+\/[^/]+\/controls$/.test(href) ? "controls" : null);
+function BackLink({ href, label, projectId }: { href: string; label: string; projectId?: string }) {
+  const page = pageOfHref(href);
+  const allowed = useCanPage(page ?? "registry", projectId);
+  if (page && !allowed) return null;
+  return <Link href={href} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{label}</Link>;
 }
 
 /** The frame the field screens share: the language switch, a way back, the title, the ways between the field screens. Right to left for Arabic and Urdu, left to right for English. */
@@ -44,7 +57,7 @@ export function FieldShell({ title, backHref, backLabel, wide, tenantId, project
     <PageMain className={`min-h-screen bg-background px-4 py-4 text-foreground ${language === "ur" ? "[&_*]:!leading-[2.1]" : ""}`} dir={isRtl ? "rtl" : "ltr"}>
       <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className={`mx-auto space-y-4 ${wide ? "max-w-5xl" : "max-w-md"}`}>
-        <Link href={backHref} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{backLabel}</Link>
+        <BackLink href={backHref} label={backLabel} projectId={projectId} />
         <h1 className="text-xl font-semibold">{title}</h1>
         {tenantId && projectId && <FieldTabs tenantId={tenantId} projectId={projectId} current={current} />}
         {children}
