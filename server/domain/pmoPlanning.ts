@@ -10,7 +10,7 @@ export type PmoPlanningInput = {
   plannedFinishAt: Date | null;
   forecastFinishAt: Date | null;
   health: { status: "green" | "amber" | "red"; overallScore: number; periodAt: Date } | null;
-  evm: { cpi: number | null; spi: number | null; eac: number; vac: number; periodAt: Date } | null;
+  evm: { cpi: number | null; spi: number | null; eac: number | null; vac: number | null; periodAt: Date } | null;
   openRiskCount: number;
   criticalIssueCount: number;
   overdueActionCount: number;

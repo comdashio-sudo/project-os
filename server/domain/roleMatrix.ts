@@ -170,6 +170,7 @@ export const roleNamesAr = {
   PROJECT_MANAGER: "مدير المشروع",
   EXECUTIVE: "المستوى التنفيذي",
   PMO_LEAD: "مسؤول مكتب إدارة المشاريع (PMO)",
+  MANAGEMENT_VIEWER: "مشاهد الإدارة",
   COST_CONTROLLER: "مراقب التكلفة (كوست كنترول)",
   PROJECT_COORDINATOR: "منسق المشروع",
   DESIGN_COORDINATOR_ARCHITECTURAL: "منسق التصميم المعماري",
