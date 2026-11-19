@@ -32,7 +32,7 @@ export function LanguageToggle({ dark = false, showNote = false }: { dark?: bool
           const pressed = code === language;
           const tone = dark
             ? (pressed ? "border-white bg-white/20 text-white" : "border-white/30 bg-transparent text-white hover:bg-white/10")
-            : (pressed ? "border-slate-700 bg-slate-800 text-white" : "border-border bg-white text-foreground hover:bg-muted");
+            : (pressed ? "border-foreground bg-foreground text-white" : "border-border bg-white text-foreground hover:bg-muted");
           return (
             <button
               key={code}

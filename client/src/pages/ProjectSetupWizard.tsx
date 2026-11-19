@@ -107,7 +107,7 @@ export default function ProjectSetupWizard() {
           <CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>{t.steps[step]}</CardTitle>{projectId ? <Badge tone="success">{t.saved}</Badge> : null}</div></CardHeader>
           <CardBody>
             <p className="mb-3 text-sm text-muted-foreground" data-step-goal>{t.goals[step]}</p>
-            {projectId ? <p className="mb-3 text-xs" data-wizard-status><span className="font-semibold text-emerald-700">{t.done}:</span> {t.steps[0]} · <span className="font-semibold">{t.remaining}:</span> {t.steps.slice(Math.max(1, step + 1)).join(language === "en" ? ", " : "، ") || "—"}</p> : null}
+            {projectId ? <p className="mb-3 text-xs" data-wizard-status><span className="font-semibold text-success-soft-foreground">{t.done}:</span> {t.steps[0]} · <span className="font-semibold">{t.remaining}:</span> {t.steps.slice(Math.max(1, step + 1)).join(language === "en" ? ", " : "، ") || "—"}</p> : null}
             {step === 0 ? <DataStep tenantId={tenantId} projectId={projectId} onSaved={id => { setProjectId(id); setStep(1); }} /> : null}
             {step === 1 && projectId ? <CompaniesStep tenantId={tenantId} projectId={projectId} /> : null}
             {step === 2 && projectId ? <InviteForm tenantId={tenantId} projectId={projectId} /> : null}

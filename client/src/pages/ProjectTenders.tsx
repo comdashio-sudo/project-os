@@ -92,7 +92,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
       <SourceNotice query={comparison} isArabic={isArabic} title={t.comparisonTitle} />
       {selected && !tenderMoney ? <p role="note" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{pickLanguage(language, { ar: "مقارنة العروض وأسعارها مخفية: تحتاج صلاحية قراءة التدفق النقدي أو صلاحية على المناقصة.", en: "The bid comparison and its prices are hidden: they need the cash-flow read permission or a tender permission.", ur: "بولیوں کا موازنہ اور ان کی قیمتیں پوشیدہ ہیں: نقد بہاؤ دیکھنے کی اجازت یا ٹینڈر کی اجازت درکار ہے۔" })}</p> : null}
       <SourceNotice query={invitees} isArabic={isArabic} title={t.inviteesTitle} />
-      {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p> : null}
+      {error ? <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p> : null}
 
       {sheet(t.packagesTitle, <>
         <WriteGate permission="project.tender.manage" projectId={projectId} reason={noWrite("إنشاء حزم المناقصة", "create tender packages", "ٹینڈر پیکیجز بنانے")}>
@@ -144,7 +144,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
             <tbody>{current.bids.map(item => <tr key={item.id} className="border-t align-top">
               <td className="p-2">{item.rank ?? "—"}</td>
               <td className="p-2"><b>{item.supplierName}</b><div className="text-xs text-muted-foreground">{label(item.status)}{item.statusReason ? ` · ${item.statusReason}` : ""}</div>
-                {item.adjustmentLines.map(line => <div key={line.id} className="mt-1 flex items-center gap-2 text-xs"><span>{label(line.kind)}: {line.description} ({money(line.amount)})</span>{status === "closed" ? <WriteGate permission="project.tender.level" projectId={projectId}><button type="button" className="text-red-700 underline" onClick={() => removeAdjustment.mutate({ ...scope, adjustmentId: line.id })}>{t.remove}</button></WriteGate> : null}</div>)}
+                {item.adjustmentLines.map(line => <div key={line.id} className="mt-1 flex items-center gap-2 text-xs"><span>{label(line.kind)}: {line.description} ({money(line.amount)})</span>{status === "closed" ? <WriteGate permission="project.tender.level" projectId={projectId}><button type="button" className="text-danger-soft-foreground underline" onClick={() => removeAdjustment.mutate({ ...scope, adjustmentId: line.id })}>{t.remove}</button></WriteGate> : null}</div>)}
                 {item.status === "submitted" ? <div className="mt-2 flex flex-wrap items-center gap-2">
                   {status === "open" ? <WriteGate permission="project.tender.bids" projectId={projectId}><Button size="sm" variant="outline" disabled={withdrawBid.isPending} onClick={() => withdrawBid.mutate({ ...scope, bidId: item.id })}>{t.withdraw}</Button></WriteGate> : null}
                   {status === "closed" ? <WriteGate permission="project.tender.level" projectId={projectId}><Input aria-label={`${t.reason} ${item.supplierName}`} placeholder={t.reason} className="h-9 w-40" value={reasons[item.id] ?? ""} onChange={event => setReasons({ ...reasons, [item.id]: event.target.value })} /><Button size="sm" variant="outline" disabled={(reasons[item.id] ?? "").trim().length < 3 || disqualifyBid.isPending} onClick={() => disqualifyBid.mutate({ ...scope, bidId: item.id, reason: reasons[item.id]!.trim() })}>{t.disqualify}</Button></WriteGate> : null}
@@ -162,7 +162,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
             </CheckedForm></WriteGate> : null}
         </>, <ExportExcelButton fileName="tenders-bid-comparison" sheetName={t.comparisonTitle} title={`${t.title} · ${t.comparisonTitle}`} rows={current.bids} columns={bidColumns} />)}
 
-        {status === "awarded" ? <p role="status" className="rounded-lg bg-white/80 p-3 text-sm font-semibold text-emerald-800">{t.awarded} · {t.contract}: {current.package.awardedContractId?.slice(0, 8)} · {t.commitment}: {current.package.awardedCommitmentId?.slice(0, 8)}</p> : null}
+        {status === "awarded" ? <p role="status" className="rounded-lg bg-white/80 p-3 text-sm font-semibold text-success-soft-foreground">{t.awarded} · {t.contract}: {current.package.awardedContractId?.slice(0, 8)} · {t.commitment}: {current.package.awardedCommitmentId?.slice(0, 8)}</p> : null}
         {status === "closed" && live.length ? <WriteGate permission="project.tender.award" projectId={projectId} reason={noWrite("ترسية المناقصات", "award tenders", "ٹینڈرز کا ٹھیکہ دینے")}>{sheet(t.awardTitle,
           <CheckedForm className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => award.mutate({ ...scope, packageId: selected, bidId: winning.bidId, contractCode: winning.contractCode, ...(winning.justification ? { justification: winning.justification } : {}) }))}>
             <div className="md:col-span-2"><Label htmlFor="aw-bid">{t.supplier}</Label><Select id="aw-bid" value={winning.bidId} placeholder={t.pickBid} onValueChange={value => setWinning({ ...winning, bidId: value })} required options={live.map(item => ({ value: item.id, label: `${item.rank}. ${item.supplierName} — ${money(item.levelledTotal)}` }))} /></div>

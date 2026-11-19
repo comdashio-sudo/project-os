@@ -102,31 +102,36 @@ const BAR = {
   ur: { title: "رپورٹ برآمد کریں", pdf: "PDF ڈاؤن لوڈ", word: "Word ڈاؤن لوڈ", excel: "لیبر شیٹ (Excel)", busy: "تیار ہو رہا ہے…", done: (name: string) => `ڈاؤن لوڈ ہوا: ${name}`, failed: "برآمد نہیں ہو سکی۔ دوبارہ کوشش کریں۔" },
 };
 
-/** The three exports of a saved report: PDF and Word drawn from the document above in the browser, the labour sheet written by the server (siteReports.export). */
-export function ReportExports(props: { language: Lang; fileBase: string; documentRef: React.RefObject<HTMLElement | null>; onExcel: () => Promise<{ url: string; fileName: string }>; buttonClass: string }) {
+type ServerFile = { url: string; fileName: string };
+/** The three exports of a saved report. The labour sheet is written by the server (siteReports.export). Q-29: with onServerExport (the whole report's readers, whom the
+ * server lets export), the PDF is a text PDF and the Word a real .docx written by the server with the photos embedded; without it (a section-only reader) both are drawn
+ * from the document above in the browser. */
+export function ReportExports(props: { language: Lang; fileBase: string; documentRef: React.RefObject<HTMLElement | null>; onExcel: () => Promise<ServerFile>; onServerExport?: (format: "docx" | "pdf") => Promise<ServerFile>; buttonClass: string }) {
   const t = BAR[props.language];
   const [state, setState] = React.useState<{ kind: "busy" | "done" | "failed"; name?: string } | null>(null);
   const run = async (task: () => Promise<string>) => {
     setState({ kind: "busy" });
     try { setState({ kind: "done", name: await task() }); } catch { setState({ kind: "failed" }); }
   };
+  const fetchFile = async (file: ServerFile) => {
+    const link = document.createElement("a");
+    link.href = file.url; link.download = file.fileName; link.rel = "noopener"; document.body.appendChild(link); link.click(); link.remove();
+    return file.fileName;
+  };
   const pdf = () => run(async () => {
+    if (props.onServerExport) return fetchFile(await props.onServerExport("pdf"));
     const element = props.documentRef.current;
     if (!element) throw new Error("no document");
     const { exportElementToPdf } = await import("@/lib/pdfExport");
     return exportElementToPdf(element, props.fileBase, "portrait");
   });
   const word = () => run(async () => {
+    if (props.onServerExport) return fetchFile(await props.onServerExport("docx"));
     const element = props.documentRef.current;
     if (!element) throw new Error("no document");
     return downloadWord(element, props.fileBase);
   });
-  const excel = () => run(async () => {
-    const file = await props.onExcel();
-    const link = document.createElement("a");
-    link.href = file.url; link.download = file.fileName; link.rel = "noopener"; document.body.appendChild(link); link.click(); link.remove();
-    return file.fileName;
-  });
+  const excel = () => run(async () => fetchFile(await props.onExcel()));
   const busy = state?.kind === "busy";
   return (
     <section aria-label={t.title} className="space-y-2 rounded-xl border bg-card p-3" data-report-exports>

@@ -32,6 +32,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   issueMaterialToCellForTenant: "delegates to createMaterialIssueForTenant, which writes the warehouse.material_issued_to_work audit row in the same transaction",
   analyzePmcImport: "analysis only: nothing is written until the approved file is confirmed, and confirmation is audited",
   exportPmcScreen: "a read-only export; PMC reads are not audited (listed as a gap in docs/GATE6_RECORDS.md)",
+  exportPmcCatalog: "Q-49: a read-only export of the project's own catalogue (both names); PMC reads are not audited (the same gap as exportPmcScreen)",
   claimSupportTicket: "delegates to transitionSupportTicket, which writes the audit row",
   createImportUpload: "mints a signed upload URL and records nothing; the import is recorded by registerImportUpload, whose job writes data_import_uploaded (or data_import_failed)",
   requestImportConfirmation: "a small import is written by confirmAndImportData, which writes data_import_completed; a large one by runImportConfirmation, which calls the same function and writes data_import_failed when it cannot",

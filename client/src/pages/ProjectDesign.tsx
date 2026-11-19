@@ -80,7 +80,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
       <SourceNotice query={transmittals} isArabic={isArabic} title={t.transmittalsTitle} />
       <SourceNotice query={comments} isArabic={isArabic} title={t.commentsTitle} />
       <SourceNotice query={submittals} isArabic={isArabic} title={t.submittalsTitle} />
-      {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p> : null}
+      {error ? <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p> : null}
 
       {b ? <section aria-label={t.board} className="rounded-xl bg-accent p-4">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -108,7 +108,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
         </WriteGate>
         {list.length ? <div className="divide-y rounded-xl border">{list.map(item => <div key={item.id} className="p-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.drawingNumber} · {item.title}</b><span className="text-xs text-muted-foreground">{label(item.discipline)} · {t.revisionLabel} {item.currentRevision} · {label(item.status)}</span></div>
-          {item.unresolvedComments ? <p className="mt-1 text-xs text-amber-800">{t.unresolved}: {item.unresolvedComments}</p> : null}
+          {item.unresolvedComments ? <p className="mt-1 text-xs text-warning-soft-foreground">{t.unresolved}: {item.unresolvedComments}</p> : null}
           {item.status !== "cancelled" ? <div className="mt-2 flex flex-wrap items-end gap-2">
             <WriteGate permission="project.design.manage" projectId={projectId}>
               <Input aria-label={`${t.newRevision} ${item.drawingNumber}`} placeholder={t.newRevision} className="h-9 w-32" value={revision[item.id] ?? ""} onChange={event => setRevision({ ...revision, [item.id]: event.target.value })} />

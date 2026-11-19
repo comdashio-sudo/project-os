@@ -523,8 +523,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
 
       {plansQuery.error ? <SectionMessage title={t.title} isArabic={isArabic} language={language} kind="error" error={plansQuery.error} onRetry={() => plansQuery.refetch()} /> : null}
 
-      {plansQuery.data && !hasVersion ? <p role="note" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.noPlan}</p> : null}
-      {plansQuery.data && hasVersion && units.length === 0 ? <p role="note" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.noUnits}</p> : null}
+      {plansQuery.data && !hasVersion ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noPlan}</p> : null}
+      {plansQuery.data && hasVersion && units.length === 0 ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noUnits}</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <FileButton label={t.upload} accept=".dxf,.dwg,.png,.jpg,.jpeg,.pdf" showName={false} onFile={onFileChosen} />
@@ -538,15 +538,15 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       </div>
 
       {saved.layout?.latestVersion ? <p className="text-sm text-foreground">{t.savedVersion(saved.layout.latestVersion.versionNumber, saved.layout.latestVersion.fileName)}</p> : null}
-      {savedNotice ? <p role="status" className="text-sm text-emerald-800">{t.saved}</p> : null}
+      {savedNotice ? <p role="status" className="text-sm text-success-soft-foreground">{t.saved}</p> : null}
       {progress ? <p role="status" aria-live="polite" className="text-sm text-foreground">{t.busy(progress.done, progress.total)}</p> : null}
 
-      {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{pickLanguage(language, error.message)}</p> : null}
+      {error ? <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm text-danger-soft-foreground">{pickLanguage(language, error.message)}</p> : null}
 
       {!drawing ? <p className="text-sm text-muted-foreground">{t.empty}</p> : (
         <>
           <p className="text-sm font-medium" aria-live="polite">{t.summary(summary)}</p>
-          {rasterStats ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{t.rasterNote(rasterStats.shapes, rasterStats.labels)}</p> : null}
+          {rasterStats ? <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.rasterNote(rasterStats.shapes, rasterStats.labels)}</p> : null}
           {ignoredCount > 0 ? <p className="text-xs text-muted-foreground">{t.ignored}: {ignoredCount}</p> : null}
 
           {geometry ? (
@@ -649,7 +649,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                     </g>
                   );
                 })}
-                {linkPicks.length > 0 ? <polyline data-testid="link-polygon" points={linkPicks.map(p => `${p.x},${geometry.flipY(p.y)}`).join(" ")} fill="none" stroke="currentColor" className="text-red-600" strokeWidth={Math.max(geometry.width, geometry.height) / 400} pointerEvents="none" /> : null}
+                {linkPicks.length > 0 ? <polyline data-testid="link-polygon" points={linkPicks.map(p => `${p.x},${geometry.flipY(p.y)}`).join(" ")} fill="none" stroke="currentColor" className="text-danger-soft-foreground" strokeWidth={Math.max(geometry.width, geometry.height) / 400} pointerEvents="none" /> : null}
                 <MeasureOverlay picks={picks} flipY={geometry.flipY} size={Math.max(geometry.width, geometry.height) / 150} />
               </svg>
               <p className="mt-2 text-xs text-muted-foreground">{t.legend}</p>

@@ -1,6 +1,7 @@
 // Q-4: the site engineer's progress update on the weights table (phone and computer). The activity is chosen from the weights table (its CSI section and weight
 // shown), then the villas (a list, a range or a whole block), then the status and the date; one save. The server refuses the whole entry before writing anything
 // when one villa is wrong and says which; after the save the villas' and the project's progress, computed from the weights, are shown at once, with the latest history.
+import { ActivityNameToggle, hasEnglishNames, useActivityLabel, useActivityNameLanguage } from "@/lib/activityNames";
 import React, { useCallback, useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, Select, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
@@ -38,6 +39,9 @@ export default function PmcProgressUpdate() {
   const scope = { tenantId, projectId };
   const enabled = Boolean(tenantId && projectId);
   const activities = trpc.pmc.progressActivities.useQuery(scope, { enabled });
+  const [nameLanguage, setNameLanguage] = useActivityNameLanguage();
+  const withEnglish = hasEnglishNames(activities.data);
+  const activityLabel = useActivityLabel(nameLanguage, withEnglish);
   const history = trpc.pmc.progressHistory.useQuery({ ...scope, limit: 10 }, { enabled });
   const [search, setSearch] = useState("");
   const [activityCode, setActivityCode] = useState("");
@@ -52,9 +56,10 @@ export default function PmcProgressUpdate() {
   const weightOf = (item: { minWeight: number; maxWeight: number }) => item.minWeight === item.maxWeight ? formatPercent(item.minWeight, 2) : `${formatPercent(item.minWeight, 2)}–${formatPercent(item.maxWeight, 2)}`;
   const options = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return (activities.data ?? []).filter(item => !needle || `${item.code} ${item.name} ${item.section}`.toLowerCase().includes(needle))
-      .map(item => ({ value: item.code, label: item.name, description: `${item.section} · ${c.weight} ${weightOf(item)}` }));
-  }, [activities.data, search, c.weight]);
+    // Q-49: the search finds an activity by either of its names; the list shows the language chosen in the names switch
+    return (activities.data ?? []).filter(item => !needle || `${item.code} ${item.name} ${item.nameEn ?? ""} ${item.section} ${item.sectionEn ?? ""}`.toLowerCase().includes(needle))
+      .map(item => ({ value: item.code, label: activityLabel(item), description: `${activityLabel({ name: item.section, nameEn: item.sectionEn }, false)} · ${c.weight} ${weightOf(item)}` }));
+  }, [activities.data, search, c.weight, activityLabel]);
 
   const [lastSave, setLastSave] = useState<{ batchId: string; at: number; undone: boolean } | null>(null);
   // Q-24 (P-120): a save that cannot reach the server is kept on this phone (with the moment it was kept) and sent when the connection returns; the server
@@ -92,6 +97,7 @@ export default function PmcProgressUpdate() {
             <SourceNotice query={activities} isArabic={language === "ar"} title={t.update.activity} />
             {activities.isLoading ? <SkeletonRows rows={3} /> : (
               <>
+                {withEnglish && <ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} />}
                 <Field label={t.update.activitySearch} optional>{props => <TextInput {...props} value={search} onChange={event => setSearch(event.target.value)} />}</Field>
                 <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} options={options} value={activityCode} onValueChange={setActivityCode} placeholder={t.update.activity} disabled={!options.length} />}</Field>
               </>

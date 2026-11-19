@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { FileUp } from "lucide-react";
 import { Button, FileDropzone, formatNumber } from "@/components/ds";
-import { DirectImportRunner } from "@/components/DirectImportRunner";
+import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
+import { PmcColumnMapping, type PmcImportColumns } from "@/components/PmcColumnMapping";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage, type Language } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -49,14 +50,27 @@ export function rowProblem(code: string, language: Language): string {
   return ledgerErrorLabel(code, language) ?? (code in projectErrorMessages ? projectErrorMessages[code as keyof typeof projectErrorMessages][language] : code);
 }
 
+// the equipment list's four fields by name, for the column picker and the row problems (Q-31)
+const EQUIPMENT_FIELDS = {
+  ar: { equipmentType: "النوع", count: "العدد", model: "الطراز", plateOrSize: "اللوحة أو المقاس" },
+  en: { equipmentType: "Type", count: "Count", model: "Model", plateOrSize: "Plate or size" },
+  ur: { equipmentType: "قسم", count: "تعداد", model: "ماڈل", plateOrSize: "پلیٹ یا سائز" },
+} as Record<Language, Record<string, string>>;
+
 export function EquipmentImport({ tenantId, projectId, onImported }: { tenantId: string; projectId: string; onImported: () => void }) {
   const { isArabic, language } = useLanguage();
   const t = pickLanguage(language, text);
+  const fieldLabel = (key: string) => pickLanguage(language, EQUIPMENT_FIELDS)[key];
+  // Q-31 (P0-02): which column each field was read from; when the type column was not recognised the person picks it and the file is analysed again
+  const renderReport = (view: DirectImportView) => {
+    const found = (view.external?.report as { equipment?: { columns?: PmcImportColumns } } | undefined)?.equipment?.columns;
+    return found ? <PmcColumnMapping key={`${view.id}:${JSON.stringify(found.fields)}`} tenantId={tenantId} projectId={projectId} importId={view.id} columns={found} language={language} isArabic={isArabic} fieldLabel={fieldLabel} /> : null;
+  };
   return (
     <section className="space-y-2 rounded-[var(--radius)] border p-3" aria-label={t.equipmentTitle} data-import="equipment">
       <h3 className="text-sm font-semibold">{isolateLatin(t.equipmentTitle)}</h3>
       <p className="text-xs text-muted-foreground">{t.columns} {(language === "ar" ? equipmentImportHeaders.ar : equipmentImportHeaders.en).map((header, index) => <React.Fragment key={header}>{index ? " | " : ""}<bdi>{header}</bdi></React.Fragment>)}</p>
-      <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode="equipment" isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} errorLabel={code => rowProblem(code, language)} onCompleted={onImported} dropzone />
+      <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode="equipment" isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} errorLabel={code => rowProblem(code, language)} fieldLabel={fieldLabel} renderReport={renderReport} onCompleted={onImported} dropzone />
     </section>
   );
 }
