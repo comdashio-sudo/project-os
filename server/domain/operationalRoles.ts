@@ -92,6 +92,8 @@ export const operationalRoleDefinitions = [
     code: "PROJECT_MANAGER",
     name: "Project Manager",
     permissions: [
+      // Q-33 (adviser 18-11): opens the project like the field roles (205-3); project.read carries no money since 205-1, the PM's money comes from the money powers below
+      "project.read",
       "project.manage",
       "project.team.invite",
       "project.consultant.respond",

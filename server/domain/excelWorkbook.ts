@@ -64,16 +64,18 @@ export function horizontalMergeCover(sheet: ExcelJS.Worksheet): (row: number, co
 export type SpreadsheetLimits = { maxRows: number; maxColumns: number };
 const defaultLimits: SpreadsheetLimits = { maxRows: MAX_IMPORT_ROWS, maxColumns: MAX_IMPORT_COLUMNS };
 
-export function worksheetToRows(sheet: ExcelJS.Worksheet, limits: SpreadsheetLimits = defaultLimits): { headers: string[]; rows: Record<string, unknown>[] } {
-  const headerRow = sheet.getRow(1);
+/** headerRowNumber (default 1): the row that holds the column names; the data starts below it. rowNumbers[i] is the sheet row of rows[i] (blank rows are dropped, so they differ). */
+export function worksheetToRows(sheet: ExcelJS.Worksheet, limits: SpreadsheetLimits = defaultLimits, headerRowNumber = 1): { headers: string[]; rows: Record<string, unknown>[]; rowNumbers: number[] } {
+  const headerRow = sheet.getRow(headerRowNumber);
   const headers = Array.from({ length: Math.min(sheet.columnCount, limits.maxColumns + 1) }, (_unused, index) => {
     const cell = headerRow.getCell(index + 1);
     return canonicalHeader(String(cell.text ?? "").trim());
   });
   const rows: Record<string, unknown>[] = [];
+  const rowNumbers: number[] = [];
   const covered = horizontalMergeCover(sheet);
-  const lastRow = Math.min(sheet.rowCount, limits.maxRows + 2);
-  for (let rowNumber = 2; rowNumber <= lastRow; rowNumber += 1) {
+  const lastRow = Math.min(sheet.rowCount, limits.maxRows + 1 + headerRowNumber);
+  for (let rowNumber = headerRowNumber + 1; rowNumber <= lastRow; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
     const values = Object.fromEntries(headers.map((header, index) => {
       if (covered(rowNumber, index + 1)) return [header, ""];
@@ -83,9 +85,9 @@ export function worksheetToRows(sheet: ExcelJS.Worksheet, limits: SpreadsheetLim
         : cell.value;
       return [header, value instanceof Date ? value : cell.text || value || ""];
     }));
-    if (Object.values(values).some(value => String(value ?? "").trim() !== "")) rows.push(values);
+    if (Object.values(values).some(value => String(value ?? "").trim() !== "")) { rows.push(values); rowNumbers.push(rowNumber); }
   }
-  return { headers, rows };
+  return { headers, rows, rowNumbers };
 }
 
 export function spreadsheetBoundsError(sheet: ExcelJS.Worksheet, rows: Record<string, unknown>[], limits: SpreadsheetLimits = defaultLimits) {
