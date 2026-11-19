@@ -194,19 +194,23 @@
   --secondary-foreground: var(--dashio-ink);
   --muted: var(--dashio-paper);
   --muted-foreground: var(--dashio-slate);
-  --accent: var(--dashio-aqua);
-  --accent-foreground: var(--dashio-ink);
+  /* Q-19 (2): the turquoise is a touch on dark only, never a light surface: highlights and the avatar use the soft indigo */
+  --accent: #E8E7FD;
+  --accent-foreground: #2B2594;
   /* error text and filled destructive buttons, light theme: 4.5:1 on white and on --dashio-paper (WCAG AA). --status-blocked stays for status marks. */
   --destructive: #D62839;
   --destructive-foreground: var(--dashio-white);
   --border: var(--dashio-line);
   --input: var(--dashio-control);
   --ring: var(--dashio-indigo);
-  --sidebar: var(--dashio-white);
-  --sidebar-foreground: var(--dashio-ink);
-  --sidebar-accent: var(--dashio-paper);
-  --sidebar-accent-foreground: var(--dashio-ink);
-  --sidebar-border: var(--dashio-line);
+  /* Q-19 (2): the dark menu — ink, with its surfaces #151B3A / #1C2350 and the turquoise only as the active item's dot */
+  --sidebar: var(--dashio-ink);
+  --sidebar-foreground: #E6E8F2;
+  --sidebar-accent: #1C2350;
+  --sidebar-accent-foreground: var(--dashio-white);
+  --sidebar-border: #151B3A;
+  --sidebar-surface: #151B3A;
+  --sidebar-mark: var(--dashio-aqua);
   --sidebar-ring: var(--dashio-indigo);
   --success: #0b7a4b; --success-foreground: #ffffff; --success-soft: #def5ea; --success-soft-foreground: #08573a;
   --warning: #b45309; --warning-foreground: #ffffff; --warning-soft: #fff1d6; --warning-soft-foreground: #6b3f00;
