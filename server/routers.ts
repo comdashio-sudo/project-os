@@ -137,6 +137,10 @@ const strategyAssumptionFields = {
   nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
   values: strategyValues,
 };
+
+// Q-31 (P0-02): a person's choice of columns for a baseline file sent inside the request (field key → the header as the file writes it; "" = no column)
+const baselineColumnChoice = z.record(z.string().min(1).max(64), z.string().max(128)).refine(value => Object.keys(value).length <= 8, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }).optional();
+
 export const appRouter = router({
   system: systemRouter,
   // Work order 16, item 4 (G-203): the interface language kept on the signed-in person's account. Only their own row (server/userLanguage.ts).
@@ -661,16 +665,16 @@ export const appRouter = router({
       status: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getBaselineStatus({ userId: ctx.user.id, ...input })),
       saveContract: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), contractValue: z.number({ message: "PROJECT_OS_CONTRACT_VALUE_INVALID" }), plannedStartAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }), plannedFinishAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }) })).mutation(({ ctx, input }) => saveProjectContract({ userId: ctx.user.id, ...input })),
       // Q-10 (b): the planned cash flow from a small Excel/CSV file (a month and a share per row; the shares total 100%). preview writes nothing; save replaces the plan.
-      previewCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectCashFlow({ userId: ctx.user.id, ...input })),
-      saveCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectCashFlow({ userId: ctx.user.id, ...input })),
+      previewCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => previewProjectCashFlow({ userId: ctx.user.id, ...input })),
+      saveCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => saveProjectCashFlow({ userId: ctx.user.id, ...input })),
       cashFlowTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => cashFlowTemplate({ userId: ctx.user.id, ...input })),
       // Q-10 (c): the bill of quantities from an Excel/CSV file (item code, description, unit, quantity, rate). Same authority as adding one item (project.wbs.manage).
-      previewBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectBoq({ userId: ctx.user.id, ...input })),
-      saveBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectBoq({ userId: ctx.user.id, ...input })),
+      previewBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => previewProjectBoq({ userId: ctx.user.id, ...input })),
+      saveBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => saveProjectBoq({ userId: ctx.user.id, ...input })),
       boqTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => boqTemplate({ userId: ctx.user.id, ...input })),
       // Q-10 (d): the planned labour histogram (month, optional trade, workers). preview writes nothing; save replaces the plan. project.manage.
-      previewLabour: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectLabour({ userId: ctx.user.id, ...input })),
-      saveLabour: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectLabour({ userId: ctx.user.id, ...input })),
+      previewLabour: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => previewProjectLabour({ userId: ctx.user.id, ...input })),
+      saveLabour: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => saveProjectLabour({ userId: ctx.user.id, ...input })),
       labourTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => labourTemplate({ userId: ctx.user.id, ...input })),
     }),
     // Work order 23, P-17 (D-42 a): the project's profile and the companies on it (server/projectProfile.ts). Read: project.read or project.manage; write: project.manage.

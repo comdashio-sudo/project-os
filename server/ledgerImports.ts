@@ -15,7 +15,8 @@ import { auditLogs, budgetLines, contracts, costEntries, employeeAssignments, em
 import { acceptedHeaders, isLedgerModule, ledgerColumns, LEDGER_ID_HEADER, LEDGER_VERSION_HEADER, type LedgerColumn, type LedgerModule } from "@shared/ledgerImportColumns";
 import { assertHrRecordAccess, assertProjectWithinTenant, assertTenantFeatureAccess, createDataExport, createTeamTimeEntriesForTenant, getDb } from "./db";
 import { buildDataExportFile, type ExportModuleCode } from "./domain/dataImport";
-import { readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./domain/excelWorkbook";
+import { MAX_IMPORT_COLUMNS, readSpreadsheetSafely, spreadsheetBoundsError, worksheetToRows } from "./domain/excelWorkbook";
+import { chooseSheet, type TableRows } from "./domain/importEngine/read";
 import { diffHash, type DiffEntry, type FieldChange, type MissingRow } from "./domain/importCycle";
 
 export { isLedgerModule, type LedgerModule };
@@ -90,18 +91,27 @@ function applyChoice(columns: LedgerColumn[], headers: string[], found: Map<stri
   return { mapping, ignoreOthers };
 }
 
-async function readTable(moduleCode: LedgerModule, format: "xlsx" | "csv", bytes: Buffer, override?: Record<string, string>): Promise<Table> {
+/** Exported for unit tests (no database): the table a ledger file holds, read through the shared reader (Q-50). */
+export async function readLedgerTable(moduleCode: LedgerModule, format: "xlsx" | "csv", bytes: Buffer, override?: Record<string, string>): Promise<Table> {
   // the offending field or column travels as `field` (the stored error row keeps it, and the screen shows it beside the sentence)
   const fail = (code: string, field?: string): Table => ({ rows: [], errors: [{ rowNumber: 0, code, ...(field ? { field } : {}) }] });
   const parsed = await readSpreadsheetSafely(format === "csv" ? bytes.toString("utf8") : bytes, format);
   if (!parsed.ok) return fail(parsed.code);
-  if (parsed.workbook.worksheets.length !== 1) return fail(parsed.workbook.worksheets.length === 0 ? "IMPORT_EMPTY_WORKBOOK" : "IMPORT_SINGLE_SHEET_REQUIRED");
-  const sheet = parsed.workbook.worksheets[0]!;
-  const { headers, rows } = worksheetToRows(sheet);
-  const bounds = spreadsheetBoundsError(sheet, rows);
-  if (bounds) return fail(bounds);
   const columns = ledgerColumns[moduleCode];
   const accepted = (column: LedgerColumn) => new Set(acceptedHeaders(column).map(norm));
+  // Q-50 (layer 1, importEngine/read.ts): the header row need not be row 1 (a title or a logo above the table), and a workbook may carry other sheets
+  // (notes, a cover): the one sheet whose header names every required column is read; two such sheets are refused as ambiguous, never picked silently.
+  const evaluate = ({ baseHeaders }: TableRows) => {
+    const names = new Set(baseHeaders.map(norm));
+    const found = columns.filter(column => acceptedHeaders(column).some(name => names.has(norm(name))));
+    return { found: found.length, complete: columns.every(column => !column.required || found.includes(column)) };
+  };
+  const picked = chooseSheet(parsed.workbook, evaluate, { maxRows: 0, maxColumns: MAX_IMPORT_COLUMNS });
+  if (!picked.ok) return fail(picked.code, picked.detail);
+  const { sheet, candidate } = picked;
+  const { headers, rows, rowNumbers } = worksheetToRows(sheet, undefined, candidate.row);
+  const bounds = spreadsheetBoundsError(sheet, rows);
+  if (bounds) return fail(bounds);
   let headerOf = new Map<string, string>();
   for (const column of columns) { const names = accepted(column); const header = headers.find(candidate => names.has(norm(candidate))); if (header) headerOf.set(column.key, header); }
   let ignoreOthers = false;
@@ -122,7 +132,7 @@ async function readTable(moduleCode: LedgerModule, format: "xlsx" | "csv", bytes
     errors,
     columns: report,
     rows: rows.map((row, index) => ({
-      rowNumber: index + 2,
+      rowNumber: rowNumbers[index]!,
       cells: Object.fromEntries(columns.map(column => [column.key, headerOf.has(column.key) ? row[headerOf.get(column.key)!] : undefined])),
       fileId: text(row[LEDGER_ID_HEADER]) || undefined,
       fileVersion: text(row[LEDGER_VERSION_HEADER]) || undefined,
@@ -406,7 +416,7 @@ export async function authorizeLedgerModule(scope: LedgerScope, moduleCode: Ledg
 
 /** `mappingOverride`: a person's choice of columns (Q-31); the analysis and the write take the same one, so the write is what the report described. */
 export async function planLedgerImport(db: Db, scope: LedgerScope, moduleCode: LedgerModule, format: "xlsx" | "csv", bytes: Buffer, mappingOverride?: Record<string, string>): Promise<LedgerPlan> {
-  const table = await readTable(moduleCode, format, bytes, mappingOverride);
+  const table = await readLedgerTable(moduleCode, format, bytes, mappingOverride);
   if (table.errors.length) return { totalRows: 0, entries: [], errors: table.errors, missing: [], readsEmployeeRecords: false, apply: null, columns: table.columns };
   return { ...(await planRows(db, scope, moduleCode, table.rows)), columns: table.columns };
 }
