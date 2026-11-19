@@ -163,7 +163,7 @@ export function exportLinksJson(items: ReviewItem[]): string {
 // D-75: the colours are the status tokens of client/src/index.css (they follow the light and dark themes); the drawing is SVG, so var() resolves.
 export const UNIT_STATUS_COLOUR: Record<string, string> = {
   not_started: "var(--status-todo)",
-  in_progress: "var(--status-late)",
+  in_progress: "var(--status-progress)",
   completed: "var(--status-done)",
   blocked: "var(--status-blocked)",
 };
