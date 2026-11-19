@@ -1693,6 +1693,11 @@ export const projectErrorMessages = {
     en: "This certificate number is already used in this project.",
     ur: "سرٹیفکیٹ کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے۔",
   },
+  PROJECT_OS_REQUISITION_REQUIRED_AT_PAST: {
+    ar: "تاريخ الحاجة مضى. اختر اليوم أو تاريخًا قادمًا.",
+    en: "The date the material is needed has passed. Choose today or a later date.",
+    ur: "ضرورت کی تاریخ گزر چکی ہے۔ آج یا آنے والی تاریخ منتخب کریں۔",
+  },
   PROJECT_OS_CERTIFICATE_OPEN_EXISTS: {
     ar: "لهذا العقد من الباطن مستخلص لم يُعتمد بعد. اعتمده أو ألغه قبل إنشاء مستخلص جديد، حتى لا تُطالب الكمية نفسها مرتين.",
     en: "This subcontract already has a certificate that is not approved yet. Approve or cancel it before creating a new one, so the same quantity is not claimed twice.",
