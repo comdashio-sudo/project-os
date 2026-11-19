@@ -104,7 +104,8 @@ const masterPlanVisualizationRuleSchema = z.discriminatedUnion("metric", [
 ]);
 
 const pmcFiltersInput = z.object({ zone: z.string().max(80).optional(), block: z.string().max(80).optional(), unitFrom: z.number().int().min(0).optional(), unitTo: z.number().int().min(0).optional(), group: z.string().max(80).optional(), stage: z.string().max(80).optional(), activity: z.string().max(80).optional(), contractor: z.string().max(255).optional(), consultant: z.string().max(255).optional(), since: z.date().optional(), until: z.date().optional() }).optional();
-const pmcScreenInput = z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), filters: pmcFiltersInput });
+// Q-49: `names` — the activity names in Arabic or English (display only); `language` — the reader's language, for the mark on a missing English name
+const pmcScreenInput = z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), filters: pmcFiltersInput, names: z.enum(["ar", "en"]).optional(), language: z.enum(EXPORT_LOCALES).optional() });
 const pmcScreen = <N extends PmcScreenName>(screen: N) => protectedProcedure.input(pmcScreenInput).query(({ ctx, input }) => getPmcScreen({ userId: ctx.user.id, screen, ...input }));
 
 // the project profile's free text: trimmed, an empty string stored as «not given»

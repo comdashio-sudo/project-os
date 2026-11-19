@@ -161,6 +161,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-3: the weights table a
     expect(picker.find(activity => activity.code === "WIR.3.1.1")).toMatchObject({ name: "صب القواعد", nameEn: "Footings and pads", section: "03 30 00 خرسانة مختلقة", sectionEn: null });
     const counters = await manager().pmc.qcCounters(owner);
     expect(counters.find(row => row.code === "WIR.3.1.1")).toMatchObject({ name: "صب القواعد", nameEn: "Footings and pads" });
+    // the PMC screens: English when asked (display only), Arabic otherwise; the switch is offered because the project has an English name
+    const english = await manager().pmc.activitiesMatrix({ ...owner, filters: {}, names: "en", language: "ar" });
+    const arabic = await manager().pmc.activitiesMatrix({ ...owner, filters: {} });
+    expect(english.hasEnglishNames).toBe(true);
+    expect(JSON.stringify(english.data)).toContain("Footings and pads");
+    expect(JSON.stringify(arabic.data)).toContain("صب القواعد");
+    expect(JSON.stringify(arabic.data)).not.toContain("Footings and pads");
     // cleared: the Arabic name is what remains; the weights and codes did not move
     await manager().pmc.saveActivityEnglishName({ ...owner, activityCode: "WIR.3.1.1", nameEn: "" });
     const [cleared] = await connection.query<{ nameEn: string | null; weightPercent: string; name: string }[]>("SELECT nameEn, weightPercent, name FROM pmc_activity_definitions WHERE tenantId = ? AND projectId = ? AND code = 'WIR.3.1.1'", [T, P_OWNER]);
