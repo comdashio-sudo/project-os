@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   metricsRenderFailure: false,
 }));
 
+vi.mock("@/components/OwnerSelect", () => ({ OwnerSelect: () => null }));
 vi.mock("wouter", () => ({
   useParams: () => ({ tenantId: "tenant-1" }),
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,

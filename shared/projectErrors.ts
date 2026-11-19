@@ -1138,6 +1138,21 @@ export const projectErrorMessages = {
     en: "Write the decision's text.",
     ur: "فیصلے کا متن لکھیں۔",
   },
+  PROJECT_OS_ACTION_OWNER_ONLY: {
+    ar: "لا يُنجز المهمة إلا صاحبها.",
+    en: "Only the action's owner can mark it done.",
+    ur: "صرف کام کا مالک ہی اسے مکمل کر سکتا ہے۔",
+  },
+  PROJECT_OS_ACTION_NOT_OPEN: {
+    ar: "المهمة ليست مفتوحة (منجزة أو ملغاة).",
+    en: "The action is not open (already done or cancelled).",
+    ur: "یہ کام کھلا نہیں ہے (مکمل یا منسوخ)۔",
+  },
+  PROJECT_OS_ACTION_OWNER_INVALID: {
+    ar: "صاحب المهمة يجب أن يكون عضوًا نشطًا في الشركة.",
+    en: "The action's owner must be an active member of the company.",
+    ur: "کام کا مالک کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
   PROJECT_OS_UNDO_BATCH_NOT_FOUND: {
     ar: "لا يوجد حفظ بهذا المعرّف في هذا المشروع يمكن التراجع عنه.",
     en: "There is no save with this id on this project to undo.",
