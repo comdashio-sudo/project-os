@@ -72,8 +72,15 @@ export const REQUIRED_SCHEMA = [
   { migration: "0038_p6_same_project_guards", kind: "trigger", table: "activity_resource_assignments", column: "activity_resource_assignments_same_project" },
   { migration: "0038_p6_same_project_guards", kind: "trigger", table: "activity_code_values", column: "activity_code_values_same_project" },
   { migration: "0038_p6_same_project_guards", kind: "trigger", table: "activities", column: "activities_calendar_same_project" },
-  { migration: "0039_material_request_warehouse", kind: "column", table: "procurement_requisitions", column: "warehouse_id" },
-  { migration: "0039_material_request_warehouse", kind: "column", table: "procurement_requisitions", column: "subcontract_id" },
+  { migration: "0039_project_meetings", kind: "table", table: "project_meetings" },
+  { migration: "0039_project_meetings", kind: "table", table: "project_meeting_attendees" },
+  { migration: "0039_project_meetings", kind: "table", table: "project_meeting_items" },
+  { migration: "0039_project_meetings", kind: "column", table: "actions", column: "meeting_id" },
+  { migration: "0039_project_meetings", kind: "trigger", table: "project_meetings", column: "project_meetings_issue_only" },
+  { migration: "0039_project_meetings", kind: "trigger", table: "project_meeting_items", column: "project_meeting_items_append_only" },
+  { migration: "0039_project_meetings", kind: "trigger", table: "project_meeting_attendees", column: "project_meeting_attendees_append_only" },
+  { migration: "0040_material_request_warehouse", kind: "column", table: "procurement_requisitions", column: "warehouse_id" },
+  { migration: "0040_material_request_warehouse", kind: "column", table: "procurement_requisitions", column: "subcontract_id" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
