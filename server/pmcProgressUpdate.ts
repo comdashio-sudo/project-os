@@ -20,12 +20,13 @@ const refuse = (issues: ProgressIssue[]) => new TRPCError({ code: "BAD_REQUEST",
 /** The activities of the weights table, once per code: its CSI section and its weight (the same code may weigh differently per model: the range is given). */
 export async function listProgressActivities(input: Scope) {
   const db = await authorize(input, "project.pmc.read");
-  const rows = await db.select({ code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, weightPercent: pmcActivityDefinitions.weightPercent, section: pmcActivityGroups.name })
+  const rows = await db.select({ code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent, section: pmcActivityGroups.name, sectionEn: pmcActivityGroups.nameEn })
     .from(pmcActivityDefinitions).innerJoin(pmcActivityGroups, eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId)).where(mine(pmcActivityDefinitions, input));
-  const byCode = new Map<string, { code: string; name: string; section: string; minWeight: number; maxWeight: number }>();
+  // Q-49: with the optional English names (null when there is none), for the screens' name switch
+  const byCode = new Map<string, { code: string; name: string; nameEn: string | null; section: string; sectionEn: string | null; minWeight: number; maxWeight: number }>();
   for (const row of rows) {
     const weight = Number(row.weightPercent); const known = byCode.get(row.code);
-    if (!known) byCode.set(row.code, { code: row.code, name: row.name, section: row.section, minWeight: weight, maxWeight: weight });
+    if (!known) byCode.set(row.code, { code: row.code, name: row.name, nameEn: row.nameEn, section: row.section, sectionEn: row.sectionEn, minWeight: weight, maxWeight: weight });
     else { known.minWeight = Math.min(known.minWeight, weight); known.maxWeight = Math.max(known.maxWeight, weight); }
   }
   return Array.from(byCode.values()).sort((a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name));

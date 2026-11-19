@@ -52,7 +52,7 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
       completedUnits: sql<number>`count(DISTINCT ${siteDailyReportLines.pmcUnitId}) FILTER (WHERE ${siteDailyReportLines.reportedStatus} = 'COMPLETE')::int` })
       .from(siteDailyReportLines).innerJoin(siteDailyReports, eq(siteDailyReports.id, siteDailyReportLines.reportId))
       .where(and(upToEnd, eq(siteDailyReportLines.lineType, "work"), sql`${siteDailyReportLines.pmcActivityDefinitionId} IS NOT NULL`)).groupBy(siteDailyReportLines.pmcActivityDefinitionId, siteDailyReports.reportDate),
-    db.select({ id: pmcActivityDefinitions.id, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, modelCode: pmcActivityDefinitions.modelCode }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.modelCode), asc(pmcActivityDefinitions.code)),
+    db.select({ id: pmcActivityDefinitions.id, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, modelCode: pmcActivityDefinitions.modelCode }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.modelCode), asc(pmcActivityDefinitions.code)),
     db.select({ modelCode: pmcUnits.modelCode, units: sql<number>`count(*)::int` }).from(pmcUnits).where(mine(pmcUnits, input)).groupBy(pmcUnits.modelCode),
     db.select({ date: siteDailyReports.reportDate, category: projectLabourRoles.category, shift: siteDailyReportLabour.shift, headcount: sql<number>`sum(${siteDailyReportLabour.headcount})::int` })
       .from(siteDailyReportLabour).innerJoin(siteDailyReports, eq(siteDailyReports.id, siteDailyReportLabour.reportId)).innerJoin(projectLabourRoles, eq(projectLabourRoles.id, siteDailyReportLabour.labourRoleId))
@@ -90,7 +90,7 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
   const unitsOf = new Map(unitsPerModel.map(row => [row.modelCode, row.units]));
   const dayRows: ActivityDayRow[] = activityRows.map(row => ({ activityId: row.activityId!, date: row.date, planned: num(row.planned), actual: num(row.actual), completedUnits: row.completedUnits }));
   const active = new Set(dayRows.map(row => row.activityId));
-  const facts = definitions.filter(definition => active.has(definition.id)).map(definition => ({ activityId: definition.id, code: definition.code, name: definition.name, modelCode: definition.modelCode, unitsInModel: unitsOf.get(definition.modelCode) ?? 0 }));
+  const facts = definitions.filter(definition => active.has(definition.id)).map(definition => ({ activityId: definition.id, code: definition.code, name: definition.name, nameEn: definition.nameEn, modelCode: definition.modelCode, unitsInModel: unitsOf.get(definition.modelCode) ?? 0 }));
   const labourDay = (date: string, category: string) => labourRows.filter(row => row.date === date && row.category === category).reduce((total, row) => total + row.headcount, 0);
   const reportedDays = new Set(reports.map(report => report.date));
   const equipmentIds = Array.from(new Set(equipmentRows.map(row => row.equipmentId)));

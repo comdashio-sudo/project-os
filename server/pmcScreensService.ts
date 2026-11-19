@@ -22,7 +22,7 @@ import {
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb } from "./db";
 import { buildSpreadsheet } from "./domain/excelWorkbook";
 import { PMC_SCREEN_NAMES, screenTable, type PmcScreenName, type ScreenData } from "./domain/pmcScreenExport";
-import { activitiesMatrix, approvals, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, stagesView, zones, type PmcDataset, type PmcFilters } from "./domain/pmcScreens";
+import { activitiesMatrix, approvals, datasetHasEnglishNames, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, stagesView, withActivityNames, zones, type PmcDataset, type PmcFilters } from "./domain/pmcScreens";
 import type { PmcUnitActivityStatus } from "./domain/pmc";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -58,9 +58,9 @@ export async function loadPmcDatasets(db: Db, tenantId: string, projectIds: stri
     db.select({ projectId: pmcZones.projectId, id: pmcZones.id, code: pmcZones.code }).from(pmcZones).where(ours(pmcZones)),
     db.select({ projectId: pmcBlocks.projectId, id: pmcBlocks.id, code: pmcBlocks.code, zoneId: pmcBlocks.zoneId }).from(pmcBlocks).where(ours(pmcBlocks)),
     db.select({ projectId: pmcUnits.projectId, id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, unitWeight: pmcUnits.unitWeight, blockId: pmcUnits.blockId, updatedAt: pmcUnits.updatedAt, geometryJson: pmcUnits.geometryJson }).from(pmcUnits).where(ours(pmcUnits)),
-    db.select({ projectId: pmcActivityGroups.projectId, id: pmcActivityGroups.id, code: pmcActivityGroups.code, name: pmcActivityGroups.name }).from(pmcActivityGroups).where(ours(pmcActivityGroups)),
-    db.select({ projectId: pmcActivityStages.projectId, id: pmcActivityStages.id, code: pmcActivityStages.code, name: pmcActivityStages.name }).from(pmcActivityStages).where(ours(pmcActivityStages)),
-    db.select({ projectId: pmcActivityDefinitions.projectId, id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, weightPercent: pmcActivityDefinitions.weightPercent, groupId: pmcActivityDefinitions.groupId, stageId: pmcActivityDefinitions.stageId, updatedAt: pmcActivityDefinitions.updatedAt }).from(pmcActivityDefinitions).where(ours(pmcActivityDefinitions)),
+    db.select({ projectId: pmcActivityGroups.projectId, id: pmcActivityGroups.id, code: pmcActivityGroups.code, name: pmcActivityGroups.name, nameEn: pmcActivityGroups.nameEn }).from(pmcActivityGroups).where(ours(pmcActivityGroups)),
+    db.select({ projectId: pmcActivityStages.projectId, id: pmcActivityStages.id, code: pmcActivityStages.code, name: pmcActivityStages.name, nameEn: pmcActivityStages.nameEn }).from(pmcActivityStages).where(ours(pmcActivityStages)),
+    db.select({ projectId: pmcActivityDefinitions.projectId, id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent, groupId: pmcActivityDefinitions.groupId, stageId: pmcActivityDefinitions.stageId, updatedAt: pmcActivityDefinitions.updatedAt }).from(pmcActivityDefinitions).where(ours(pmcActivityDefinitions)),
     db.select({ projectId: pmcUnitActivityProgress.projectId, id: pmcUnitActivityProgress.id, unitId: pmcUnitActivityProgress.unitId, definitionId: pmcUnitActivityProgress.activityDefinitionId, status: pmcUnitActivityProgress.status, verificationStatusId: pmcUnitActivityProgress.verificationStatusId, assignedUserId: pmcUnitActivityProgress.assignedUserId, lastChangedAt: pmcUnitActivityProgress.lastChangedAt }).from(pmcUnitActivityProgress).where(ours(pmcUnitActivityProgress)),
     db.select({ projectId: pmcUnitActivityHistory.projectId, cellId: pmcUnitActivityHistory.unitActivityProgressId, from: pmcUnitActivityHistory.fromStatus, to: pmcUnitActivityHistory.toStatus, userId: pmcUnitActivityHistory.changedByUserId, at: pmcUnitActivityHistory.changedAt }).from(pmcUnitActivityHistory).where(ours(pmcUnitActivityHistory)),
     db.select({ projectId: pmcVerificationStatuses.projectId, id: pmcVerificationStatuses.id, code: pmcVerificationStatuses.code, label: pmcVerificationStatuses.label, pending: pmcVerificationStatuses.pending, sortOrder: pmcVerificationStatuses.sortOrder }).from(pmcVerificationStatuses).where(and(ours(pmcVerificationStatuses), eq(pmcVerificationStatuses.active, true))),
@@ -97,7 +97,7 @@ export async function loadPmcDatasets(db: Db, tenantId: string, projectIds: stri
       now,
       factors,
       units: unitRows.map(u => ({ id: u.id, number: u.unitNumber, modelCode: u.modelCode, weight: Number(u.unitWeight), zoneCode: blockById.get(u.blockId)?.zoneCode ?? "", blockCode: blockById.get(u.blockId)?.code ?? "", geometry: u.geometryJson ? JSON.parse(u.geometryJson) : null })),
-      definitions: defRows.map(d => ({ id: d.id, modelCode: d.modelCode, code: d.code, name: d.name, weightPercent: Number(d.weightPercent), groupCode: groupById.get(d.groupId)?.code ?? "", groupName: groupById.get(d.groupId)?.name ?? "", stageCode: stageById.get(d.stageId)?.code ?? "", stageName: stageById.get(d.stageId)?.name ?? "" })),
+      definitions: defRows.map(d => ({ id: d.id, modelCode: d.modelCode, code: d.code, name: d.name, weightPercent: Number(d.weightPercent), groupCode: groupById.get(d.groupId)?.code ?? "", groupName: groupById.get(d.groupId)?.name ?? "", stageCode: stageById.get(d.stageId)?.code ?? "", stageName: stageById.get(d.stageId)?.name ?? "" , nameEn: d.nameEn, groupNameEn: groupById.get(d.groupId)?.nameEn ?? null, stageNameEn: stageById.get(d.stageId)?.nameEn ?? null})),
       cells: cellRows.map(c => ({ id: c.id, unitId: c.unitId, definitionId: c.definitionId, status: c.status as PmcUnitActivityStatus, verificationStatusId: c.verificationStatusId, assignedUserId: c.assignedUserId, lastChangedAt: c.lastChangedAt })),
       history: historyRows.flatMap(h => { const cell = cellById.get(h.cellId); return cell ? [{ unitId: cell.unitId, definitionId: cell.definitionId, from: h.from as PmcUnitActivityStatus | null, to: h.to as PmcUnitActivityStatus, userId: h.userId, at: h.at }] : []; }),
       verification: verificationRows,
@@ -123,19 +123,20 @@ const compute: { [N in PmcScreenName]: (ds: PmcDataset) => ScreenData[N] } = {
 /** When the person gives no date range, the history screens look at a sensible recent window rather than all time. */
 const DEFAULT_DAYS: Partial<Record<PmcScreenName, number>> = { latestUpdates: 7, weekly: 84, monthly: 365 };
 
-export async function getPmcScreen<N extends PmcScreenName>(input: Scope & { screen: N; filters?: PmcFilterInput; now?: Date }) {
+export async function getPmcScreen<N extends PmcScreenName>(input: Scope & { screen: N; filters?: PmcFilterInput; now?: Date; names?: "ar" | "en"; language?: "ar" | "en" | "ur" }) {
   if (!PMC_SCREEN_NAMES.includes(input.screen)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_SCREEN_UNKNOWN" });
   const db = await authorizePmcRead(input);
   const now = input.now ?? new Date();
   const filters: PmcFilterInput = { ...input.filters };
   if (!filters.since && DEFAULT_DAYS[input.screen]) filters.since = new Date(now.getTime() - DEFAULT_DAYS[input.screen]! * DAY);
-  const dataset = await loadPmcDataset(db, input, now);
+  // Q-49: the names in the language the person chose (display only; every figure is computed the same)
+  const dataset = withActivityNames(await loadPmcDataset(db, input, now), input.names, input.language);
   const filtered = filterDataset(dataset, filters);
-  return { screen: input.screen, generatedAt: now, filters, freshness: freshnessOf(dataset), data: compute[input.screen](filtered) as ScreenData[N], options: { zones: Array.from(new Set(dataset.units.map(u => u.zoneCode))).sort(), blocks: Array.from(new Set(dataset.units.map(u => u.blockCode))).sort(), groups: Array.from(new Set(dataset.definitions.map(d => d.groupCode))).sort(), stages: Array.from(new Set(dataset.definitions.map(d => d.stageCode))).sort(), activities: Array.from(new Set(dataset.definitions.map(d => d.code))).sort() } };
+  return { screen: input.screen, generatedAt: now, filters, freshness: freshnessOf(dataset), hasEnglishNames: datasetHasEnglishNames(dataset), data: compute[input.screen](filtered) as ScreenData[N], options: { zones: Array.from(new Set(dataset.units.map(u => u.zoneCode))).sort(), blocks: Array.from(new Set(dataset.units.map(u => u.blockCode))).sort(), groups: Array.from(new Set(dataset.definitions.map(d => d.groupCode))).sort(), stages: Array.from(new Set(dataset.definitions.map(d => d.stageCode))).sort(), activities: Array.from(new Set(dataset.definitions.map(d => d.code))).sort() } };
 }
 
-export async function exportPmcScreen(input: Scope & { screen: PmcScreenName; filters?: PmcFilterInput; locale: ExportLocale; now?: Date }) {
-  const result = await getPmcScreen(input);
+export async function exportPmcScreen(input: Scope & { screen: PmcScreenName; filters?: PmcFilterInput; locale: ExportLocale; now?: Date; names?: "ar" | "en" }) {
+  const result = await getPmcScreen({ ...input, language: input.locale });
   const table = screenTable(input.screen, result.data as never, input.locale);
   const bytes = await buildSpreadsheet({ sheetName: table.sheetName, headers: table.headers, rows: table.rows, format: "xlsx" });
   return { fileName: `pmc-${input.screen}.xlsx`, base64: Buffer.from(bytes).toString("base64"), rows: table.rows.length };

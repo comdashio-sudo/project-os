@@ -19,7 +19,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
   auth: { me: { useQuery: () => ({ data: { id: 7 }, isLoading: false, error: null }) } },
   useUtils: () => ({ client: { pmc: { updateProgress: { mutate: h.send } } } }),
   pmc: {
-    progressActivities: { useQuery: () => ({ data: [{ code: "FOOT", name: "Footings", section: "03 Concrete", minWeight: 40, maxWeight: 40 }], isLoading: false, error: null }) },
+    progressActivities: { useQuery: () => ({ data: (globalThis as { __q49Activities?: unknown[] }).__q49Activities ?? [{ code: "FOOT", name: "Footings", section: "03 Concrete", minWeight: 40, maxWeight: 40 }], isLoading: false, error: null }) },
     progressHistory: { useQuery: () => ({ data: [{ at: "2026-11-11T09:00:00Z", from: null, to: "COMPLETE", by: "Site Engineer", unitNumber: 3, villaLabel: null, activityCode: "FOOT", activityName: "Footings" }], error: null, refetch: vi.fn() }) },
     undoProgressBatch: { useMutation: () => ({ mutate: h.undo, isPending: false, error: null }) },
     updateProgress: { useMutation: (options: { onError?: (error: unknown) => void; onSuccess?: (result: unknown) => void }) => { h.options = options; return { mutate: h.mutate, isPending: false, data: h.result }; } },
@@ -28,7 +28,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
 
 import PmcProgressUpdate from "./PmcProgressUpdate";
 
-beforeEach(() => { h.mutate.mockReset(); h.send.mockReset(); h.result = undefined; try { localStorage.clear(); } catch { /* none */ } });
+beforeEach(() => { (globalThis as { __q49Activities?: unknown[] }).__q49Activities = undefined; h.mutate.mockReset(); h.send.mockReset(); h.result = undefined; try { localStorage.clear(); } catch { /* none */ } });
 afterEach(() => cleanup());
 
 describe("PmcProgressUpdate (Q-4)", () => {
@@ -90,5 +90,30 @@ describe("PmcProgressUpdate (Q-4)", () => {
     expect(refused.textContent).toContain("Villa 2 was updated after you kept this entry offline");
     fireEvent.click(screen.getByRole("button", { name: "Discard from the phone" }));
     expect(document.querySelector("[data-offline-refused]")).toBeNull();
+  });
+
+  // Q-49: the activity names in Arabic or English — display only
+  it("Q-49 NEGATIVE: a project with no English name shows no names switch and the names as stored, unmarked", () => {
+    render(<PmcProgressUpdate />);
+    expect(document.querySelector("[data-activity-name-toggle]")).toBeNull();
+    expect(document.body.textContent).not.toContain("in Arabic");
+  });
+
+  it("Q-49 POSITIVE: with English names the switch shows; English (the interface) by default, a missing English name falls back marked; Arabic on a click, kept for this person; the save still sends the code", () => {
+    (globalThis as { __q49Activities?: unknown[] }).__q49Activities = [
+      { code: "FOOT", name: "صب القواعد", nameEn: "Footings", section: "خرسانة", sectionEn: "Concrete", minWeight: 60, maxWeight: 60 },
+      { code: "SLAB", name: "صب السقف", nameEn: null, section: "خرسانة", sectionEn: "Concrete", minWeight: 40, maxWeight: 40 },
+    ];
+    render(<PmcProgressUpdate />);
+    expect(document.querySelector("[data-activity-name-toggle]")).not.toBeNull();
+    const options = () => Array.from(screen.getByRole("combobox", { name: "Activity" }).querySelectorAll("option")).map(option => option.textContent).filter(Boolean);
+    expect(options()).toEqual(["Footings — Concrete · Weight 60.00%", "صب السقف · in Arabic — Concrete · Weight 40.00%"]);
+    fireEvent.click(screen.getByRole("radio", { name: "العربية" }));
+    expect(options()).toEqual(["صب القواعد — خرسانة · Weight 60.00%", "صب السقف — خرسانة · Weight 40.00%"]);
+    expect(localStorage.getItem("project-os-activity-names:7")).toBe("ar");
+    fireEvent.change(screen.getByRole("combobox", { name: "Activity" }), { target: { value: "FOOT" } });
+    fireEvent.change(screen.getByLabelText(/^Villa numbers/), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    expect(h.mutate).toHaveBeenCalledWith(expect.objectContaining({ activityCode: "FOOT", villas: ["1"] }));
   });
 });
