@@ -1,5 +1,5 @@
 import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
-import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation } from "./workConfirmations";
+import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions } from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
@@ -851,6 +851,8 @@ export const appRouter = router({
   // Q-43 (P2-06): proof of a subcontractor's work without prices (server/workConfirmations.ts).
   workConfirmations: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid().optional() })).query(({ ctx, input }) => listWorkConfirmations({ userId: ctx.user.id, ...input })),
+    // batch 4: the pickers of the preparation screen — no rate, amount or contract value
+    options: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => workConfirmationOptions({ userId: ctx.user.id, ...input })),
     create: protectedProcedure.input(z.object({
       tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid(), confirmationNumber: z.string().trim().min(1).max(60),
       periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().trim().max(500).nullish(),

@@ -167,4 +167,25 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-43: subcontractor work
     expect(await code(create("site", "WC-H2", subB, [unit(0, 1, 10)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_DUPLICATE");
     expect(await code(create("site", "WC-H3", subA, [unit(0, 1, 10)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_OVER_COMPLETE");
   });
+
+  // Q-43 batch 4: the preparation screen's pickers for the site engineer, who holds no money permission
+  it("OPTIONS POSITIVE: the site engineer reads this project's subcontracts, activities, units (with their block) and BOQ items — and no key anywhere names a rate, amount, price or value", async () => {
+    const options = await callerFor("site").workConfirmations.options(scope());
+    expect(options.subcontracts.map(item => item.code)).toEqual(["Q43-A", "Q43-B"]);
+    expect(options.subcontracts[0]).toMatchObject({ subcontractorName: "Synthetic Finishers A", title: "Synthetic finishes A" });
+    expect(options.activities.map(item => item.code).sort()).toEqual(["PAINT", "PLASTER"]);
+    expect(options.units.map(item => [item.blockCode, item.unitNumber])).toEqual([["B1", 1], ["B1", 2], ["B1", 3]]);
+    expect(options.boqItems).toEqual([expect.objectContaining({ code: "Q43-TILE", unitOfMeasure: "m2", quantity: 100 })]);
+    const keys: string[] = [];
+    const walk = (value: unknown) => { if (Array.isArray(value)) value.forEach(walk); else if (value && typeof value === "object") for (const [key, child] of Object.entries(value)) { keys.push(key); walk(child); } };
+    walk(options);
+    expect(keys.filter(key => /rate|amount|price|value|total|retention|advance/i.test(key))).toEqual([]);
+    expect(await callerFor("finance").workConfirmations.options(scope())).toEqual(options);
+  });
+
+  it("OPTIONS NEGATIVE: another project's engineer and another company read nothing; another project's subcontract is not listed here", async () => {
+    expect(await code(callerFor("siteOther").workConfirmations.options(scope()))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callerFor("ownerB").workConfirmations.options(scope()))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect((await callerFor("owner").workConfirmations.options({ tenantId, projectId: P2 })).subcontracts.map(item => item.code)).toEqual(["Q43-O"]);
+  });
 });
