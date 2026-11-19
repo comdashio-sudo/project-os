@@ -12,6 +12,7 @@ import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb, getTenantA
 import { assertTenantAccess } from "./domain/authorization";
 import { attemptState, canDiscardAttempt, canRollbackAttempt, canRollbackModule } from "../shared/importAttempts";
 import { storageDelete } from "./storage";
+import { rollbackScheduleUpdate } from "./scheduleSnapshots";
 
 export { ROLLBACK_MODULES } from "../shared/importAttempts";
 const ROLLBACK_PERMISSION = "project.manage";
@@ -58,6 +59,7 @@ export async function rollbackImport(input: Scope) {
   await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: ROLLBACK_PERMISSION, featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
   if (!canRollbackAttempt(state)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED");
   if (!canRollbackModule(record.moduleCode)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED");
+  if (record.moduleCode === "p6update") return rollbackActivityUpdate(db, input, record);
   const results = await db.select({ action: dataImportRowResults.action, rowKey: dataImportRowResults.rowKey, entityId: dataImportRowResults.entityId }).from(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id));
   if (results.some(row => row.action === "updated")) throw fail("PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES", "CONFLICT");
   const created = results.filter(row => row.action === "created" && row.entityId);
@@ -91,4 +93,20 @@ export async function rollbackImport(input: Scope) {
     throw error;
   }
   return { id: record.id, rolledBack: true as const, deleted };
+}
+
+/** G-208 (Q-23): an activity update (p6update) only UPDATED activities, so undoing it puts their previous values back from the snapshot taken before it
+ *  (server/scheduleSnapshots.ts rollbackScheduleUpdate) — never a delete — and marks the import cancelled with its audit row, in one transaction. */
+async function rollbackActivityUpdate(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: Scope, record: { id: string; status: string; summaryJson: string | null }) {
+  const now = new Date();
+  let restored = 0;
+  await db.transaction(async tx => {
+    ({ restored } = await rollbackScheduleUpdate(tx as unknown as Parameters<typeof rollbackScheduleUpdate>[0], { tenantId: input.tenantId, projectId: input.projectId, importId: record.id, userId: input.userId }));
+    const previous = (() => { try { return JSON.parse(record.summaryJson ?? "{}") as Record<string, unknown>; } catch { return {}; } })();
+    const marked = await tx.update(dataImports).set({ status: "cancelled", summaryJson: JSON.stringify({ ...previous, rolledBack: { at: now.toISOString(), byUserId: input.userId, restored: { activities: restored } } }) })
+      .where(and(eq(dataImports.id, record.id), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, "completed"))).returning({ id: dataImports.id });
+    if (marked.length !== 1) throw fail("PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED", "CONFLICT");
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_rolled_back", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: "p6update", restored: { activities: restored } }) });
+  });
+  return { id: record.id, rolledBack: true as const, deleted: {} as Record<string, number>, restored: { activities: restored } };
 }

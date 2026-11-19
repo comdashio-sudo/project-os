@@ -1103,6 +1103,56 @@ export const projectErrorMessages = {
     en: "The count has no lines; add at least one material.",
     ur: "گنتی میں کوئی قطار نہیں ہے؛ کم از کم ایک مادّہ شامل کریں۔",
   },
+  PROJECT_OS_DECISION_OWNER_INVALID: {
+    ar: "مالك القرار يجب أن يكون عضوًا نشطًا في الشركة.",
+    en: "The decision owner must be an active member of the company.",
+    ur: "فیصلے کا مالک کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
+  PROJECT_OS_DECISION_NOT_FOUND: {
+    ar: "القرار غير موجود في هذا المشروع.",
+    en: "The decision is not on this project.",
+    ur: "یہ فیصلہ اس پروجیکٹ میں موجود نہیں۔",
+  },
+  PROJECT_OS_DECISION_TRANSITION_INVALID: {
+    ar: "لا تصح هذه الخطوة من حالة القرار الحالية (مسودة ← رفع ← اعتماد أو رفض ← تنفيذ، ولا رجوع).",
+    en: "This step is not allowed from the decision's current state (draft → submitted → approved or rejected → implemented, no going back).",
+    ur: "فیصلے کی موجودہ حالت سے یہ قدم درست نہیں (مسودہ ← پیش ← منظور یا مسترد ← نافذ، واپسی نہیں)۔",
+  },
+  PROJECT_OS_DECISION_OWNER_REQUIRED: {
+    ar: "حدّد مالك القرار قبل رفعه.",
+    en: "Name the decision owner before submitting it.",
+    ur: "پیش کرنے سے پہلے فیصلے کا مالک مقرر کریں۔",
+  },
+  PROJECT_OS_DECISION_OWNER_ONLY: {
+    ar: "لا يعتمد القرار أو يرفضه إلا مالكه.",
+    en: "Only the decision owner can approve or reject it.",
+    ur: "صرف فیصلے کا مالک اسے منظور یا مسترد کر سکتا ہے۔",
+  },
+  PROJECT_OS_DECISION_REASON_REQUIRED: {
+    ar: "سبب الرفض إلزامي.",
+    en: "A reason is required to reject.",
+    ur: "مسترد کرنے کی وجہ لازمی ہے۔",
+  },
+  PROJECT_OS_DECISION_TEXT_REQUIRED: {
+    ar: "اكتب نص القرار.",
+    en: "Write the decision's text.",
+    ur: "فیصلے کا متن لکھیں۔",
+  },
+  PROJECT_OS_ACTION_OWNER_ONLY: {
+    ar: "لا يُنجز المهمة إلا صاحبها.",
+    en: "Only the action's owner can mark it done.",
+    ur: "صرف کام کا مالک ہی اسے مکمل کر سکتا ہے۔",
+  },
+  PROJECT_OS_ACTION_NOT_OPEN: {
+    ar: "المهمة ليست مفتوحة (منجزة أو ملغاة).",
+    en: "The action is not open (already done or cancelled).",
+    ur: "یہ کام کھلا نہیں ہے (مکمل یا منسوخ)۔",
+  },
+  PROJECT_OS_ACTION_OWNER_INVALID: {
+    ar: "صاحب المهمة يجب أن يكون عضوًا نشطًا في الشركة.",
+    en: "The action's owner must be an active member of the company.",
+    ur: "کام کا مالک کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
   PROJECT_OS_UNDO_BATCH_NOT_FOUND: {
     ar: "لا يوجد حفظ بهذا المعرّف في هذا المشروع يمكن التراجع عنه.",
     en: "There is no save with this id on this project to undo.",
@@ -1643,6 +1693,26 @@ export const projectErrorMessages = {
     en: "This certificate number is already used in this project.",
     ur: "سرٹیفکیٹ کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے۔",
   },
+  PROJECT_OS_CERTIFICATE_OPEN_EXISTS: {
+    ar: "لهذا العقد من الباطن مستخلص لم يُعتمد بعد. اعتمده أو ألغه قبل إنشاء مستخلص جديد، حتى لا تُطالب الكمية نفسها مرتين.",
+    en: "This subcontract already has a certificate that is not approved yet. Approve or cancel it before creating a new one, so the same quantity is not claimed twice.",
+    ur: "اس ذیلی ٹھیکے کا ایک سرٹیفکیٹ ابھی منظور نہیں ہوا۔ نیا سرٹیفکیٹ بنانے سے پہلے اسے منظور یا منسوخ کریں، تاکہ ایک ہی مقدار دو بار نہ مانگی جائے۔",
+  },
+  PROJECT_OS_CERTIFICATE_NOT_FOUND: {
+    ar: "المستخلص غير موجود في هذا المشروع.",
+    en: "The certificate was not found in this project.",
+    ur: "یہ سرٹیفکیٹ اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_CERTIFICATE_SELF_APPROVAL: {
+    ar: "لا يعتمد المستخلص من أعدّه أو أرسله. يعتمده شخص آخر يملك صلاحية الالتزامات (فصل المهام).",
+    en: "A certificate is not approved by the person who prepared or submitted it. Someone else who manages commitments approves it (separation of duties).",
+    ur: "سرٹیفکیٹ وہ شخص منظور نہیں کرتا جس نے اسے تیار یا جمع کیا۔ اسے کوئی اور شخص منظور کرے جس کے پاس وابستگیوں کا اختیار ہو (فرائض کی علیحدگی)۔",
+  },
+  PROJECT_OS_CERTIFICATE_TRANSITION_INVALID: {
+    ar: "لا يمكن نقل المستخلص إلى هذه الحالة من حالته الحالية. المسار: مسودة ← مُرسَل ← معتمد ← مدفوع، والإلغاء قبل الاعتماد فقط.",
+    en: "The certificate cannot move to this status from its current one. The path is draft → submitted → approved → paid, and it can be cancelled only before approval.",
+    ur: "سرٹیفکیٹ اپنی موجودہ حالت سے اس حالت میں نہیں جا سکتا۔ راستہ: مسودہ ← جمع شدہ ← منظور شدہ ← ادا شدہ، اور منسوخی صرف منظوری سے پہلے۔",
+  },
   PROJECT_OS_DASHBOARD_OWNER_NOT_FOUND: {
     ar: "لا مستلم مؤهل لهذا التنبيه في الشركة.",
     en: "No eligible recipient for this alert was found in the company.",
@@ -1742,6 +1812,36 @@ export const projectErrorMessages = {
     ar: "لا يمكن التراجع عن هذا النوع من الاستيراد (الأرصدة الافتتاحية سجل حركات مخزون لا يُمحى).",
     en: "This kind of import cannot be rolled back (opening balances are a stock-movement ledger that is never erased).",
     ur: "اس قسم کی درآمد واپس نہیں کی جا سکتی (ابتدائی بیلنس اسٹاک حرکات کا ریکارڈ ہے جو مٹایا نہیں جاتا)۔",
+  },
+  PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND: {
+    ar: "إحدى لقطتي المقارنة غير موجودة في هذا المشروع.",
+    en: "One of the two snapshots to compare is not in this project.",
+    ur: "موازنے کے دو اسنیپ شاٹس میں سے ایک اس پروجیکٹ میں نہیں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_NO_SNAPSHOT: {
+    ar: "هذا التحديث أُكّد قبل حفظ لقطات الجدول الزمني، فلا توجد قيم سابقة دقيقة لإعادتها. استورد تحديثًا صحيحًا فوقه بدل التراجع.",
+    en: "This update was confirmed before schedule snapshots were kept, so there are no exact previous values to put back. Import a correct update over it instead.",
+    ur: "یہ تازہ کاری شیڈول اسنیپ شاٹس محفوظ ہونے سے پہلے تصدیق ہوئی تھی، اس لیے واپس رکھنے کے لیے درست پچھلی قدریں نہیں۔ واپسی کے بجائے درست تازہ کاری اوپر درآمد کریں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_NOT_LATEST: {
+    ar: "بعد هذا التحديث استيراد أو تحديث آخر للجدول الزمني. تراجع عن الأحدث أولًا.",
+    en: "Another schedule import or update came after this one. Undo the latest one first.",
+    ur: "اس کے بعد شیڈول کی ایک اور درآمد یا تازہ کاری ہوئی ہے۔ پہلے تازہ ترین کو واپس کریں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_CHANGED_SINCE: {
+    ar: "بعض الأنشطة التي غيّرها هذا التحديث عُدّلت بعده، فالتراجع يمحو عملًا لاحقًا. لم يُغيَّر شيء.",
+    en: "Some activities this update changed were edited after it, so undoing it would erase later work. Nothing was changed.",
+    ur: "اس تازہ کاری سے بدلی گئی کچھ سرگرمیاں بعد میں دوبارہ بدلی گئیں، اس لیے واپسی بعد کا کام مٹا دے گی۔ کچھ نہیں بدلا۔",
+  },
+  PROJECT_OS_CLIENT_CLOCK_AHEAD: {
+    ar: "ساعة هذا الهاتف متقدمة على الوقت الحقيقي، فلا يمكن التحقق من أن ما حفظته لا يمحو عملًا أحدث. صحّح ساعة الهاتف ثم احفظ من جديد.",
+    en: "This phone's clock is ahead of the real time, so it cannot be checked that what you kept does not erase newer work. Correct the phone's clock, then save again.",
+    ur: "اس فون کی گھڑی اصل وقت سے آگے ہے، اس لیے جانچ نہیں ہو سکتی کہ آپ کا محفوظ کیا نئے کام کو نہ مٹائے۔ فون کی گھڑی درست کریں پھر دوبارہ محفوظ کریں۔",
+  },
+  PROJECT_OS_SITE_REPORT_CHANGED_SINCE: {
+    ar: "حُفظ تقرير هذا اليوم بعد أن حفظتَ نسختك على الهاتف دون اتصال، فلم تُرسل نسختك حتى لا تمحو الأحدث. افتح التقرير وأضف ما ينقصه ثم احذف النسخة المحفوظة.",
+    en: "This day's report was saved after you kept your version on the phone offline, so yours was not sent, to avoid erasing the newer one. Open the report, add what is missing, then discard the kept version.",
+    ur: "اس دن کی رپورٹ آپ کے آف لائن محفوظ کرنے کے بعد محفوظ ہوئی، اس لیے آپ کا نسخہ نہیں بھیجا گیا تاکہ نیا نہ مٹے۔ رپورٹ کھولیں، جو کمی ہو شامل کریں، پھر محفوظ نسخہ حذف کریں۔",
   },
   PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES: {
     ar: "هذا الاستيراد عدّل صفوفًا كانت موجودة، ولم تُحفظ قيمها السابقة، فلا يمكن إعادتها. استورد النسخة الصحيحة فوقه بدل التراجع.",

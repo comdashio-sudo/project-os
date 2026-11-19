@@ -15,7 +15,7 @@ import {
   qualityInspections,
   warehouseInventoryTransactions,
 } from "../drizzle/schema";
-import { getDb, getTenantAccessSnapshot, projectMoneyVisible } from "./db";
+import { getDb, getTenantAccessSnapshot, inventoryMoneyVisible, projectMoneyVisible } from "./db";
 import { logError } from "./_core/logger";
 import { calculateProjectProgress } from "./domain/pmc";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
@@ -210,9 +210,12 @@ export async function getWarehouseLevel(input: { userId: number; tenantId: strin
   const movements = await db.select({ id: warehouseInventoryTransactions.id, materialId: warehouseInventoryTransactions.materialId, transactionType: warehouseInventoryTransactions.transactionType, quantityDelta: warehouseInventoryTransactions.quantityDelta, valueDelta: warehouseInventoryTransactions.valueDelta, occurredAt: warehouseInventoryTransactions.occurredAt, referenceNumber: warehouseInventoryTransactions.referenceNumber })
     .from(warehouseInventoryTransactions).where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), eq(warehouseInventoryTransactions.projectId, input.projectId), eq(warehouseInventoryTransactions.warehouseId, input.warehouseId)))
     .orderBy(sql`${warehouseInventoryTransactions.occurredAt} DESC`).limit(20);
+  // Q-32 (adviser 18-11): the warehouse keeper sees quantities; the value is for the project-money readers.
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  const seesMoney = snapshot ? inventoryMoneyVisible(snapshot, input.projectId) : false;
   return {
-    level: "warehouse" as const, warehouse,
-    totals: { materials: lines.length, stockValue: round2(lines.reduce((total, line) => total + line.value, 0)), materialsBelowReorder: lines.filter(line => line.belowReorder).length },
-    stock: lines, recentMovements: movements.map(item => ({ ...item, quantityDelta: Number(item.quantityDelta), valueDelta: item.valueDelta === null ? null : Number(item.valueDelta) })),
+    level: "warehouse" as const, warehouse, moneyVisible: seesMoney,
+    totals: { materials: lines.length, stockValue: seesMoney ? round2(lines.reduce((total, line) => total + line.value, 0)) : null, materialsBelowReorder: lines.filter(line => line.belowReorder).length },
+    stock: lines.map(line => ({ ...line, value: seesMoney ? line.value : null })), recentMovements: movements.map(item => ({ ...item, quantityDelta: Number(item.quantityDelta), valueDelta: seesMoney && item.valueDelta !== null ? Number(item.valueDelta) : null })),
   };
 }

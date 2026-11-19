@@ -2162,6 +2162,40 @@ CREATE TABLE "schedule_calendars" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "schedule_snapshot_activities" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"snapshot_id" varchar(36) NOT NULL,
+	"activity_id" varchar(36) NOT NULL,
+	"code" varchar(80) NOT NULL,
+	"planned_start_at" timestamp with time zone,
+	"planned_finish_at" timestamp with time zone,
+	"actual_start_at" timestamp with time zone,
+	"actual_finish_at" timestamp with time zone,
+	"total_float_hours" numeric(10, 2),
+	"percent_complete" numeric(5, 2),
+	"remaining_hours" numeric(10, 2),
+	"status" varchar(24) NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "schedule_snapshots" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"import_id" varchar(36),
+	"source" varchar(24) NOT NULL,
+	"data_date" timestamp with time zone,
+	"is_baseline" boolean DEFAULT false NOT NULL,
+	"activity_count" integer NOT NULL,
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "schedule_snapshots_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
+);
+--> statement-breakpoint
 CREATE TABLE "scheduled_jobs" (
 	"id" varchar(64) PRIMARY KEY NOT NULL,
 	"purpose" "scheduled_jobs_purpose" NOT NULL,
@@ -3245,6 +3279,12 @@ ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_employee_id_em
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_calendars" ADD CONSTRAINT "schedule_calendars_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_calendars" ADD CONSTRAINT "schedule_calendars_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshot_activities" ADD CONSTRAINT "schedule_snapshot_activities_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshot_activities" ADD CONSTRAINT "schedule_snapshot_activities_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshot_activities" ADD CONSTRAINT "schedule_snapshot_activities_snapshot_fk" FOREIGN KEY ("snapshot_id","tenant_id","project_id") REFERENCES "public"."schedule_snapshots"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshots" ADD CONSTRAINT "schedule_snapshots_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshots" ADD CONSTRAINT "schedule_snapshots_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_snapshots" ADD CONSTRAINT "schedule_snapshots_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "self_service_signup_attempts" ADD CONSTRAINT "self_service_signup_attempts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3650,6 +3690,9 @@ CREATE UNIQUE INDEX "roles_tenant_code_unique" ON "roles" USING btree ("tenant_i
 CREATE UNIQUE INDEX "salary_structures_tenant_employee_unique" ON "salary_structures" USING btree ("tenant_id","employee_id");--> statement-breakpoint
 CREATE INDEX "salary_structures_tenant_active_idx" ON "salary_structures" USING btree ("tenant_id","active");--> statement-breakpoint
 CREATE UNIQUE INDEX "schedule_calendars_project_external_unique" ON "schedule_calendars" USING btree ("project_id","external_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "schedule_snapshot_activities_snapshot_activity_unique" ON "schedule_snapshot_activities" USING btree ("snapshot_id","activity_id");--> statement-breakpoint
+CREATE INDEX "schedule_snapshots_tenant_project_created_idx" ON "schedule_snapshots" USING btree ("tenant_id","project_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "schedule_snapshots_one_baseline_per_project" ON "schedule_snapshots" USING btree ("project_id") WHERE "schedule_snapshots"."is_baseline";--> statement-breakpoint
 CREATE INDEX "scheduled_jobs_task_uid_idx" ON "scheduled_jobs" USING btree ("schedule_cron_task_uid");--> statement-breakpoint
 CREATE INDEX "ssa_user_created_idx" ON "self_service_signup_attempts" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "ssa_email_created_idx" ON "self_service_signup_attempts" USING btree ("email_hash","created_at");--> statement-breakpoint
@@ -4038,6 +4081,56 @@ END $$;
 CREATE TRIGGER activity_relationships_same_project BEFORE INSERT OR UPDATE OF predecessor_activity_id, successor_activity_id, project_id, tenant_id ON activity_relationships FOR EACH ROW EXECUTE FUNCTION project_os_activity_relationship_same_project();
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION project_os_activity_relationship_same_project() FROM PUBLIC;
+--> statement-breakpoint
+-- G-209 (D-4, review of #153 @ 441821c, item 3): the P6 schedule's sibling tables join rows of ITS OWN project, as activity_relationships already does.
+-- The foreign keys only say each end exists; these say each end is in the row's project and company, so no path (the P6 import, a later screen, a hand-written
+-- INSERT) can tie project A's activity to project B's code, resource or calendar. Each runs as the caller, under row-level security: an end the caller cannot
+-- see is not found, and the row is refused (fail closed).
+CREATE FUNCTION project_os_activity_code_assignment_same_project() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM activities a WHERE a.id = NEW.activity_id AND a.project_id = NEW.project_id AND a.tenant_id = NEW.tenant_id)
+     OR NOT EXISTS (SELECT 1 FROM activity_code_types t WHERE t.id = NEW.code_type_id AND t.project_id = NEW.project_id AND t.tenant_id = NEW.tenant_id)
+     OR NOT EXISTS (SELECT 1 FROM activity_code_values v WHERE v.id = NEW.code_value_id AND v.project_id = NEW.project_id AND v.tenant_id = NEW.tenant_id AND v.code_type_id = NEW.code_type_id) THEN
+    RAISE EXCEPTION 'ACTIVITY_CODE_ASSIGNMENT_CROSS_PROJECT: the activity, the code type and its value must belong to project %', NEW.project_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE FUNCTION project_os_activity_resource_assignment_same_project() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM activities a WHERE a.id = NEW.activity_id AND a.project_id = NEW.project_id AND a.tenant_id = NEW.tenant_id)
+     OR NOT EXISTS (SELECT 1 FROM project_resources r WHERE r.id = NEW.resource_id AND r.project_id = NEW.project_id AND r.tenant_id = NEW.tenant_id) THEN
+    RAISE EXCEPTION 'ACTIVITY_RESOURCE_ASSIGNMENT_CROSS_PROJECT: the activity and the resource must belong to project %', NEW.project_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE FUNCTION project_os_activity_code_value_same_project() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM activity_code_types t WHERE t.id = NEW.code_type_id AND t.project_id = NEW.project_id AND t.tenant_id = NEW.tenant_id)
+     OR (NEW.parent_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM activity_code_values p WHERE p.id = NEW.parent_id AND p.project_id = NEW.project_id AND p.tenant_id = NEW.tenant_id AND p.code_type_id = NEW.code_type_id)) THEN
+    RAISE EXCEPTION 'ACTIVITY_CODE_VALUE_CROSS_PROJECT: the code type and the parent value must belong to project %', NEW.project_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE FUNCTION project_os_activity_calendar_same_project() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.calendar_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM schedule_calendars c WHERE c.id = NEW.calendar_id AND c.project_id = NEW.project_id AND c.tenant_id = NEW.tenant_id) THEN
+    RAISE EXCEPTION 'ACTIVITY_CALENDAR_CROSS_PROJECT: the calendar must belong to project %', NEW.project_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER activity_code_assignments_same_project BEFORE INSERT OR UPDATE OF activity_id, code_type_id, code_value_id, project_id, tenant_id ON activity_code_assignments FOR EACH ROW EXECUTE FUNCTION project_os_activity_code_assignment_same_project();
+--> statement-breakpoint
+CREATE TRIGGER activity_resource_assignments_same_project BEFORE INSERT OR UPDATE OF activity_id, resource_id, project_id, tenant_id ON activity_resource_assignments FOR EACH ROW EXECUTE FUNCTION project_os_activity_resource_assignment_same_project();
+--> statement-breakpoint
+CREATE TRIGGER activity_code_values_same_project BEFORE INSERT OR UPDATE OF code_type_id, parent_id, project_id, tenant_id ON activity_code_values FOR EACH ROW EXECUTE FUNCTION project_os_activity_code_value_same_project();
+--> statement-breakpoint
+CREATE TRIGGER activities_calendar_same_project BEFORE INSERT OR UPDATE OF calendar_id, project_id, tenant_id ON activities FOR EACH ROW EXECUTE FUNCTION project_os_activity_calendar_same_project();
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION project_os_activity_code_assignment_same_project(), project_os_activity_resource_assignment_same_project(), project_os_activity_code_value_same_project(), project_os_activity_calendar_same_project() FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION project_os_cell_qc_accepted(varchar, varchar) TO project_os_app;
 --> statement-breakpoint
