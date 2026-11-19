@@ -23,11 +23,11 @@ describe("Q-40: master plan selection helpers", () => {
 
   it("a plain pick replaces the choice; several adds and removes, never changing the set it was given", () => {
     const start = new Set(["p-1"]);
-    expect([...pickVilla(start, "p-2", false)]).toEqual(["p-2"]);
+    expect(Array.from(pickVilla(start, "p-2", false))).toEqual(["p-2"]);
     const added = pickVilla(start, "p-2", true);
-    expect([...added].sort()).toEqual(["p-1", "p-2"]);
-    expect([...pickVilla(added, "p-1", true)]).toEqual(["p-2"]);
-    expect([...start]).toEqual(["p-1"]);
+    expect(Array.from(added).sort()).toEqual(["p-1", "p-2"]);
+    expect(Array.from(pickVilla(added, "p-1", true))).toEqual(["p-2"]);
+    expect(Array.from(start)).toEqual(["p-1"]);
   });
 
   it("bounds cover every point, and nothing gives null", () => {

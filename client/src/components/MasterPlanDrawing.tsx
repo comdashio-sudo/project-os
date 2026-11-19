@@ -24,7 +24,7 @@ import { ManualLinkPanel, useManualText, type LinkTool } from "@/components/Mast
 import { MasterPlanColourPanel, exportDrawingPng, useColourText } from "@/components/MasterPlanColourPanel";
 import { SITE_COLOUR, colourUnits, passesFilter, type SiteUnit, unitNumberOf } from "@/lib/masterPlanColouring";
 import { boundsOf, hatchIndexOf, pickVilla, type ListedVilla } from "@/lib/masterPlanSelection";
-import { MasterPlanVillaList, ModelHatchDefs, ModelLegend } from "@/components/MasterPlanVillaList";
+import { MasterPlanVillaList, ModelHatchDefs, ModelLegend, VillaInfoPanel } from "@/components/MasterPlanVillaList";
 import { MANUAL_LAYER, addManualShape, markerSide, removeManualShape, shapeAt, squareAround, unlinkedUnits } from "@/lib/dxf/manualLinks";
 import {
   assignUnit,
@@ -656,6 +656,16 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
             </div>
           ) : null}
 
+          {/* Q-40 (4): one villa chosen (on the plan or in the list) shows its details beside the list */}
+          {geometry && picked.size === 1 ? (() => {
+            const item = itemByPolygon.get(Array.from(picked)[0]!)?.item;
+            if (!item?.unitCode || item.state !== "confirmed") return null;
+            const detail = villaByCode(item.unitCode);
+            const number = unitNumberOf(item.unitCode);
+            return <VillaInfoPanel villa={{ unitCode: item.unitCode, unitNumber: number, blockCode: detail?.blockCode, modelCode: detail?.modelCode, overallPercent: detail?.overallPercent ?? null, currentActivity: detail?.currentActivity ?? null,
+              statusText: colouring ? colourText.keys[colouring.keyOf(item.unitCode)] : null,
+              cardHref: number !== null ? `/m/${tenantId}/${projectId}/unit/${number}${activityCode ? `?activity=${encodeURIComponent(activityCode)}` : ""}` : null }} />;
+          })() : null}
           {geometry ? (
             <MasterPlanVillaList villas={listedVillas} picked={picked} several={several} onSeveral={setSeveral} revealId={revealId}
               onPick={(id, many) => choose(id, many, "list")} onClear={() => setPicked(new Set())} onShow={() => focusShapes(picked)} />

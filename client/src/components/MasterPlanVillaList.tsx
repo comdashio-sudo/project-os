@@ -12,6 +12,33 @@ const text = {
 };
 export const useVillaListText = () => pickLanguage(useLanguage().language, text);
 
+const infoText = {
+  ar: { title: "معلومات الفيلا", block: "البلوك", type: "النوع", progress: "الإنجاز الموزون", activity: "النشاط الحالي", complete: "مكتملة", status: "حالة الموقع", card: "بطاقة الفيلا", unknown: "—" },
+  en: { title: "Villa details", block: "Block", type: "Type", progress: "Weighted progress", activity: "Current activity", complete: "Complete", status: "Site status", card: "Villa card", unknown: "—" },
+  ur: { title: "ولا کی تفصیل", block: "بلاک", type: "قسم", progress: "وزنی پیش رفت", activity: "موجودہ سرگرمی", complete: "مکمل", status: "سائٹ کی حالت", card: "ولا کارڈ", unknown: "—" },
+};
+
+export type VillaInfo = { unitCode: string; unitNumber: number | null; blockCode?: string | null; modelCode?: string | null; overallPercent?: number | null; currentActivity?: { name: string } | null; statusText?: string | null; cardHref?: string | null };
+
+/** Q-40 (4): the chosen villa's details, from the site map the plan already reads — nothing is fetched or written here. */
+export function VillaInfoPanel({ villa }: { villa: VillaInfo }) {
+  const t = pickLanguage(useLanguage().language, infoText);
+  const row = (label: string, value: React.ReactNode) => <div className="flex justify-between gap-3 py-1.5"><dt className="text-muted-foreground">{label}</dt><dd className="font-medium">{value}</dd></div>;
+  return (
+    <section aria-label={t.title} className="rounded-lg border border-border bg-card p-3 text-sm" data-villa-info>
+      <h4 className="font-semibold"><bdi dir="ltr">{villa.unitCode}</bdi></h4>
+      <dl className="mt-1 divide-y divide-border">
+        {row(t.block, villa.blockCode || t.unknown)}
+        {row(t.type, villa.modelCode || t.unknown)}
+        {row(t.progress, villa.overallPercent === null || villa.overallPercent === undefined ? t.unknown : <bdi dir="ltr">{`${Math.round(villa.overallPercent)}%`}</bdi>)}
+        {row(t.activity, villa.currentActivity ? villa.currentActivity.name : villa.overallPercent !== null && villa.overallPercent !== undefined && villa.overallPercent >= 100 ? t.complete : t.unknown)}
+        {villa.statusText ? row(t.status, villa.statusText) : null}
+      </dl>
+      {villa.cardHref ? <a href={villa.cardHref} className="mt-2 inline-flex min-h-11 items-center rounded-lg border border-border px-3">{t.card}</a> : null}
+    </section>
+  );
+}
+
 /** The hatch patterns, one per villa type, sized to the drawing (`size` is in drawing units) so they read at any zoom of a given plan. */
 export function ModelHatchDefs({ size, idPrefix = "mp-hatch" }: { size: number; idPrefix?: string }) {
   return (

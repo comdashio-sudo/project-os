@@ -464,6 +464,20 @@ describe("MasterPlanDrawing", () => {
       expect(Array.from(container.querySelectorAll("[data-model-key]")).map(node => node.textContent)).toEqual(["Type A", "Type B"]);
     });
 
+    it("one chosen villa shows its details (block, type, site status) and its card; two chosen or none show no details", async () => {
+      const container = await linkedDrawing();
+      expect(container.querySelector("[data-villa-info]")).toBeNull();
+      const [first, second] = Array.from(container.querySelectorAll("polygon[data-colour]"));
+      fireEvent.click(second!);
+      const info = container.querySelector("[data-villa-info]") as HTMLElement;
+      expect(info.textContent).toContain("B1-U-0002");
+      expect(info.textContent).toContain("B2");
+      expect(info.textContent).toContain("B");
+      expect(within(info).getByRole("link", { name: "Villa card" }).getAttribute("href")).toBe("/m/t/p/unit/2?activity=BLK");
+      fireEvent.click(first!, { ctrlKey: true });
+      expect(container.querySelector("[data-villa-info]")).toBeNull();
+    });
+
     it("before an activity is chosen the villas are listed without a type, and no type toggle is offered", async () => {
       const container = await linkedDrawing(false);
       expect(Array.from(container.querySelectorAll("[data-villa-row]")).map(row => row.textContent)).toEqual(["B1-U-0001No type", "B1-U-0002No type"]);
