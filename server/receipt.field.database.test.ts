@@ -76,10 +76,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("receiving against a purc
     expect(Number(cost.amount)).toBe(250);
   });
 
-  it("then proposes the material just received on that order, with the unit cost as the last price", async () => {
+  it("then proposes the material just received on that order; the keeper is not shown its price (Q-32: quantities, not value)", async () => {
     const context = await callerFor(users.keeper, "rcp-keeper").fieldEntry.context(scope);
     expect(context.purchaseOrders[0].lastReceivedMaterialId).toBe(MAT);
-    expect(context.materials.find(material => material.id === MAT)?.lastUnitCost).toBe(25);
+    expect(context.materials.find(material => material.id === MAT)?.lastUnitCost).toBeNull();
   });
 
   it("refuses what the desk screen refuses: more than the commitment holds, a draft order, a wrong unit, and a role without inventory permission", async () => {
