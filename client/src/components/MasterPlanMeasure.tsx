@@ -106,7 +106,7 @@ export function MeasurePanel(props: {
   const [meters, setMeters] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
-  const button = "min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm";
+  const button = "min-h-[44px] rounded-lg border border-border px-3 text-sm";
   const active = "min-h-[44px] rounded-lg bg-slate-900 px-3 text-sm text-white";
   const { tool, picks, calibration } = props;
 
@@ -134,20 +134,20 @@ export function MeasurePanel(props: {
   };
 
   return (
-    <div className="space-y-2 rounded-lg bg-slate-50 p-3" aria-label={t.calibrate}>
+    <div className="space-y-2 rounded-lg bg-muted p-3" aria-label={t.calibrate}>
       <div className="flex flex-wrap gap-2">
         <button type="button" className={tool === "calibrate" ? active : button} aria-pressed={tool === "calibrate"} disabled={!props.canCalibrate} onClick={() => choose("calibrate")}>{t.calibrate}</button>
         <button type="button" className={tool === "measure" ? active : button} aria-pressed={tool === "measure"} disabled={!calibration} onClick={() => choose("measure")}>{t.measure}</button>
         {tool !== "none" ? <button type="button" className={button} onClick={() => choose("none")}>{t.stop}</button> : null}
       </div>
-      {!props.canCalibrate ? <p className="text-xs text-slate-600">{t.saveFirst}</p> : null}
-      <p className="text-sm text-slate-700" role="status">{calibration ? t.calibrated(formatMeters(calibration.meters / distance(calibration.a, calibration.b), 4)) : t.notCalibrated}</p>
+      {!props.canCalibrate ? <p className="text-xs text-muted-foreground">{t.saveFirst}</p> : null}
+      <p className="text-sm text-foreground" role="status">{calibration ? t.calibrated(formatMeters(calibration.meters / distance(calibration.a, calibration.b), 4)) : t.notCalibrated}</p>
       {tool !== "none" ? <p className="text-sm">{t.pickTwo(picks.length)}</p> : null}
       {tool === "calibrate" && picks.length === 2 ? (
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col text-xs">
             {t.meters}
-            <input type="text" inputMode="decimal" dir="ltr" className="min-h-[44px] w-40 rounded-lg border border-slate-300 px-2 text-sm" value={meters} onChange={event => setMeters(event.target.value)} />
+            <input type="text" inputMode="decimal" dir="ltr" className="min-h-[44px] w-40 rounded-lg border border-border px-2 text-sm" value={meters} onChange={event => setMeters(event.target.value)} />
           </label>
           <button type="button" className="min-h-[44px] rounded-lg bg-primary px-3 text-sm text-white disabled:opacity-50" disabled={props.busy} onClick={save}>{t.saveCalibration}</button>
         </div>

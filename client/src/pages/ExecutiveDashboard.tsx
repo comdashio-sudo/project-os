@@ -179,7 +179,7 @@ export default function ExecutiveDashboard() {
         projects: "پروجیکٹس",
       } });
   return (
-    <PageMain className="min-h-screen bg-muted text-slate-900">
+    <PageMain className="min-h-screen bg-muted text-foreground">
       <PageHeader className="border-b bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
           <OutsideShell><Link
@@ -190,7 +190,7 @@ export default function ExecutiveDashboard() {
             {t.back}
           </Link></OutsideShell>
           <div className="flex gap-3">
-            <span className="text-sm text-slate-600">{t.level}</span>
+            <span className="text-sm text-muted-foreground">{t.level}</span>
             <LanguageToggle />
           </div>
         </div>
@@ -237,37 +237,37 @@ export default function ExecutiveDashboard() {
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5 text-sm">
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.budget}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.plannedBudget)}</b>
                 </p>
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.actual}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.actualCost)}</b>
                 </p>
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.committed}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.committedAmount)}</b>
                 </p>
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.exposure}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.totalExposure)}</b>
                 </p>
                 <p>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-muted-foreground">
                     {cash.remaining}
                   </span>
                   <b>{money(cashFlowQuery.data.cashFlow.remainingBudget)}</b>
                 </p>
               </div>
-              {(cashFlowQuery.data.cashFlowByPortfolio ?? []).length ? <Suspense fallback={<p className="mt-5 text-sm text-slate-500">{cash.chart}</p>}><PortfolioCashFlowChart portfolios={cashFlowQuery.data.cashFlowByPortfolio ?? []} title={cash.chart} exposureLabel={cash.exposure} remainingLabel={cash.remaining} unassignedLabel={cash.unassigned} /></Suspense> : null}
+              {(cashFlowQuery.data.cashFlowByPortfolio ?? []).length ? <Suspense fallback={<p className="mt-5 text-sm text-muted-foreground">{cash.chart}</p>}><PortfolioCashFlowChart portfolios={cashFlowQuery.data.cashFlowByPortfolio ?? []} title={cash.chart} exposureLabel={cash.exposure} remainingLabel={cash.remaining} unassignedLabel={cash.unassigned} /></Suspense> : null}
               {cashFlowQuery.data.cashFlowByPortfolio?.length ? (
                 <div className="mt-5">
                   <p className="text-sm font-semibold">{cash.byPortfolio}</p>
@@ -328,13 +328,13 @@ export default function ExecutiveDashboard() {
                 data.projects.map(project => (
                   <div
                     key={project.id}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 p-4"
+                    className="flex items-center justify-between rounded-xl bg-muted p-4"
                   >
                     <div>
                       <p className="font-semibold">
                         {project.code} · {project.name}
                       </p>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         {enumLabel(project.status, language)} ·{" "}
                         {project.health?.status ? enumLabel(project.health.status, language) : t.notAssessed}
                       </p>
@@ -343,7 +343,7 @@ export default function ExecutiveDashboard() {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">{t.empty}</p>
+                <p className="text-sm text-muted-foreground">{t.empty}</p>
               )}
             </CardContent>
           </Card>}
@@ -358,11 +358,11 @@ export default function ExecutiveDashboard() {
                 data.decisions.map(item => (
                   <div key={item.id} className="rounded-xl border p-4">
                     <p className="font-semibold">{item.problem}</p>
-                    <p className="mt-1 text-xs text-slate-500">{enumLabel(item.status, language)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{enumLabel(item.status, language)}</p>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">{t.empty}</p>
+                <p className="text-sm text-muted-foreground">{t.empty}</p>
               )}
             </CardContent>
           </Card>}
@@ -413,7 +413,7 @@ export default function ExecutiveDashboard() {
                   value={form.options}
                   required
                   onChange={e => setForm({ ...form, options: e.target.value })}
-                  className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 p-3 text-sm"
+                  className="mt-1 min-h-24 w-full rounded-lg border border-border p-3 text-sm"
                 />
               </Label>
               <Label>
@@ -423,7 +423,7 @@ export default function ExecutiveDashboard() {
                   onChange={e =>
                     setForm({ ...form, recommendation: e.target.value })
                   }
-                  className="mt-1 min-h-20 w-full rounded-lg border border-slate-200 p-3 text-sm"
+                  className="mt-1 min-h-20 w-full rounded-lg border border-border p-3 text-sm"
                 />
               </Label>
               <div>
@@ -462,7 +462,7 @@ function Metric({
       <Card>
         <CardContent className="p-5">
           <Icon className="h-5 w-5 text-primary" />
-          <p className="mt-5 text-xs font-bold tracking-[.12em] text-slate-500">
+          <p className="mt-5 text-xs font-bold tracking-[.12em] text-muted-foreground">
             {label}
           </p>
           <p className="mt-2 text-2xl font-semibold">{value}</p>

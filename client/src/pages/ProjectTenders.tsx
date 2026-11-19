@@ -66,7 +66,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
   const status = current?.package.status;
   const live = (current?.bids ?? []).filter(item => item.status === "submitted");
   const biddable = (invitees.data ?? []).filter(item => !(current?.bids ?? []).some(other => other.supplierId === item.supplierId));
-  const sheet = (heading: string, children: React.ReactNode, action?: React.ReactNode) => <section className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{heading}</h3>{action}</div><div className="mt-3 space-y-3">{children}</div></section>;
+  const sheet = (heading: string, children: React.ReactNode, action?: React.ReactNode) => <section className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{heading}</h3>{action}</div><div className="mt-3 space-y-3">{children}</div></section>;
   const flagText = (flag: string) => flag === "lowest" ? t.lowestFlag : flag === "below_median_30" ? t.belowFlag : t.aboveFlag;
   type Bid = NonNullable<typeof current>["bids"][number];
   // The comparison table's columns: the header text is what the screen shows, the value is the raw figure the Excel file gets.
@@ -86,7 +86,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
   return <Card>
     <CardHeader><CardTitle>{t.title}</CardTitle></CardHeader>
     <CardContent className="space-y-5">
-      <p className="text-xs leading-5 text-slate-600">{t.note}</p>
+      <p className="text-xs leading-5 text-muted-foreground">{t.note}</p>
       <SourceNotice query={packages} isArabic={isArabic} title={t.packagesTitle} />
       <SourceNotice query={suppliers} isArabic={isArabic} title={t.supplier} />
       <SourceNotice query={comparison} isArabic={isArabic} title={t.comparisonTitle} />
@@ -105,10 +105,10 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
             <Button type="submit" disabled={createPackage.isPending} className="min-h-[44px] md:col-span-4">{t.create}</Button>
           </CheckedForm>
         </WriteGate>
-        {list.length ? <><p className="text-xs text-slate-500">{t.total}: {packages.data?.total}</p><div className="divide-y rounded-xl border">{list.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
-          <div><b>{item.packageCode} · {item.title}</b><p className="text-xs text-slate-500">{label(item.status)} · {t.invitees}: {item.invitees} · {t.bids}: {item.bids} · {t.lowest}: {money(item.lowestLevelled)}</p></div>
+        {list.length ? <><p className="text-xs text-muted-foreground">{t.total}: {packages.data?.total}</p><div className="divide-y rounded-xl border">{list.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+          <div><b>{item.packageCode} · {item.title}</b><p className="text-xs text-muted-foreground">{label(item.status)} · {t.invitees}: {item.invitees} · {t.bids}: {item.bids} · {t.lowest}: {money(item.lowestLevelled)}</p></div>
           <Button size="sm" variant={selected === item.id ? "default" : "outline"} onClick={() => setSelected(item.id)}>{t.openPackage}</Button>
-        </div>)}</div></> : <p className="text-sm text-slate-500">{packages.isLoading ? t.loading : t.empty}</p>}
+        </div>)}</div></> : <p className="text-sm text-muted-foreground">{packages.isLoading ? t.loading : t.empty}</p>}
       </>)}
 
       {selected && current ? <section aria-label={`${current.package.packageCode} ${current.package.title}`} className="space-y-4 rounded-xl bg-accent p-4">
@@ -121,7 +121,7 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
         </div></WriteGate>
 
         {sheet(t.inviteesTitle, <>
-          <ul className="grid gap-1 text-sm md:grid-cols-2">{(invitees.data ?? []).map(item => <li key={item.id} className="flex justify-between gap-2 rounded-lg bg-white/80 px-3 py-2"><span>{item.supplierName}</span><span className="text-xs text-slate-500">{label(item.status)}</span></li>)}</ul>
+          <ul className="grid gap-1 text-sm md:grid-cols-2">{(invitees.data ?? []).map(item => <li key={item.id} className="flex justify-between gap-2 rounded-lg bg-white/80 px-3 py-2"><span>{item.supplierName}</span><span className="text-xs text-muted-foreground">{label(item.status)}</span></li>)}</ul>
           {status === "draft" || status === "open" ? <WriteGate permission="project.tender.manage" projectId={projectId}><div className="flex flex-wrap items-end gap-2">
             <div className="min-w-48 flex-1"><Label htmlFor="ti-supplier">{t.supplier}</Label><Select id="ti-supplier" value={supplierId} placeholder={t.pickSupplier} onValueChange={setSupplierId} options={(suppliers.data ?? []).filter(item => !(invitees.data ?? []).some(other => other.supplierId === item.id)).map(item => ({ value: item.id, label: item.legalName }))} /></div>
             <Button disabled={!supplierId || invite.isPending} className="min-h-[44px]" onClick={() => invite.mutate({ ...scope, packageId: selected, supplierId }, { onSuccess: () => setSupplierId("") })}>{t.invite}</Button>
@@ -139,11 +139,11 @@ export function ProjectTenders({ tenantId, projectId }: { tenantId: string; proj
           </CheckedForm>)}</WriteGate> : null}
 
         {sheet(t.comparisonTitle, <>
-          <p className="text-xs text-slate-600">{t.comparable}: {current.comparable} · {t.lowest}: {money(current.lowest)} · {t.medianLine}: {money(current.median)}</p>
-          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="text-start text-xs text-slate-600">{bidColumns.map(column => <th key={column.header} className="p-2 text-start">{column.header}</th>)}</tr></thead>
+          <p className="text-xs text-muted-foreground">{t.comparable}: {current.comparable} · {t.lowest}: {money(current.lowest)} · {t.medianLine}: {money(current.median)}</p>
+          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="text-start text-xs text-muted-foreground">{bidColumns.map(column => <th key={column.header} className="p-2 text-start">{column.header}</th>)}</tr></thead>
             <tbody>{current.bids.map(item => <tr key={item.id} className="border-t align-top">
               <td className="p-2">{item.rank ?? "—"}</td>
-              <td className="p-2"><b>{item.supplierName}</b><div className="text-xs text-slate-500">{label(item.status)}{item.statusReason ? ` · ${item.statusReason}` : ""}</div>
+              <td className="p-2"><b>{item.supplierName}</b><div className="text-xs text-muted-foreground">{label(item.status)}{item.statusReason ? ` · ${item.statusReason}` : ""}</div>
                 {item.adjustmentLines.map(line => <div key={line.id} className="mt-1 flex items-center gap-2 text-xs"><span>{label(line.kind)}: {line.description} ({money(line.amount)})</span>{status === "closed" ? <WriteGate permission="project.tender.level" projectId={projectId}><button type="button" className="text-red-700 underline" onClick={() => removeAdjustment.mutate({ ...scope, adjustmentId: line.id })}>{t.remove}</button></WriteGate> : null}</div>)}
                 {item.status === "submitted" ? <div className="mt-2 flex flex-wrap items-center gap-2">
                   {status === "open" ? <WriteGate permission="project.tender.bids" projectId={projectId}><Button size="sm" variant="outline" disabled={withdrawBid.isPending} onClick={() => withdrawBid.mutate({ ...scope, bidId: item.id })}>{t.withdraw}</Button></WriteGate> : null}
