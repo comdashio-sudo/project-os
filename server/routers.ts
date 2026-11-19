@@ -1,6 +1,6 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
-import { createStrategyAssumption, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
+import { createStrategyAssumption, getStrategyAssumptionRisks, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
 import { getMonthlyReport } from "./monthlyReport";
@@ -840,6 +840,8 @@ export const appRouter = router({
   // Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (server/strategyAssumptions.ts).
   strategy: router({
     assumptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), module: z.enum(["general", "market"]).optional() })).query(({ ctx, input }) => listStrategyAssumptions({ userId: ctx.user.id, ...input })),
+    // Q-21 (a), batch 5: the assumption-risk board (read-only)
+    assumptionRisks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), horizonMonths: z.number().int().min(6).max(120).optional() })).query(({ ctx, input }) => getStrategyAssumptionRisks({ userId: ctx.user.id, ...input })),
     assumptionChanges: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid() })).query(({ ctx, input }) => getStrategyAssumptionChanges({ userId: ctx.user.id, ...input })),
     createAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(2).max(60).regex(/^[A-Za-z0-9_.-]+$/), ...strategyAssumptionFields })).mutation(({ ctx, input }) => createStrategyAssumption({ userId: ctx.user.id, ...input })),
     updateDraft: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), ...strategyAssumptionFields })).mutation(({ ctx, input }) => updateStrategyAssumptionDraft({ userId: ctx.user.id, ...input })),
