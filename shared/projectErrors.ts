@@ -1793,6 +1793,21 @@ export const projectErrorMessages = {
     en: "This kind of import cannot be rolled back (opening balances are a stock-movement ledger that is never erased).",
     ur: "اس قسم کی درآمد واپس نہیں کی جا سکتی (ابتدائی بیلنس اسٹاک حرکات کا ریکارڈ ہے جو مٹایا نہیں جاتا)۔",
   },
+  PROJECT_OS_MEETING_NOT_FOUND: {
+    ar: "الاجتماع غير موجود في هذا المشروع.",
+    en: "The meeting is not in this project.",
+    ur: "یہ میٹنگ اس پروجیکٹ میں نہیں ہے۔",
+  },
+  PROJECT_OS_MEETING_ISSUED: {
+    ar: "صدر محضر هذا الاجتماع، فلا يُضاف إليه شيء. سجّل ما يلزم في الاجتماع التالي.",
+    en: "The minutes of this meeting are issued, so nothing is added to them. Record it in the next meeting.",
+    ur: "اس میٹنگ کی کارروائی جاری ہو چکی ہے، اس میں کچھ شامل نہیں ہوتا۔ اگلی میٹنگ میں درج کریں۔",
+  },
+  PROJECT_OS_MEETING_ATTENDEE_INVALID: {
+    ar: "أحد الحضور المختارين ليس عضوًا نشطًا في هذه الشركة.",
+    en: "One of the attendees chosen is not an active member of this company.",
+    ur: "منتخب حاضرین میں سے ایک اس کمپنی کا فعال رکن نہیں۔",
+  },
   PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES: {
     ar: "هذا الاستيراد عدّل صفوفًا كانت موجودة، ولم تُحفظ قيمها السابقة، فلا يمكن إعادتها. استورد النسخة الصحيحة فوقه بدل التراجع.",
     en: "This import changed rows that already existed and their previous values were not kept, so they cannot be restored. Import the correct version over it instead.",
