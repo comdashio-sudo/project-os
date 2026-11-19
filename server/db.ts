@@ -3349,15 +3349,17 @@ export async function createIssue(input: { userId: number; tenantId: string; pro
   return { id };
 }
 
-export async function createAction(input: { userId: number; tenantId: string; projectId: string; title: string; priority: "low" | "medium" | "high" | "critical"; dueAt?: Date }) {
+export async function createAction(input: { userId: number; tenantId: string; projectId: string; title: string; priority: "low" | "medium" | "high" | "critical"; dueAt?: Date; ownerMembershipId?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  // Q-45 (c): the action's owner — whose «مهامي» it appears in — is an active member of this company
+  if (input.ownerMembershipId) await assertActiveMember(db, input.tenantId, input.ownerMembershipId, "PROJECT_OS_ACTION_OWNER_INVALID");
   const id = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(actions).values({ id, tenantId: input.tenantId, projectId: input.projectId, title: input.title, priority: input.priority, dueAt: input.dueAt, status: "open" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.action_created", entityType: "action", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, priority: input.priority }) }); });
+  await db.transaction(async tx => { await tx.insert(actions).values({ id, tenantId: input.tenantId, projectId: input.projectId, title: input.title, priority: input.priority, dueAt: input.dueAt, ownerMembershipId: input.ownerMembershipId, status: "open" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.action_created", entityType: "action", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, priority: input.priority }) }); });
   return { id };
 }
 
@@ -3424,15 +3426,28 @@ function assertDecisionRecorder(snapshot: TenantAccessSnapshot, tenantId: string
 
 /** Q-45 (a): taking part in a decision (submitting, deciding, implementing) needs an active membership of a company that holds a licensed product; the
  *  step's own rule (recorder / owner) is checked by the caller. */
-function assertDecisionParticipant(snapshot: TenantAccessSnapshot) {
+export function assertDecisionParticipant(snapshot: TenantAccessSnapshot) {
   if (snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   if (!(["EXECUTIVE", "PMO", "PROJECT"] as const).some(product => snapshot.entitledProducts.includes(product))) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
 }
 
-/** Q-45 (a): the decision owner is an active member of THIS company. */
-async function assertDecisionOwner(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string) {
+/** Q-45: an owner (of a decision or an action) is an active member of THIS company. */
+async function assertActiveMember(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string, refusal: string) {
   const [owner] = await db.select({ id: memberships.id, status: memberships.status }).from(memberships).where(and(eq(memberships.id, membershipId), eq(memberships.tenantId, tenantId))).limit(1);
-  if (!owner || owner.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_DECISION_OWNER_INVALID" });
+  if (!owner || owner.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: refusal });
+}
+const assertDecisionOwner = (db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string) => assertActiveMember(db, tenantId, membershipId, "PROJECT_OS_DECISION_OWNER_INVALID");
+
+/** Q-45 (c): the active members of the company, by name, to pick an owner for a decision or an action — for whoever may record one on this project. */
+export async function getOwnerOptionsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertDecisionRecorder(snapshot, input.tenantId, input.projectId);
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ membershipId: memberships.id, name: users.name }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
+    .where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.status, "active"))).orderBy(asc(users.name));
 }
 
 export async function createDecision(input: { userId: number; tenantId: string; projectId: string; problem: string; options: string; recommendation?: string; decisionOwnerMembershipId?: string; costImpact?: number; scheduleImpactDays?: number; riskImpact?: string }) {
