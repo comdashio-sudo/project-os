@@ -1,5 +1,5 @@
 {
-  "id": "28dc19b6-452c-4f0c-a1f3-5ae2429e561b",
+  "id": "415cafb1-7f84-4fe6-99fa-6744b42f5429",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -72,6 +72,12 @@
           "notNull": true,
           "default": "'none'"
         },
+        "meeting_id": {
+          "name": "meeting_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "actions_status",
@@ -122,6 +128,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "actions_meeting_idx": {
+          "name": "actions_meeting_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "meeting_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -160,6 +187,23 @@
           ],
           "columnsTo": [
             "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "actions_meeting_fk": {
+          "name": "actions_meeting_fk",
+          "tableFrom": "actions",
+          "tableTo": "project_meetings",
+          "columnsFrom": [
+            "meeting_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -21286,6 +21330,500 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_meeting_attendees": {
+      "name": "project_meeting_attendees",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "meeting_id": {
+          "name": "meeting_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "membership_id": {
+          "name": "membership_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organisation": {
+          "name": "organisation",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "present": {
+          "name": "present",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_meeting_attendees_meeting_idx": {
+          "name": "project_meeting_attendees_meeting_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "meeting_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_meeting_attendees_tenant_id_companies_id_fk": {
+          "name": "project_meeting_attendees_tenant_id_companies_id_fk",
+          "tableFrom": "project_meeting_attendees",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_meeting_attendees_project_id_projects_id_fk": {
+          "name": "project_meeting_attendees_project_id_projects_id_fk",
+          "tableFrom": "project_meeting_attendees",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_meeting_attendees_membership_id_memberships_id_fk": {
+          "name": "project_meeting_attendees_membership_id_memberships_id_fk",
+          "tableFrom": "project_meeting_attendees",
+          "tableTo": "memberships",
+          "columnsFrom": [
+            "membership_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_meeting_attendees_meeting_fk": {
+          "name": "project_meeting_attendees_meeting_fk",
+          "tableFrom": "project_meeting_attendees",
+          "tableTo": "project_meetings",
+          "columnsFrom": [
+            "meeting_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_meeting_items": {
+      "name": "project_meeting_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "meeting_id": {
+          "name": "meeting_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_number": {
+          "name": "item_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "topic": {
+          "name": "topic",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "discussion": {
+          "name": "discussion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision": {
+          "name": "decision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_meeting_items_number_unique": {
+          "name": "project_meeting_items_number_unique",
+          "columns": [
+            {
+              "expression": "meeting_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_meeting_items_tenant_id_companies_id_fk": {
+          "name": "project_meeting_items_tenant_id_companies_id_fk",
+          "tableFrom": "project_meeting_items",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_meeting_items_project_id_projects_id_fk": {
+          "name": "project_meeting_items_project_id_projects_id_fk",
+          "tableFrom": "project_meeting_items",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_meeting_items_meeting_fk": {
+          "name": "project_meeting_items_meeting_fk",
+          "tableFrom": "project_meeting_items",
+          "tableTo": "project_meetings",
+          "columnsFrom": [
+            "meeting_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_meetings": {
+      "name": "project_meetings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "meeting_type": {
+          "name": "meeting_type",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "held_at": {
+          "name": "held_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "previous_meeting_id": {
+          "name": "previous_meeting_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_meetings_tenant_project_held_idx": {
+          "name": "project_meetings_tenant_project_held_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "held_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_meetings_tenant_id_companies_id_fk": {
+          "name": "project_meetings_tenant_id_companies_id_fk",
+          "tableFrom": "project_meetings",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_meetings_project_id_projects_id_fk": {
+          "name": "project_meetings_project_id_projects_id_fk",
+          "tableFrom": "project_meetings",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_meetings_created_by_user_id_users_id_fk": {
+          "name": "project_meetings_created_by_user_id_users_id_fk",
+          "tableFrom": "project_meetings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "project_meetings_previous_fk": {
+          "name": "project_meetings_previous_fk",
+          "tableFrom": "project_meetings",
+          "tableTo": "project_meetings",
+          "columnsFrom": [
+            "previous_meeting_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "project_meetings_id_tenant_project_unique": {
+          "name": "project_meetings_id_tenant_project_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "project_meetings_type_check": {
+          "name": "project_meetings_type_check",
+          "value": "\"project_meetings\".\"meeting_type\" IN ('progress', 'coordination', 'safety', 'client', 'design', 'other')"
+        },
+        "project_meetings_status_check": {
+          "name": "project_meetings_status_check",
+          "value": "\"project_meetings\".\"status\" IN ('draft', 'issued')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.project_planned_labour": {

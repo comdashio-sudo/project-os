@@ -32,7 +32,7 @@ await connection.end();
 const t = project.tenantId, p = project.id;
 const SCREENS = [
   ["الدخول", "/login", true], ["الصفحة الرئيسية", "/"], ["سجل المشاريع", `/projects/${t}`], ["ضوابط المشروع", `/projects/${t}/${p}/controls`],
-  ["ضوابط المشروع: تبويب PMC", `/projects/${t}/${p}/controls#pmc`], ["ضبط المشروع PMC", `/projects/${t}/${p}/pmc`], ["معالج الإعداد", `/setup/${t}`], ["معالج الإعداد: الدعوات", `/setup/${t}#invite`],
+  ["ضبط المشروع PMC", `/projects/${t}/${p}/pmc`], ["معالج الإعداد", `/setup/${t}`], ["معالج الإعداد: الدعوات", `/setup/${t}#invite`],
   ["السلسلة التجارية", `/projects/${t}/${p}/commercial`], ["إدخال الجوال", `/m/${t}/${p}`], ["القيادة التنفيذية", `/executive/${t}`],
   ["إدارة الشركة", `/tenants/${t}/administration`], ["الموظفون", `/people/${t}`], ["الملف الشخصي", "/profile"], ["حاسبة EVM", "/evm"],
 ];
