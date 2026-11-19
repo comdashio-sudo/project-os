@@ -1,5 +1,5 @@
 {
-  "id": "6ed262ee-1b21-4776-b0cd-6f2596abcfd9",
+  "id": "d84a1150-f288-441e-8be0-45f44ef4a663",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -19630,6 +19630,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "warehouse_id": {
+          "name": "warehouse_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subcontract_id": {
+          "name": "subcontract_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "procurement_requisitions_status",
@@ -19728,9 +19740,68 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "prq_tenant_project_warehouse_required_idx": {
+          "name": "prq_tenant_project_warehouse_required_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "warehouse_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "required_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
+        "prq_warehouse_fk": {
+          "name": "prq_warehouse_fk",
+          "tableFrom": "procurement_requisitions",
+          "tableTo": "project_warehouses",
+          "columnsFrom": [
+            "warehouse_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "prq_subcontract_fk": {
+          "name": "prq_subcontract_fk",
+          "tableFrom": "procurement_requisitions",
+          "tableTo": "subcontract_contracts",
+          "columnsFrom": [
+            "subcontract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "prq_tenant_fk": {
           "name": "prq_tenant_fk",
           "tableFrom": "procurement_requisitions",
@@ -28172,6 +28243,525 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.subcontract_work_confirmation_lines": {
+      "name": "subcontract_work_confirmation_lines",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmation_id": {
+          "name": "confirmation_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "work_confirmation_line_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pmc_unit_id": {
+          "name": "pmc_unit_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pmc_activity_definition_id": {
+          "name": "pmc_activity_definition_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "percent": {
+          "name": "percent",
+          "type": "numeric(7, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "boq_item_id": {
+          "name": "boq_item_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric(18, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corrects_line_id": {
+          "name": "corrects_line_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "historical": {
+          "name": "historical",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(300)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "work_confirmation_lines_unit_activity_idx": {
+          "name": "work_confirmation_lines_unit_activity_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pmc_unit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pmc_activity_definition_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_confirmation_lines_boq_idx": {
+          "name": "work_confirmation_lines_boq_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "boq_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "subcontract_work_confirmation_lines_tenant_id_companies_id_fk": {
+          "name": "subcontract_work_confirmation_lines_tenant_id_companies_id_fk",
+          "tableFrom": "subcontract_work_confirmation_lines",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontract_work_confirmation_lines_project_id_projects_id_fk": {
+          "name": "subcontract_work_confirmation_lines_project_id_projects_id_fk",
+          "tableFrom": "subcontract_work_confirmation_lines",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "work_confirmation_lines_confirmation_fk": {
+          "name": "work_confirmation_lines_confirmation_fk",
+          "tableFrom": "subcontract_work_confirmation_lines",
+          "tableTo": "subcontract_work_confirmations",
+          "columnsFrom": [
+            "confirmation_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "work_confirmation_lines_unit_fk": {
+          "name": "work_confirmation_lines_unit_fk",
+          "tableFrom": "subcontract_work_confirmation_lines",
+          "tableTo": "pmc_units",
+          "columnsFrom": [
+            "pmc_unit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "work_confirmation_lines_activity_fk": {
+          "name": "work_confirmation_lines_activity_fk",
+          "tableFrom": "subcontract_work_confirmation_lines",
+          "tableTo": "pmc_activity_definitions",
+          "columnsFrom": [
+            "pmc_activity_definition_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "work_confirmation_lines_boq_fk": {
+          "name": "work_confirmation_lines_boq_fk",
+          "tableFrom": "subcontract_work_confirmation_lines",
+          "tableTo": "boq_items",
+          "columnsFrom": [
+            "boq_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "work_confirmation_lines_corrects_fk": {
+          "name": "work_confirmation_lines_corrects_fk",
+          "tableFrom": "subcontract_work_confirmation_lines",
+          "tableTo": "subcontract_work_confirmation_lines",
+          "columnsFrom": [
+            "corrects_line_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_confirmation_lines_shape": {
+          "name": "work_confirmation_lines_shape",
+          "value": "(\"subcontract_work_confirmation_lines\".\"kind\" = 'unit' AND \"subcontract_work_confirmation_lines\".\"pmc_unit_id\" IS NOT NULL AND \"subcontract_work_confirmation_lines\".\"pmc_activity_definition_id\" IS NOT NULL AND \"subcontract_work_confirmation_lines\".\"percent\" IS NOT NULL AND \"subcontract_work_confirmation_lines\".\"boq_item_id\" IS NULL AND \"subcontract_work_confirmation_lines\".\"quantity\" IS NULL) OR (\"subcontract_work_confirmation_lines\".\"kind\" = 'quantity' AND \"subcontract_work_confirmation_lines\".\"boq_item_id\" IS NOT NULL AND \"subcontract_work_confirmation_lines\".\"quantity\" IS NOT NULL AND \"subcontract_work_confirmation_lines\".\"pmc_unit_id\" IS NULL AND \"subcontract_work_confirmation_lines\".\"pmc_activity_definition_id\" IS NULL AND \"subcontract_work_confirmation_lines\".\"percent\" IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.subcontract_work_confirmations": {
+      "name": "subcontract_work_confirmations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subcontract_id": {
+          "name": "subcontract_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmation_number": {
+          "name": "confirmation_number",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "work_confirmation_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "rejection_reason": {
+          "name": "rejection_reason",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prepared_by_user_id": {
+          "name": "prepared_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_by_user_id": {
+          "name": "reviewed_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "certificate_id": {
+          "name": "certificate_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "work_confirmations_project_number_unique": {
+          "name": "work_confirmations_project_number_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "confirmation_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_confirmations_tenant_project_subcontract_idx": {
+          "name": "work_confirmations_tenant_project_subcontract_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "subcontract_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "subcontract_work_confirmations_tenant_id_companies_id_fk": {
+          "name": "subcontract_work_confirmations_tenant_id_companies_id_fk",
+          "tableFrom": "subcontract_work_confirmations",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontract_work_confirmations_project_id_projects_id_fk": {
+          "name": "subcontract_work_confirmations_project_id_projects_id_fk",
+          "tableFrom": "subcontract_work_confirmations",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontract_work_confirmations_prepared_by_user_id_users_id_fk": {
+          "name": "subcontract_work_confirmations_prepared_by_user_id_users_id_fk",
+          "tableFrom": "subcontract_work_confirmations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "prepared_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontract_work_confirmations_reviewed_by_user_id_users_id_fk": {
+          "name": "subcontract_work_confirmations_reviewed_by_user_id_users_id_fk",
+          "tableFrom": "subcontract_work_confirmations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "reviewed_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "work_confirmations_subcontract_fk": {
+          "name": "work_confirmations_subcontract_fk",
+          "tableFrom": "subcontract_work_confirmations",
+          "tableTo": "subcontract_contracts",
+          "columnsFrom": [
+            "subcontract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "work_confirmations_certificate_fk": {
+          "name": "work_confirmations_certificate_fk",
+          "tableFrom": "subcontract_work_confirmations",
+          "tableTo": "subcontract_certificates",
+          "columnsFrom": [
+            "certificate_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "work_confirmations_id_tenant_project_unique": {
+          "name": "work_confirmations_id_tenant_project_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "work_confirmations_period_order": {
+          "name": "work_confirmations_period_order",
+          "value": "\"subcontract_work_confirmations\".\"period_end\" >= \"subcontract_work_confirmations\".\"period_start\""
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.submittal_reply_codes": {
       "name": "submittal_reply_codes",
       "schema": "",
@@ -33641,6 +34231,25 @@
         "pending",
         "delivered",
         "failed"
+      ]
+    },
+    "public.work_confirmation_line_kind": {
+      "name": "work_confirmation_line_kind",
+      "schema": "public",
+      "values": [
+        "unit",
+        "quantity"
+      ]
+    },
+    "public.work_confirmation_status": {
+      "name": "work_confirmation_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "submitted",
+        "approved",
+        "rejected",
+        "cancelled"
       ]
     }
   },
