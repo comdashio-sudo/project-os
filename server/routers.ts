@@ -1,6 +1,7 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
+import { getMyDeadlinesForTenant } from "./deadlineAlerts";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
@@ -589,6 +590,8 @@ export const appRouter = router({
     createDecision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), problem: z.string().trim().min(2).max(5000), options: z.string().trim().min(2).max(5000), recommendation: z.string().trim().max(5000).optional(), decisionOwnerMembershipId: z.string().uuid().optional(), costImpact: z.number().finite().optional(), scheduleImpactDays: z.number().int().min(-3650).max(3650).optional(), riskImpact: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => createDecision({ userId: ctx.user.id, ...input })),
     ownerOptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getOwnerOptionsForTenant({ userId: ctx.user.id, ...input })),
     myWork: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getMyWorkForTenant({ userId: ctx.user.id, ...input })),
+    // Q-26 (P-119): what is overdue for me in this company now, by the daily digest's own rule (server/deadlineAlerts.ts)
+    myDeadlines: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getMyDeadlinesForTenant({ userId: ctx.user.id, ...input })),
     completeMyAction: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), actionId: z.string().uuid() })).mutation(({ ctx, input }) => completeMyActionForTenant({ userId: ctx.user.id, ...input })),
     transitionDecision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), decisionId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "implemented"]), decision: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => transitionDecision({ userId: ctx.user.id, ...input })),
   }),
