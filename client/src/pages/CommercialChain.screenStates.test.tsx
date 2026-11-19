@@ -22,7 +22,7 @@ vi.mock("@/lib/trpc", () => {
   return { trpc: {
     useUtils: () => new Proxy({}, { get: () => new Proxy({}, { get: () => vi.fn() }) }),
     boq: { list: procedure("boq"), create: { useMutation: idleMutation } },
-    subcontracts: { list: procedure("contracts"), listCertificates: procedure("certificates"), create: { useMutation: idleMutation }, createCertificate: { useMutation: idleMutation } },
+    subcontracts: { list: procedure("contracts"), listCertificates: procedure("certificates"), create: { useMutation: idleMutation }, transitionCertificate: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) }, createCertificate: { useMutation: idleMutation } },
     projectInvoices: { list: procedure("invoices"), create: { useMutation: idleMutation } },
     procurement: { register: procedure("suppliers") },
   } };
