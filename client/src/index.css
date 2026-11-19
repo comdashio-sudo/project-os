@@ -132,6 +132,8 @@
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-mark: var(--sidebar-mark, var(--dashio-aqua));
+  --color-sidebar-surface: var(--sidebar-surface, var(--sidebar-accent));
   --color-sidebar-ring: var(--sidebar-ring);
   --color-state-complete: var(--state-complete);
   --color-state-complete-foreground: var(--state-complete-foreground);
