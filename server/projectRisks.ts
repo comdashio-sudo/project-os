@@ -78,7 +78,7 @@ export async function updateProjectRisk(input: Scope & { riskId: string; patch: 
     }
     const changed = Object.keys(changes);
     if (!changed.length) return { id: current.id, changed };
-    await tx.update(risks).set({ ...Object.fromEntries(changed.map(key => [key, changes[key]!.to])), updatedAt: new Date() }).where(and(eq(risks.id, current.id), eq(risks.tenantId, input.tenantId)));
+    await tx.update(risks).set({ ...Object.fromEntries(changed.map(key => [key, changes[key]!.to])), updatedAt: new Date() }).where(and(eq(risks.id, current.id), eq(risks.tenantId, input.tenantId))).returning({ id: risks.id }).then(assertOneRisk);
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.risk_updated", entityType: "risk", entityId: current.id, metadata: JSON.stringify({ projectId: input.projectId, code: current.code, changes }) });
     return { id: current.id, changed };
   });
@@ -90,7 +90,7 @@ export async function closeProjectRisk(input: Scope & { riskId: string; reason: 
   return db.transaction(async tx => {
     const current = await lockRisk(tx, input);
     const closedAt = new Date();
-    await tx.update(risks).set({ status: "closed", closedAt, closureReason: input.reason, updatedAt: closedAt }).where(and(eq(risks.id, current.id), eq(risks.tenantId, input.tenantId)));
+    await tx.update(risks).set({ status: "closed", closedAt, closureReason: input.reason, updatedAt: closedAt }).where(and(eq(risks.id, current.id), eq(risks.tenantId, input.tenantId))).returning({ id: risks.id }).then(assertOneRisk);
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.risk_closed", entityType: "risk", entityId: current.id, metadata: JSON.stringify({ projectId: input.projectId, code: current.code, changes: { status: { from: current.status, to: "closed" } }, reason: input.reason }) });
     return { id: current.id, status: "closed" as const, closedAt };
   });
@@ -106,7 +106,7 @@ export async function convertRiskToIssue(input: Scope & { riskId: string; issueC
       const issueId = crypto.randomUUID();
       const now = new Date();
       await tx.insert(issues).values({ id: issueId, tenantId: input.tenantId, projectId: input.projectId, code: input.issueCode, title: current.title, priority: input.priority, dueAt: input.dueAt, status: "open" });
-      await tx.update(risks).set({ issueId, status: "closed", closedAt: now, closureReason: `issue:${input.issueCode}`, updatedAt: now }).where(and(eq(risks.id, current.id), eq(risks.tenantId, input.tenantId)));
+      await tx.update(risks).set({ issueId, status: "closed", closedAt: now, closureReason: `issue:${input.issueCode}`, updatedAt: now }).where(and(eq(risks.id, current.id), eq(risks.tenantId, input.tenantId))).returning({ id: risks.id }).then(assertOneRisk);
       await tx.insert(auditLogs).values([
         { id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.issue_created", entityType: "issue", entityId: issueId, metadata: JSON.stringify({ projectId: input.projectId, code: input.issueCode, fromRiskId: current.id }) },
         { id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.risk_converted", entityType: "risk", entityId: current.id, metadata: JSON.stringify({ projectId: input.projectId, code: current.code, issueId, issueCode: input.issueCode, changes: { status: { from: current.status, to: "closed" } } }) },
@@ -133,6 +133,9 @@ export async function projectRiskHistory(input: Scope & { riskId: string }) {
     return { id: row.id, action: row.action, actorName: row.actorName, createdAt: row.createdAt, changes: (meta.changes ?? {}) as Record<string, { from: unknown; to: unknown }>, reason: typeof meta.reason === "string" ? meta.reason : null, issueCode: typeof meta.issueCode === "string" ? meta.issueCode : null };
   });
 }
+
+/** The UPDATE proves its row: the row was locked a moment ago in this transaction, so zero rows is never "nothing to do" — it is refused, loudly. */
+const assertOneRisk = (rows: { id: string }[]) => { if (rows.length !== 1) throw fail("NOT_FOUND", "PROJECT_OS_RISK_NOT_FOUND"); };
 
 const parseMeta = (value: unknown): Record<string, unknown> => {
   if (value && typeof value === "object") return value as Record<string, unknown>;
