@@ -25,15 +25,17 @@ describe("user guide content", () => {
       section.steps.forEach((step, index) => expect(role!.permissions as readonly string[], `${section.id} step ${index + 1} needs ${step.needs}`).toContain(step.needs));
     }
   });
-  it("points every step at a screen that exists: a controls lane that is really on the page, the PMC tab, or a project route", () => {
+  it("points every step at a screen that exists: a controls lane that is really on the page, the PMC page (Q-36: no longer a tab), or a project route", () => {
     for (const section of userGuide) for (const step of section.steps) {
       const [path, anchor] = step.screen.split("#");
-      expect(["controls", "profitability", "field"], step.screen).toContain(path);
+      expect(["controls", "profitability", "field", "pmc"], step.screen).toContain(path);
+      if (path === "pmc") expect(anchor, step.screen).toBeUndefined();
       if (anchor) {
         expect(GUIDE_ANCHORS as readonly string[], step.screen).toContain(anchor);
-        expect(anchor === "pmc" ? controlsSource.includes('"pmc"') && pmcSource.includes("ProjectPmcWorkspace") : controlsSource.includes(`id="${anchor}"`), `${step.screen} exists on the controls page`).toBe(true);
+        expect(controlsSource.includes(`id="${anchor}"`), `${step.screen} exists on the controls page`).toBe(true);
       }
     }
+    expect(pmcSource.includes("ProjectPmcWorkspace")).toBe(true);
   });
   it("builds addresses inside the project and the phone route", () => {
     expect(guideStepHref("controls#manager-design", "t", "p")).toBe("/projects/t/p/controls#manager-design");

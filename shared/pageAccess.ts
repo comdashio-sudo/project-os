@@ -31,6 +31,8 @@ export const PAGE_ACCESS = {
   monthlyReport: [DAILY_REPORT_READERS],
   // pmcSite.percentages — pmcSourcePercentages (server/pmcSiteService.ts)
   siteConsultant: [["project.pmc.read"]],
+  // pmcSite.activities — listSiteActivities (server/pmcSiteService.ts); the «site update» screen (review of #419)
+  siteUpdate: [["project.pmc.read"]],
   // schedule.live — getLiveSchedule (server/scheduleSnapshots.ts), Q-23
   schedule: [["project.read", "project.manage"]],
   profitability: [["project.read"]],
