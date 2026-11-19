@@ -27,7 +27,7 @@ const NONE = "__none";
 const text = {
   ar: {
     header: "الرأس", weekday: "اليوم", windHours: "الرياح وساعات العمل", inspections: "الفحوصات (WIR/RFI)", materials: "المواد المستلمة", hse: "السلامة (HSE)", tomorrow: "خطة الغد", approval: "الاعتماد", pickRole: "اختر الدور", pickEquipment: "اختر المعدة", noRoles: "لا أدوار عمالة في قائمة المشروع بعد.", seedRoles: "انسخ القائمة الافتراضية", seeded: "أُضيفت الأدوار الافتراضية", noEquipment: "لا معدات في سجل المشروع بعد.", askManager: "يضيفها مدير المشروع.", workers: (n: number) => `المجموع: ${n === 1 ? "عامل واحد" : n === 2 ? "عاملان" : n >= 3 && n <= 10 ? `${n} عمال` : `${n} عاملًا`}`, units: (n: number) => `المجموع: ${n}`, lineCount: (n: number) => `${n} سطر`, matrix: "مصفوفة الشركات والأدوار ونسخ الأمس", statusNow: "حالة التقرير", chain: "سلسلة أعدّه ← راجعه ← اعتمده", 
-    title: "التقرير اليومي", back: "العودة إلى الإدخال السريع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
+    title: "التقرير اليومي", back: "العودة إلى الإدخال الميداني", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
     day: "يوم العمل", weather: "الطقس", temperature: "الحرارة (°م)", summary: "ملخص اليوم", obstacles: "العوائق",
     weatherClear: "صافٍ", weatherCloudy: "غائم", weatherRain: "مطر", weatherDust: "غبار", weatherHot: "حرارة شديدة", weatherWindy: "رياح",
     labour: "العمالة", equipment: "المعدات", work: "الأعمال المنفذة", addLabour: "إضافة عمالة", addEquipment: "إضافة معدة", addWork: "إضافة عمل",

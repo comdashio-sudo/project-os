@@ -21,7 +21,7 @@ describe("ProjectProfitability", () => {
   it("localizes the FPAC screen in Arabic", () => {
     state.arabic = true;
     render(<ProjectProfitability />);
-    expect(screen.getByText("لوحة ضبط ربحية المشروع")).toBeTruthy();
+    expect(screen.getByText("ربحية المشروع")).toBeTruthy();
     expect(screen.getAllByText("الميزانية الحالية").length).toBeGreaterThan(0);
     expect(screen.getByText("القيمة المضبوطة في BOQ")).toBeTruthy();
     expect(screen.getByText("تغطية المصادر")).toBeTruthy();
