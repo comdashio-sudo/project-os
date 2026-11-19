@@ -153,3 +153,62 @@ export async function rollbackScheduleUpdate(tx: Writer, input: { tenantId: stri
   await captureScheduleSnapshot(tx, { tenantId: input.tenantId, projectId: input.projectId, importId: input.importId, source: "p6_rollback", dataDate: null, userId: input.userId });
   return { restored };
 }
+
+// ------------------------------------------------------------------------------------------------------------- compare two snapshots
+type SnapshotRow = { activityId: string; code: string; plannedStartAt: Date | null; plannedFinishAt: Date | null; actualStartAt: Date | null; actualFinishAt: Date | null; totalFloatHours: string | null; status: string };
+export type ActivityChange = {
+  activityId: string; code: string; kinds: Array<"added" | "removed" | "started" | "finished" | "finish_moved" | "start_moved" | "became_critical" | "no_longer_critical" | "status">;
+  from: { status: string | null; plannedFinish: Date | null; actualStart: Date | null; actualFinish: Date | null; totalFloatHours: number | null } | null;
+  to: { status: string | null; plannedFinish: Date | null; actualStart: Date | null; actualFinish: Date | null; totalFloatHours: number | null } | null;
+  finishMovedDays: number | null;
+};
+
+/**
+ * Q-23: what changed between two snapshots of ONE project (an earlier «from» and a later «to»), activity by activity: added or removed, started, finished,
+ * the forecast finish moved (in calendar days; positive = later), the start moved, became or stopped being critical (P6 float ≤ 0, not complete), or the
+ * status changed otherwise. Read with «project.read» on that project; a snapshot of another project or company is not found.
+ */
+export async function compareScheduleSnapshots(input: { userId: number; tenantId: string; projectId: string; fromSnapshotId: string; toSnapshotId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: ["project.read", "project.manage"], scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const mine = and(eq(scheduleSnapshots.tenantId, input.tenantId), eq(scheduleSnapshots.projectId, input.projectId));
+  const pair = await db.select({ id: scheduleSnapshots.id, source: scheduleSnapshots.source, dataDate: scheduleSnapshots.dataDate, createdAt: scheduleSnapshots.createdAt }).from(scheduleSnapshots)
+    .where(and(mine, inArray(scheduleSnapshots.id, [input.fromSnapshotId, input.toSnapshotId])));
+  const from = pair.find(row => row.id === input.fromSnapshotId); const to = pair.find(row => row.id === input.toSnapshotId);
+  if (!from || !to) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND" });
+  const read = async (snapshotId: string) => new Map((await db.select({ activityId: scheduleSnapshotActivities.activityId, code: scheduleSnapshotActivities.code, plannedStartAt: scheduleSnapshotActivities.plannedStartAt, plannedFinishAt: scheduleSnapshotActivities.plannedFinishAt, actualStartAt: scheduleSnapshotActivities.actualStartAt, actualFinishAt: scheduleSnapshotActivities.actualFinishAt, totalFloatHours: scheduleSnapshotActivities.totalFloatHours, status: scheduleSnapshotActivities.status })
+    .from(scheduleSnapshotActivities).where(and(eq(scheduleSnapshotActivities.tenantId, input.tenantId), eq(scheduleSnapshotActivities.projectId, input.projectId), eq(scheduleSnapshotActivities.snapshotId, snapshotId)))).map(row => [row.activityId, row as SnapshotRow]));
+  const before = await read(from.id); const after = await read(to.id);
+  const forecastFinish = (row: SnapshotRow) => row.actualFinishAt ?? row.plannedFinishAt;
+  const forecastStart = (row: SnapshotRow) => row.actualStartAt ?? row.plannedStartAt;
+  const complete = (row: SnapshotRow) => row.status === "completed" || Boolean(row.actualFinishAt);
+  const critical = (row: SnapshotRow) => !complete(row) && row.totalFloatHours !== null && Number(row.totalFloatHours) <= 0;
+  const view = (row: SnapshotRow | undefined) => (row ? { status: row.status, plannedFinish: row.plannedFinishAt, actualStart: row.actualStartAt, actualFinish: row.actualFinishAt, totalFloatHours: num(row.totalFloatHours) } : null);
+  const changes: ActivityChange[] = [];
+  for (const id of Array.from(new Set(Array.from(before.keys()).concat(Array.from(after.keys()))))) {
+    const a = before.get(id); const b = after.get(id);
+    const kinds: ActivityChange["kinds"] = [];
+    if (!a) kinds.push("added"); else if (!b) kinds.push("removed");
+    else {
+      if (!a.actualStartAt && b.actualStartAt) kinds.push("started");
+      if (!a.actualFinishAt && b.actualFinishAt) kinds.push("finished");
+      if ((days(forecastFinish(b), forecastFinish(a)) ?? 0) !== 0) kinds.push("finish_moved");
+      if (!b.actualStartAt && (days(forecastStart(b), forecastStart(a)) ?? 0) !== 0) kinds.push("start_moved");
+      if (!critical(a) && critical(b)) kinds.push("became_critical");
+      if (critical(a) && !critical(b) && !complete(b)) kinds.push("no_longer_critical");
+      if (a.status !== b.status && !kinds.includes("started") && !kinds.includes("finished")) kinds.push("status");
+    }
+    if (kinds.length) changes.push({ activityId: id, code: (b ?? a)!.code, kinds, from: view(a), to: view(b), finishMovedDays: a && b ? days(forecastFinish(b), forecastFinish(a)) : null });
+  }
+  changes.sort((x, y) => x.code.localeCompare(y.code));
+  const count = (kind: ActivityChange["kinds"][number]) => changes.filter(change => change.kinds.includes(kind)).length;
+  return {
+    from, to,
+    summary: { changed: changes.length, added: count("added"), removed: count("removed"), started: count("started"), finished: count("finished"), finishLater: changes.filter(change => (change.finishMovedDays ?? 0) > 0).length, finishEarlier: changes.filter(change => (change.finishMovedDays ?? 0) < 0).length, becameCritical: count("became_critical"), noLongerCritical: count("no_longer_critical") },
+    changes,
+  };
+}
