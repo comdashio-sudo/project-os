@@ -5,6 +5,7 @@ import React, { useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, Select, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
 import { FieldShell } from "@/components/FieldShell";
+import { UndoLastSave } from "@/components/UndoLastSave";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -51,10 +52,12 @@ export default function PmcProgressUpdate() {
       .map(item => ({ value: item.code, label: item.name, description: `${item.section} · ${c.weight} ${weightOf(item)}` }));
   }, [activities.data, search, c.weight]);
 
+  const [lastSave, setLastSave] = useState<{ batchId: string; at: number; undone: boolean } | null>(null);
   const update = trpc.pmc.updateProgress.useMutation({
-    onSuccess: result => { setIssues([]); notify.success(t.update.saved(result.changed, result.unchanged)); setVillas(""); setRange(""); void history.refetch(); },
+    onSuccess: result => { setIssues([]); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setVillas(""); setRange(""); void history.refetch(); },
     onError: error => { const found = issuesOf(error); setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language)); },
   });
+  const undo = trpc.pmc.undoProgressBatch.useMutation({ onSuccess: () => { setLastSave(current => current ? { ...current, undone: true } : current); void history.refetch(); } });
   const submit = () => update.mutate({ ...scope, activityCode, status, date, ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : { blockCode: block.trim() }) });
   const reason = (issue: Issue) => issue.code === "SITE_TOO_MANY_VILLAS" ? c.tooMany(issue.detail) : (t.issues[issue.code] ?? (() => issue.code))(issue.villa, issue.detail);
 
@@ -89,6 +92,7 @@ export default function PmcProgressUpdate() {
           <CardFooter className="sticky bottom-0 bg-card"><Button size="lg" className="w-full" loading={update.isPending} disabled={!activityCode} onClick={submit}>{t.update.save}</Button></CardFooter>
         </Card>
       </WriteGate>
+      {lastSave && <UndoLastSave savedAt={lastSave.at} undone={lastSave.undone} pending={undo.isPending} error={undo.error ? getLocalizedProjectError(undo.error, language) : null} onUndo={() => undo.mutate({ ...scope, batchId: lastSave.batchId })} />}
       {update.data && (
         <Card data-progress-result>
           <CardHeader><CardTitle>{c.result}</CardTitle></CardHeader>

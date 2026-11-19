@@ -1,5 +1,5 @@
 {
-  "id": "78ad9804-25a4-473a-9b9f-a42626077764",
+  "id": "d31f8e68-bfe9-423d-a458-338b08672f98",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -17118,6 +17118,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -17144,6 +17150,34 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pmc_qc_receipt_events_batch_idx": {
+          "name": "pmc_qc_receipt_events_batch_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"pmc_qc_receipt_events\".\"batch_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

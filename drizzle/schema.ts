@@ -2383,8 +2383,10 @@ export const pmcQcReceiptEvents = pgTable(
     receivedOn: date("received_on", { mode: "string" }).notNull(),
     changedByUserId: integer("changed_by_user_id").references(() => users.id),
     changedAt: timestamp("changed_at", { withTimezone: true }).defaultNow().notNull(),
+    // Q-44: the save this event belongs to, so the batch can be undone by a reverse save (migration 0036); null on events written before it
+    batchId: varchar("batch_id", { length: 36 }),
   },
-  table => [index("pmc_qc_receipt_events_tenant_project_changed_idx").on(table.tenantId, table.projectId, table.changedAt)],
+  table => [index("pmc_qc_receipt_events_tenant_project_changed_idx").on(table.tenantId, table.projectId, table.changedAt), index("pmc_qc_receipt_events_batch_idx").on(table.tenantId, table.projectId, table.batchId).where(sql`${table.batchId} IS NOT NULL`)],
 );
 
 // Q-14: per project, after how many WORKING days without movement a started villa counts as stalled (3 by default; over 14 is long-stalled). Migration 0033.
