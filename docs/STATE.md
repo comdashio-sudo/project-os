@@ -1989,6 +1989,19 @@
 | اختبار كان يبحث عن `bg-red-50` صار يبحث عن `bg-danger-soft` (`ProjectControls.resilience.test.tsx`) | `PROVEN` | 25/25 |
 | البوابات: `pnpm check` 0؛ `pnpm test` 4204/0؛ `pnpm build` ناجح | `PROVEN` | 2026-11-19 |
 
+### Q-43 (P2-06) الدفعة 3: التصحيح والتاريخي في إثبات أعمال المقاولين (2026-11-19، المبرمج ب، بلا ترحيلة: العمودان من الدفعة 2)
+
+التصور `docs/proposals/subcontractor-progress.md` §5.2 و§5.3. الكود في `server/workConfirmations.ts`.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| التصحيح: سطر جديد بـ`correctsLineId` ونسبة أو كمية سالبة أو موجبة (لا صفر، والنسبة بين −100 و100)، يُعتمد كأي سطر؛ السطر الأصلي لا يُعدَّل أبدًا؛ −50% على سطر 100% معتمد ← يُعتمد، ويبقى الأصل 100%، ثم تُقبل مطالبة 50% جديدة، وأكثر منها `DUPLICATE`؛ وكمية البند تُصحَّح بالطريقة نفسها | `PROVEN` | `server/workConfirmations.database.test.ts` › CORRECTION POSITIVE |
+| سالب: نسبة سالبة بلا `correctsLineId` ← `LINE_INVALID`؛ تصحيح يُنزل مجموع المقاول تحت الصفر (للوحدة والنشاط أو لبند الكميات) ← `CORRECTION_BELOW_ZERO`؛ تصحيح لسطر غير معتمد، أو لسطر مقاول آخر، أو لخلية أخرى ← `CORRECTION_INVALID`؛ ولا يُكتب شيء في أي منها | `PROVEN` | الاختبار نفسه › CORRECTION NEGATIVE |
+| التاريخي: إثبات بعلامة `historical` يُعتمد كأي إثبات ويدخل في منع الازدواج: بعده مطالبة العمل نفسه للمقاول نفسه ← `DUPLICATE`، ولمقاول آخر ← `OVER_COMPLETE`؛ و`list` يعيد `historical` و`correctsLineId` | `PROVEN` | الاختبار نفسه › HISTORICAL |
+| منع سحب التاريخي إلى مستخلص | `OPEN` | دفعة السحب (5) تقرأ العلامة |
+| الرسائل الجديدة ع/En/أردو (`CORRECTION_INVALID`، `CORRECTION_BELOW_ZERO`) | `SOURCE_VERIFIED` | `shared/projectErrors.ts` |
+| الفحوص | `PROVEN` | `pnpm check` ناجح؛ `pnpm test` 4225/0؛ `coverage:trpc` ناجح؛ `workConfirmations.database.test.ts` 9/9 (+3)؛ مجموعة القاعدة كاملة 897/0 — 2026-11-19 |
+
 ### Q-43 (P2-06) الدفعة 2: إثبات أعمال المقاولين دون أسعار — الجداول والإرسال والاعتماد ومنع الازدواج (2026-11-19، المبرمج ب، ترحيلة 0040 (أُعيد ترقيمها بعد دمج 0037 و0038 و0039 في #400 و#403 و#413)، بتصور #381 وقرار المستشار I45)
 
 | البند | الحالة | الدليل |
