@@ -86,6 +86,21 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-21 (a) batch 4: the op
     expect([(await byCode("T-03")).estimatedValue, (await byCode("T-01")).status]).toEqual([6_000_000, "open"]);
   });
 
+  it("NEGATIVE (review of #408): two decisions of the same opportunity at the same moment — one is taken, the other is refused (rows = 0 is not success) and leaves no audit row", async () => {
+    const entrant = callerFor("entrant");
+    const created = await entrant.strategy.createOpportunity({ tenantId, ...opportunity("T-RACE", 2_000_000) });
+    const audits = async () => Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'strategy_opportunity.decided' AND entityId = ?", [tenantId, created.id]))[0] as Array<{ n: number }>)[0].n);
+    const results = await Promise.all([
+      code(entrant.strategy.decideOpportunity({ tenantId, opportunityId: created.id, outcome: "won", decidedAt: today() })),
+      code(entrant.strategy.decideOpportunity({ tenantId, opportunityId: created.id, outcome: "lost", decidedAt: today() })),
+    ]);
+    expect(results.filter(result => result === "no error")).toHaveLength(1);
+    expect(results.filter(result => result === "PROJECT_OS_STRATEGY_OPPORTUNITY_DECIDED")).toHaveLength(1);
+    expect(await audits()).toBe(1);
+    const [row] = (await entrant.strategy.opportunities({ tenantId })).filter(item => item.code === "T-RACE");
+    expect(row.status).toBe(results[0] === "no error" ? "won" : "lost");
+  });
+
   it("the read-only executive writes nothing; the site engineer and another company read nothing", async () => {
     expect(await code(callerFor("exec").strategy.createOpportunity({ tenantId, ...opportunity("T-09", 1) }))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callerFor("site").strategy.opportunities({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");

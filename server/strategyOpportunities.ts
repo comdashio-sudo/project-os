@@ -83,7 +83,9 @@ export async function updateStrategyOpportunity(input: Caller & { opportunityId:
   const [same] = await db.select({ id: strategyOpportunities.id }).from(strategyOpportunities).where(and(eq(strategyOpportunities.tenantId, input.tenantId), eq(strategyOpportunities.code, fields.code))).limit(1);
   if (same && same.id !== row.id) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_OPPORTUNITY_CODE_EXISTS");
   await db.transaction(async tx => {
-    await tx.update(strategyOpportunities).set(fields).where(and(eq(strategyOpportunities.id, row.id), eq(strategyOpportunities.tenantId, input.tenantId), eq(strategyOpportunities.status, row.status)));
+    // the row is changed only if it is still in the status read above; a decision taken meanwhile leaves rows = 0, refused before any audit row (review of #408)
+    const changed = await tx.update(strategyOpportunities).set(fields).where(and(eq(strategyOpportunities.id, row.id), eq(strategyOpportunities.tenantId, input.tenantId), eq(strategyOpportunities.status, row.status))).returning({ id: strategyOpportunities.id });
+    if (changed.length !== 1) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_OPPORTUNITY_DECIDED");
     await audit(tx, input, "strategy_opportunity.updated", row.id, { from: { value: Number(row.estimatedValue), probability: Number(row.probabilityPercent), status: row.status }, to: { value: input.estimatedValue, probability: input.probabilityPercent, status: fields.status } });
   });
   return { id: row.id };
@@ -102,10 +104,12 @@ export async function decideStrategyOpportunity(input: Caller & { opportunityId:
     if (!rival) throw fail("NOT_FOUND", "PROJECT_OS_STRATEGY_COMPETITOR_NOT_FOUND");
   }
   await db.transaction(async tx => {
-    await tx.update(strategyOpportunities).set({
+    const decided = await tx.update(strategyOpportunities).set({
       status: input.outcome, decidedAt: input.decidedAt, winnerCompetitorId: input.winnerCompetitorId || null,
       winningValue: input.winningValue === undefined || input.winningValue === null ? null : input.winningValue.toFixed(2), outcomeNote: text(input.note),
-    }).where(and(eq(strategyOpportunities.id, row.id), eq(strategyOpportunities.tenantId, input.tenantId), eq(strategyOpportunities.status, row.status)));
+    }).where(and(eq(strategyOpportunities.id, row.id), eq(strategyOpportunities.tenantId, input.tenantId), eq(strategyOpportunities.status, row.status))).returning({ id: strategyOpportunities.id });
+    // a second decision of the same opportunity (taken at the same moment) changes no row: refused, and no audit row claims a decision that did not happen
+    if (decided.length !== 1) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_OPPORTUNITY_DECIDED");
     await audit(tx, input, "strategy_opportunity.decided", row.id, { outcome: input.outcome, decidedAt: input.decidedAt, winnerCompetitorId: input.winnerCompetitorId ?? null });
   });
   return { id: row.id, status: input.outcome };
