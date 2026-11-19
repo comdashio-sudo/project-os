@@ -1,3 +1,4 @@
+import { PmcColumnMapping, type PmcImportColumns } from "@/components/PmcColumnMapping";
 import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
 import { SiteWorkbookImport } from "@/components/SiteWorkbookImport";
 import { PageMain, PageHeader } from "@/components/pageFrame";
@@ -288,7 +289,7 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
   // asked again every few seconds while an import is on its way, so «analysing» turns into «waiting for confirmation» or «import complete» by itself
   const importStatus = trpc.pmc.importStatus.useQuery({ tenantId, projectId }, { refetchInterval: query => (query.state.data?.some(row => row.state === "analyzing" || row.state === "pending") ? 5000 : false) });
   // The file goes browser → Storage on a signed URL (up to 50 MB), is analysed by a background job with a progress bar, and is written only after the person has read the report and confirmed.
-  type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number }; details?: { ignoredZeroWeight?: number; scaledFromFractions?: boolean; skippedTotals?: number; filledDown?: number; roundedTotals?: Array<{ modelCode: string; totalWeight: number }> } };
+  type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number }; details?: { ignoredZeroWeight?: number; scaledFromFractions?: boolean; skippedTotals?: number; filledDown?: number; roundedTotals?: Array<{ modelCode: string; totalWeight: number }>; columns?: PmcImportColumns } };
   const renderReport = (view: DirectImportView) => {
     const report = (view.external?.report as { pmc?: Report } | undefined)?.pmc;
     if (!report) return null;
@@ -308,6 +309,8 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
           h.text(t.reason, e => pmcImportReason(e, language)),
         ]} />}
         {report.errorCount === 0 && view.external && !view.external.canConfirm && <p className="text-sm text-muted-foreground">{t.alreadyUpToDate}</p>}
+        {/* Q-31 (P0-02): which column each field came from; a person can pick another one and analyse again (key: a new report resets the choice) */}
+        {report.details?.columns && <PmcColumnMapping key={`${view.id}:${JSON.stringify(report.details.columns.fields)}`} tenantId={tenantId} projectId={projectId} importId={view.id} columns={report.details.columns} language={language} isArabic={isArabic} />}
       </div>
     );
   };

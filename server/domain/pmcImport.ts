@@ -135,7 +135,9 @@ export function parseUnitList(value: unknown): { units: number[]; error?: "PMC_U
 // ------------------------------------------------------------------ stage 1
 
 export type ParsedRow = { rowNumber: number; cells: Record<string, unknown> };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; notes?: { skippedTotals: number; filledDown: number } };
+/** Q-31 (P0-02): which column each field was read from, so the report can show it and a person can change it. */
+export type PmcImportColumns = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null }>; overridden: boolean };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number } };
 
 /**
  * Q-31 (P0-01): how a header is compared with a field's spellings. Arabic letter variants, diacritics and tatweel, Eastern digits, punctuation and
@@ -210,7 +212,42 @@ function filledColumns(sheet: ExcelJS.Worksheet, headerRow: number) {
   return last;
 }
 
-export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array }): Promise<ParsedFile> {
+/** The fields of a kind (key and whether it is required): what a column-mapping screen offers. */
+export const pmcImportFields = (kind: PmcImportKind) => FIELDS[kind].map(field => ({ key: field.key, required: field.required }));
+
+/**
+ * A person's choice of columns (field key → the header as the file writes it) replaces what was found for those fields. An EMPTY header clears a field the
+ * reader had found (the person chose «no column»; a required field then reads as missing — review of #371). The key `__others__` set to "ignore" says the
+ * person saw the whole column list and the columns no field uses are to be ignored, not refused (an extra «Notes» column in a villa list). A field the kind
+ * does not have, a header the file does not have, or one header for two fields is refused (IMPORT_MAPPING_INVALID): a mapping is never half applied.
+ */
+export const IGNORE_OTHER_COLUMNS = "__others__";
+function applyOverride(fields: Field[], headers: string[], match: HeaderMatch, override: Record<string, string>): HeaderMatch | { invalid: string } {
+  const keys = new Set(fields.map(field => field.key));
+  const used = new Map<string, string>();
+  const ignoreOthers = override[IGNORE_OTHER_COLUMNS] === "ignore";
+  const chosen = Object.entries(override).filter(([key]) => key !== IGNORE_OTHER_COLUMNS);
+  if (IGNORE_OTHER_COLUMNS in override && !ignoreOthers) return { invalid: IGNORE_OTHER_COLUMNS };
+  for (const [key, header] of chosen) {
+    if (!keys.has(key)) return { invalid: key };
+    if (header === "") continue;
+    if (!headers.includes(header)) return { invalid: header };
+    if (used.has(header)) return { invalid: header };
+    used.set(header, key);
+  }
+  const named = new Set(chosen.map(([key]) => key));
+  const mapping = new Map<string, string>(Array.from(match.mapping.entries()).filter(([key, header]) => !named.has(key) && !used.has(header)));
+  for (const [key, header] of chosen) if (header !== "") mapping.set(key, header);
+  const mapped = new Set(mapping.values());
+  return {
+    mapping,
+    ambiguous: match.ambiguous.filter(item => !named.has(item.field) && !mapping.has(item.field)),
+    missing: fields.filter(field => field.required && !mapping.has(field.key)).map(field => field.key).filter(key => !match.ambiguous.some(item => item.field === key && !named.has(key))),
+    unsupported: ignoreOthers ? [] : match.unsupported.filter(header => !mapped.has(header)),
+  };
+}
+
+export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string> }): Promise<ParsedFile> {
   const fail = (code: string, detail?: string): ParsedFile => ({ headers: [], rows: [], errors: [{ rowNumber: 0, code, ...(detail ? { detail } : {}) }] });
   // CSV: UTF-8, or the Windows Arabic code page that older Excel writes (Q-31)
   const parsed = await readSpreadsheetSafely(input.format === "csv" ? decodeCsv(input.bytes).text : input.bytes, input.format);
@@ -223,7 +260,14 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   const complete = found.filter(item => item.match.missing.length === 0);
   if (complete.length > 1) return fail("IMPORT_SHEET_AMBIGUOUS", complete.map(item => item.sheet.name).join(" | "));
   const chosen = complete[0] ?? found.reduce((a, b) => (b.match.missing.length < a.match.missing.length ? b : a));
-  const { sheet, row: headerRow, match } = chosen;
+  const { sheet, row: headerRow } = chosen;
+  let match = chosen.match;
+  const override = input.mappingOverride && Object.keys(input.mappingOverride).length ? input.mappingOverride : undefined;
+  if (override) {
+    const applied = applyOverride(fields, chosen.headers, match, override);
+    if ("invalid" in applied) return fail("IMPORT_MAPPING_INVALID", applied.invalid);
+    match = applied;
+  }
   if (filledColumns(sheet, headerRow) > PMC_IMPORT_LIMITS.maxColumns) return fail("IMPORT_TOO_MANY_COLUMNS");
   const { headers, rows, rowNumbers } = worksheetToRows(sheet, PMC_IMPORT_LIMITS, headerRow);
   if (sheet.rowCount - headerRow > PMC_IMPORT_LIMITS.maxRows) return { headers, rows: [], errors: [{ rowNumber: 0, code: "IMPORT_TOO_MANY_ROWS" }] };
@@ -232,7 +276,8 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   if (input.kind !== "weights") for (const header of match.unsupported) errors.push({ rowNumber: headerRow, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
   for (const item of match.ambiguous) errors.push({ rowNumber: headerRow, code: "IMPORT_COLUMN_AMBIGUOUS", field: item.field, detail: item.headers.join(" | ") });
   for (const key of match.missing) errors.push({ rowNumber: headerRow, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: key, detail: headers.filter(Boolean).join(" | ") });
-  if (errors.length) return { headers, rows: [], errors };
+  const columns: PmcImportColumns = { headers: headers.filter(Boolean), fields: fields.map(field => ({ key: field.key, required: field.required, header: match.mapping.get(field.key) ?? null })), overridden: Boolean(override) };
+  if (errors.length) return { headers, rows: [], errors, columns };
   const mapping = match.mapping;
   const out: ParsedRow[] = [];
   const notes = { skippedTotals: 0, filledDown: 0 };
@@ -250,7 +295,7 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
     }
     out.push({ rowNumber: rowNumbers[index], cells });
   });
-  return { headers, errors, rows: out, notes };
+  return { headers, errors, rows: out, columns, notes };
 }
 
 // ------------------------------------------------------------------ stage 2

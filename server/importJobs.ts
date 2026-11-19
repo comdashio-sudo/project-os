@@ -18,7 +18,7 @@ import { runAfterResponse } from "./_core/afterResponse";
 import { logError } from "./_core/logger";
 import { assertFileNotAlreadyImported, assertImportAccess, previewDataImportDiff, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
 import { analysisWarnings, analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
-import { analyzeExternalImport, applyExternalImport, authorizeExternalImport, isExternalModule, type ExternalContext, type ExternalModule } from "./externalImports";
+import { analyzeExternalImport, applyExternalImport, authorizeExternalImport, isExternalModule, pmcKindOf, type ExternalContext, type ExternalModule } from "./externalImports";
 import { DIFF_PAGE_SIZE, summariseDiff } from "./domain/importCycle";
 import { auditEmployeeRecordsRead, isLedgerModule, ledgerPlanHash, planLedgerImport } from "./ledgerImports";
 import { assertTenantAccess } from "./domain/authorization";
@@ -135,9 +135,9 @@ async function failJob(db: Db, job: JobIdentity, reason: string, stage: string |
 }
 
 /** Analysis of a PMC / master-plan file: the importer's own verdict is kept on the import (its counts in `summaryJson.report`), its errors in the same table the general importer uses. */
-async function analyseExternal(db: Db, job: JobIdentity, record: { moduleCode: ExternalModule; sourceFormat: Format; fileHash: string; summaryJson: string | null }, bytes: Buffer, progress: typeof touch) {
+async function analyseExternal(db: Db, job: JobIdentity, record: { moduleCode: ExternalModule; sourceFormat: Format; fileHash: string; summaryJson: string | null; mappingJson: string | null }, bytes: Buffer, progress: typeof touch) {
   await progress(db, job.importId, "validating", 45);
-  const analysis = await analyzeExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes });
+  const analysis = await analyzeExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes, mappingOverride: storedMapping(record.mappingJson) });
   await progress(db, job.importId, "writing", 80);
   await db.transaction(async tx => {
     await tx.delete(dataImportErrors).where(eq(dataImportErrors.importId, job.importId));
@@ -151,16 +151,19 @@ async function analyseExternal(db: Db, job: JobIdentity, record: { moduleCode: E
   });
 }
 
+/** Q-31 (P0-02): the columns a person chose for a PMC file, kept on the import so the analysis they read and the write that follows use the same mapping. */
+const storedMapping = (json: string | null) => { if (!json) return undefined; try { const value = JSON.parse(json) as unknown; return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, string> : undefined; } catch { return undefined; } };
+
 /** The write of a PMC / master-plan import: the importer's own transaction, then the import is marked completed with its counts. A job resumed after the write re-runs it; every one of these writes is safe to repeat (or refuses the duplicate and says so). */
 async function confirmExternal(db: Db, job: JobIdentity, onStage: (stage: string, percent: number) => Promise<void>) {
-  const [record] = await db.select({ moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, summaryJson: dataImports.summaryJson })
+  const [record] = await db.select({ moduleCode: dataImports.moduleCode, sourceFormat: dataImports.sourceFormat, fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, summaryJson: dataImports.summaryJson, mappingJson: dataImports.mappingJson })
     .from(dataImports).where(and(eq(dataImports.id, job.importId), eq(dataImports.tenantId, job.tenantId), eq(dataImports.projectId, job.projectId), eq(dataImports.status, "importing"))).limit(1);
   if (!record || !isExternalModule(record.moduleCode)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
   await onStage("downloading", 10);
   const bytes = await storageRead(record.fileKey);
   if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   await onStage("writing", 40);
-  const { results, ...counts } = await applyExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes, fileHash: record.fileHash, importId: job.importId, approvedDiffHash: parseJson<{ approvedDiffHash?: string }>(record.summaryJson, {}).approvedDiffHash, context: contextOf(record.summaryJson) });
+  const { results, ...counts } = await applyExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes, fileHash: record.fileHash, importId: job.importId, approvedDiffHash: parseJson<{ approvedDiffHash?: string }>(record.summaryJson, {}).approvedDiffHash, context: contextOf(record.summaryJson), mappingOverride: storedMapping(record.mappingJson) });
   await db.transaction(async tx => {
     const done = await tx.update(dataImports).set({ status: "completed", ...counts, progressPercent: 100, progressStage: null, failureReason: null, heartbeatAt: null, completedAt: sql`now()` })
       .where(and(eq(dataImports.id, job.importId), eq(dataImports.status, "importing"))).returning({ id: dataImports.id });
@@ -289,10 +292,14 @@ export async function requestImportConfirmation(input: { userId: number; tenantI
 export async function requestImportReanalysis(input: { userId: number; tenantId: string; projectId: string; importId: string; mappingOverride: Record<string, string> }) {
   const { db, snapshot } = await importAccess(input);
   const record = await readRecord(db, input);
-  if (isExternalModule(record.moduleCode)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" }); // a PMC / master-plan file has fixed columns: there is no mapping to choose, upload the corrected file
-  assertTenantAccess(snapshot!, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } });
+  // Q-31 (P0-02): a PMC file's columns can be chosen by a person; the master-plan, equipment and ledger files keep fixed columns (upload the corrected file)
+  const external = isExternalModule(record.moduleCode);
+  if (external && !pmcKindOf(record.moduleCode as ExternalModule)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+  if (external) await authorizeExternalImport({ ...input, moduleCode: record.moduleCode as ExternalModule });
+  else assertTenantAccess(snapshot!, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } });
   if (record.status !== "uploaded" && record.status !== "validated" && record.status !== "failed") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
-  if (record.status !== "failed" && record.totalRows <= IMPORT_SYNC_MAX_ROWS) return reanalyzeDataImport(input);
+  // the PMC analysis always runs as a job (it reads the file from storage); a small general import stays synchronous
+  if (!external && record.status !== "failed" && record.totalRows <= IMPORT_SYNC_MAX_ROWS) return reanalyzeDataImport(input);
   try {
     const taken = await db.update(dataImports)
       .set({ status: "analyzing", mappingJson: JSON.stringify(input.mappingOverride), progressPercent: 5, progressStage: "queued", failureReason: null, attempts: 0, heartbeatAt: null, startedAt: null, completedAt: null })
