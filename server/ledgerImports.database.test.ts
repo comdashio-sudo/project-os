@@ -468,6 +468,15 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Excel cycle for costs, p
       const other = await upload(ops, "costs", await own(["Ref WBS", "Date", "Amount SAR", "Notes"], [["1.2", "2026-09-08", 15, "d"]]), "costs-template-4.xlsx");
       expect(other.suggestedTemplate).toBeNull();
 
+      // review of #446: a name another kind already uses (here a smart-import profile) is refused, and that row stays as it was
+      await connection.query("INSERT INTO import_source_profiles (id, tenantId, name, kind, headerSignature, columnMapJson, timesUsed, createdByUserId) VALUES ('79300000-0000-4000-8000-0000000009aa', ?, 'Weights sheet', 'unitMatrix', '[\"a\"]', '{\"unitMatrix\":true}', 3, ?)", [T, users.ops]);
+      await expect(ops.dataImports.saveTemplate({ ...scope, importId: unfinished.id, name: "Weights sheet" })).rejects.toThrow("PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN");
+      expect(await one<{ kind: string; columnMapJson: string; timesUsed: number }>("SELECT kind, columnMapJson, timesUsed FROM import_source_profiles WHERE id = '79300000-0000-4000-8000-0000000009aa'")).toMatchObject({ kind: "unitMatrix", columnMapJson: '{"unitMatrix":true}', timesUsed: 3 });
+      // the same name and the same kind updates that template (one row, not two)
+      const again = await ops.dataImports.saveTemplate({ ...scope, importId: unfinished.id, name: "Cost sheet B" });
+      expect(again.id).toBe(saved.id);
+      expect(await countOf("import_source_profiles", "AND name = 'Cost sheet B'")).toBe(1);
+
       // a template id of another company: not found, and nothing deleted
       await expect(ops.dataImports.deleteTemplate({ ...scope, templateId: "79300000-0000-4000-8000-0000000009ff" })).rejects.toThrow("PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND");
     });

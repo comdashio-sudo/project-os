@@ -484,8 +484,11 @@ export async function saveImportTemplate(input: { userId: number; tenantId: stri
   const mapping = Object.fromEntries(chosen.map(field => [field.key, field.header!]));
   return db.transaction(async tx => {
     const [row] = await tx.insert(importSourceProfiles).values({ id: randomUUID(), tenantId: input.tenantId, name: input.name, kind: record.moduleCode, headerSignature: JSON.stringify(templateSignature(columns.headers)), columnMapJson: JSON.stringify(mapping), timesUsed: 1, createdByUserId: input.userId })
-      .onConflictDoUpdate({ target: [importSourceProfiles.tenantId, importSourceProfiles.name], set: { kind: record.moduleCode, headerSignature: JSON.stringify(templateSignature(columns.headers)), columnMapJson: JSON.stringify(mapping), updatedAt: sql`now()` } })
+      // the name is the company's (one unique index across every kind): it updates only a template of the SAME kind; a name another kind already uses
+      // (a PMC template, a smart-import profile) is refused, never taken over by someone who may not import that kind (review of #446)
+      .onConflictDoUpdate({ target: [importSourceProfiles.tenantId, importSourceProfiles.name], set: { headerSignature: JSON.stringify(templateSignature(columns.headers)), columnMapJson: JSON.stringify(mapping), updatedAt: sql`now()` }, setWhere: eq(importSourceProfiles.kind, record.moduleCode) })
       .returning({ id: importSourceProfiles.id });
+    if (!row) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN" });
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "import_template_saved", entityType: "import_source_profile", entityId: row!.id, metadata: JSON.stringify({ projectId: input.projectId, importId: input.importId, moduleCode: record.moduleCode, name: input.name, fields: Object.keys(mapping) }) });
     return { id: row!.id, name: input.name, mapping };
   });

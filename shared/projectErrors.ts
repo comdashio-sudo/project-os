@@ -988,6 +988,11 @@ export const projectErrorMessages = {
     en: "A template can be saved only after the file was analysed successfully with every required column.",
     ur: "سانچہ صرف اس وقت محفوظ ہوتا ہے جب فائل کا تجزیہ تمام لازمی کالموں کے ساتھ کامیاب ہو جائے۔",
   },
+  PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN: {
+    ar: "هذا الاسم مستعمل لقالب من نوع استيراد آخر في الشركة. اختر اسمًا آخر.",
+    en: "This name is already used by a template of another import type in this company. Choose another name.",
+    ur: "یہ نام اس کمپنی میں کسی دوسری درآمدی قسم کے سانچے کے لیے پہلے سے استعمال ہو رہا ہے۔ کوئی اور نام منتخب کریں۔",
+  },
   PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND: {
     ar: "القالب غير موجود في هذه الشركة.",
     en: "The template does not exist in this company.",
