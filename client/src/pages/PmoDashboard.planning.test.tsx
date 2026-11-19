@@ -51,6 +51,13 @@ describe("PmoDashboard planning control center", () => {
     expect(screen.getAllByText("P-02 · On track project")).toHaveLength(5);
   });
 
+  it("Q-37 (a): the portfolio and program setup explains the three levels and puts a required/optional line under every field", () => {
+    render(<PmoDashboard />);
+    expect(document.querySelector("[data-pmo-setup-guide]")!.textContent).toContain("Portfolio, program and project: what is the difference?");
+    const fields = Array.from(document.querySelectorAll("[data-field-help]")).map(node => node.getAttribute("data-field-help"));
+    expect(fields).toEqual(["code", "name", "programPortfolio", "code", "name", "linkProject", "linkProgram", "linkPortfolio"]);
+  });
+
   it("renders a material shortage in the existing today exceptions center", () => {
     state.materialShortage = true;
     render(<PmoDashboard />);

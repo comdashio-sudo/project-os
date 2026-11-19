@@ -3,6 +3,9 @@
 // server check does. server/pageAccess.database.test.ts calls the real reads for each role and fails if a page's gate and its server disagree.
 export type PageAccess = readonly (readonly string[])[];
 
+/** Who reads the day's site report (server/siteReports.ts READ_PERMISSIONS reads this list): any one of them. */
+export const DAILY_REPORT_READERS = ["project.read", "project.field.manage", "project.manage", "project.pmc.manage", "project.schedule.manage", "project.hse.manage", "project.quality.manage", "project.qc.receive"] as const;
+
 export const PAGE_ACCESS = {
   // projects.list — listProjectsForTenant (server/db.ts)
   registry: [["project.read"]],
@@ -23,6 +26,13 @@ export const PAGE_ACCESS = {
   stalled: [["project.pmc.read"]],
   // meetings.list — listProjectMeetings (server/meetings.ts), Q-25
   meetings: [["project.read", "project.manage"]],
+  // siteReports.list — listSiteDailyReportsForTenant (server/siteReports.ts)
+  dailyReport: [DAILY_REPORT_READERS],
+  // reportPeriods.weekly / reportPeriods.monthly — getWeeklyReport, getMonthlyReport (server/siteReports.ts READ_PERMISSIONS)
+  weeklyReport: [DAILY_REPORT_READERS],
+  monthlyReport: [DAILY_REPORT_READERS],
+  // pmcSite.percentages — pmcSourcePercentages (server/pmcSiteService.ts)
+  siteConsultant: [["project.pmc.read"]],
   // schedule.live — getLiveSchedule (server/scheduleSnapshots.ts), Q-23
   schedule: [["project.read", "project.manage"]],
   profitability: [["project.read"]],
@@ -32,3 +42,14 @@ export type PageKey = keyof typeof PAGE_ACCESS;
 
 /** The gate itself, for one holder of these permission codes (the scope check is the caller's: see client/src/lib/permissions.tsx useCanPage). */
 export const pageAllowed = (page: PageKey, holds: (codes: readonly string[]) => boolean) => PAGE_ACCESS[page].every(group => holds(group));
+
+/**
+ * Q-36 (step 2 b, adviser's decision §6.2): «الموقع والتنفيذ» is an entry page that gathers four site pages, each as a card with its count. The entry opens
+ * for whoever may open at least one of them, and each card shows only for whoever may open its own page. The side menu's item reads SITE_HUB_READERS.
+ */
+export const SITE_HUB_PAGES = ["dailyReport", "progress", "qc", "stalled"] as const satisfies readonly PageKey[];
+export const SITE_HUB_READERS: readonly string[] = Array.from(new Set(SITE_HUB_PAGES.flatMap(page => PAGE_ACCESS[page].length === 1 ? PAGE_ACCESS[page][0] : [])));
+
+/** Q-36 (step 2 c): «التقارير» — the weekly report, the monthly report and the site ↔ consultant comparison, gathered the same way as the site's page. */
+export const REPORTS_HUB_PAGES = ["weeklyReport", "monthlyReport", "siteConsultant"] as const satisfies readonly PageKey[];
+export const REPORTS_HUB_READERS: readonly string[] = Array.from(new Set(REPORTS_HUB_PAGES.flatMap(page => PAGE_ACCESS[page].length === 1 ? PAGE_ACCESS[page][0] : [])));
