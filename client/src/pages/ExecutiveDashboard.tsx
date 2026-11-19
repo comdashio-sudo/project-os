@@ -126,7 +126,7 @@ export default function ExecutiveDashboard() {
           "پہلے اپنے دائرے میں ایک پروجیکٹ بنائیں تاکہ فیصلہ کسی مخصوص پروجیکٹ کے ریکارڈ سے جوڑا جا سکے۔",
        projectOs: "PROJECT OS", projectProfitability: "پروجیکٹ منافع بخشی" } });
   if (metricsQuery.error && projectsQuery.error && decisionsQuery.error) {
-    return <PageMain className="min-h-screen bg-muted p-8 text-red-700">{getLocalizedProjectError(metricsQuery.error, isArabic)}</PageMain>;
+    return <PageMain className="min-h-screen bg-muted p-8 text-danger-soft-foreground">{getLocalizedProjectError(metricsQuery.error, isArabic)}</PageMain>;
   }
   const data = {
     totals: metricsQuery.data?.totals ?? { budget: 0, actual: 0, forecast: 0 },
@@ -230,7 +230,7 @@ export default function ExecutiveDashboard() {
         {metricsQuery.data && <SectionErrorBoundary title={t.projectProfitability} isArabic={isArabic}><PortfolioProfitability tenantId={tenantId} /></SectionErrorBoundary>}
         <SectionErrorBoundary title={cash.title} isArabic={isArabic}>
         {cashFlowQuery.isLoading ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="loading" /></div> : cashFlowQuery.error || !cashFlowQuery.data ? <div className="mt-6"><SectionMessage title={cash.title} isArabic={isArabic} kind="error" error={cashFlowQuery.error} onRetry={() => void cashFlowQuery.refetch()} /></div> : cashFlowQuery.data.cashFlow ? (
-          <Card className="mt-6 border-amber-200 bg-amber-50">
+          <Card className="mt-6 border-warning/40 bg-warning-soft">
             <CardHeader>
               <CardTitle>{cash.title}</CardTitle>
             </CardHeader>
@@ -376,7 +376,7 @@ export default function ExecutiveDashboard() {
           </CardHeader>
           <CardContent>
             {!data.projects.length && (
-              <p className="mb-4 text-sm text-amber-700">{t.noProjects}</p>
+              <p className="mb-4 text-sm text-warning-soft-foreground">{t.noProjects}</p>
             )}
             <WriteGate permission={"tenant.manage"} reason={{ ar: "لا تملك صلاحية تسجيل القرارات التنفيذية، فالشاشة للعرض فقط.", en: "You do not have permission to record executive decisions; this view is read-only for you.", ur: "آپ کے پاس انتظامی فیصلے درج کرنے کی اجازت نہیں ہے؛ یہ منظر آپ کے لیے صرف پڑھنے کے لیے ہے۔" }}><CheckedForm className="grid gap-4" onSubmit={submit}>
               <div className="grid gap-4 md:grid-cols-2">
@@ -431,12 +431,12 @@ export default function ExecutiveDashboard() {
                   {mutation.isPending ? t.saving : t.save}
                 </Button>
                 {mutation.error && (
-                  <p className="mt-3 text-sm text-red-700">
+                  <p className="mt-3 text-sm text-danger-soft-foreground">
                     {getLocalizedProjectError(mutation.error, isArabic)}
                   </p>
                 )}
                 {mutation.isSuccess && (
-                  <p className="mt-3 text-sm text-emerald-700">{t.success}</p>
+                  <p className="mt-3 text-sm text-success-soft-foreground">{t.success}</p>
                 )}
               </div>
             </CheckedForm></WriteGate>

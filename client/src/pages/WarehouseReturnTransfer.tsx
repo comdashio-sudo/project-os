@@ -70,6 +70,6 @@ export function WarehouseReturnTransfer({ tenantId, projectId, warehouses, mater
         {transfer.error ? <p role="alert" className="text-sm text-destructive md:col-span-3">{getLocalizedProjectError(transfer.error, isArabic)}</p> : null}
       </CheckedForm> : null}
     </section>
-    {done ? <p role="status" className="text-sm text-emerald-700">{done}</p> : null}
+    {done ? <p role="status" className="text-sm text-success-soft-foreground">{done}</p> : null}
   </div>;
 }

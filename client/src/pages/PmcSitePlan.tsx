@@ -58,7 +58,7 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
   const error = upload.error ?? geometries.error ?? change.error;
 
   if (map.isLoading) return <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>;
-  if (!map.data) return <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(map.error, isArabic)}</p><button type="button" className="mt-2 min-h-[44px] rounded-lg border px-4" onClick={() => map.refetch()}>{t.retry}</button></div>;
+  if (!map.data) return <div><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(map.error, isArabic)}</p><button type="button" className="mt-2 min-h-[44px] rounded-lg border px-4" onClick={() => map.refetch()}>{t.retry}</button></div>;
   const { plan, units, activities, withoutPolygon } = map.data;
 
   return (
@@ -68,10 +68,10 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
         <WriteGate permission={"project.pmc.manage"} projectId={projectId}><FileButton label={t.uploadPlan} accept="image/png,image/jpeg" onFile={async file => { if (!file) return; try { upload.mutate({ tenantId, projectId, fileName: file.name, uploadKey: await direct.upload(file, file.type) }); } catch (caught) { setMessage(getLocalizedProjectError(caught, isArabic)); } }} /></WriteGate>
         <WriteGate permission={"project.pmc.manage"} projectId={projectId}><FileButton label={t.uploadGeo} accept=".geojson,.json,application/geo+json,application/json" onFile={async file => { if (file) geometries.mutate({ tenantId, projectId, geojson: await file.text() }); }} /></WriteGate>
       </div>
-      {error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
-      {geometries.data && geometries.data.errors.length > 0 && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800"><b>{t.errors}:</b><ul className="mt-1 list-disc ps-5">{geometries.data.errors.slice(0, 20).map((e, i) => <li key={i}>#{e.index + 1} · {e.unitNumber ?? t.noNumber} · {e.code}</li>)}</ul></div>}
-      {message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
-      {withoutPolygon > 0 && <p className="text-sm text-amber-800">{t.withoutPolygon(withoutPolygon)}</p>}
+      {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
+      {geometries.data && geometries.data.errors.length > 0 && <div role="alert" className="rounded-xl bg-danger-soft p-3 text-sm text-danger-soft-foreground"><b>{t.errors}:</b><ul className="mt-1 list-disc ps-5">{geometries.data.errors.slice(0, 20).map((e, i) => <li key={i}>#{e.index + 1} · {e.unitNumber ?? t.noNumber} · {e.code}</li>)}</ul></div>}
+      {message && <p role="status" className="text-sm text-success-soft-foreground">{message}</p>}
+      {withoutPolygon > 0 && <p className="text-sm text-warning-soft-foreground">{t.withoutPolygon(withoutPolygon)}</p>}
       {!plan ? <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">{t.noPlan}</p> : (
         <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
           <svg role="img" aria-label={t.planAlt} viewBox={`0 0 ${plan.widthPx} ${plan.heightPx}`} className="w-full rounded-xl border bg-muted" style={{ direction: "ltr" }}>
@@ -101,12 +101,12 @@ export function PmcSitePlan({ tenantId, projectId }: { tenantId: string; project
               <section aria-label={`${t.unit} ${selected}`} className="rounded-xl border p-3 text-sm" data-testid="unit-card">
                 <div className="flex items-start justify-between gap-2"><h3 className="font-semibold">{t.unit} {selected}</h3><button type="button" className="min-h-[44px] min-w-[44px] rounded-lg border px-2" onClick={() => { setSelected(null); setEvm(null); }}>{t.close}</button></div>
                 {card.isLoading && <p role="status">{t.loading}</p>}
-                {card.error && <p role="alert" className="text-red-700">{getLocalizedProjectError(card.error, isArabic)}</p>}
+                {card.error && <p role="alert" className="text-danger-soft-foreground">{getLocalizedProjectError(card.error, isArabic)}</p>}
                 {card.data && (<>
                   <p className="text-muted-foreground">{t.model}: {card.data.modelCode} · {t.zone}: {card.data.zoneCode} · {t.block}: {card.data.blockCode}</p>
                   <p className="mt-1">{t.progress}: <b>{card.data.progressPercent === null ? "—" : `${card.data.progressPercent}%`}</b></p>
                   <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto">{card.data.activities.map(a => <li key={a.code} className="flex flex-wrap justify-between gap-2 border-t pt-1"><span>{a.code} · {a.name}</span><span className="whitespace-nowrap"><span className="me-1 inline-block h-3 w-3 rounded" style={{ backgroundColor: COLORS[a.status] }} />{a.verificationStatus ? `${a.verificationStatus} · ` : ""}<Select aria-label={`${t.changeStatus}: ${a.code}`} className="inline-flex w-auto" value={a.status} disabled={change.isPending || !canUpdateStatus} onValueChange={value => change.mutate({ tenantId, projectId, unitId: card.data!.unitId, activityDefinitionId: a.definitionId, status: value as "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE" })} options={Object.keys(COLORS).map(status => ({ value: status, label: t.statuses[status] }))} /></span></li>)}</ul>
-                  {evm && <p role="status" className="mt-2 rounded-lg bg-emerald-50 p-2 text-emerald-900" data-testid="evm-effect">{evm.moved ? <>{t.earned}: <bdi dir="ltr">{formatMoney(evm.evBefore, map.data.currency, isArabic)} → {formatMoney(evm.evAfter, map.data.currency, isArabic)}</bdi> · {t.linkedMoved(evm.moved)}</> : t.evNone}</p>}
+                  {evm && <p role="status" className="mt-2 rounded-lg bg-success-soft p-2 text-success-soft-foreground" data-testid="evm-effect">{evm.moved ? <>{t.earned}: <bdi dir="ltr">{formatMoney(evm.evBefore, map.data.currency, isArabic)} → {formatMoney(evm.evAfter, map.data.currency, isArabic)}</bdi> · {t.linkedMoved(evm.moved)}</> : t.evNone}</p>}
                 </>)}
               </section>
             )}

@@ -42,7 +42,7 @@ export default function MyWork() {
       <SourceNotice query={work} isArabic={isArabic} title={t.title} />
       <SourceNotice query={deadlines} isArabic={isArabic} title={t.late} />
       {work.isLoading ? <p className="text-sm text-muted-foreground">{t.loading}</p> : null}
-      {notice ? <p role="status" className="text-sm text-emerald-700">{notice}</p> : null}
+      {notice ? <p role="status" className="text-sm text-success-soft-foreground">{notice}</p> : null}
       {failure ? <p role="alert" className="text-sm text-destructive">{getLocalizedProjectError(failure, isArabic)}</p> : null}
       {deadlines.data ? <Card data-my-deadlines><CardHeader><CardTitle>{t.late}</CardTitle><p className="text-sm text-muted-foreground">{t.lateIntro}</p></CardHeader><CardContent className="grid gap-3">
         {deadlines.data.counts.total === 0 ? <p className="text-sm text-muted-foreground">{t.noLate}</p> : deadlines.data.projects.map(project => {
@@ -56,7 +56,7 @@ export default function MyWork() {
             <strong>{project.code ? `${project.code} · ${project.name}` : t.company}</strong>
             {groups.filter(([, , items]) => items.length > 0).map(([key, title, items]) => <div key={key} data-deadline-group={key} className="grid gap-1">
               <span className="font-semibold">{title}: <bdi dir="ltr">{items.length}</bdi></span>
-              <ul className="grid gap-1 ps-4">{items.map(item => <li key={item.id} className="list-disc">{item.label} — <span className="font-semibold text-red-700"><bdi dir="ltr">{item.daysLate}</bdi> {t.days}</span></li>)}</ul>
+              <ul className="grid gap-1 ps-4">{items.map(item => <li key={item.id} className="list-disc">{item.label} — <span className="font-semibold text-danger-soft-foreground"><bdi dir="ltr">{item.daysLate}</bdi> {t.days}</span></li>)}</ul>
             </div>)}
           </section>;
         })}
@@ -65,7 +65,7 @@ export default function MyWork() {
         <Card data-my-actions><CardHeader><CardTitle>{t.actions}</CardTitle></CardHeader><CardContent className="grid gap-2">
           {work.data.actions.length === 0 ? <p className="text-sm text-muted-foreground">{t.noActions}</p> : work.data.actions.map(action => (
             <div key={action.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm">
-              <div className="grid gap-1"><strong>{action.title}</strong><span className="text-muted-foreground">{action.projectCode ?? "—"} · {enumLabel(action.priority, language)} · {t.due}: {action.dueAt ? formatDate(action.dueAt, language) : t.noDue}{action.overdue ? <span className="ms-2 font-semibold text-red-700">{t.overdue}</span> : null}</span></div>
+              <div className="grid gap-1"><strong>{action.title}</strong><span className="text-muted-foreground">{action.projectCode ?? "—"} · {enumLabel(action.priority, language)} · {t.due}: {action.dueAt ? formatDate(action.dueAt, language) : t.noDue}{action.overdue ? <span className="ms-2 font-semibold text-danger-soft-foreground">{t.overdue}</span> : null}</span></div>
               <Button className="min-h-11" disabled={complete.isPending} onClick={() => { setNotice(null); complete.mutate({ tenantId, actionId: action.id }); }}>{t.done}</Button>
             </div>
           ))}

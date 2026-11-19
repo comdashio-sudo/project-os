@@ -34,7 +34,7 @@ export default function ProjectInvoicesPanel({ tenantId, projectId, currency }: 
   const [paidOn, setPaidOn] = useState(() => new Date().toISOString().slice(0, 10));
   const move = trpc.projectInvoices.transitionStatus.useMutation({ onSuccess: () => { setPaying(null); list.refetch(); } });
   if (list.isLoading) return <p role="status" className="mt-6 text-sm text-muted-foreground">{t.loading}</p>;
-  if (!list.data) return <div className="mt-6"><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(list.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => list.refetch()}>{t.retry}</Button></div>;
+  if (!list.data) return <div className="mt-6"><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(list.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => list.refetch()}>{t.retry}</Button></div>;
   const invoices = list.data;
   // Status is exported as the same text the cell shows, including the payment day of a paid invoice.
   const exportColumns: ExportColumn<(typeof invoices)[number]>[] = [
@@ -71,7 +71,7 @@ export default function ProjectInvoicesPanel({ tenantId, projectId, currency }: 
           </table>
         </div>
       )}
-      {move.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(move.error, isArabic)}</p>}
+      {move.error && <p role="alert" className="mt-2 text-sm text-danger-soft-foreground">{getLocalizedProjectError(move.error, isArabic)}</p>}
       <p className="mt-2 text-xs text-muted-foreground">{t.note}</p>
     </section>
   );

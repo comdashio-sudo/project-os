@@ -1971,6 +1971,15 @@
 | المسارات الشقيقة (القاعدة 18) | `SOURCE_VERIFIED` | `readMatrix` (التأكيد) يستعمل `detectTracker` نفسه فيقبل الملف الصغير ويرفض غيره بـ`MATRIX_NOT_RECOGNISED`؛ `confirmSmartUpload` يرفض النوع غير الجدولي قبل `understand`؛ الملف المحفوظ يُعاد بنوعه فقط إن كان في `KINDS`. `detectMatrix` و`detectConsultantExport` يبقيان بحد خمس وحدات: مع نوعهما المختار يُرفض الملف الصغير بالرمز نفسه (لا 500)، وبلا نوع يُقرأ جدولًا — `OPEN`، لم يُغيَّر لأنه خارج الأمر |
 | الأعداد (2026-11-12) | `PROVEN` | `pnpm test:db` ← 641 ناجحًا، 0 فاشل، 20 متخطى (خادم خاص 5438) · `pnpm test` ← 3387 ناجحًا، 0 فاشل · `pnpm check` 0 · `pnpm build` 0 · `db:baseline:check` مطابق · `check:secrets` 0 · `coverage:trpc` 69 غير مصنّف كما على `main` نفسه، ولا جديد |
 
+### Q-19 (4b): ألوان الحالات (أحمر/زمردي/كهرماني) إلى رموز الحالات (2026-11-19، المبرمج د، واجهة فقط؛ بلا خادم ولا صلاحية ولا ترحيلة)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| 376 صنف لون Tailwind في 70 ملفًا صارت رموزًا: نص الأحمر 600–950 ← `text-danger-soft-foreground`، خلفيته 50/100 ← `bg-danger-soft`، حدّه ← `border-destructive/30`؛ وكذا الزمردي ← `success-soft`، والكهرماني ← `warning-soft` (`border-warning/40`). البادئات (`hover:` …) محفوظة. رموز النص الثلاثة ≥ 4.5:1 على الأبيض وعلى سطحها اللين | `PROVEN` | `stateContrast.test.tsx`؛ `pnpm check` |
+| سقف ألوان اللوحة في `check-design-rules.mjs` من 427 إلى 51 (الباقي: سطوح داكنة slate-900/950 وteal وslate-300 ونوادر — دفعة تالية) | `PROVEN` | `pnpm check`: «Tailwind palette classes 51 (ceiling 51)» |
+| اختبار كان يبحث عن `bg-red-50` صار يبحث عن `bg-danger-soft` (`ProjectControls.resilience.test.tsx`) | `PROVEN` | 25/25 |
+| البوابات: `pnpm check` 0؛ `pnpm test` 4204/0؛ `pnpm build` ناجح | `PROVEN` | 2026-11-19 |
+
 ### Q-43 (P2-06) الدفعة 2: إثبات أعمال المقاولين دون أسعار — الجداول والإرسال والاعتماد ومنع الازدواج (2026-11-19، المبرمج ب، ترحيلة 0040 (أُعيد ترقيمها بعد دمج 0037 و0038 و0039 في #400 و#403 و#413)، بتصور #381 وقرار المستشار I45)
 
 | البند | الحالة | الدليل |
