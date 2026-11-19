@@ -5,6 +5,7 @@
 // reason. The service executes a plan only when it has no errors.
 import type ExcelJS from "exceljs";
 import { cellText, emptyVerticalMergeCover, readSpreadsheetSafely, worksheetToRows } from "./excelWorkbook";
+import { chooseSheet, type HeaderEvaluation, type TableRows } from "./importEngine/read";
 import { normalizeHeader } from "./smartImport/dictionary";
 import { parseNumber } from "./smartImport/numbers";
 import { decodeCsv } from "./smartImport/sheetReader";
@@ -173,7 +174,6 @@ export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImpo
  * brackets do not count, nor a percent sign ("Weight (%)" is "weight"). The spellings go through the same function, so «القسم» matches «القسـم».
  */
 export const pmcHeaderKey = (value: unknown) => normalizeHeader(String(value ?? "").replace(/^\uFEFF/, "").replace(/[%٪]/g, " "));
-const HEADER_SEARCH_ROWS = 10;
 // a totals line at the foot of the table («الإجمالي … 100»): skipped, never read as an activity (narrow on purpose: «خصم» or «صافي» can be real activity names)
 // The WHOLE label must be total words («الإجمالي», «المجموع الكلي», «Grand total»): a label that only starts with one («Total station survey») is an activity
 // (review of #370). Matched on pmcHeaderKey, which strips punctuation, so «Total:» counts.
@@ -257,23 +257,18 @@ function matchHeaders(fields: Field[], headers: string[], baseHeaders: string[] 
  * the row that names the MOST known fields (the earliest on a tie) — not row 1 — so a table under two title rows still shows its own columns for a person to
  * map, instead of an empty title row.
  */
-type HeaderCandidate = { row: number; match: HeaderMatch; headers: string[]; baseHeaders: string[]; fields: Field[] };
-function findHeaderRow(sheet: ExcelJS.Worksheet, kind: PmcImportKind): HeaderCandidate {
-  let best: HeaderCandidate | undefined;
-  for (let row = 1; row <= Math.min(HEADER_SEARCH_ROWS, Math.max(sheet.rowCount, 1)); row += 1) {
-    const { headers, baseHeaders, rows } = worksheetToRows(sheet, { maxRows: kind === "weights" ? 2_000 : 0, maxColumns: PMC_IMPORT_LIMITS.maxColumns }, row, { uniqueHeaders: true });
-    const distinctValues = (word: string) => {
-      const column = baseHeaders.findIndex(header => pmcHeaderKey(header) === pmcHeaderKey(word));
-      return column < 0 ? 0 : new Set(rows.map(item => String(item[headers[column]] ?? "").trim()).filter(Boolean)).size;
-    };
-    const fields = fieldsForFile(kind, new Set(baseHeaders.map(pmcHeaderKey)), distinctValues);
-    const match = matchHeaders(fields, headers, baseHeaders, kind === "weights" ? new Set([WEIGHTS_SECTION_LAST]) : undefined);
-    const candidate = { row, match, headers, baseHeaders, fields };
-    if (match.missing.length === 0) return candidate; // every field found (an ambiguity, if any, is reported on this row)
-    if (!best || match.mapping.size > best.match.mapping.size) best = candidate;
-  }
-  return best!;
-}
+type PmcEvaluation = HeaderEvaluation & { match: HeaderMatch; fields: Field[] };
+const pmcEvaluate = (kind: PmcImportKind) => ({ headers, baseHeaders, rows }: TableRows): PmcEvaluation => {
+  const distinctValues = (word: string) => {
+    const column = baseHeaders.findIndex(header => pmcHeaderKey(header) === pmcHeaderKey(word));
+    return column < 0 ? 0 : new Set(rows.map(item => String(item[headers[column]] ?? "").trim()).filter(Boolean)).size;
+  };
+  const fields = fieldsForFile(kind, new Set(baseHeaders.map(pmcHeaderKey)), distinctValues);
+  const match = matchHeaders(fields, headers, baseHeaders, kind === "weights" ? new Set([WEIGHTS_SECTION_LAST]) : undefined);
+  // every field found (an ambiguity, if any, is reported on this row); sheets are ranked by the fewest missing required fields
+  return { found: match.mapping.size, complete: match.missing.length === 0, closeness: -match.missing.length, match, fields };
+};
+const headerSearchLimits = (kind: PmcImportKind) => ({ maxRows: kind === "weights" ? 2_000 : 0, maxColumns: PMC_IMPORT_LIMITS.maxColumns });
 
 /** Columns that hold something in the header row; formatted but empty columns at the right (common in exports) do not count against the limit. */
 function filledColumns(sheet: ExcelJS.Worksheet, headerRow: number) {
@@ -323,14 +318,14 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   // CSV: UTF-8, or the Windows Arabic code page that older Excel writes (Q-31)
   const parsed = await readSpreadsheetSafely(input.format === "csv" ? decodeCsv(input.bytes).text : input.bytes, input.format);
   if (!parsed.ok) return fail(parsed.code);
-  const sheets = parsed.workbook.worksheets.filter(sheet => sheet.state !== "hidden" && sheet.state !== "veryHidden");
-  if (sheets.length === 0) return fail("IMPORT_EMPTY_WORKBOOK");
-  // Q-31: a workbook may carry other sheets (notes, a cover, the villa list beside the weights): the sheet whose header names every required field is read.
-  const found = sheets.map(sheet => ({ sheet, ...findHeaderRow(sheet, input.kind) }));
-  const complete = found.filter(item => item.match.missing.length === 0);
-  if (complete.length > 1) return fail("IMPORT_SHEET_AMBIGUOUS", complete.map(item => item.sheet.name).join(" | "));
-  const chosen = complete[0] ?? found.reduce((a, b) => (b.match.missing.length < a.match.missing.length ? b : a));
-  const { sheet, row: headerRow, fields } = chosen;
+  // Q-31: a workbook may carry other sheets (notes, a cover, the villa list beside the weights): the sheet whose header names every required field is read
+  // (Q-50: the shared reader in importEngine/read.ts).
+  const choice = chooseSheet(parsed.workbook, pmcEvaluate(input.kind), headerSearchLimits(input.kind));
+  if (!choice.ok) return fail(choice.code, choice.detail);
+  const { sheet, candidate } = choice;
+  const chosen = { headers: candidate.headers, match: candidate.evaluation.match };
+  const { row: headerRow } = candidate;
+  const { fields } = candidate.evaluation;
   let match = chosen.match;
   const override = input.mappingOverride && Object.keys(input.mappingOverride).length ? input.mappingOverride : undefined;
   if (override) {
