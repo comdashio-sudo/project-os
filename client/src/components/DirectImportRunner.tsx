@@ -150,7 +150,7 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
         {renderReport?.(view)}
         {withDiff && diffReady && <ImportDiffPreview diff={diffReady} isArabic={isArabic} fieldLabel={fieldLabel} />}
         {withDiff && diff.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(diff.error, lang)}</p>}
-        {view.status === "validated" && view.external && !view.external.canConfirm && <p className="text-sm text-slate-600">{t.nothingToConfirm}</p>}
+        {view.status === "validated" && view.external && !view.external.canConfirm && <p className="text-sm text-muted-foreground">{t.nothingToConfirm}</p>}
         {view.status === "validated" && view.external?.canConfirm && !autoConfirm && <Button type="button" className="min-h-[44px]" disabled={confirm.isPending || (withDiff && !diffReady)} onClick={() => confirm.mutate({ tenantId, projectId, importId: view.id, approvedDiffHash: withDiff ? diffReady?.diffHash : undefined })}>{confirmLabel}</Button>}
       </div>}
       {view?.status === "completed" && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{t.done}: {t.created} {view.createdRows} · {t.updated} {view.updatedRows} · {t.skipped} {view.skippedRows}</p>}

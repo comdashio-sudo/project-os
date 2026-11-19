@@ -82,21 +82,21 @@ export function TenantDataCard({ tenantId }: { tenantId: string }) {
 
   // not the owner (or nothing to show yet): no card, and no hint that one exists
   if (preview.error || (!preview.data && !preview.isLoading)) return null;
-  if (preview.isLoading) return <Card className="mt-6"><CardContent className="p-6 text-sm text-slate-500">{t.loading}</CardContent></Card>;
+  if (preview.isLoading) return <Card className="mt-6"><CardContent className="p-6 text-sm text-muted-foreground">{t.loading}</CardContent></Card>;
   const data = preview.data!;
   const asked = request.data;
   const canDelete = Boolean(asked) && typedName.trim() === asked!.companyName && understood && !confirm.isPending;
 
   return (
     <Card className="mt-6">
-      <CardHeader><CardTitle className="flex items-center gap-2"><Download className="h-5 w-5 text-primary" />{t.title}</CardTitle><p className="text-sm leading-6 text-slate-500">{t.note}</p></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-2"><Download className="h-5 w-5 text-primary" />{t.title}</CardTitle><p className="text-sm leading-6 text-muted-foreground">{t.note}</p></CardHeader>
       <CardContent className="space-y-5">
         <p className="text-sm">{t.size(data.totalRows, data.tables.filter(item => item.rows > 0).length, data.files)}</p>
         <div className="flex flex-wrap items-center gap-3">
           <a href={`/api/tenant-export/${tenantId}`} download className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">{t.download}</a>
           <Button type="button" variant="outline" onClick={() => void preview.refetch()}>{t.refresh}</Button>
         </div>
-        <p className="text-xs text-slate-500">{t.downloadNote} {data.lastExportAt ? t.lastExport(formatDateTime(data.lastExportAt, language)) : t.noExport}</p>
+        <p className="text-xs text-muted-foreground">{t.downloadNote} {data.lastExportAt ? t.lastExport(formatDateTime(data.lastExportAt, language)) : t.noExport}</p>
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <h3 className="flex items-center gap-2 font-semibold text-red-800"><ShieldAlert className="h-5 w-5" />{t.danger}</h3>
           {!data.exportFresh ? <p className="mt-2 text-sm text-red-900">{t.needExport}</p> : !asked ? (
