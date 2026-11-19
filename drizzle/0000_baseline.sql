@@ -1774,6 +1774,8 @@ CREATE TABLE "procurement_requisitions" (
 	"requested_quantity" numeric(18, 3) NOT NULL,
 	"unit_of_measure" varchar(40) NOT NULL,
 	"required_at" timestamp with time zone NOT NULL,
+	"warehouse_id" varchar(36),
+	"subcontract_id" varchar(36),
 	"status" "procurement_requisitions_status" DEFAULT 'draft' NOT NULL,
 	"reviewed_at" timestamp with time zone,
 	"created_by_user_id" integer NOT NULL,
@@ -3284,6 +3286,8 @@ ALTER TABLE "pmc_verification_statuses" ADD CONSTRAINT "pmc_verification_statuse
 ALTER TABLE "pmc_zones" ADD CONSTRAINT "pmc_zones_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_zones" ADD CONSTRAINT "pmc_zones_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "portfolios" ADD CONSTRAINT "portfolios_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "procurement_requisitions" ADD CONSTRAINT "prq_warehouse_fk" FOREIGN KEY ("warehouse_id") REFERENCES "public"."project_warehouses"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "procurement_requisitions" ADD CONSTRAINT "prq_subcontract_fk" FOREIGN KEY ("subcontract_id") REFERENCES "public"."subcontract_contracts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "procurement_requisitions" ADD CONSTRAINT "prq_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "procurement_requisitions" ADD CONSTRAINT "prq_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "procurement_requisitions" ADD CONSTRAINT "prq_supplier_fk" FOREIGN KEY ("supplier_id") REFERENCES "public"."suppliers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3756,6 +3760,7 @@ CREATE UNIQUE INDEX "portfolios_tenant_code_unique" ON "portfolios" USING btree 
 CREATE UNIQUE INDEX "procurement_requisitions_project_number_unique" ON "procurement_requisitions" USING btree ("project_id","requisition_number");--> statement-breakpoint
 CREATE INDEX "procurement_requisitions_tenant_project_status_idx" ON "procurement_requisitions" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE INDEX "procurement_requisitions_purchase_order_idx" ON "procurement_requisitions" USING btree ("purchase_order_id");--> statement-breakpoint
+CREATE INDEX "prq_tenant_project_warehouse_required_idx" ON "procurement_requisitions" USING btree ("tenant_id","project_id","warehouse_id","required_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "programs_tenant_code_unique" ON "programs" USING btree ("tenant_id","code");--> statement-breakpoint
 CREATE INDEX "programs_tenant_portfolio_idx" ON "programs" USING btree ("tenant_id","portfolio_id");--> statement-breakpoint
 CREATE INDEX "progress_entries_tenant_project_date_idx" ON "progress_entries" USING btree ("tenant_id","project_id","measured_at");--> statement-breakpoint
