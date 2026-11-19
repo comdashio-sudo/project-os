@@ -33,10 +33,11 @@
   --font-ar: "Inter Variable", "IBM Plex Sans Arabic", system-ui, sans-serif; /* Latin face first: digits and Latin letters stay Western and consistent; Arabic letters fall to Plex */
   --font-lat: "Inter Variable", system-ui, sans-serif;
   --font-ur: "Inter Variable", "Noto Nastaliq Urdu", "IBM Plex Sans Arabic", system-ui, sans-serif;
-  --radius: 8px;
+  --radius: 12px; /* Q-19: buttons and fields 10–14px */
+  --radius-card: 18px; /* Q-19: cards and panels */
   --density: 1;
   --shadow-card: 0 1px 2px rgb(12 16 35 / 6%);
-  --background: #f6f7fb;
+  --background: #f3f4f9;
   --foreground: #0c1023;
   --card: #ffffff;
   --card-foreground: #0c1023;
@@ -47,10 +48,10 @@
   --secondary: #2ed3c6;
   --secondary-foreground: #04302d;
   --muted: #eceff7;
-  --muted-foreground: #4f5d7a;
+  --muted-foreground: #575d78;
   --accent: #e8e7fd;
   --accent-foreground: #2b2594;
-  --border: #dde2ef;
+  --border: #dee1ee;
   --input: #78849e;
   --ring: #4338ca;
   --destructive: #c4262e;
@@ -59,7 +60,7 @@
   --success-foreground: #ffffff;
   --success-soft: #def5ea;
   --success-soft-foreground: #08573a;
-  --warning: #9a5b00;
+  --warning: #b45309;
   --warning-foreground: #ffffff;
   --warning-soft: #fff1d6;
   --warning-soft-foreground: #6b3f00;
@@ -73,9 +74,30 @@
   --sidebar-foreground: #0c1023;
   --sidebar-accent: #eceff7;
   --sidebar-accent-foreground: #2b2594;
-  --sidebar-border: #dde2ef;
+  --sidebar-border: #dee1ee;
   --hero: #0c1023;
   --hero-foreground: #f2f4fb;
+  /* Q-19 (the identity the owner approved 13-11): progress states, darkest = furthest along; one meaning each, never reused for anything else.
+     Not started is the card colour inside a border. Stopped is the only red. Each has a text colour that reads on it at 4.5:1. */
+  --state-complete: #3730a3;
+  --state-complete-foreground: #ffffff;
+  --state-advanced: #7c76ee;
+  --state-advanced-foreground: #0c1023;
+  --state-progress: #c4c1f8;
+  --state-progress-foreground: #0c1023;
+  --state-start: #e7e8f5;
+  --state-start-foreground: #0c1023;
+  --state-none: #ffffff;
+  --state-none-foreground: #0c1023;
+  --state-stopped: #c2412d;
+  --state-stopped-foreground: #ffffff;
+  /* the older status marks (maps, the site plan) now read the same states; late is the amber warning */
+  --status-todo: #ffffff;
+  --status-progress: #c4c1f8;
+  --status-review: #7c76ee;
+  --status-done: #3730a3;
+  --status-late: #b45309;
+  --status-blocked: #c2412d;
 }
 [data-direction="a"][data-mode="dark"] {
   --background: #0a0e1e;
@@ -278,6 +300,8 @@
 [data-direction][dir="rtl"], [data-direction] [dir="rtl"] { font-family: var(--font-ar); }
 [data-direction][data-lang="ur"], [data-direction] [lang="ur"] { font-family: var(--font-ur); line-height: 1.95; }
 [data-direction] * { border-color: var(--border); }
+/* Q-19: headings in IBM Plex Sans Arabic (Inter for Latin and figures) at 700 */
+[data-direction="a"] :is(h1, h2, h3) { font-weight: 700; }
 [data-direction] :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* the app's base layer sets the body's face from the page language; inside a direction the direction's own face wins, for the page and for the menus and dialogs drawn into <body> */

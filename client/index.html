@@ -15,20 +15,20 @@
          the text shows in the system Arabic font and swaps once the font arrives (display=swap). -->
     <!-- Q-18: first paint. Before any script or stylesheet, the page is already the platform's background and the frame's shape in calm grey (no white
          screen, no accent colour). React replaces #root's contents when it mounts; the app then fades in once. Values are the light-theme tokens of
-         src/index.css (paper #F5F7FC, white cards, line #E4E9F4); a static test keeps them equal. -->
+         src/index.css (paper #F3F4F9, white cards, line #DEE1EE); a static test keeps them equal. -->
     <style>
-      html, body { margin: 0; background: #F5F7FC; color: #0C1023; font-family: "IBM Plex Sans Arabic", system-ui, "Segoe UI", Tahoma, sans-serif; }
+      html, body { margin: 0; background: #F3F4F9; color: #0C1023; font-family: "IBM Plex Sans Arabic", system-ui, "Segoe UI", Tahoma, sans-serif; }
       .boot { display: flex; min-height: 100vh; flex-direction: column; }
-      .boot-top { display: flex; height: 56px; align-items: center; gap: 12px; border-bottom: 1px solid #E4E9F4; background: #FFFFFF; padding: 0 12px; box-sizing: border-box; }
+      .boot-top { display: flex; height: 56px; align-items: center; gap: 12px; border-bottom: 1px solid #DEE1EE; background: #FFFFFF; padding: 0 12px; box-sizing: border-box; }
       .boot-top img { height: 26px; width: auto; }
       .boot-fill { flex: 1; }
       .boot-row { display: flex; flex: 1; }
-      .boot-side { display: none; width: 240px; flex-shrink: 0; border-inline-end: 1px solid #E4E9F4; background: #FFFFFF; padding: 12px; box-sizing: border-box; }
+      .boot-side { display: none; width: 240px; flex-shrink: 0; border-inline-end: 1px solid #DEE1EE; background: #FFFFFF; padding: 12px; box-sizing: border-box; }
       .boot-main { flex: 1; min-width: 0; padding: 20px 16px; box-sizing: border-box; }
       .boot-inner { margin: 0 auto; max-width: 1024px; display: flex; flex-direction: column; gap: 20px; }
-      .boot-bar { display: block; border-radius: 8px; background: #E4E9F4; animation: boot-pulse 1.6s ease-in-out infinite; }
+      .boot-bar { display: block; border-radius: 8px; background: #DEE1EE; animation: boot-pulse 1.6s ease-in-out infinite; }
       .boot-cards { display: grid; gap: 16px; }
-      .boot-card { border: 1px solid #E4E9F4; border-radius: 14px; background: #FFFFFF; padding: 16px; }
+      .boot-card { border: 1px solid #DEE1EE; border-radius: 14px; background: #FFFFFF; padding: 16px; }
       @media (min-width: 640px) { .boot-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
       @media (min-width: 768px) { .boot-side { display: block; } .boot-main { padding: 28px 32px; } .boot-top { padding: 0 16px; } }
       @keyframes boot-pulse { 50% { opacity: .55; } }

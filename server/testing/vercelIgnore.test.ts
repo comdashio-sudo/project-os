@@ -36,6 +36,21 @@ describe("vercel-ignore: production is never built from main", () => {
   });
 });
 
+describe("vercel-ignore: Previews are for main only (Q-52)", () => {
+  it("SKIPS a Preview of a pull-request branch even when code changed", () => {
+    const r = repo({}); const head = r.change({ "src/app.ts": "2" });
+    for (const ref of ["q52-release-green", "claude/some-branch", "production-fix"]) {
+      expect(run(r.dir, { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: ref, VERCEL_GIT_PREVIOUS_SHA: r.base, VERCEL_GIT_COMMIT_SHA: head })).toMatchObject({ code: 0 });
+    }
+  });
+  it("still BUILDS a Preview of main, a production build of the production branch, and a Preview whose branch Vercel did not name", () => {
+    const r = repo({}); const head = r.change({ "src/app.ts": "2" });
+    expect(run(r.dir, { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "main", VERCEL_GIT_PREVIOUS_SHA: r.base, VERCEL_GIT_COMMIT_SHA: head })).toMatchObject({ code: 1 });
+    expect(run(r.dir, { VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "production", VERCEL_GIT_PREVIOUS_SHA: r.base, VERCEL_GIT_COMMIT_SHA: head })).toMatchObject({ code: 1 });
+    expect(run(r.dir, { VERCEL_ENV: "preview", VERCEL_GIT_PREVIOUS_SHA: r.base, VERCEL_GIT_COMMIT_SHA: head })).toMatchObject({ code: 1 });
+  });
+});
+
 describe("vercel-ignore: skip only documentation, build at any doubt", () => {
   it("is wired in vercel.json", () => {
     expect(JSON.parse(readFileSync(path.join(root, "vercel.json"), "utf8")).ignoreCommand).toBe("bash scripts/ci/vercel-ignore.sh");

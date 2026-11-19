@@ -292,13 +292,14 @@ export async function requestImportConfirmation(input: { userId: number; tenantI
 export async function requestImportReanalysis(input: { userId: number; tenantId: string; projectId: string; importId: string; mappingOverride: Record<string, string> }) {
   const { db, snapshot } = await importAccess(input);
   const record = await readRecord(db, input);
-  // Q-31 (P0-02): a PMC file's columns can be chosen by a person; the master-plan, equipment and ledger files keep fixed columns (upload the corrected file)
+  // Q-31 (P0-02): the columns of a PMC file or an operational ledger (costs, orders, employees, hours) can be chosen by a person; the master-plan and
+  // equipment files keep fixed columns (upload the corrected file)
   const external = isExternalModule(record.moduleCode);
-  if (external && !pmcKindOf(record.moduleCode as ExternalModule)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+  if (external && !pmcKindOf(record.moduleCode as ExternalModule) && !isLedgerModule(record.moduleCode)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
   if (external) await authorizeExternalImport({ ...input, moduleCode: record.moduleCode as ExternalModule });
   else assertTenantAccess(snapshot!, { tenantId: input.tenantId, product: "PROJECT", permission: importPermissionFor(record.moduleCode), scope: { type: "project", id: input.projectId } });
   if (record.status !== "uploaded" && record.status !== "validated" && record.status !== "failed") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
-  // the PMC analysis always runs as a job (it reads the file from storage); a small general import stays synchronous
+  // an external analysis (PMC, ledger) always runs as a job (it reads the file from storage); a small general import stays synchronous
   if (!external && record.status !== "failed" && record.totalRows <= IMPORT_SYNC_MAX_ROWS) return reanalyzeDataImport(input);
   try {
     const taken = await db.update(dataImports)
@@ -412,10 +413,11 @@ export async function previewImportDiff(input: { userId: number; tenantId: strin
   await authorizeExternalImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: record.moduleCode, context: contextOf(record.summaryJson) });
   if (!isLedgerModule(record.moduleCode)) return { supported: false as const, moduleCode: record.moduleCode };
   if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_DIFF_UNAVAILABLE" });
-  const [file] = await db.select({ fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, sourceFormat: dataImports.sourceFormat }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  const [file] = await db.select({ fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, sourceFormat: dataImports.sourceFormat, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   const bytes = await storageRead(file!.fileKey);
   if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== file!.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
-  const plan = await planLedgerImport(db, input, record.moduleCode, file!.sourceFormat as "xlsx" | "csv", bytes);
+  // the columns the person chose (Q-31): the preview, its hash and the write read the file the same way
+  const plan = await planLedgerImport(db, input, record.moduleCode, file!.sourceFormat as "xlsx" | "csv", bytes, storedMapping(file!.mappingJson));
   if (plan.readsEmployeeRecords) await auditEmployeeRecordsRead(db, input, record.moduleCode, "preview", plan.totalRows);
   const kind = input.kind ?? "all";
   const shown = plan.entries.filter(item => (kind === "all" ? item.kind !== "unchanged" : item.kind === kind));
