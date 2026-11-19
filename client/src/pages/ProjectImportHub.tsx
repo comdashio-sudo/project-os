@@ -60,7 +60,7 @@ export default function ProjectImportHub() {
             </li>
           ))}
         </ul>
-      ) : <p role="note" className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">{pickLanguage(language, text.nothing)}</p>}
+      ) : <p role="note" className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground ring-1 ring-border">{pickLanguage(language, text.nothing)}</p>}
     </PageMain>
   );
 }

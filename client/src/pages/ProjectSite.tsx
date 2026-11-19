@@ -84,7 +84,7 @@ export default function ProjectSite() {
             {stalled.data ? <><Badge tone="warning">{count(stalled.data.counts.stalled)} {t.stalled}</Badge><Badge tone="danger">{count(stalled.data.counts.long)} {t.long}</Badge></> : null}
           </SiteCard> : null}
         </ul>
-      ) : <p role="note" className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">{t.nothing}</p>}
+      ) : <p role="note" className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground ring-1 ring-border">{t.nothing}</p>}
     </PageMain>
   );
 }

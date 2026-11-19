@@ -44,7 +44,7 @@ export default function LabourLoadingCard({ tenantId, projectId, currency }: { t
   const [form, setForm] = useState({ gosi: "11.75", gosiNon: "2", indirect: "0", hours: "8", eosYears: "5", eosFirst: "0.5", eosLater: "1", days: [0, 1, 2, 3, 4] as number[] });
   const save = trpc.labourSettings.save.useMutation({ onSuccess: () => { setEditing(false); setMessage(t.saved); labour.refetch(); settings.refetch(); } });
 
-  if (labour.isLoading || settings.isLoading) return <p role="status" className="text-sm text-slate-500">{t.loading}</p>;
+  if (labour.isLoading || settings.isLoading) return <p role="status" className="text-sm text-muted-foreground">{t.loading}</p>;
   if (!labour.data || !settings.data) return <div><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(labour.error ?? settings.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => { labour.refetch(); settings.refetch(); }}>{t.retry}</Button></div>;
   const data = labour.data;
   const s = settings.data;
@@ -57,12 +57,12 @@ export default function LabourLoadingCard({ tenantId, projectId, currency }: { t
     <section aria-label={t.title} className="mt-6 rounded-xl border p-4" data-testid="labour-card">
       <h3 className="text-base font-semibold">{t.title}</h3>
       <div className="mt-2 flex flex-wrap items-baseline gap-x-6 gap-y-1">
-        <p><span className="text-sm text-slate-500">{t.factor}: </span><b data-testid="labour-factor">{data.effectiveLoadingFactor === null ? "—" : `×${formatNumber(data.effectiveLoadingFactor, 2)}`}</b></p>
-        <p><span className="text-sm text-slate-500">{t.loadedCost}: </span><b>{formatMoney(data.loadedCost, currency, isArabic)}</b></p>
+        <p><span className="text-sm text-muted-foreground">{t.factor}: </span><b data-testid="labour-factor">{data.effectiveLoadingFactor === null ? "—" : `×${formatNumber(data.effectiveLoadingFactor, 2)}`}</b></p>
+        <p><span className="text-sm text-muted-foreground">{t.loadedCost}: </span><b>{formatMoney(data.loadedCost, currency, isArabic)}</b></p>
       </div>
-      <p className="mt-1 text-sm text-slate-600">{data.approvedEntries === 0 ? t.none : t.priced(data.loadedEntries, data.resourceEntries, data.hours)}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{data.approvedEntries === 0 ? t.none : t.priced(data.loadedEntries, data.resourceEntries, data.hours)}</p>
       <p className="mt-2 text-sm" data-testid="labour-settings">{t.settings}: {t.gosi} {Math.round(s.employerGosiRateSaudi * 10000) / 100}% · {t.gosiNon} {Math.round(s.employerGosiRateNonSaudi * 10000) / 100}% · {t.eosFirst} {s.eosFirstPeriodMonthsPerYear} ({s.eosFirstPeriodYears}) · {t.eosLater} {s.eosLaterMonthsPerYear} · {t.indirect} {s.indirectLoadingPercent}% · {t.hours} {s.hoursPerDay} · {t.days}: {dayList}{s.isDefault ? ` — ${t.defaults}` : ""}</p>
-      <p className="mt-1 text-xs text-slate-500">{t.note}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{t.note}</p>
       <p className="mt-1 text-xs font-medium text-amber-800" data-testid="labour-estimate-note">{t.estimateNote}</p>
       {message && <p role="status" className="mt-2 text-sm text-emerald-700">{message}</p>}
       {s.canEdit && !editing && <Button variant="outline" className="mt-3 min-h-[44px]" onClick={open}>{t.edit}</Button>}

@@ -8,7 +8,7 @@ const RULE = "BFC5CC";
 const SERIES = ["1F6F6B", "C77C1E", "4C6FB3", "8A5A9E", "5E8C3A", "B4473A"];
 
 /** The screen's chart colours (--chart-1 … --chart-5) as six-digit values, so the file and the PDF share one palette; the fixed palette where there is no canvas. */
-function tokenPalette(): string[] {
+export function tokenPalette(): string[] {
   try {
     const context = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
     if (!context) return SERIES;

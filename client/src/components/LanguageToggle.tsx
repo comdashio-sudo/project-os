@@ -27,12 +27,12 @@ export function LanguageToggle({ dark = false, showNote = false }: { dark?: bool
   return (
     <div className="inline-flex flex-col items-end gap-1" title={note}>
       <div role="group" aria-label={groupLabel} className="inline-flex flex-wrap items-center gap-1">
-        <Languages aria-hidden="true" className={dark ? "me-1 h-4 w-4 text-white" : "me-1 h-4 w-4 text-slate-500"} />
+        <Languages aria-hidden="true" className={dark ? "me-1 h-4 w-4 text-white" : "me-1 h-4 w-4 text-muted-foreground"} />
         {LANGUAGES.map(code => {
           const pressed = code === language;
           const tone = dark
             ? (pressed ? "border-white bg-white/20 text-white" : "border-white/30 bg-transparent text-white hover:bg-white/10")
-            : (pressed ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50");
+            : (pressed ? "border-slate-700 bg-slate-800 text-white" : "border-border bg-white text-foreground hover:bg-muted");
           return (
             <button
               key={code}
@@ -47,7 +47,7 @@ export function LanguageToggle({ dark = false, showNote = false }: { dark?: bool
           );
         })}
       </div>
-      {showNote ? <p className={dark ? "text-xs text-white/80" : "text-xs text-slate-600"}>{note}</p> : null}
+      {showNote ? <p className={dark ? "text-xs text-white/80" : "text-xs text-muted-foreground"}>{note}</p> : null}
     </div>
   );
 }
