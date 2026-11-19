@@ -17,6 +17,7 @@ import { applyCellStatus, type CellWarning } from "./pmcService";
 import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { qcCompletionGate } from "./qualityGate";
 import { storageDelete, storageGetSignedUrl, storagePut } from "./storage";
+import { DAILY_REPORT_READERS } from "../shared/pageAccess";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "FORBIDDEN", message: string) => new TRPCError({ code, message });
@@ -318,7 +319,7 @@ export async function attachSiteReportPhotoForTenant(input: Scope & { reportId: 
 // ------------------------------------------------------------------------------------------------------------------------------ reading
 
 // Q-12: the planning engineer gathers and exports the daily and weekly reports (project.pmc.manage / project.schedule.manage), and the HSE and QA/QC engineers read theirs
-export const READ_PERMISSIONS = ["project.read", "project.field.manage", "project.manage", "project.pmc.manage", "project.schedule.manage", "project.hse.manage", "project.quality.manage", "project.qc.receive"] as const;
+export const READ_PERMISSIONS = DAILY_REPORT_READERS;
 
 export async function listSiteDailyReportsForTenant(input: Scope & { status?: "draft" | "submitted" | "approved" | "rejected"; limit?: number }) {
   const db = await authorize(input, READ_PERMISSIONS);
