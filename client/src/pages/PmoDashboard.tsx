@@ -19,6 +19,8 @@ import { Link, useParams } from "wouter";
 import { enumLabel } from "@/lib/labels";
 import { useCan, WriteGate } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
+import { PmoRollups } from "@/components/PmoRollups";
+import { OwnerSelect } from "@/components/OwnerSelect";
 import type { Language } from "@/lib/language";
 import { CheckedForm } from "@/components/CheckedForm";
 
@@ -48,7 +50,7 @@ export default function PmoDashboard() {
   const exceptionsQuery = trpc.dashboards.pmoTodayExceptions.useQuery({ tenantId });
   const [riskForm, setRiskForm] = useState({ projectId: "", code: "", title: "", probability: "3", severity: "3" });
   const [issueForm, setIssueForm] = useState<{ projectId: string; code: string; title: string; priority: Priority; dueAt: string }>({ projectId: "", code: "", title: "", priority: "medium", dueAt: "" });
-  const [actionForm, setActionForm] = useState<{ projectId: string; title: string; priority: Priority; dueAt: string }>({ projectId: "", title: "", priority: "medium", dueAt: "" });
+  const [actionForm, setActionForm] = useState<{ projectId: string; title: string; priority: Priority; dueAt: string; ownerMembershipId: string }>({ projectId: "", title: "", priority: "medium", dueAt: "", ownerMembershipId: "" });
   const [portfolioForm, setPortfolioForm] = useState({ code: "", name: "" });
   const [programForm, setProgramForm] = useState({ portfolioId: "", code: "", name: "" });
   const [projectLinkForm, setProjectLinkForm] = useState({ projectId: "", programId: "", portfolioId: "" });
@@ -79,7 +81,7 @@ export default function PmoDashboard() {
   });
   const actionMutation = trpc.pmo.createAction.useMutation({
     onSuccess: () => {
-      setActionForm({ projectId: "", title: "", priority: "medium", dueAt: "" });
+      setActionForm({ projectId: "", title: "", priority: "medium", dueAt: "", ownerMembershipId: "" });
       utils.dashboards.invalidate();
     },
   });
@@ -122,7 +124,7 @@ export default function PmoDashboard() {
   };
   const submitAction = (event: FormEvent) => {
     event.preventDefault();
-    actionMutation.mutate({ tenantId, projectId: actionForm.projectId, title: actionForm.title, priority: actionForm.priority, ...(actionForm.dueAt ? { dueAt: new Date(actionForm.dueAt) } : {}) });
+    actionMutation.mutate({ tenantId, projectId: actionForm.projectId, title: actionForm.title, priority: actionForm.priority, ...(actionForm.dueAt ? { dueAt: new Date(actionForm.dueAt) } : {}), ...(actionForm.ownerMembershipId ? { ownerMembershipId: actionForm.ownerMembershipId } : {}) });
   };
   const submitPortfolio = (event: FormEvent) => { event.preventDefault(); portfolioMutation.mutate({ tenantId, ...portfolioForm }); };
   const submitProgram = (event: FormEvent) => { event.preventDefault(); programMutation.mutate({ tenantId, code: programForm.code, name: programForm.name, ...(programForm.portfolioId ? { portfolioId: programForm.portfolioId } : {}) }); };
@@ -190,6 +192,7 @@ export default function PmoDashboard() {
         </section>}
         {planningQuery.data && planningOverview.summary.dataRequiredProjects > 0 && <div className="mt-3"><SectionMessage title={planningCopy.title} isArabic={isArabic} kind="partial" detail={planningCopy.partial} /></div>}
         </SectionErrorBoundary>
+        {planningQuery.data?.activitySignals ? <SectionErrorBoundary title={pickLanguage(language, { ar: "الأنشطة والمجاميع", en: "Activities and roll-ups", ur: "سرگرمیاں اور مجموعے" })} isArabic={isArabic}><PmoRollups data={planningQuery.data} /></SectionErrorBoundary> : null}
 
         <SectionErrorBoundary title={pickLanguage(language, { ar: "إعداد المحافظ والبرامج", en: "Portfolio and program setup", ur: "پورٹ فولیو اور پروگرام کی ترتیب" })} isArabic={isArabic}>
         <details className="mt-6 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm">
@@ -249,6 +252,7 @@ export default function PmoDashboard() {
                 <Label>{t.actionTitle}<Input value={actionForm.title} required onChange={event => setActionForm({ ...actionForm, title: event.target.value })} /></Label>
                 <Label>{t.priority}{prioritySelect(actionForm.priority, priority => setActionForm({ ...actionForm, priority }))}</Label>
                 <Label>{t.dueDate}<Input type="date" value={actionForm.dueAt} onChange={event => setActionForm({ ...actionForm, dueAt: event.target.value })} /></Label>
+                <Label htmlFor="pmo-action-owner">{pickLanguage(language, { ar: "صاحب المهمة", en: "Owner", ur: "کام کا مالک" })}<OwnerSelect id="pmo-action-owner" tenantId={tenantId} projectId={actionForm.projectId} value={actionForm.ownerMembershipId} onChange={ownerMembershipId => setActionForm({ ...actionForm, ownerMembershipId })} /></Label>
                 <Button disabled={!data.projects.length || actionMutation.isPending}>{actionMutation.isPending ? t.saving : t.save}</Button>
                 {actionMutation.error && <p className="text-sm text-red-700">{getLocalizedProjectError(actionMutation.error, isArabic)}</p>}
                 {actionMutation.isSuccess && <p className="text-sm text-emerald-700">{t.success}</p>}
