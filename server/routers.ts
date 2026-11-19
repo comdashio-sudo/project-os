@@ -60,7 +60,16 @@ import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, get
 import { getPmcProjectSummaryForTenant } from "./db";
 import { getPmcImportStatus } from "./pmcImportStatus";
 import { analyzeSmartUpload, confirmSmartImport, createSmartUpload, getImportSourceLink, listImportProfiles } from "./smartImport";
-import { createImportUpload, getImportProgress, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis } from "./importJobs";
+import { closeProjectRisk, convertRiskToIssue, listProjectRisks, projectRiskHistory, updateProjectRisk } from "./projectRisks";
+// Q-27 (P-115): what a risk update may change. Text fields take null to clear; scores are 1–5; the review date is a calendar day; "closed" goes through closeRisk.
+const riskText = (max: number) => z.string().trim().max(max).transform(value => value || null).nullable();
+const riskScale = z.number().int().min(1).max(5);
+const riskPatchSchema = z.object({
+  title: z.string().trim().min(2).max(255), cause: riskText(4000), impact: riskText(4000), probability: riskScale, severity: riskScale,
+  residualProbability: riskScale.nullable(), residualSeverity: riskScale.nullable(), response: riskText(4000), mitigation: riskText(4000), trigger: riskText(2000),
+  ownerMembershipId: z.string().uuid().nullable(), nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), status: z.enum(["open", "mitigating", "accepted"]),
+}).partial().strict();
+import { createImportUpload, deleteImportTemplate, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis, saveImportTemplate } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
@@ -282,6 +291,10 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid().optional() })).query(({ ctx, input }) => getDataImportsForTenant({ userId: ctx.user.id, ...input })),
     detail: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).query(({ ctx, input }) => getDataImportDetailForTenant({ userId: ctx.user.id, ...input })),
     analyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "contracts", "materials", "schedule", "openingBalances"]), fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), base64: z.string().min(1).max(14_000_000), duplicateMode: z.enum(["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]).optional(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)).optional() }).superRefine((value, context) => { if (value.moduleCode === "schedule" && value.sourceFormat !== "xlsx" && value.sourceFormat !== "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_SCHEDULE_FORMAT_INVALID" }); if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" }); if (value.mappingOverride && Object.keys(value.mappingOverride).length > 6) context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }); })).mutation(({ ctx, input }) => createAndAnalyzeDataImport({ userId: ctx.user.id, ...input })),
+    // Q-50 batch 2: company templates of column mappings (PMC files and operational ledgers), offered at >= 80% header match, applied only by the person
+    templates: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listImportTemplates({ userId: ctx.user.id, ...input })),
+    saveTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), name: z.string().trim().min(2).max(160) })).mutation(({ ctx, input }) => saveImportTemplate({ userId: ctx.user.id, ...input })),
+    deleteTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), templateId: z.string().uuid() })).mutation(({ ctx, input }) => deleteImportTemplate({ userId: ctx.user.id, ...input })),
     reanalyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), mappingOverride: z.record(z.string().min(1).max(64), z.string().max(128)) }).refine(value => Object.keys(value.mappingOverride).length <= 12, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" })).mutation(({ ctx, input }) => requestImportReanalysis({ userId: ctx.user.id, ...input })),
     confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), approvedDiffHash: z.string().regex(/^[0-9a-f]{64}$/).optional() })).mutation(({ ctx, input }) => requestImportConfirmation({ userId: ctx.user.id, ...input })),
     // Export → edit → re-import: what the file would change, row by row, before anything is written.
@@ -608,6 +621,12 @@ export const appRouter = router({
     createAction: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), title: z.string().trim().min(2).max(255), priority: z.enum(["low", "medium", "high", "critical"]), dueAt: z.date().optional(), ownerMembershipId: z.string().uuid().optional() })).mutation(({ ctx, input }) => createAction({ userId: ctx.user.id, ...input })),
     transitionIssueEscalation: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), issueId: z.string().uuid(), nextStatus: z.enum(["pending", "escalated"]) })).mutation(({ ctx, input }) => transitionIssueEscalation({ userId: ctx.user.id, ...input })),
     transitionActionEscalation: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), actionId: z.string().uuid(), nextStatus: z.enum(["pending", "escalated"]) })).mutation(({ ctx, input }) => transitionActionEscalation({ userId: ctx.user.id, ...input })),
+    // Q-27 (P-115): the project risk register — read with pmo.read, written with pmo.write, on the project (server/projectRisks.ts)
+    projectRisks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectRisks({ userId: ctx.user.id, ...input })),
+    updateRisk: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), patch: riskPatchSchema })).mutation(({ ctx, input }) => updateProjectRisk({ userId: ctx.user.id, ...input })),
+    closeRisk: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), reason: z.string().trim().min(3).max(2000) })).mutation(({ ctx, input }) => closeProjectRisk({ userId: ctx.user.id, ...input })),
+    convertRiskToIssue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), issueCode: z.string().trim().min(1).max(80), priority: z.enum(["low", "medium", "high", "critical"]), dueAt: z.date().optional() })).mutation(({ ctx, input }) => convertRiskToIssue({ userId: ctx.user.id, ...input })),
+    riskHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid() })).query(({ ctx, input }) => projectRiskHistory({ userId: ctx.user.id, ...input })),
   }),
   // Q-25 (P-113): project meetings — the minutes, item by item, and the actions they raise (server/meetings.ts)
   meetings: router({
