@@ -117,7 +117,7 @@ describe("static check: the text colours that failed on the screens are the ones
   });
 
   it("draws the setup step count in slate-600 (4.4:1 on the tinted panel before)", () => {
-    expect(page("SetupWizard.tsx")).toContain(`<p className="mt-3 text-xs text-slate-600">{t.stepOf(index + 1)}</p>`);
+    expect(page("SetupWizard.tsx")).toContain(`<p className="mt-3 text-xs text-muted-foreground">{t.stepOf(index + 1)}</p>`);
   });
 
   it("fills the active step number with 10% white, which keeps white text at 4.5:1 or more on the teal", () => {

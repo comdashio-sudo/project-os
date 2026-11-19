@@ -42,7 +42,8 @@
     "0039_project_meetings.sql": "df1b26f0ed25fd6f2b1fc7eeec81f4c03e0f9f712aead7ce3030c685fd2cec3c",
     "0040_work_confirmations.sql": "be8b6429ac2bc07fb06447185027f123807814ca1f5d27615c1a0c0ea8f93547",
     "0041_material_request_warehouse.sql": "96a972d71c4e23faab2ad04b0b5e6eab834cb923b7f047333d1ed88940540521",
-    "0042_strategy_assumptions.sql": "712b5cd0cd65ee2fdbf01904f0283a96b6ba0ef39fc677d65931edbe90724bad",
-    "0043_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff"
+    "0042_pmc_english_names.sql": "c14079bc75af6bbc9b1f81fff4878469232f2b0c8921b6a28dd4924617ccf7cd",
+    "0043_strategy_assumptions.sql": "712b5cd0cd65ee2fdbf01904f0283a96b6ba0ef39fc677d65931edbe90724bad",
+    "0044_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff"
   }
 }

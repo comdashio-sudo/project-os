@@ -130,12 +130,12 @@ export default function ProjectSubmittals() {
   ];
 
   const back = `/m/${tenantId}/${projectId}`;
-  if (list.isLoading || codes.isLoading) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
+  if (list.isLoading || codes.isLoading) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
   const loadError = list.error ?? codes.error;
   if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void list.refetch(); void codes.refetch(); }}>{t.retry}</Button></FieldShell>;
 
   const canCreate = form.number.trim() !== "" && form.title.trim().length >= 2 && (form.type !== "material_approval" || form.materialId !== "");
-  const tile = (label: string, value: string, flag?: boolean) => <div className={`rounded-xl border bg-white p-3 ${flag ? "border-red-300" : ""}`}><p className="text-xs text-slate-600">{label}</p><p className="text-xl font-semibold">{value}</p></div>;
+  const tile = (label: string, value: string, flag?: boolean) => <div className={`rounded-xl border bg-white p-3 ${flag ? "border-red-300" : ""}`}><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-semibold">{value}</p></div>;
 
   return (
     <FieldShell wide tenantId={tenantId} projectId={projectId} current="submittals" title={t.title} backHref={back} backLabel={t.back}>
@@ -175,28 +175,28 @@ export default function ProjectSubmittals() {
 
       <section aria-label={t.distribution} className="space-y-2">
         <div className="flex items-center justify-between gap-2"><h2 className="text-base font-semibold">{t.distribution}</h2><ExportExcelButton fileName="consultant-submittals" sheetName={t.exportTitle} title={t.exportTitle} rows={shown} columns={columns} /></div>
-        <p className="text-sm text-slate-600">{t.distributionHint}</p>
+        <p className="text-sm text-muted-foreground">{t.distributionHint}</p>
         <div className="overflow-x-auto rounded-xl border bg-white">
           <table className="w-full text-start text-sm" data-distribution>
-            <thead><tr className="bg-slate-50"><th scope="col" className="p-2 text-start">{t.consultant}</th>{replyCodes.map(code => <th scope="col" key={code.code} className="p-2 text-center" title={`${pickLanguage(language, { ar: code.labelAr, en: code.labelEn, ur: code.labelUr })} — ${code.approved ? t.approvedCode : t.notApprovedCode}`}>{code.code}</th>)}<th scope="col" className="p-2 text-center">{t.pending}</th><th scope="col" className="p-2 text-center">{t.total}</th></tr></thead>
+            <thead><tr className="bg-muted"><th scope="col" className="p-2 text-start">{t.consultant}</th>{replyCodes.map(code => <th scope="col" key={code.code} className="p-2 text-center" title={`${pickLanguage(language, { ar: code.labelAr, en: code.labelEn, ur: code.labelUr })} — ${code.approved ? t.approvedCode : t.notApprovedCode}`}>{code.code}</th>)}<th scope="col" className="p-2 text-center">{t.pending}</th><th scope="col" className="p-2 text-center">{t.total}</th></tr></thead>
             <tbody>{distribution.map(line => <tr key={line.name} className="border-t"><th scope="row" className="p-2 text-start font-medium">{line.name === NONE ? t.noConsultant : <bdi>{line.name}</bdi>}</th>{replyCodes.map(code => <td key={code.code} className="p-2 text-center">{line.perCode[code.code]}</td>)}<td className="p-2 text-center">{line.pending}</td><td className="p-2 text-center font-semibold">{line.total}</td></tr>)}</tbody>
           </table>
         </div>
       </section>
 
-      {rows.length === 0 ? <div role="status" className="rounded-2xl border border-dashed p-6 text-center"><p className="font-semibold">{t.empty}</p><p className="text-sm text-slate-600">{t.emptyBody}</p></div>
-        : shown.length === 0 ? <p role="status" className="text-sm text-slate-600">{t.noMatch}</p>
+      {rows.length === 0 ? <div role="status" className="rounded-2xl border border-dashed p-6 text-center"><p className="font-semibold">{t.empty}</p><p className="text-sm text-muted-foreground">{t.emptyBody}</p></div>
+        : shown.length === 0 ? <p role="status" className="text-sm text-muted-foreground">{t.noMatch}</p>
         : (
           <ul className="space-y-2" aria-label={t.title}>
             {shown.map(row => (
               <li key={row.id} className={`space-y-2 rounded-xl border bg-white p-3 ${row.overdue ? "border-red-300" : ""}`} data-submittal={row.submittalNumber} data-status={row.status}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div><p className="text-base font-semibold">{row.submittalNumber} <span className="text-xs font-normal text-slate-600">{t.revision} {row.revision}</span></p><p className="text-sm"><bdi>{row.title}</bdi></p>
-                    <p className="text-xs text-slate-600">{typeName(row.submittalType)} · <bdi>{consultantName(row.consultant)}</bdi></p></div>
+                  <div><p className="text-base font-semibold">{row.submittalNumber} <span className="text-xs font-normal text-muted-foreground">{t.revision} {row.revision}</span></p><p className="text-sm"><bdi>{row.title}</bdi></p>
+                    <p className="text-xs text-muted-foreground">{typeName(row.submittalType)} · <bdi>{consultantName(row.consultant)}</bdi></p></div>
                   <div className="text-end text-sm"><p className="font-semibold">{statusName(row.status)}{row.replyCode ? ` · ${row.replyCode}` : ""}</p>
-                    {row.daysAtConsultant !== null && <p className={row.overdue ? "text-red-700" : "text-slate-600"}>{row.daysAtConsultant} {t.days}{row.overdue ? ` · ${t.overdue}` : ""}</p>}</div>
+                    {row.daysAtConsultant !== null && <p className={row.overdue ? "text-red-700" : "text-muted-foreground"}>{row.daysAtConsultant} {t.days}{row.overdue ? ` · ${t.overdue}` : ""}</p>}</div>
                 </div>
-                <p className="text-xs text-slate-600">{t.sentAt}: {showDate(row.sentAt, language)} · {t.dueAt}: {showDate(row.dueAt, language)}{row.replyCode && approvedOf.has(row.replyCode) ? ` · ${approvedOf.get(row.replyCode) ? t.approvedCode : t.notApprovedCode}` : ""}</p>
+                <p className="text-xs text-muted-foreground">{t.sentAt}: {showDate(row.sentAt, language)} · {t.dueAt}: {showDate(row.dueAt, language)}{row.replyCode && approvedOf.has(row.replyCode) ? ` · ${approvedOf.get(row.replyCode) ? t.approvedCode : t.notApprovedCode}` : ""}</p>
                 <div className="flex flex-wrap gap-2">
                   {row.status === "draft" && <WriteGate permission={WRITE} projectId={projectId}><Button variant="outline" className={tap} disabled={send.isPending} onClick={() => send.mutate({ ...scope, submittalId: row.id })}>{t.send}</Button></WriteGate>}
                   {row.status === "sent" && <WriteGate permission={REPLY} projectId={projectId}><Button variant="outline" className={tap} onClick={() => setReplying({ id: row.id, code: replyCodes[0]?.code ?? "", note: "" })}>{t.reply}</Button></WriteGate>}
@@ -204,7 +204,7 @@ export default function ProjectSubmittals() {
                   {row.status === "replied" && row.approved === false && <WriteGate permission={WRITE} projectId={projectId}><Button variant="outline" className={tap} disabled={create.isPending} onClick={() => create.mutate({ ...scope, submittalType: row.submittalType, submittalNumber: row.submittalNumber, title: row.title, resubmissionOfId: row.id })}>{t.resubmit}</Button></WriteGate>}
                 </div>
                 {replying?.id === row.id && (
-                  <div className="space-y-2 rounded-lg bg-slate-50 p-2" data-reply-form>
+                  <div className="space-y-2 rounded-lg bg-muted p-2" data-reply-form>
                     <label className="block text-sm font-medium">{t.replyCode}<Select className="mt-1" value={replying.code} onValueChange={value => setReplying({ ...replying, code: value })} options={replyCodes.map(code => ({ value: code.code, label: `${code.code} — ${pickLanguage(language, { ar: code.labelAr, en: code.labelEn, ur: code.labelUr })} (${code.approved ? t.approvedCode : t.notApprovedCode})` }))} /></label>
                     <label className="block text-sm font-medium">{t.replyNote}<input className={`${fieldInput} mt-1`} value={replying.note} onChange={event => setReplying({ ...replying, note: event.target.value })} /></label>
                     <div className="grid grid-cols-2 gap-2"><Button className={tap} disabled={!replying.code || reply.isPending} onClick={() => reply.mutate({ ...scope, submittalId: row.id, replyCode: replying.code, replyNote: replying.note.trim() || undefined })}>{t.confirmReply}</Button><Button variant="outline" className={tap} onClick={() => setReplying(null)}>{t.cancel}</Button></div>

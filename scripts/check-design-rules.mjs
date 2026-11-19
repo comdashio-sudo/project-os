@@ -53,6 +53,18 @@ export function violationsOf(file, source) {
   return found;
 }
 
+// Q-19 (4): a Tailwind palette class (text-slate-500, bg-red-50, ring-amber-200 ...) is a colour written beside the tokens: the approved identity cannot
+// reach it. These are being converted to tokens in batches, so this rule is a CEILING ON THE TOTAL that only goes down: the build fails when the count
+// rises above PALETTE_CEILING, and asks for the ceiling to be lowered when it falls (each batch lowers it in the same PR). The aim is zero.
+export const PALETTE_CEILING = 427;
+const PALETTE = /\b(?:bg|text|border|ring|divide|fill|stroke|from|to|via|outline|placeholder|accent|decoration|caret|shadow)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?:50|[1-9]00|950)\b/g;
+export function paletteCount(source) { return count(withoutCommentsOf(source), PALETTE); }
+export function paletteTotal() {
+  let total = 0;
+  for (const base of SCAN) for (const file of walk(base)) total += paletteCount(readFileSync(path.join(root, file), "utf8"));
+  return total;
+}
+
 export function scan() {
   const result = {};
   for (const base of SCAN) for (const file of walk(base)) { const found = violationsOf(file, readFileSync(path.join(root, file), "utf8")); if (Object.keys(found).length) result[file] = found; }
@@ -67,5 +79,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error("\nUse the shared components (client/src/components/ds), the tokens (client/src/design/directions.css) and the format module (client/src/components/ds/format.ts).");
     process.exit(1);
   }
-  console.log("design rules ok: 0 violations (the ceiling is zero, no baseline)");
+  const palette = paletteTotal();
+  if (palette > PALETTE_CEILING) {
+    console.error(`design rules (Q-19): ${palette} Tailwind palette classes, above the ceiling ${PALETTE_CEILING}. Use the tokens (bg-muted, text-muted-foreground, border-border, text-success-soft-foreground ...), not a palette colour.`);
+    process.exit(1);
+  }
+  if (palette < PALETTE_CEILING && !process.env.DESIGN_RULES_ROOT) { // a scratch root (the rule's own tests) has no ceiling to lower
+    console.error(`design rules (Q-19): ${palette} Tailwind palette classes, below the ceiling ${PALETTE_CEILING}: lower PALETTE_CEILING in scripts/check-design-rules.mjs to ${palette} in this change, so it cannot creep back.`);
+    process.exit(1);
+  }
+  console.log(`design rules ok: 0 violations (the ceiling is zero, no baseline); Tailwind palette classes ${palette} (ceiling ${PALETTE_CEILING}, going to zero)`);
 }

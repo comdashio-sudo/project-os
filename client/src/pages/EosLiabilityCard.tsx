@@ -33,25 +33,25 @@ export function EosLiabilityCard({ tenantId }: { tenantId: string }) {
     { header: t.employees, value: row => row.employees, kind: "number" },
   ];
   return (
-    <section aria-label={t.title} className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <section aria-label={t.title} className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-border">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h2 className="font-semibold">{t.title}</h2>
         {liability.data && <ExportExcelButton fileName="eos-liability" sheetName={t.sheet} title={t.title} rows={rows} columns={columns} emptyHint={{ ar: "اعتمد مسير رواتب في «الرواتب» ليظهر استحقاق شهره هنا", en: "Approve a payroll run under “Payroll” to see its month here", ur: "یہاں اس مہینے کو دیکھنے کے لیے «تنخواہیں» میں پے رول منظور کریں" }} />}
       </div>
-      <p className="mt-1 max-w-3xl text-xs text-slate-500">{t.basis}</p>
-      {liability.isLoading && <p role="status" className="mt-3 text-sm text-slate-500">{t.loading}</p>}
+      <p className="mt-1 max-w-3xl text-xs text-muted-foreground">{t.basis}</p>
+      {liability.isLoading && <p role="status" className="mt-3 text-sm text-muted-foreground">{t.loading}</p>}
       {liability.error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(liability.error, isArabic)}</p>}
-      {liability.data && liability.data.months.length === 0 && <p className="mt-3 text-sm text-slate-500">{t.empty}</p>}
+      {liability.data && liability.data.months.length === 0 && <p className="mt-3 text-sm text-muted-foreground">{t.empty}</p>}
       {liability.data && liability.data.months.length > 0 && (
         <div className="mt-3 space-y-4">
           {liability.data.currencies.length > 1 && <p role="status" className="rounded-xl bg-amber-50 p-2 text-xs text-amber-900">{t.mixed}</p>}
           <table className="w-full text-sm">
-            <thead><tr className="text-start text-xs text-slate-500"><th className="py-1 text-start">{t.month}</th><th className="text-end">{t.accrued}</th><th className="text-end">{t.cumulative}</th><th className="text-end">{t.employees}</th></tr></thead>
+            <thead><tr className="text-start text-xs text-muted-foreground"><th className="py-1 text-start">{t.month}</th><th className="text-end">{t.accrued}</th><th className="text-end">{t.cumulative}</th><th className="text-end">{t.employees}</th></tr></thead>
             <tbody>{liability.data.months.map(row => <tr key={row.month} className="border-t"><td className="py-1" dir="ltr">{row.month}</td><td className="text-end">{money(row.accrued)}</td><td className="text-end font-semibold">{money(row.cumulative)}</td><td className="text-end">{row.employees}</td></tr>)}</tbody>
             <tfoot><tr className="border-t font-semibold"><td className="py-1">{t.total}</td><td /><td className="text-end">{money(liability.data.total)}</td><td /></tr></tfoot>
           </table>
           <div>
-            <h3 className="text-xs font-semibold text-slate-600">{t.byEmployee}</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground">{t.byEmployee}</h3>
             <ul className="mt-1 divide-y text-sm">{liability.data.employees.map(row => <li key={row.employeeId} className="flex justify-between py-1"><span>{row.employeeNumber} · {row.fullName}</span><span>{money(row.cumulative)}</span></li>)}</ul>
           </div>
         </div>

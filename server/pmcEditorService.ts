@@ -20,13 +20,14 @@ export async function getPmcStructure(input: Scope) {
   const [zones, blocks, definitions, units] = await Promise.all([
     db.select({ id: pmcZones.id, code: pmcZones.code, name: pmcZones.name }).from(pmcZones).where(mine(pmcZones, input)).orderBy(asc(pmcZones.code)),
     db.select({ id: pmcBlocks.id, code: pmcBlocks.code, name: pmcBlocks.name, zoneId: pmcBlocks.zoneId }).from(pmcBlocks).where(mine(pmcBlocks, input)).orderBy(asc(pmcBlocks.code)),
-    db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, weightPercent: pmcActivityDefinitions.weightPercent, section: pmcActivityGroups.name, sub: pmcActivityStages.name }).from(pmcActivityDefinitions).innerJoin(pmcActivityGroups, eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId)).innerJoin(pmcActivityStages, eq(pmcActivityStages.id, pmcActivityDefinitions.stageId)).where(mine(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.modelCode), asc(pmcActivityDefinitions.code)),
+    db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, weightPercent: pmcActivityDefinitions.weightPercent, section: pmcActivityGroups.name, sub: pmcActivityStages.name, nameEn: pmcActivityDefinitions.nameEn, sectionEn: pmcActivityGroups.nameEn, subEn: pmcActivityStages.nameEn }).from(pmcActivityDefinitions).innerJoin(pmcActivityGroups, eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId)).innerJoin(pmcActivityStages, eq(pmcActivityStages.id, pmcActivityDefinitions.stageId)).where(mine(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.modelCode), asc(pmcActivityDefinitions.code)),
     db.select({ unitNumber: pmcUnits.unitNumber }).from(pmcUnits).where(mine(pmcUnits, input)),
   ]);
   const zoneCode = new Map(zones.map(zone => [zone.id, zone.code]));
   // Q-3: each activity carries its CSI section and sub-item (the group and stage), so the weights table reads as the owner keeps it
-  const models = new Map<string, Array<{ id: string; code: string; name: string; weightPercent: number; section: string; sub: string }>>();
-  for (const definition of definitions) models.set(definition.modelCode, [...(models.get(definition.modelCode) ?? []), { id: definition.id, code: definition.code, name: definition.name, weightPercent: Number(definition.weightPercent), section: definition.section, sub: definition.sub }]);
+  // Q-49: and the optional English names (null when there is none)
+  const models = new Map<string, Array<{ id: string; code: string; name: string; weightPercent: number; section: string; sub: string; nameEn: string | null; sectionEn: string | null; subEn: string | null }>>();
+  for (const definition of definitions) models.set(definition.modelCode, [...(models.get(definition.modelCode) ?? []), { id: definition.id, code: definition.code, name: definition.name, weightPercent: Number(definition.weightPercent), section: definition.section, sub: definition.sub, nameEn: definition.nameEn, sectionEn: definition.sectionEn, subEn: definition.subEn }]);
   return {
     blocks: blocks.map(block => ({ id: block.id, code: block.code, name: block.name, zoneCode: zoneCode.get(block.zoneId) ?? "" })),
     models: Array.from(models, ([modelCode, activities]) => ({ modelCode, activities, totalWeight: Math.round(activities.reduce((sum, item) => sum + item.weightPercent, 0) * 10000) / 10000 })),
@@ -76,6 +77,24 @@ export async function savePmcActivityWeights(input: Scope & { modelCode: string;
     await syncPmcProgressToEvm(tx, input, now);
   });
   return { modelCode: input.modelCode, saved: definitions.length };
+}
+
+/**
+ * Q-49: an activity's English name, set or cleared (null) from the catalogue screen. The activity is its code: every model's definition of that code takes
+ * the name (one activity, one English name). Display only — codes, weights and relations are not touched. Same guard as the weights (project.pmc.manage),
+ * one transaction with its audit row (before and after); a code the project does not have is NOT_FOUND, never a silent «0 rows».
+ */
+export async function savePmcActivityEnglishName(input: Scope & { activityCode: string; nameEn: string | null }) {
+  const db = await authorize(input, "project.pmc.manage");
+  const nameEn = input.nameEn?.trim() ? input.nameEn.trim() : null;
+  return db.transaction(async tx => {
+    const definitions = await tx.select({ id: pmcActivityDefinitions.id, nameEn: pmcActivityDefinitions.nameEn }).from(pmcActivityDefinitions).where(and(mine(pmcActivityDefinitions, input), eq(pmcActivityDefinitions.code, input.activityCode)));
+    if (!definitions.length) throw refuse("NOT_FOUND", "PROJECT_OS_PMC_ACTIVITY_NOT_FOUND");
+    const changed = await tx.update(pmcActivityDefinitions).set({ nameEn, updatedAt: new Date() }).where(and(mine(pmcActivityDefinitions, input), eq(pmcActivityDefinitions.code, input.activityCode))).returning({ id: pmcActivityDefinitions.id });
+    if (changed.length !== definitions.length) throw refuse("CONFLICT", "PROJECT_OS_PMC_ACTIVITY_CHANGED");
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.activity_english_name_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ activityCode: input.activityCode, before: Array.from(new Set(definitions.map(definition => definition.nameEn ?? null))), after: nameEn, definitions: changed.length }) });
+    return { activityCode: input.activityCode, nameEn, saved: changed.length };
+  });
 }
 
 /** Units of one block (or a unit range) by the activities of their model, with each cell's status; at most MAX_GRID_UNITS units. */
