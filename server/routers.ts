@@ -59,6 +59,15 @@ import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, get
 import { getPmcProjectSummaryForTenant } from "./db";
 import { getPmcImportStatus } from "./pmcImportStatus";
 import { analyzeSmartUpload, confirmSmartImport, createSmartUpload, getImportSourceLink, listImportProfiles } from "./smartImport";
+import { closeProjectRisk, convertRiskToIssue, listProjectRisks, projectRiskHistory, updateProjectRisk } from "./projectRisks";
+// Q-27 (P-115): what a risk update may change. Text fields take null to clear; scores are 1–5; the review date is a calendar day; "closed" goes through closeRisk.
+const riskText = (max: number) => z.string().trim().max(max).transform(value => value || null).nullable();
+const riskScale = z.number().int().min(1).max(5);
+const riskPatchSchema = z.object({
+  title: z.string().trim().min(2).max(255), cause: riskText(4000), impact: riskText(4000), probability: riskScale, severity: riskScale,
+  residualProbability: riskScale.nullable(), residualSeverity: riskScale.nullable(), response: riskText(4000), mitigation: riskText(4000), trigger: riskText(2000),
+  ownerMembershipId: z.string().uuid().nullable(), nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), status: z.enum(["open", "mitigating", "accepted"]),
+}).partial().strict();
 import { createImportUpload, getImportProgress, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
@@ -595,6 +604,12 @@ export const appRouter = router({
     createAction: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), title: z.string().trim().min(2).max(255), priority: z.enum(["low", "medium", "high", "critical"]), dueAt: z.date().optional(), ownerMembershipId: z.string().uuid().optional() })).mutation(({ ctx, input }) => createAction({ userId: ctx.user.id, ...input })),
     transitionIssueEscalation: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), issueId: z.string().uuid(), nextStatus: z.enum(["pending", "escalated"]) })).mutation(({ ctx, input }) => transitionIssueEscalation({ userId: ctx.user.id, ...input })),
     transitionActionEscalation: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), actionId: z.string().uuid(), nextStatus: z.enum(["pending", "escalated"]) })).mutation(({ ctx, input }) => transitionActionEscalation({ userId: ctx.user.id, ...input })),
+    // Q-27 (P-115): the project risk register — read with pmo.read, written with pmo.write, on the project (server/projectRisks.ts)
+    projectRisks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectRisks({ userId: ctx.user.id, ...input })),
+    updateRisk: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), patch: riskPatchSchema })).mutation(({ ctx, input }) => updateProjectRisk({ userId: ctx.user.id, ...input })),
+    closeRisk: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), reason: z.string().trim().min(3).max(2000) })).mutation(({ ctx, input }) => closeProjectRisk({ userId: ctx.user.id, ...input })),
+    convertRiskToIssue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), issueCode: z.string().trim().min(1).max(80), priority: z.enum(["low", "medium", "high", "critical"]), dueAt: z.date().optional() })).mutation(({ ctx, input }) => convertRiskToIssue({ userId: ctx.user.id, ...input })),
+    riskHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid() })).query(({ ctx, input }) => projectRiskHistory({ userId: ctx.user.id, ...input })),
   }),
   // Q-25 (P-113): project meetings — the minutes, item by item, and the actions they raise (server/meetings.ts)
   meetings: router({

@@ -1688,6 +1688,32 @@ export const projectErrorMessages = {
     en: "This risk code is already used in this project. Choose another code.",
     ur: "خطرے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
   },
+  // Q-27 (P-115): the project risk register
+  PROJECT_OS_RISK_NOT_FOUND: {
+    ar: "الخطر غير موجود في هذا المشروع.",
+    en: "This risk does not exist in this project.",
+    ur: "یہ خطرہ اس پروجیکٹ میں موجود نہیں ہے۔",
+  },
+  PROJECT_OS_RISK_CLOSED: {
+    ar: "هذا الخطر مغلق ولا يُعدَّل. سجّل خطرًا جديدًا إن عاد.",
+    en: "This risk is closed and cannot be changed. Register a new risk if it returns.",
+    ur: "یہ خطرہ بند ہے اور اس میں تبدیلی نہیں ہو سکتی۔ اگر یہ دوبارہ سامنے آئے تو نیا خطرہ درج کریں۔",
+  },
+  PROJECT_OS_RISK_OWNER_INVALID: {
+    ar: "مالك الخطر يجب أن يكون عضوًا فعّالًا في الشركة نفسها.",
+    en: "The risk owner must be an active member of this company.",
+    ur: "خطرے کا مالک اسی کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
+  PROJECT_OS_RISK_ALREADY_CONVERTED: {
+    ar: "هذا الخطر تحوّل إلى قضية من قبل.",
+    en: "This risk has already been turned into an issue.",
+    ur: "یہ خطرہ پہلے ہی ایک مسئلے میں تبدیل ہو چکا ہے۔",
+  },
+  PROJECT_OS_ISSUE_CODE_EXISTS: {
+    ar: "رمز القضية مستعمل في هذا المشروع. اختر رمزًا آخر.",
+    en: "This issue code is already used in this project. Choose another code.",
+    ur: "مسئلے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
+  },
   PROJECT_OS_BOQ_CODE_EXISTS: {
     ar: "رمز بند جدول الكميات مستعمل في هذا المشروع.",
     en: "This BOQ item code is already used in this project.",
