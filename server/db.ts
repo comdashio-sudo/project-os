@@ -2644,6 +2644,26 @@ async function assertPerformanceAccess(input: { userId: number; tenantId: string
   return { employee: ownEmployee, isOwn };
 }
 
+/**
+ * Q-52: whether the signed-in account may read its own indicators here — linked to an active employee record of this company (the same rule as
+ * assertPerformanceAccess) and holding project.performance.read_own on the project — without refusing. The page asks this first and calls
+ * performance.get only when both hold, so the ordinary state «no linked employee record» is said in words, not answered with a refused request.
+ * Tenant access and the project's company are checked as for every read; nothing about the employee is returned. performance.get itself is
+ * unchanged and still refuses a direct call (FORBIDDEN, PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED).
+ */
+export async function getOwnPerformanceAvailabilityForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  // A company whose PROJECT licence is off is refused here like every other tenant read (gate6.matrix), before anything is read.
+  if (!snapshot.entitledProducts.includes("PROJECT")) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const [own] = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.tenantId, input.tenantId), eq(employees.linkedUserId, input.userId), eq(employees.employmentStatus, "active"))).limit(1);
+  let canRead = true;
+  try { assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.performance.read_own", scope: { type: "project", id: input.projectId } }); } catch { canRead = false; }
+  return { linked: Boolean(own), canRead };
+}
+
 function performanceRecord(input: PerformanceSourceRecord) { return input; }
 
 // Owner decision (2026-10-23): each person sees only their own indicators, whatever their role. The server enforces it: any other employee id

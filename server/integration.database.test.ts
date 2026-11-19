@@ -1800,8 +1800,14 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const [rows] = await connection.query<{ amount: string; posted: number; progress: number; audits: number }[]>("SELECT (SELECT amount FROM cost_entries WHERE id = ?) AS amount, (SELECT COUNT(*) FROM cost_entries WHERE id = ? AND status = 'posted' AND entryType = 'actual') AS posted, (SELECT COUNT(*) FROM progress_entries WHERE id = ? AND status = 'submitted') AS progress, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ? AND entityId IN (?, ?, ?)) AS audits", [approved.costEntryId, approved.costEntryId, approved.progressEntryId, tenantA, assignment.id, attendance.id, time.id]);
     expect(rows[0]).toMatchObject({ amount: "1200.00", posted: 1, progress: 1, audits: 7 });
     await expect(caller.performance.get({ tenantId: tenantB, projectId: projectB, employeeId: employee.id })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    // Q-52: availability says, without refusing, whether this account may read its own indicators here. It still refuses another company
+    // and a project outside the company, and it reads nothing but the caller's own link.
+    await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectA })).resolves.toEqual({ linked: true, canRead: true });
+    await expect(caller.performance.availability({ tenantId: tenantB, projectId: projectB })).rejects.toThrow("PROJECT_OS_TENANT_ACCESS_DENIED");
+    await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectB })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
     await connection.query("UPDATE tenant_entitlements SET active = false WHERE tenantId = ? AND productCode = 'PROJECT'", [tenantA]);
     try {
+      await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
       await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
       await expect(caller.performance.objections.create({ tenantId: tenantA, projectId: projectA, statement: "The operating evidence should be reviewed before any interpretation." })).rejects.toThrow("PROJECT_OS_PRODUCT_NOT_ENTITLED");
     } finally {
@@ -1821,6 +1827,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     const unlinked = appRouter.createCaller(unlinkedContext);
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('int-membership-perf-unlinked', ?, ?, 'active')", [tenantA, unassignedUserId]);
     try {
+      await expect(unlinked.performance.availability({ tenantId: tenantA, projectId: projectA })).resolves.toMatchObject({ linked: false });
       await expect(unlinked.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED");
       await expect(unlinked.performance.get({ tenantId: tenantA, projectId: projectA, employeeId: employee.id })).rejects.toThrow("PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED");
     } finally {
@@ -1828,6 +1835,7 @@ describe.skipIf(!isIntegrationUrl(process.env.TEST_DATABASE_URL))("integration d
     }
     await connection.query("UPDATE employees SET employmentStatus = 'suspended' WHERE id = ?", [employee.id]);
     try {
+      await expect(caller.performance.availability({ tenantId: tenantA, projectId: projectA })).resolves.toEqual({ linked: false, canRead: true });
       await expect(caller.performance.get({ tenantId: tenantA, projectId: projectA })).rejects.toThrow("PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED");
     } finally {
       await connection.query("UPDATE employees SET employmentStatus = 'active' WHERE id = ?", [employee.id]);
