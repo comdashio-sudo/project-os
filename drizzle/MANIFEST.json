@@ -37,8 +37,10 @@
     "0034_weekly_reports.sql": "2bb34759997a87172e4af72d2da947950427911317b162e5473d65d6d77bdc01",
     "0035_stocktakes.sql": "260bf76874b69f1d22cfe987cf73cd501675eb38f11ebcf61080b208d5fa67e5",
     "0036_qc_receipt_batch_id.sql": "098616f44e12c038577f2b83cef7b43905e9ff1dec8b3a773dae3c66ae117935",
-    "0037_strategy_assumptions.sql": "331c9dee7c02028045e60936215297be385906b88f3387a8f3f2ff821700f1ed",
-    "0038_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff",
-    "0039_strategy_competitors_swot.sql": "617b64f3913edce956b79145f1c80fcc9aca37fbe4d6c7273ba6909dbb83583e"
+    "0037_schedule_snapshots.sql": "d26a397b86ba18920fe3299c6f1e49151b6acf0506cf5ec930112d00dee70153",
+    "0038_p6_same_project_guards.sql": "cf92a6fab0398b6391422f88505cca09b97d268c757f5552712d6a5f6f1dda6c",
+    "0039_strategy_assumptions.sql": "1a1b27514a5b228d5dc18c68e338b30df25ab673982a0f4d4a6f56092a25f694",
+    "0040_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff",
+    "0041_strategy_competitors_swot.sql": "4f0be0b7312f0afa6ca2b4cdb6b4a63716a312b4c42e0e456f4ce8add015596e"
   }
 }

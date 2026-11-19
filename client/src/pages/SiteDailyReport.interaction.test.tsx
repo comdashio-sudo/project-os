@@ -192,7 +192,9 @@ describe("SiteDailyReport — the frame of sections 0 to 10 (D-46, part 1)", () 
     fireEvent.change(trade, { target: { value: "Masons" } }); type("Count", "6");
     expect(document.querySelector('[data-report-section="1"] summary')?.textContent).toContain("Total: 6 workers");
     fireEvent.click(screen.getByText("Save draft"));
-    expect(Object.keys(h.save.mock.calls[0]![0]).sort()).toEqual(["equipment", "hse", "labour", "lines", "materials", "obstacleItems", "obstacles", "projectId", "reportDate", "summary", "temperatureC", "tenantId", "tomorrow", "weather", "wind", "workHours"]);
+    // Q-24: plus the request identifier the phone keeps it under if the connection drops (the server answers a resend of it with the first answer)
+    expect((h.save.mock.calls[0]![0] as { clientRequestId?: string }).clientRequestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(Object.keys(h.save.mock.calls[0]![0]).filter(key => key !== "clientRequestId").sort()).toEqual(["equipment", "hse", "labour", "lines", "materials", "obstacleItems", "obstacles", "projectId", "reportDate", "summary", "temperatureC", "tenantId", "tomorrow", "weather", "wind", "workHours"]);
     expect(h.save.mock.calls[0]![0].lines).toEqual([expect.objectContaining({ lineType: "labour", label: "Masons", quantity: 6 })]);
   });
 

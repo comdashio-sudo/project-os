@@ -58,5 +58,5 @@ CREATE INDEX IF NOT EXISTS "strategy_swot_items_tenant_kind_idx" ON "strategy_sw
 --> statement-breakpoint
 -- refuse to finish without the same-company keys the links stand on
 DO $$ BEGIN
-  IF (SELECT COUNT(*) FROM pg_constraint WHERE conname IN ('strategy_swot_items_competitor_fk', 'strategy_swot_items_assumption_fk') AND contype = 'f' AND array_length(conkey, 1) = 2) <> 2 THEN RAISE EXCEPTION '0039: the same-company link keys are missing'; END IF;
+  IF (SELECT COUNT(*) FROM pg_constraint WHERE conname IN ('strategy_swot_items_competitor_fk', 'strategy_swot_items_assumption_fk') AND contype = 'f' AND array_length(conkey, 1) = 2) <> 2 THEN RAISE EXCEPTION '0041: the same-company link keys are missing'; END IF;
 END $$;
