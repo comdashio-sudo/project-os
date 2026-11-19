@@ -1,6 +1,7 @@
 // Q-5: the QC engineer's receipts (phone and computer): the activity from the weights table, the villas (a list, a range or a whole block), «received» or «not
 // received» and the date; one save. Kept apart from the site's progress. The server refuses the whole entry before writing anything when one villa is wrong and
 // says which; a villa received while not complete on site is saved and named. Counters per activity, and the latest history.
+import { ActivityNameToggle, hasEnglishNames, useActivityLabel, useActivityNameLanguage } from "@/lib/activityNames";
 import React, { useCallback, useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, Select, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
@@ -38,6 +39,9 @@ export default function PmcQcReceipt() {
   const scope = { tenantId, projectId };
   const enabled = Boolean(tenantId && projectId);
   const activities = trpc.pmc.progressActivities.useQuery(scope, { enabled });
+  const [nameLanguage, setNameLanguage] = useActivityNameLanguage();
+  const withEnglish = hasEnglishNames(activities.data);
+  const activityLabel = useActivityLabel(nameLanguage, withEnglish);
   const history = trpc.pmc.qcHistory.useQuery({ ...scope, limit: 10 }, { enabled });
   const counters = trpc.pmc.qcCounters.useQuery(scope, { enabled });
   const [search, setSearch] = useState("");
@@ -53,9 +57,10 @@ export default function PmcQcReceipt() {
   const weightOf = (item: { minWeight: number; maxWeight: number }) => item.minWeight === item.maxWeight ? formatPercent(item.minWeight, 2) : `${formatPercent(item.minWeight, 2)}–${formatPercent(item.maxWeight, 2)}`;
   const options = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return (activities.data ?? []).filter(item => !needle || `${item.code} ${item.name} ${item.section}`.toLowerCase().includes(needle))
-      .map(item => ({ value: item.code, label: item.name, description: `${item.section} · ${c.weight} ${weightOf(item)}` }));
-  }, [activities.data, search, c.weight]);
+    // Q-49: the search finds an activity by either of its names; the list shows the language chosen in the names switch
+    return (activities.data ?? []).filter(item => !needle || `${item.code} ${item.name} ${item.nameEn ?? ""} ${item.section} ${item.sectionEn ?? ""}`.toLowerCase().includes(needle))
+      .map(item => ({ value: item.code, label: activityLabel(item), description: `${activityLabel({ name: item.section, nameEn: item.sectionEn }, false)} · ${c.weight} ${weightOf(item)}` }));
+  }, [activities.data, search, c.weight, activityLabel]);
 
   const [lastSave, setLastSave] = useState<{ batchId: string; at: number; undone: boolean } | null>(null);
   // Q-24 (P-120): kept on this phone when the server cannot be reached, sent when the connection returns; a receipt kept before a newer one is refused, villa named
@@ -92,6 +97,7 @@ export default function PmcQcReceipt() {
             <SourceNotice query={activities} isArabic={language === "ar"} title={t.update.activity} />
             {activities.isLoading ? <SkeletonRows rows={3} /> : (
               <>
+                {withEnglish && <ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} />}
                 <Field label={t.update.activitySearch} optional>{props => <TextInput {...props} value={search} onChange={event => setSearch(event.target.value)} />}</Field>
                 <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} options={options} value={activityCode} onValueChange={setActivityCode} placeholder={t.update.activity} disabled={!options.length} />}</Field>
               </>
@@ -122,7 +128,7 @@ export default function PmcQcReceipt() {
         <CardBody>
           <SourceNotice query={counters} isArabic={language === "ar"} title={c.counters} />
           <ul className="flex flex-col gap-2 text-sm" data-qc-counters>{(counters.data ?? []).map(row => (
-            <li key={row.code} className="flex flex-wrap justify-between gap-2"><span>{row.name}</span><span><span className="text-success">{c.answers.received}: <bdi dir="ltr">{row.received}</bdi></span> · <span className="text-muted-foreground">{c.answers.notReceived}: <bdi dir="ltr">{row.notReceived}</bdi></span></span></li>
+            <li key={row.code} className="flex flex-wrap justify-between gap-2"><span>{activityLabel(row)}</span><span><span className="text-success">{c.answers.received}: <bdi dir="ltr">{row.received}</bdi></span> · <span className="text-muted-foreground">{c.answers.notReceived}: <bdi dir="ltr">{row.notReceived}</bdi></span></span></li>
           ))}</ul>
         </CardBody>
       </Card>

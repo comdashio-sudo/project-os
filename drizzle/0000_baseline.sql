@@ -1400,6 +1400,7 @@ CREATE TABLE "pmc_activity_definitions" (
 	"model_code" varchar(80) NOT NULL,
 	"code" varchar(80) NOT NULL,
 	"name" varchar(255) NOT NULL,
+	"name_en" varchar(255),
 	"weight_percent" numeric(7, 4) NOT NULL,
 	"wir_code" varchar(40),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -1412,6 +1413,7 @@ CREATE TABLE "pmc_activity_groups" (
 	"project_id" varchar(36) NOT NULL,
 	"code" varchar(80) NOT NULL,
 	"name" varchar(255) NOT NULL,
+	"name_en" varchar(255),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -1422,6 +1424,7 @@ CREATE TABLE "pmc_activity_stages" (
 	"group_id" varchar(36) NOT NULL,
 	"code" varchar(80) NOT NULL,
 	"name" varchar(255) NOT NULL,
+	"name_en" varchar(255),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

@@ -23,6 +23,7 @@ vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string;
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
 vi.mock("@/lib/permissions", () => ({ useCan: () => h.canWrite, useCanPage: () => true }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
+  auth: { me: { useQuery: () => ({ data: { id: 1 }, error: null }) } },
   projects: { profile: { get: { useQuery: () => ({ data: h.profile, error: h.profileError }) } } },
   useUtils: () => ({ reportPeriods: { weekly: { invalidate: vi.fn() } } }),
   reportPeriods: {
@@ -128,5 +129,21 @@ describe("the proposed texts (D-49 b)", () => {
     expect(screen.getByRole("note").textContent).toContain("without logos");
     const buttons = Array.from(document.querySelector("[data-weekly-exports]")!.querySelectorAll("button")).filter(button => /PowerPoint|PDF/.test(button.textContent ?? ""));
     expect(buttons.every(button => !(button as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it("Q-49: the activity names switch shows only when an activity has an English name; the figures stay the same, a missing English name is marked", () => {
+    const { unmount } = render(<WeeklyReport />);
+    expect(document.querySelector("[data-activity-name-toggle]")).toBeNull();
+    unmount();
+    const activities = figures.activities as unknown as Array<{ name: string; nameEn?: string | null }>;
+    activities[0].name = "بلوك"; activities[0].nameEn = "Blockwork";
+    try {
+      render(<WeeklyReport />);
+      const card = document.querySelector("[data-week-figures]")!;
+      expect(document.querySelector("[data-activity-name-toggle]")).not.toBeNull();
+      expect(card.textContent).toContain("BLK · Blockwork");
+      expect(card.textContent).toContain("PLS · Plaster · in Arabic");
+      expect(card.textContent).toContain("80.0%");
+    } finally { activities[0].name = "Blockwork"; activities[0].nameEn = undefined; }
   });
 });

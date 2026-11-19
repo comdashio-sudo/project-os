@@ -33,22 +33,62 @@ export type EquipmentPlan = {
   unchanged: number;
 };
 
-/** Reads the first sheet whose header row names a type column; the other columns are optional. */
-export async function readEquipmentRows(bytes: Uint8Array, format: "xlsx" | "csv") {
+/** Which column of the file each field was read from (Q-31, P0-02), shown with the report so a person can choose another and analyse again. */
+export type EquipmentColumns = { headers: string[]; fields: Array<{ key: Field; required: boolean; header: string | null }>; overridden: boolean };
+export type EquipmentFile = { rows: Array<{ rowNumber: number; values: Record<Field, string> }>; columns?: EquipmentColumns; errors: Error_[] };
+const FIELDS = Object.keys(ALIASES) as Field[];
+const IGNORE_OTHER_COLUMNS = "__others__";
+
+/**
+ * Reads the first sheet whose header row (in its first 10 rows) names a type column; the other columns are optional and other columns are ignored.
+ * `override` (field → the header as the file writes it; "" = no column) is a person's choice: the header row is then the first one that holds every chosen
+ * header. A field the list does not have, a header no row holds, or one header for two fields is refused whole (IMPORT_MAPPING_INVALID). A file with no type
+ * column is reported with its first row's columns and «type: missing», so the person can choose it — it is no longer a dead end.
+ */
+export async function readEquipmentRows(bytes: Uint8Array, format: "xlsx" | "csv", override?: Record<string, string>): Promise<EquipmentFile> {
   const grid = await readGrid(bytes, format);
   if (!grid.ok) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
-  for (const sheet of grid.sheets) for (let r = 0; r < Math.min(10, sheet.rows.length); r++) {
-    const columns = new Map<Field, number>();
-    sheet.rows[r].forEach((cell, c) => { const label = normName(text(cell)); for (const field of Object.keys(ALIASES) as Field[]) if (!columns.has(field) && ALIASES[field].includes(label)) columns.set(field, c); });
-    if (!columns.has("equipmentType")) continue;
-    const rows = sheet.rows.slice(r + 1).map((row, i) => ({ rowNumber: r + i + 2, values: Object.fromEntries((Object.keys(ALIASES) as Field[]).map(field => [field, columns.has(field) ? text(row[columns.get(field)!]) : ""])) as Record<Field, string> }))
-      .filter(row => Object.values(row.values).some(Boolean));
-    return rows;
+  const choice = override && Object.keys(override).length ? Object.entries(override).filter(([field]) => field !== IGNORE_OTHER_COLUMNS) : undefined;
+  const invalid = (name: string): EquipmentFile => ({ rows: [], errors: [{ rowNumber: 0, code: "IMPORT_MAPPING_INVALID", field: name }] });
+  if (choice) {
+    if (IGNORE_OTHER_COLUMNS in override! && override![IGNORE_OTHER_COLUMNS] !== "ignore") return invalid(IGNORE_OTHER_COLUMNS);
+    const used = new Set<string>();
+    for (const [field, header] of choice) {
+      if (!FIELDS.includes(field as Field)) return invalid(field);
+      if (header === "") continue;
+      if (used.has(header)) return invalid(header);
+      used.add(header);
+    }
   }
-  throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EQUIPMENT_IMPORT_NOT_RECOGNISED" });
+  const wanted = choice ? choice.map(([, header]) => header).filter(Boolean) : [];
+  let fallback: { sheet: (typeof grid.sheets)[number]; r: number } | null = null;
+  for (const sheet of grid.sheets) for (let r = 0; r < Math.min(10, sheet.rows.length); r++) {
+    const headers = sheet.rows[r].map(cell => text(cell));
+    if (!fallback && headers.some(Boolean)) fallback = { sheet, r };
+    if (choice && !wanted.every(header => headers.includes(header))) continue;
+    const columns = new Map<Field, number>();
+    headers.forEach((label, c) => { for (const field of FIELDS) if (!columns.has(field) && ALIASES[field].includes(normName(label))) columns.set(field, c); });
+    if (choice) {
+      const chosen = new Set(wanted.map(header => headers.indexOf(header)));
+      for (const [field, column] of Array.from(columns)) if (chosen.has(column)) columns.delete(field);
+      for (const [field, header] of choice) { columns.delete(field as Field); if (header !== "") columns.set(field as Field, headers.indexOf(header)); }
+    } else if (!columns.has("equipmentType")) continue;
+    return read(sheet.rows, r, headers, columns, Boolean(choice));
+  }
+  if (choice) return invalid(wanted.find(header => !grid.sheets.some(sheet => sheet.rows.slice(0, 10).some(row => row.map(cell => text(cell)).includes(header)))) ?? wanted[0] ?? "");
+  if (!fallback) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EQUIPMENT_IMPORT_NOT_RECOGNISED" });
+  return read(fallback.sheet.rows, fallback.r, fallback.sheet.rows[fallback.r].map(cell => text(cell)), new Map(), false);
 }
 
-export async function planEquipmentImport(db: Db, input: Scope, rows: Awaited<ReturnType<typeof readEquipmentRows>>): Promise<EquipmentPlan> {
+function read(sheetRows: Cell[][], r: number, headers: string[], columns: Map<Field, number>, overridden: boolean): EquipmentFile {
+  const report: EquipmentColumns = { headers: headers.filter(Boolean), fields: FIELDS.map(field => ({ key: field, required: field === "equipmentType", header: columns.has(field) ? headers[columns.get(field)!] : null })), overridden };
+  if (!columns.has("equipmentType")) return { rows: [], columns: report, errors: [{ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: "equipmentType" }] };
+  const rows = sheetRows.slice(r + 1).map((row, i) => ({ rowNumber: r + i + 2, values: Object.fromEntries(FIELDS.map(field => [field, columns.has(field) ? text(row[columns.get(field)!]) : ""])) as Record<Field, string> }))
+    .filter(row => Object.values(row.values).some(Boolean));
+  return { rows, columns: report, errors: [] };
+}
+
+export async function planEquipmentImport(db: Db, input: Scope, rows: EquipmentFile["rows"]): Promise<EquipmentPlan> {
   const existing = await db.select({ id: projectEquipment.id, equipmentType: projectEquipment.equipmentType, model: projectEquipment.model, plateOrSize: projectEquipment.plateOrSize, active: projectEquipment.active })
     .from(projectEquipment).where(and(eq(projectEquipment.tenantId, input.tenantId), eq(projectEquipment.projectId, input.projectId)));
   const byPlate = new Map(existing.flatMap(item => (item.plateOrSize ? [[item.plateOrSize.toLowerCase(), item] as const] : [])));
@@ -85,7 +125,7 @@ export async function planEquipmentImport(db: Db, input: Scope, rows: Awaited<Re
 }
 
 /** The write, planned again against the project as it is now, in one transaction with its audit row. */
-export async function applyEquipmentImport(db: Db, input: Scope & { importId: string }, rows: Awaited<ReturnType<typeof readEquipmentRows>>) {
+export async function applyEquipmentImport(db: Db, input: Scope & { importId: string }, rows: EquipmentFile["rows"]) {
   return db.transaction(async tx => {
     const plan = await planEquipmentImport(tx as unknown as Db, input, rows);
     if (plan.errors.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED" });

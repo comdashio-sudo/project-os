@@ -151,9 +151,9 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
 
   if (input.kind === "catalog") {
     const [groups, stages, definitions, wbs] = await Promise.all([
-      db.select({ id: pmcActivityGroups.id, code: pmcActivityGroups.code }).from(pmcActivityGroups).where(mine(pmcActivityGroups, scope)),
-      db.select({ id: pmcActivityStages.id, code: pmcActivityStages.code, groupId: pmcActivityStages.groupId }).from(pmcActivityStages).where(mine(pmcActivityStages, scope)),
-      db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, weightPercent: pmcActivityDefinitions.weightPercent, groupId: pmcActivityDefinitions.groupId, stageId: pmcActivityDefinitions.stageId, wbsItemId: pmcActivityDefinitions.wbsItemId }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, scope)),
+      db.select({ id: pmcActivityGroups.id, code: pmcActivityGroups.code, nameEn: pmcActivityGroups.nameEn }).from(pmcActivityGroups).where(mine(pmcActivityGroups, scope)),
+      db.select({ id: pmcActivityStages.id, code: pmcActivityStages.code, groupId: pmcActivityStages.groupId, nameEn: pmcActivityStages.nameEn }).from(pmcActivityStages).where(mine(pmcActivityStages, scope)),
+      db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent, groupId: pmcActivityDefinitions.groupId, stageId: pmcActivityDefinitions.stageId, wbsItemId: pmcActivityDefinitions.wbsItemId }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, scope)),
       db.select({ id: wbsItems.id, code: wbsItems.code }).from(wbsItems).where(mine(wbsItems, scope)),
     ]);
     const groupCodeById = new Map(groups.map(group => [group.id, group.code]));
@@ -161,24 +161,28 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
     const activityCodesByModel = new Map<string, Set<string>>();
     for (const definition of definitions) activityCodesByModel.set(definition.modelCode, (activityCodesByModel.get(definition.modelCode) ?? new Set()).add(definition.code));
     const plan = planCatalog(parsed.rows, {
-      groups: new Map(groups.map(group => [group.code, { id: group.id }])),
-      stages: new Map(stages.map(stage => [stage.code, { id: stage.id, groupCode: groupCodeById.get(stage.groupId) ?? "" }])),
-      definitions: new Map(definitions.map(definition => [pmcDefinitionKey(definition.modelCode, definition.code), { id: definition.id, weightPercent: Number(definition.weightPercent), groupCode: groupCodeById.get(definition.groupId) ?? "", stageCode: stageCodeById.get(definition.stageId) ?? "", name: definition.name, wbsItemId: definition.wbsItemId }])),
+      groups: new Map(groups.map(group => [group.code, { id: group.id, nameEn: group.nameEn }])),
+      stages: new Map(stages.map(stage => [stage.code, { id: stage.id, groupCode: groupCodeById.get(stage.groupId) ?? "", nameEn: stage.nameEn }])),
+      definitions: new Map(definitions.map(definition => [pmcDefinitionKey(definition.modelCode, definition.code), { id: definition.id, weightPercent: Number(definition.weightPercent), groupCode: groupCodeById.get(definition.groupId) ?? "", stageCode: stageCodeById.get(definition.stageId) ?? "", name: definition.name, wbsItemId: definition.wbsItemId, nameEn: definition.nameEn }])),
       activityCodesByModel,
       wbsItems: new Map(wbs.map(item => [item.code, item.id])),
       totalTolerance: input.totalTolerance,
     });
-    const details = { models: plan.models, groups: plan.newGroups.length, stages: plan.newStages.length };
+    // Q-49: names a mixed cell was split into (Arabic | English) are shown in the preview
+    const details = { models: plan.models, groups: plan.newGroups.length, stages: plan.newStages.length, ...(plan.splitNames.length ? { splitNames: plan.splitNames } : {}) };
     if (plan.errors.length) return { report: report("catalog", fileHash, total, plan.errors, plan.counts, details), apply: null };
     return {
       report: report("catalog", fileHash, total, [], plan.counts, details),
       apply: async tx => {
         const groupIds = new Map(groups.map(group => [group.code, group.id]));
         const stageIds = new Map(stages.map(stage => [stage.code, stage.id]));
-        for (const group of plan.newGroups) { const id = crypto.randomUUID(); groupIds.set(group.code, id); await tx.insert(pmcActivityGroups).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: group.code, name: group.name }); }
-        for (const stage of plan.newStages) { const id = crypto.randomUUID(); stageIds.set(stage.code, id); await tx.insert(pmcActivityStages).values({ id, tenantId: input.tenantId, projectId: input.projectId, groupId: groupIds.get(stage.groupCode)!, code: stage.code, name: stage.name }); }
-        for (const batch of chunks(plan.newDefinitions)) await tx.insert(pmcActivityDefinitions).values(batch.map(definition => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, groupId: groupIds.get(definition.groupCode)!, stageId: stageIds.get(definition.stageCode)!, wbsItemId: definition.wbsItemId, modelCode: definition.modelCode, code: definition.code, name: definition.name, weightPercent: String(definition.weightPercent) })));
-        for (const definition of plan.updatedDefinitions) await tx.update(pmcActivityDefinitions).set({ name: definition.name, weightPercent: String(definition.weightPercent), groupId: groupIds.get(definition.groupCode)!, stageId: stageIds.get(definition.stageCode)!, wbsItemId: definition.wbsItemId }).where(eq(pmcActivityDefinitions.id, definition.id));
+        for (const group of plan.newGroups) { const id = crypto.randomUUID(); groupIds.set(group.code, id); await tx.insert(pmcActivityGroups).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: group.code, name: group.name, nameEn: group.nameEn }); }
+        for (const stage of plan.newStages) { const id = crypto.randomUUID(); stageIds.set(stage.code, id); await tx.insert(pmcActivityStages).values({ id, tenantId: input.tenantId, projectId: input.projectId, groupId: groupIds.get(stage.groupCode)!, code: stage.code, name: stage.name, nameEn: stage.nameEn }); }
+        for (const batch of chunks(plan.newDefinitions)) await tx.insert(pmcActivityDefinitions).values(batch.map(definition => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, groupId: groupIds.get(definition.groupCode)!, stageId: stageIds.get(definition.stageCode)!, wbsItemId: definition.wbsItemId, modelCode: definition.modelCode, code: definition.code, name: definition.name, nameEn: definition.nameEn, weightPercent: String(definition.weightPercent) })));
+        // an English name the file did not give (null) keeps the stored one
+        for (const definition of plan.updatedDefinitions) await tx.update(pmcActivityDefinitions).set({ name: definition.name, weightPercent: String(definition.weightPercent), groupId: groupIds.get(definition.groupCode)!, stageId: stageIds.get(definition.stageCode)!, wbsItemId: definition.wbsItemId, ...(definition.nameEn !== null ? { nameEn: definition.nameEn } : {}) }).where(and(mine(pmcActivityDefinitions, input), eq(pmcActivityDefinitions.id, definition.id)));
+        for (const group of plan.updatedGroupNames) await tx.update(pmcActivityGroups).set({ nameEn: group.nameEn }).where(and(mine(pmcActivityGroups, input), eq(pmcActivityGroups.id, group.id)));
+        for (const stage of plan.updatedStageNames) await tx.update(pmcActivityStages).set({ nameEn: stage.nameEn }).where(and(mine(pmcActivityStages, input), eq(pmcActivityStages.id, stage.id)));
       },
     };
   }

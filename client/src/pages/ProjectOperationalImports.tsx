@@ -81,7 +81,7 @@ export function ProjectOperationalImports({ tenantId, projectId }: { tenantId: s
         <Button type="button" variant="outline" className="min-h-[44px]" disabled={template.isPending} onClick={() => template.mutate({ moduleCode, locale })}><Download className="me-1 h-4 w-4" />{t.template}</Button>
         <Button type="button" variant="outline" className="min-h-[44px]" disabled={exporter.isPending} onClick={() => exporter.mutate({ tenantId, projectId, moduleCode, format: "xlsx", locale })}><Download className="me-1 h-4 w-4" />{t.export}</Button>
       </div>
-      {error && <p role="alert" className="mt-3 text-sm text-red-700">{getLocalizedProjectError(error, isArabic)}</p>}
+      {error && <p role="alert" className="mt-3 text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
       <div className="mt-5 border-t border-border pt-4">
         <WriteGate permission={ledgerImportPermission[moduleCode]} projectId={projectId} reason={{ ar: text.ar.denied, en: text.en.denied, ur: text.ur.denied }}>
           <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={moduleCode} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} withDiff fieldLabel={fieldLabel} errorLabel={code => ledgerErrorLabel(code, isArabic)} renderReport={renderReport} />

@@ -41,7 +41,7 @@ export function MasterPlanVersionTools({ tenantId, projectId, version, onSaved }
       <Label className="min-w-28 flex-1 text-xs">{t.width}<Input className="mt-1" aria-label={t.width} type="number" min="0" step="0.01" value={width} onChange={event => setWidth(event.target.value)} /></Label>
       <Label className="min-w-28 flex-1 text-xs">{t.height}<Input className="mt-1" aria-label={t.height} type="number" min="0" step="0.01" value={height} onChange={event => setHeight(event.target.value)} /></Label>
     </div>
-    {save.error ? <p role="alert" className="mt-2 text-xs text-red-700">{getLocalizedProjectError(save.error, language)}</p> : null}
+    {save.error ? <p role="alert" className="mt-2 text-xs text-danger-soft-foreground">{getLocalizedProjectError(save.error, language)}</p> : null}
     <Button className="mt-3" disabled={save.isPending}>{t.save}</Button>
   </CheckedForm></WriteGate>;
 }
@@ -86,7 +86,7 @@ export function MasterPlanEntityTools({ tenantId, projectId, entity, entities, a
   const candidates = entities.filter(item => item.id !== entity.id && !wouldCreateCycle(parentOf, entity.id, item.id));
   const [parent, setParent] = useState(entity.parentEntityId ?? "");
   useEffect(() => setParent(entity.parentEntityId ?? ""), [entity.id, entity.parentEntityId]);
-  const tone = (severity: string) => severity === "critical" ? "bg-red-50 text-red-800" : severity === "warning" ? "bg-amber-50 text-amber-900" : "bg-muted text-foreground";
+  const tone = (severity: string) => severity === "critical" ? "bg-danger-soft text-danger-soft-foreground" : severity === "warning" ? "bg-warning-soft text-warning-soft-foreground" : "bg-muted text-foreground";
   return <div className="mt-3 space-y-3 rounded-xl border border-border bg-white p-3 text-xs">
     <section aria-label={t.alerts}><h4 className="font-semibold">{t.alerts}</h4>
       {alerts.length ? <ul className="mt-1 space-y-1">{alerts.map(alert => <li key={alert.code} className={`rounded-lg px-2 py-1 ${tone(alert.severity)}`}>{alertText(alert)}</li>)}</ul> : <p className="mt-1 text-muted-foreground">{t.none}</p>}
@@ -103,7 +103,7 @@ export function MasterPlanEntityTools({ tenantId, projectId, entity, entities, a
         {([["x", t.x], ["y", t.y], ["width", t.w], ["height", t.h]] as const).map(([key, label]) => <Label key={key}>{label}<Input className="mt-1" aria-label={label} type="number" step="0.1" required value={draft[key]} onChange={event => setDraft({ ...draft, [key]: event.target.value })} /></Label>)}
         <Button size="sm" className="self-end" disabled={update.isPending}>{t.saveGeometry}</Button>
       </CheckedForm>
-      {update.error ? <p role="alert" className="text-red-700">{getLocalizedProjectError(update.error, language)}</p> : null}
+      {update.error ? <p role="alert" className="text-danger-soft-foreground">{getLocalizedProjectError(update.error, language)}</p> : null}
     </WriteGate>
   </div>;
 }
