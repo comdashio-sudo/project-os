@@ -70,11 +70,13 @@
   --info-foreground: #ffffff;
   --info-soft: #e1ecfd;
   --info-soft-foreground: #174a9e;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0c1023;
-  --sidebar-accent: #eceff7;
-  --sidebar-accent-foreground: #2b2594;
-  --sidebar-border: #dee1ee;
+  --sidebar: #0c1023; /* Q-19 (2): the dark menu, the logo on dark */
+  --sidebar-foreground: #e6e8f2;
+  --sidebar-accent: #1c2350;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #151b3a;
+  --sidebar-surface: #151b3a;
+  --sidebar-mark: #2ed3c6; /* the turquoise: a touch on dark only (the active item's dot) */
   --hero: #0c1023;
   --hero-foreground: #f2f4fb;
   /* Q-19 (the identity the owner approved 13-11): progress states, darkest = furthest along; one meaning each, never reused for anything else.
