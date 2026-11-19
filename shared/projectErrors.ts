@@ -1127,6 +1127,7 @@ export const projectErrorMessages = {
     ar: "تغيّرت فلل من هذا الحفظ بعده، فلا تراجع؛ صحّح بحفظ جديد.",
     en: "Villas of this save changed after it, so it cannot be undone; correct it with a new save.",
     ur: "اس محفوظ کاری کے بعد اس کے ولاز بدل گئے، اس لیے واپسی نہیں؛ نئی محفوظ کاری سے درست کریں۔",
+  },
   PROJECT_OS_STOCKTAKE_QUICK_STOPPED: {
     ar: "الجرد السريع موقوف؛ سجّل الجرد من «الجرد بالاعتماد» في صفحة المستودع، فيعتمده شخص غير الذي فتحه.",
     en: "The quick count is stopped; record the count through «Approved stocktake» on the warehouse page, approved by someone other than the person who opened it.",
