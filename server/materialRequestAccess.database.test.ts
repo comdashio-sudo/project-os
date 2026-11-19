@@ -25,7 +25,7 @@ async function clear() {
   for (const slug of [SLUG, SLUG_B]) {
     const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [slug]);
     for (const { id } of companies) {
-      for (const table of ["audit_logs", "material_issues", "cost_entries", "warehouse_inventory_transactions", "procurement_requisitions", "material_masters", "project_warehouses", "wbs_items"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
+      for (const table of ["audit_logs", "material_returns", "material_issues", "cost_entries", "warehouse_inventory_transactions", "procurement_requisitions", "material_masters", "project_warehouses", "wbs_items"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
       await connection.query("DELETE FROM membership_roles WHERE membershipId IN (SELECT id FROM memberships WHERE tenantId = ?)", [id]);
       await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId = ?)", [id]);
       for (const table of ["role_template_removals", "roles", "memberships", "tenant_entitlements", "tenant_licenses", "subscriptions", "projects"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
@@ -102,6 +102,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-32 (P0-03): the materi
     expect((await owner.scopes.warehouse({ ...scope(), warehouseId })).totals.stockValue).toBe(2250);
     const site = (await callerFor("site").fieldEntry.context(scope())).materials.find(item => item.id === materialId)!;
     expect([site.lastUnitCost, site.onHand.map(shelf => [shelf.quantity, shelf.averageCost, shelf.priced])]).toEqual([null, [[90, null, true]]]);
+    // reviewer A (sibling paths): a return gives the cost back to the money readers only; the quick count is stopped (Q-41) and would mask its value too
+    const [issueRow] = await keeper.warehouses.returnableIssues(scope());
+    const keeperReturn = await keeper.warehouses.returnToWarehouse({ ...scope(), materialIssueId: issueRow.id, quantity: 2, reason: "Synthetic surplus back to the shelf", returnedAt: new Date("2026-11-03T00:00:00Z") });
+    expect([keeperReturn.quantity, keeperReturn.totalCost, keeperReturn.returnableAfter]).toEqual([2, null, 8]);
+    const ownerReturn = await owner.warehouses.returnToWarehouse({ ...scope(), materialIssueId: issueRow.id, quantity: 3, reason: "Synthetic surplus back to the shelf", returnedAt: new Date("2026-11-03T00:00:00Z") });
+    expect([ownerReturn.totalCost, ownerReturn.returnableAfter]).toEqual([75, 5]);
+    expect(await code(keeper.warehouses.stocktake({ ...scope(), warehouseId, note: "Synthetic count", countedAt: new Date("2026-11-04T00:00:00Z"), lines: [{ materialId, countedQuantity: 1 }] }))).toBe("PROJECT_OS_STOCKTAKE_QUICK_STOPPED");
   });
 
   it("SCOPE: the project manager of another project of the same company does not read this project's requests", async () => {
