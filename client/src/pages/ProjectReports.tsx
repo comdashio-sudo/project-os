@@ -44,7 +44,7 @@ export default function ProjectReports() {
           {can.monthly ? <ReportCard testId="monthly" icon={CalendarRange} title={name("monthlyReport")} href={`${base}/monthly-report`}>{t.monthly}</ReportCard> : null}
           {can.comparison ? <ReportCard testId="comparison" icon={GitCompare} title={name("siteConsultant")} href={`${base}/site-consultant`}>{t.comparison}</ReportCard> : null}
         </ul>
-      ) : <p role="note" className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">{t.nothing}</p>}
+      ) : <p role="note" className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground ring-1 ring-border">{t.nothing}</p>}
     </PageMain>
   );
 }
