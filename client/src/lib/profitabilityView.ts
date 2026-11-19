@@ -65,7 +65,7 @@ export function sparklinePoints(values: readonly number[], width: number, height
 
 /**
  * Where a cost entry's source document lives, so the drill-down can lead there (G-023). The record screens are
- * sections of the project controls page, which opens the section named in the link; payroll has its own page.
+ * sections of the project board page, which opens the section named in the link; payroll has its own page.
  */
 export function sourceRoute(sourceType: string | null | undefined, tenantId: string, projectId: string): { href: string; label: { ar: string; en: string; ur: string } } | null {
   const controls = `/projects/${tenantId}/${projectId}/controls`;

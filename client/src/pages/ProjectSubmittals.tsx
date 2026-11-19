@@ -15,7 +15,7 @@ import { useParams } from "wouter";
 // (A/B/C/D by default); what counts as an approval is the company's setting, and the server — not this screen — decides who may send, answer and close.
 const text = {
   ar: {
-    title: "سجل تسليمات الاستشاري", back: "العودة إلى الإدخال السريع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", empty: "لا تسليمات بعد.", emptyBody: "أنشئ أول تسليم من النموذج أعلاه ليظهر هنا.", noMatch: "لا تسليم يطابق المرشحات.",
+    title: "سجل تسليمات الاستشاري", back: "العودة إلى الإدخال الميداني", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", empty: "لا تسليمات بعد.", emptyBody: "أنشئ أول تسليم من النموذج أعلاه ليظهر هنا.", noMatch: "لا تسليم يطابق المرشحات.",
     total: "الإجمالي", waiting: "عند الاستشاري", overdue: "متأخرة", average: "متوسط الأيام عند الاستشاري", approvedShare: "نسبة المعتمد من المُجاب عنه", days: "يوم",
     filters: "المرشحات", search: "بحث بالرقم أو العنوان", status: "الحالة", type: "النوع", consultant: "الاستشاري", all: "الكل", onlyOverdue: "المتأخرة فقط", noConsultant: "بلا استشاري",
     draft: "مسودة", sent: "مُرسَل", replied: "مُجاب", closed: "مُغلق",
