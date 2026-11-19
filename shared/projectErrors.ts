@@ -1693,6 +1693,11 @@ export const projectErrorMessages = {
     en: "This certificate number is already used in this project.",
     ur: "سرٹیفکیٹ کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے۔",
   },
+  PROJECT_OS_REQUISITION_REQUIRED_AT_PAST: {
+    ar: "تاريخ الحاجة مضى. اختر اليوم أو تاريخًا قادمًا.",
+    en: "The date the material is needed has passed. Choose today or a later date.",
+    ur: "ضرورت کی تاریخ گزر چکی ہے۔ آج یا آنے والی تاریخ منتخب کریں۔",
+  },
   PROJECT_OS_CERTIFICATE_OPEN_EXISTS: {
     ar: "لهذا العقد من الباطن مستخلص لم يُعتمد بعد. اعتمده أو ألغه قبل إنشاء مستخلص جديد، حتى لا تُطالب الكمية نفسها مرتين.",
     en: "This subcontract already has a certificate that is not approved yet. Approve or cancel it before creating a new one, so the same quantity is not claimed twice.",
@@ -2797,6 +2802,66 @@ export const projectErrorMessages = {
     ar: "وحده من حفظ العرض يقرر مشاركته.",
     en: "Only the person who saved the view decides whether it is shared.",
     ur: "صرف وہی شخص فیصلہ کرتا ہے کہ محفوظ منظر کو شیئر کیا جائے جس نے اسے محفوظ کیا ہو۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_BOQ_NOT_FOUND: {
+    ar: "بند الكميات غير موجود في هذا المشروع.",
+    en: "The BOQ item was not found in this project.",
+    ur: "یہ BOQ آئٹم اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_DUPLICATE: {
+    ar: "هذه الوحدة وهذا النشاط مُثبَتان لهذا المقاول بما يتجاوز 100% مع إثبات سابق غير ملغى. راجع الإثباتات السابقة، أو صحّح بإثبات تصحيح.",
+    en: "This unit and activity would be confirmed for this subcontractor past 100% together with an earlier confirmation that is not cancelled. Check the earlier confirmations, or correct with a correction line.",
+    ur: "یہ یونٹ اور سرگرمی اس ٹھیکیدار کے لیے پہلے کی غیر منسوخ تصدیق کے ساتھ 100% سے زیادہ ہو جائیں گی۔ پہلے کی تصدیقات دیکھیں، یا تصحیح کی سطر سے درست کریں۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_LINES_REQUIRED: {
+    ar: "أضف سطرًا واحدًا على الأقل: وحدة ونشاطًا ونسبة، أو بند كميات وكمية.",
+    en: "Add at least one line: a unit, an activity and a percent, or a BOQ item and a quantity.",
+    ur: "کم از کم ایک سطر شامل کریں: یونٹ، سرگرمی اور فیصد، یا BOQ آئٹم اور مقدار۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_LINE_INVALID: {
+    ar: "النسبة بين 0 و100، والكمية أكبر من صفر.",
+    en: "A percent is above 0 and at most 100; a quantity is above zero.",
+    ur: "فیصد 0 سے زیادہ اور زیادہ سے زیادہ 100 ہو؛ مقدار صفر سے زیادہ ہو۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_NOT_FOUND: {
+    ar: "إثبات الأعمال غير موجود في هذا المشروع.",
+    en: "The work confirmation was not found in this project.",
+    ur: "کام کی تصدیق اس پروجیکٹ میں نہیں ملی۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_NUMBER_EXISTS: {
+    ar: "في المشروع إثبات بهذا الرقم.",
+    en: "The project already has a confirmation with this number.",
+    ur: "پروجیکٹ میں اس نمبر کی تصدیق پہلے سے موجود ہے۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_OVER_BOQ: {
+    ar: "مجموع الكميات المُثبتة لهذا البند يتجاوز كميته في جدول الكميات.",
+    en: "The quantities confirmed for this item would exceed its BOQ quantity.",
+    ur: "اس آئٹم کی تصدیق شدہ مقدار اس کی BOQ مقدار سے زیادہ ہو جائے گی۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_OVER_COMPLETE: {
+    ar: "مجموع ما أُثبت لهذه الوحدة وهذا النشاط عبر كل المقاولين يتجاوز 100%.",
+    en: "Across all subcontractors, this unit and activity would be confirmed past 100%.",
+    ur: "تمام ٹھیکیداروں میں اس یونٹ اور سرگرمی کی تصدیق 100% سے زیادہ ہو جائے گی۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_PERIOD_INVALID: {
+    ar: "نهاية الفترة قبل بدايتها.",
+    en: "The period ends before it starts.",
+    ur: "مدت شروع ہونے سے پہلے ختم ہوتی ہے۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_REASON_REQUIRED: {
+    ar: "اكتب سبب الرفض ليصحح المُعِدّ إثباته.",
+    en: "Write the reason for the rejection so the preparer can correct it.",
+    ur: "مسترد کرنے کی وجہ لکھیں تاکہ تیار کرنے والا درست کر سکے۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_SELF_APPROVAL: {
+    ar: "لا يعتمد الإثبات من أعدّه. يعتمده شخص آخر يملك صلاحية الالتزامات (فصل المهام).",
+    en: "A confirmation is not approved by the person who prepared it. Someone else who manages commitments approves it (separation of duties).",
+    ur: "تصدیق وہ شخص منظور نہیں کرتا جس نے اسے تیار کیا۔ اسے کوئی اور شخص منظور کرے جس کے پاس وابستگیوں کا اختیار ہو (فرائض کی علیحدگی)۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_TRANSITION_INVALID: {
+    ar: "لا يمكن نقل الإثبات إلى هذه الحالة من حالته الحالية. المسار: مسودة ← مُرسَل ← معتمد أو مرفوض، والإلغاء قبل الاعتماد فقط.",
+    en: "The confirmation cannot move to this status from its current one. The path is draft → submitted → approved or rejected, and it can be cancelled only before approval.",
+    ur: "تصدیق اپنی موجودہ حالت سے اس حالت میں نہیں جا سکتی۔ راستہ: مسودہ ← جمع شدہ ← منظور یا مسترد، اور منسوخی صرف منظوری سے پہلے۔",
   },
 } as const satisfies Record<string, BilingualMessage>;
 
