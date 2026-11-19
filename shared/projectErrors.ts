@@ -1798,6 +1798,21 @@ export const projectErrorMessages = {
     en: "This kind of import cannot be rolled back (opening balances are a stock-movement ledger that is never erased).",
     ur: "اس قسم کی درآمد واپس نہیں کی جا سکتی (ابتدائی بیلنس اسٹاک حرکات کا ریکارڈ ہے جو مٹایا نہیں جاتا)۔",
   },
+  PROJECT_OS_SCHEDULE_ROLLBACK_NO_SNAPSHOT: {
+    ar: "هذا التحديث أُكّد قبل حفظ لقطات الجدول الزمني، فلا توجد قيم سابقة دقيقة لإعادتها. استورد تحديثًا صحيحًا فوقه بدل التراجع.",
+    en: "This update was confirmed before schedule snapshots were kept, so there are no exact previous values to put back. Import a correct update over it instead.",
+    ur: "یہ تازہ کاری شیڈول اسنیپ شاٹس محفوظ ہونے سے پہلے تصدیق ہوئی تھی، اس لیے واپس رکھنے کے لیے درست پچھلی قدریں نہیں۔ واپسی کے بجائے درست تازہ کاری اوپر درآمد کریں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_NOT_LATEST: {
+    ar: "بعد هذا التحديث استيراد أو تحديث آخر للجدول الزمني. تراجع عن الأحدث أولًا.",
+    en: "Another schedule import or update came after this one. Undo the latest one first.",
+    ur: "اس کے بعد شیڈول کی ایک اور درآمد یا تازہ کاری ہوئی ہے۔ پہلے تازہ ترین کو واپس کریں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_CHANGED_SINCE: {
+    ar: "بعض الأنشطة التي غيّرها هذا التحديث عُدّلت بعده، فالتراجع يمحو عملًا لاحقًا. لم يُغيَّر شيء.",
+    en: "Some activities this update changed were edited after it, so undoing it would erase later work. Nothing was changed.",
+    ur: "اس تازہ کاری سے بدلی گئی کچھ سرگرمیاں بعد میں دوبارہ بدلی گئیں، اس لیے واپسی بعد کا کام مٹا دے گی۔ کچھ نہیں بدلا۔",
+  },
   PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES: {
     ar: "هذا الاستيراد عدّل صفوفًا كانت موجودة، ولم تُحفظ قيمها السابقة، فلا يمكن إعادتها. استورد النسخة الصحيحة فوقه بدل التراجع.",
     en: "This import changed rows that already existed and their previous values were not kept, so they cannot be restored. Import the correct version over it instead.",

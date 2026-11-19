@@ -8,13 +8,14 @@
 // The data date is the P6 file's own (PROJECT.last_recalc_date) when the file carries one, else the moment of the save — and it says which.
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { activities, scheduleSnapshotActivities, scheduleSnapshots } from "../drizzle/schema";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { activities, dataImportRowResults, dataImports, scheduleSnapshotActivities, scheduleSnapshots } from "../drizzle/schema";
+import { bulkUpdate } from "./bulkUpdate";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 
 type Writer = Pick<NonNullable<Awaited<ReturnType<typeof getDb>>>, "execute" | "select" | "insert">;
-export type SnapshotSource = "p6_import" | "p6_update";
+export type SnapshotSource = "p6_import" | "p6_update" | "p6_update_before" | "p6_rollback";
 export const LOOK_AHEAD_DAYS = 14;
 const DAY = 86_400_000;
 
@@ -33,7 +34,8 @@ export async function captureScheduleSnapshot(tx: Writer, input: { tenantId: str
     .where(and(eq(scheduleSnapshots.tenantId, input.tenantId), eq(scheduleSnapshots.projectId, input.projectId), eq(scheduleSnapshots.isBaseline, true))).limit(1);
   const id = randomUUID();
   const dataDate = input.dataDate ?? new Date();
-  await tx.insert(scheduleSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, importId: input.importId, source: input.source, dataDate, isBaseline: !baseline, activityCount: 0, createdByUserId: input.userId });
+  // created_at by the clock, not the transaction start: an update writes two snapshots (before and after) in one transaction, and their order must hold
+  await tx.insert(scheduleSnapshots).values({ id, tenantId: input.tenantId, projectId: input.projectId, importId: input.importId, source: input.source, dataDate, isBaseline: !baseline, activityCount: 0, createdByUserId: input.userId, createdAt: sql`clock_timestamp()` });
   await tx.execute(sql`
     INSERT INTO schedule_snapshot_activities (id, tenant_id, project_id, snapshot_id, activity_id, code, planned_start_at, planned_finish_at, actual_start_at, actual_finish_at, total_float_hours, percent_complete, remaining_hours, status)
     SELECT gen_random_uuid(), a.tenant_id, a.project_id, ${id}, a.id, a.code, a.planned_start_at, a.planned_finish_at, a.actual_start_at, a.actual_finish_at, a.total_float_hours, a.percent_complete, a.remaining_hours, a.status::text
@@ -64,8 +66,10 @@ export async function getLiveSchedule(input: { userId: number; tenantId: string;
   const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 
   const snapshots = await db.select({ id: scheduleSnapshots.id, source: scheduleSnapshots.source, dataDate: scheduleSnapshots.dataDate, isBaseline: scheduleSnapshots.isBaseline, activityCount: scheduleSnapshots.activityCount, createdAt: scheduleSnapshots.createdAt })
-    .from(scheduleSnapshots).where(mine(scheduleSnapshots)).orderBy(desc(scheduleSnapshots.createdAt)).limit(50);
-  const baseline = snapshots.find(row => row.isBaseline) ?? null;
+    .from(scheduleSnapshots).where(and(mine(scheduleSnapshots), ne(scheduleSnapshots.source, "p6_update_before"))).orderBy(desc(scheduleSnapshots.createdAt)).limit(50);
+  // the baseline read on its own: it may be a «before» snapshot (the hand-made schedule an update first changed), which the list leaves out
+  const [baseline = null] = await db.select({ id: scheduleSnapshots.id, source: scheduleSnapshots.source, dataDate: scheduleSnapshots.dataDate, isBaseline: scheduleSnapshots.isBaseline, activityCount: scheduleSnapshots.activityCount, createdAt: scheduleSnapshots.createdAt })
+    .from(scheduleSnapshots).where(and(mine(scheduleSnapshots), eq(scheduleSnapshots.isBaseline, true))).limit(1);
   const latest = snapshots[0] ?? null;
   const dataDate = latest?.dataDate ?? new Date();
 
@@ -106,4 +110,46 @@ export async function getLiveSchedule(input: { userId: number; tenantId: string;
     lookAhead: lookAhead.length,
   };
   return { dataDate, lookAheadDays: LOOK_AHEAD_DAYS, baseline, latest, snapshots, summary, rows, lookAhead };
+}
+
+// ------------------------------------------------------------------------------------------------------------- G-208: undo an activity update
+/**
+ * Puts back what one confirmed activity update (p6update) changed: for each activity it wrote, the actual start and finish, status, percent complete and
+ * remaining hours become what its «before» snapshot holds. Refused — and nothing written — when:
+ *   the update is not the project's latest snapshot (a later import or update was built on it: undo that first),
+ *   it has no «before» snapshot (confirmed before Q-23: there is nothing exact to put back),
+ *   any activity it wrote was changed since (named by code: someone worked on top of it).
+ * Never a delete: the activities are updated back, the undo leaves a «p6_rollback» snapshot, and the caller marks the import cancelled with its audit row.
+ */
+export async function rollbackScheduleUpdate(tx: Writer, input: { tenantId: string; projectId: string; importId: string; userId: number }) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`schedule-snapshot:${input.projectId}`}))`);
+  const scope = and(eq(scheduleSnapshots.tenantId, input.tenantId), eq(scheduleSnapshots.projectId, input.projectId));
+  // «latest» among the imports and updates that still stand: an undone one (cancelled) and the undo's own snapshot do not count, so updates are undone newest first
+  const [latest] = await tx.select({ id: scheduleSnapshots.id }).from(scheduleSnapshots)
+    .innerJoin(dataImports, and(eq(dataImports.id, scheduleSnapshots.importId), eq(dataImports.tenantId, scheduleSnapshots.tenantId)))
+    .where(and(scope, inArray(scheduleSnapshots.source, ["p6_import", "p6_update"]), eq(dataImports.status, "completed"))).orderBy(desc(scheduleSnapshots.createdAt)).limit(1);
+  const mineOf = await tx.select({ id: scheduleSnapshots.id, source: scheduleSnapshots.source }).from(scheduleSnapshots).where(and(scope, eq(scheduleSnapshots.importId, input.importId)));
+  const after = mineOf.find(row => row.source === "p6_update"); const before = mineOf.find(row => row.source === "p6_update_before");
+  if (!after || !before) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SCHEDULE_ROLLBACK_NO_SNAPSHOT" });
+  if (!latest || latest.id !== after.id) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_SCHEDULE_ROLLBACK_NOT_LATEST" });
+  const ids = (await tx.select({ id: dataImportRowResults.entityId }).from(dataImportRowResults).where(and(eq(dataImportRowResults.importId, input.importId), eq(dataImportRowResults.action, "updated"))))
+    .map(row => row.id).filter((id): id is string => Boolean(id));
+  if (!ids.length) return { restored: 0 };
+  const fields = { actualStartAt: scheduleSnapshotActivities.actualStartAt, actualFinishAt: scheduleSnapshotActivities.actualFinishAt, status: scheduleSnapshotActivities.status, percentComplete: scheduleSnapshotActivities.percentComplete, remainingHours: scheduleSnapshotActivities.remainingHours };
+  const read = async (snapshotId: string) => new Map((await tx.select({ activityId: scheduleSnapshotActivities.activityId, ...fields }).from(scheduleSnapshotActivities)
+    .where(and(eq(scheduleSnapshotActivities.tenantId, input.tenantId), eq(scheduleSnapshotActivities.projectId, input.projectId), eq(scheduleSnapshotActivities.snapshotId, snapshotId), inArray(scheduleSnapshotActivities.activityId, ids)))).map(row => [row.activityId, row]));
+  const wrote = await read(after.id); const was = await read(before.id);
+  const now = await tx.select({ id: activities.id, code: activities.code, actualStartAt: activities.actualStartAt, actualFinishAt: activities.actualFinishAt, status: activities.status, percentComplete: activities.percentComplete, remainingHours: activities.remainingHours })
+    .from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId), inArray(activities.id, ids))).for("update");
+  const same = (a: Date | null, b: Date | null) => (a?.getTime() ?? null) === (b?.getTime() ?? null);
+  const sameNumber = (a: string | null, b: string | null) => (a === null ? null : Number(a)) === (b === null ? null : Number(b));
+  const changed = now.filter(row => { const w = wrote.get(row.id); return !w || !same(row.actualStartAt, w.actualStartAt) || !same(row.actualFinishAt, w.actualFinishAt) || row.status !== w.status || !sameNumber(row.percentComplete, w.percentComplete) || !sameNumber(row.remainingHours, w.remainingHours); });
+  if (changed.length || now.length !== ids.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_SCHEDULE_ROLLBACK_CHANGED_SINCE", cause: changed.map(row => row.code).slice(0, 20) });
+  const restored = await bulkUpdate(tx as unknown as Parameters<typeof bulkUpdate>[0], {
+    table: activities, scope: { tenantId: input.tenantId, projectId: input.projectId },
+    columns: { actualStartAt: activities.actualStartAt, actualFinishAt: activities.actualFinishAt, status: activities.status, percentComplete: activities.percentComplete, remainingHours: activities.remainingHours, updatedAt: activities.updatedAt },
+    rows: ids.map(id => { const b = was.get(id)!; return { id, values: { actualStartAt: b.actualStartAt, actualFinishAt: b.actualFinishAt, status: b.status, percentComplete: b.percentComplete, remainingHours: b.remainingHours, updatedAt: new Date() } }; }),
+  });
+  await captureScheduleSnapshot(tx, { tenantId: input.tenantId, projectId: input.projectId, importId: input.importId, source: "p6_rollback", dataDate: null, userId: input.userId });
+  return { restored };
 }
