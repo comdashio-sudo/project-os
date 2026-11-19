@@ -1813,6 +1813,21 @@ export const projectErrorMessages = {
     en: "This kind of import cannot be rolled back (opening balances are a stock-movement ledger that is never erased).",
     ur: "اس قسم کی درآمد واپس نہیں کی جا سکتی (ابتدائی بیلنس اسٹاک حرکات کا ریکارڈ ہے جو مٹایا نہیں جاتا)۔",
   },
+  PROJECT_OS_SCHEDULE_ROLLBACK_NO_SNAPSHOT: {
+    ar: "هذا التحديث أُكّد قبل حفظ لقطات الجدول الزمني، فلا توجد قيم سابقة دقيقة لإعادتها. استورد تحديثًا صحيحًا فوقه بدل التراجع.",
+    en: "This update was confirmed before schedule snapshots were kept, so there are no exact previous values to put back. Import a correct update over it instead.",
+    ur: "یہ تازہ کاری شیڈول اسنیپ شاٹس محفوظ ہونے سے پہلے تصدیق ہوئی تھی، اس لیے واپس رکھنے کے لیے درست پچھلی قدریں نہیں۔ واپسی کے بجائے درست تازہ کاری اوپر درآمد کریں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_NOT_LATEST: {
+    ar: "بعد هذا التحديث استيراد أو تحديث آخر للجدول الزمني. تراجع عن الأحدث أولًا.",
+    en: "Another schedule import or update came after this one. Undo the latest one first.",
+    ur: "اس کے بعد شیڈول کی ایک اور درآمد یا تازہ کاری ہوئی ہے۔ پہلے تازہ ترین کو واپس کریں۔",
+  },
+  PROJECT_OS_SCHEDULE_ROLLBACK_CHANGED_SINCE: {
+    ar: "بعض الأنشطة التي غيّرها هذا التحديث عُدّلت بعده، فالتراجع يمحو عملًا لاحقًا. لم يُغيَّر شيء.",
+    en: "Some activities this update changed were edited after it, so undoing it would erase later work. Nothing was changed.",
+    ur: "اس تازہ کاری سے بدلی گئی کچھ سرگرمیاں بعد میں دوبارہ بدلی گئیں، اس لیے واپسی بعد کا کام مٹا دے گی۔ کچھ نہیں بدلا۔",
+  },
   PROJECT_OS_CLIENT_CLOCK_AHEAD: {
     ar: "ساعة هذا الهاتف متقدمة على الوقت الحقيقي، فلا يمكن التحقق من أن ما حفظته لا يمحو عملًا أحدث. صحّح ساعة الهاتف ثم احفظ من جديد.",
     en: "This phone's clock is ahead of the real time, so it cannot be checked that what you kept does not erase newer work. Correct the phone's clock, then save again.",
