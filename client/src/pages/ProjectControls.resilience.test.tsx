@@ -126,7 +126,7 @@ describe("ProjectControls section resilience", () => {
     expect(screen.getByText("Operating scope: P-01")).toBeTruthy();
     const commercial = document.getElementById("manager-commercial") as HTMLDetailsElement;
     expect(commercial.open).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: /Contracts & procurement/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Contracts, documents & claims/i }));
     expect(commercial.open).toBe(true);
   });
 

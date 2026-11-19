@@ -19,7 +19,7 @@ describe("EnterpriseNavigation", () => {
     render(<EnterpriseNavigation tenantId="t" projectId="p" context="project" />);
     expect(screen.getByRole("navigation", { name: "التنقل بين وحدات المنصة" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "مساحة العمل" }).getAttribute("href")).toBe("/");
-    expect(screen.getByRole("link", { name: "ضوابط المشروع" }).getAttribute("href")).toBe("/projects/t/p/controls"); expect(screen.queryByRole("link", { name: "PMO" })).toBeNull();
+    expect(screen.getByRole("link", { name: "لوحة المشروع" }).getAttribute("href")).toBe("/projects/t/p/controls"); expect(screen.queryByRole("link", { name: "PMO" })).toBeNull();
   });
 
   it("keeps privileged navigation hidden when a low-permission account receives no server-authorized items", () => {
