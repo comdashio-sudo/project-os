@@ -6,9 +6,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { ProductShell, isFramedPath, projectSwitchHref } from "./ProductShell";
 import { PageHeader, PageMain } from "./pageFrame";
 import { LanguageToggle } from "./LanguageToggle";
+import { PermissionProvider } from "@/lib/permissions";
 
 // One frame for every company screen (work order 21, step 1): one top bar, the modules the server allows, one breadcrumb trail.
-const state = vi.hoisted(() => ({ setLocation: vi.fn(), location: "/pmo/t1", projects: [] as Array<{ id: string; code: string; name: string }>, nav: [{ id: "executive", labelKey: "navigation.executiveDashboard", href: "/executive/t1" }, { id: "pmo", labelKey: "navigation.pmoDashboard", href: "/pmo/t1" }] as Array<{ id: string; labelKey: string; href?: string }> }));
+const state = vi.hoisted(() => ({ listOptions: [] as Array<{ enabled?: boolean } | undefined>, summary: undefined as unknown, setLocation: vi.fn(), location: "/pmo/t1", projects: [] as Array<{ id: string; code: string; name: string }>, nav: [{ id: "executive", labelKey: "navigation.executiveDashboard", href: "/executive/t1" }, { id: "pmo", labelKey: "navigation.pmoDashboard", href: "/pmo/t1" }] as Array<{ id: string; labelKey: string; href?: string }> }));
 
 vi.mock("wouter", () => ({ useLocation: () => [state.location, state.setLocation] }));
 vi.mock("@/contexts/accountLanguage", () => ({ useAccountLanguage: () => ({ signedIn: true, save: vi.fn() }) }));
@@ -18,7 +19,8 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     navigation: { get: { useQuery: () => ({ data: state.nav }) } },
     tenant: { mine: { useQuery: () => ({ data: [{ tenantId: "t1", legalName: "Pilot Company" }] }) } },
-    projects: { list: { useQuery: () => ({ data: state.projects }) } },
+    projects: { list: { useQuery: (_input: unknown, options?: { enabled?: boolean }) => { state.listOptions.push(options); return options?.enabled === false ? { data: undefined, error: null } : { data: state.projects, error: null }; } } },
+    accessSummary: { mine: { useQuery: () => ({ data: state.summary, error: null }) } },
   },
 }));
 
@@ -30,14 +32,14 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => undefined);
   globalThis.ResizeObserver = globalThis.ResizeObserver ?? class { observe() {} unobserve() {} disconnect() {} };
 });
-afterEach(() => { cleanup(); state.location = "/pmo/t1"; state.projects = []; state.setLocation.mockReset(); });
+afterEach(() => { cleanup(); state.listOptions = []; state.summary = undefined; state.location = "/pmo/t1"; state.projects = []; state.setLocation.mockReset(); });
 
 describe("ProductShell", () => {
   it("draws one top bar and the modules the server allows, and marks the current one", () => {
     render(<ProductShell tenantId="t1"><p>screen</p></ProductShell>);
     expect(screen.getAllByRole("banner")).toHaveLength(1);
     const navigation = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(navigation).getByRole("link", { name: "Executive" }).getAttribute("href")).toBe("/executive/t1");
+    expect(within(navigation).getByRole("link", { name: "Executive management" }).getAttribute("href")).toBe("/executive/t1");
     expect(within(navigation).getByRole("link", { name: "PMO" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("screen")).toBeTruthy();
   });
@@ -82,7 +84,7 @@ describe("project page in the frame", () => {
     expect(projectCrumb.getAttribute("href")).toBe("/projects/t1/p1/controls");
     expect(projectCrumb.className).toContain("min-h-11");
     const navigation = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(navigation).getByRole("link", { name: "Project controls" }).getAttribute("aria-current")).toBe("page");
+    expect(within(navigation).getByRole("link", { name: "Project board" }).getAttribute("aria-current")).toBe("page");
     expect(within(navigation).getByRole("link", { name: "Project registry" }).getAttribute("aria-current")).toBeNull();
   });
 });
@@ -105,7 +107,7 @@ describe("current module on a project page", () => {
     state.location = "/projects/t1/p1/quality";
     state.nav = projectNav;
     render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
-    expect(current()).toEqual(["Project controls"]);
+    expect(current()).toEqual(["Project board"]);
   });
 
   it("project p1 is not on the page of project p10 (the prefix ends in a slash)", () => {
@@ -151,5 +153,39 @@ describe("which routes are framed", () => {
   });
   it("leaves the phone screens and the setup wizard unframed", () => {
     for (const path of ["/m/t1/p1", "/m/t1/p1/issue", "/m/t1/p1/unit/12", "/setup/t1", "/setup"]) expect(isFramedPath(path)).toBe(false);
+  });
+
+  it("Q-34: the project register is asked for only by who holds project.read — a planning engineer scoped to a project gets no «could not load: project list» above every page", () => {
+    state.summary = { member: true, products: ["PROJECT"], permissions: ["project.schedule.manage", "project.pmc.manage"], scopes: [{ scopeType: "project", scopeId: "p1" }] };
+    state.location = "/planner/t1";
+    render(<PermissionProvider tenantId="t1"><ProductShell tenantId="t1"><p>screen</p></ProductShell></PermissionProvider>);
+    expect(state.listOptions.every(options => options?.enabled === false)).toBe(true);
+    expect(screen.queryByText(/Could not load/)).toBeNull();
+  });
+
+  it("Q-34: with project.read (or no permission answer at all) the register is still asked for", () => {
+    state.summary = { member: true, products: ["PROJECT"], permissions: ["project.read"], scopes: [{ scopeType: "company", scopeId: null }] };
+    render(<PermissionProvider tenantId="t1"><ProductShell tenantId="t1"><p>screen</p></ProductShell></PermissionProvider>);
+    expect(state.listOptions.at(-1)?.enabled).toBe(true);
+    cleanup(); state.listOptions = [];
+    render(<ProductShell tenantId="t1"><p>screen</p></ProductShell>);
+    expect(state.listOptions.at(-1)?.enabled).toBe(true);
+  });
+
+  it("Q-36: a project sub-page names itself in the breadcrumb — workspace › project › Project board › Project team", () => {
+    state.projects = [{ id: "p1", code: "VIL-1", name: "Villas" }];
+    state.location = "/projects/t1/p1/team";
+    render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    const trail = screen.getByRole("navigation", { name: /breadcrumb/i });
+    expect(within(trail).getByText("Project team")).toBeTruthy();
+    expect(within(trail).getByRole("link", { name: "Project board" }).getAttribute("href")).toBe("/projects/t1/p1/controls");
+  });
+
+  it("Q-36: the board itself ends the trail as «Project board», once", () => {
+    state.projects = [{ id: "p1", code: "VIL-1", name: "Villas" }];
+    state.location = "/projects/t1/p1/controls";
+    render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    const trail = screen.getByRole("navigation", { name: /breadcrumb/i });
+    expect(within(trail).getAllByText("Project board")).toHaveLength(1);
   });
 });

@@ -19,7 +19,7 @@ const remember = (key: string, value: string) => { try { localStorage.setItem(ke
 
 const text = {
   ar: {
-    title: "صرف سريع إلى وحدة", back: "العودة إلى الإدخال السريع", find: "ابحث بالرمز أو الاسم", scan: "مسح QR", scanning: "وجّه الكاميرا إلى ملصق المادة", scanFailed: "تعذّر قراءة الملصق، اكتب الرمز",
+    title: "صرف سريع إلى وحدة", back: "العودة إلى الإدخال الميداني", find: "ابحث بالرمز أو الاسم", scan: "مسح QR", scanning: "وجّه الكاميرا إلى ملصق المادة", scanFailed: "تعذّر قراءة الملصق، اكتب الرمز",
     quantity: "الكمية", unit: "رقم الوحدة", activity: "النشاط", warehouse: "المستودع", save: "حفظ الصرف", saving: "جارٍ الحفظ…", onHand: "المتوفر", noResults: "لا توجد مادة بهذا الاسم",
     unitUnknown: "لا توجد وحدة بهذا الرقم في هذا المشروع", pickActivity: "اختر النشاط", more: "صرف آخر", saved: "تم الصرف", cost: "التكلفة المحمّلة", tooMuch: "الكمية أكبر من المتوفر",
     noActivities: "لا نشاط مربوط ببند WBS في هذا المشروع، فلا يمكن تحميل تكلفة.", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", notAllowed: "دورك لا يتيح الصرف من المستودع.", model: "النموذج",

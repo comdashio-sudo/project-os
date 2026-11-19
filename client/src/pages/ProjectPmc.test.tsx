@@ -41,6 +41,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: state.put }));
 vi.mock("@/lib/trpc", async () => ({ trpc: { ...(await import("../test/importsTrpcMock")).importsTrpc(state.imports), directUploads: { create: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }) } }, pmcSite: { percentages: { useQuery: () => ({ isLoading: false, error: null, data: undefined }) } }, pmc: {
+  importStatus: { useQuery: () => ({ data: undefined, error: null }) },
   latestUpdates: { useQuery: h.screenQuery({ engineers: [{ userId: 1, name: "Eng One", updates: 3, activeDays: 2, perDay: [], unitFrom: 1, unitTo: 4, addedProjectPercent: 40, byGroup: [{ groupCode: "CIV", groupName: "Civil", addedProjectPercent: 30, updates: 2 }] }], totals: { updates: 3, addedProjectPercent: 40 } }, { engineers: [], totals: { updates: 0, addedProjectPercent: 0 } }) },
   approvals: { useQuery: h.screenQuery({ requests: [{ code: "IR-1", activityCode: "WALLS", activityName: "Walls", requestedAt: new Date("2026-10-10"), contractor: "C1", consultant: "X", response: "A", units: 2 }], byConsultant: [h.reply], byDay: [h.reply], byActivity: [h.reply], contractors: [], consultants: [] }, { requests: [], byConsultant: [], byDay: [], byActivity: [], contractors: [], consultants: [] }) },
   inspectionFlow: { useQuery: h.screenQuery({ total: 4, byStage: [{ stage: "WAITING_CONSULTANT", count: 1, percent: 25 }], heldBy: [{ holder: "Consultant X", count: 1 }], stalledActivities: [{ activityCode: "PAINT", activityName: "Paint", open: 2, oldestDays: 14 }] }, { total: 0, byStage: [], heldBy: [], stalledActivities: [] }) },
@@ -150,7 +151,7 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     state.imports.progress = view({ status: "uploaded", external: external(pmcReport({ errorCount: 2, errors: [{ rowNumber: 2, code: "PMC_UNIT_NOT_FOUND", field: "unitNumber", detail: "99" }, { rowNumber: 4, code: "PMC_STATUS_INVALID", field: "status" }], canConfirm: false })) });
     render(<ProjectPmc />);
     await choose("status.csv");
-    fireEvent.change(screen.getByLabelText("File type"), { target: { value: "status" } });
+    fireEvent.click(screen.getByRole("radio", { name: /Unit-activity status/ })); // Q-35: the kinds are a list with their state, not a dropdown
     fireEvent.click(screen.getByText("Check the file"));
     await waitFor(() => expect(state.imports.registerUpload).toHaveBeenCalled());
     expect(state.imports.createUpload).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "pmc.status", sourceFormat: "csv", tenantId: "t", projectId: "p" }));
@@ -173,8 +174,7 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
   it("offers the baseline as start and end dates too, and sends that module", async () => {
     render(<ProjectPmc />);
     await choose("dates.csv");
-    expect(Array.from((screen.getByLabelText("File type") as HTMLSelectElement).options).map(option => option.textContent)).toContain("Baseline by start and end dates");
-    fireEvent.change(screen.getByLabelText("File type"), { target: { value: "baselineDates" } });
+    fireEvent.click(screen.getByRole("radio", { name: /Baseline by start and end dates/ }));
     fireEvent.click(screen.getByText("Check the file"));
     await waitFor(() => expect(state.imports.createUpload).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: "pmc.baselineDates" })));
   });
@@ -364,8 +364,8 @@ describe("ProjectPmc Excel export, table by table", EXPORT_TEST, () => {
     fireEvent.change(screen.getByLabelText("Choose an Excel or CSV file"), { target: { files: [new File(["a\n1\n"], "s.csv", { type: "text/csv" })] } });
     await waitFor(() => expect((screen.getByText("Check the file").closest("button") as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByText("Check the file"));
-    await screen.findByTestId("import-report");
-    const result = await exportTable(document.querySelector("table") as HTMLTableElement);
+    const report = await screen.findByTestId("import-report");
+    const result = await exportTable(report.querySelector("table") as HTMLTableElement); // the report's own table (the template guide above has an example table)
     expect(result.headers).toEqual(["Row", "Reason"]);
     expect(result.headers).toEqual(result.tableHeaders);
     expect(result.exportedRows).toBe(2);
