@@ -7,15 +7,17 @@ import { pickLanguage } from "@/lib/language";
 import type { QueueItem } from "@/lib/offlineQueue";
 
 const text = {
-  ar: { offline: "لا اتصال: ما تحفظه يبقى على هذا الهاتف ويُرسل عند عودة الاتصال.", waiting: (n: number) => `${n} بانتظار الإرسال`, sendNow: "أرسل الآن", sending: "جارٍ الإرسال…", refused: "لم يُقبل — راجعه ثم احذفه:", discard: "احذف من الهاتف" },
-  en: { offline: "No connection: what you save stays on this phone and is sent when the connection returns.", waiting: (n: number) => `${n} waiting to be sent`, sendNow: "Send now", sending: "Sending…", refused: "Not accepted — check it, then discard it:", discard: "Discard from the phone" },
-  ur: { offline: "کنکشن نہیں: جو آپ محفوظ کریں وہ اس فون پر رہے گا اور کنکشن واپس آنے پر بھیجا جائے گا۔", waiting: (n: number) => `${n} بھیجنے کے منتظر`, sendNow: "ابھی بھیجیں", sending: "بھیجا جا رہا ہے…", refused: "قبول نہیں ہوا — دیکھیں پھر حذف کریں:", discard: "فون سے حذف کریں" },
+  ar: { offline: "لا اتصال: ما تحفظه يبقى على هذا الهاتف ويُرسل عند عودة الاتصال.", waiting: (n: number) => `${n} بانتظار الإرسال`, sendNow: "أرسل الآن", sending: "جارٍ الإرسال…", refused: "لم يُقبل — راجعه ثم احذفه:", discard: "احذف من الهاتف", noIdentity: "تعذّر التحقق من هويتك، فالحفظ دون اتصال معطّل حتى يعود؛ احفظ وأنت متصل." },
+  en: { offline: "No connection: what you save stays on this phone and is sent when the connection returns.", waiting: (n: number) => `${n} waiting to be sent`, sendNow: "Send now", sending: "Sending…", refused: "Not accepted — check it, then discard it:", discard: "Discard from the phone", noIdentity: "Could not check who you are, so saving offline is off until it is back; save while online." },
+  ur: { offline: "کنکشن نہیں: جو آپ محفوظ کریں وہ اس فون پر رہے گا اور کنکشن واپس آنے پر بھیجا جائے گا۔", waiting: (n: number) => `${n} بھیجنے کے منتظر`, sendNow: "ابھی بھیجیں", sending: "بھیجا جا رہا ہے…", refused: "قبول نہیں ہوا — دیکھیں پھر حذف کریں:", discard: "فون سے حذف کریں", noIdentity: "آپ کی شناخت کی جانچ نہ ہو سکی، اس لیے آف لائن محفوظ کرنا بند ہے؛ کنکشن پر محفوظ کریں۔" },
 };
 
-export function OfflineQueuePanel({ items, online, flushing, onFlush, onDiscard, reason, language }: { items: QueueItem[]; online: boolean; flushing: boolean; onFlush: () => void; onDiscard: (id: string) => void; reason: (item: QueueItem) => string[]; language: Language }) {
+export function OfflineQueuePanel({ items, online, flushing, onFlush, onDiscard, reason, language, identityError }: { identityError?: unknown; items: QueueItem[]; online: boolean; flushing: boolean; onFlush: () => void; onDiscard: (id: string) => void; reason: (item: QueueItem) => string[]; language: Language }) {
   const t = pickLanguage(language, text);
   const pending = items.filter(item => item.status === "pending");
   const failed = items.filter(item => item.status === "failed");
+  // without the signed-in person the queue has no owner (a shared phone), so nothing is kept: said, not hidden
+  if (identityError) return <p role="status" className="rounded-md bg-warning-soft px-3 py-2 text-sm text-warning-soft-foreground" data-offline-off>{t.noIdentity}</p>;
   if (online && !pending.length && !failed.length) return null;
   return (
     <section className="flex flex-col gap-2" data-offline-queue>
