@@ -1,11 +1,15 @@
 // Q-4: the site engineer's progress update on the weights table (phone and computer). The activity is chosen from the weights table (its CSI section and weight
 // shown), then the villas (a list, a range or a whole block), then the status and the date; one save. The server refuses the whole entry before writing anything
 // when one villa is wrong and says which; after the save the villas' and the project's progress, computed from the weights, are shown at once, with the latest history.
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, Select, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
 import { FieldShell } from "@/components/FieldShell";
 import { UndoLastSave } from "@/components/UndoLastSave";
+import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
+import { isNetworkError, type QueueItem, type SendResult } from "@/lib/offlineQueue";
+import { issuesAsRejection, useOfflineQueue } from "@/lib/useOfflineQueue";
+import { offlineReasons } from "@/lib/offlineReasons";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -21,9 +25,9 @@ type Mode = "list" | "range" | "block";
 type Issue = { code: string; villa?: string; detail?: string };
 
 const copy = {
-  ar: { title: "تحديث الإنجاز", back: "الإدخال الميداني", summary: "اختر النشاط من جدول الأوزان، ثم الفلل، ثم الحالة والتاريخ، واحفظ مرة واحدة.", statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", COMPLETE: "مكتمل", UNDER_REVIEW: "قيد المراجعة" } as Record<string, string>, weight: "الوزن", result: "بعد الحفظ", villa: "فيلا", project: "نسبة المشروع", history: "آخر التحديثات", noHistory: "لا تحديثات بعد.", by: "بواسطة", tooMany: (max?: string) => `اختر ${max ?? ""} فيلا على الأكثر في المرة الواحدة.` },
-  en: { title: "Progress update", back: "Field entry", summary: "Choose the activity from the weights table, then the villas, then the status and the date, and save once.", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", COMPLETE: "Complete", UNDER_REVIEW: "Under review" } as Record<string, string>, weight: "Weight", result: "After the save", villa: "Villa", project: "Project progress", history: "Latest updates", noHistory: "No updates yet.", by: "by", tooMany: (max?: string) => `Choose at most ${max ?? ""} villas at a time.` },
-  ur: { title: "پیش رفت کی تازہ کاری", back: "فیلڈ اندراج", summary: "وزن کی جدول سے سرگرمی منتخب کریں، پھر ولاز، پھر حالت اور تاریخ، اور ایک بار محفوظ کریں۔", statuses: { NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", COMPLETE: "مکمل", UNDER_REVIEW: "زیر جائزہ" } as Record<string, string>, weight: "وزن", result: "محفوظ کرنے کے بعد", villa: "ولا", project: "منصوبے کی پیش رفت", history: "تازہ ترین اپڈیٹس", noHistory: "ابھی کوئی اپڈیٹ نہیں۔", by: "از", tooMany: (max?: string) => `ایک وقت میں زیادہ سے زیادہ ${max ?? ""} ولاز منتخب کریں۔` },
+  ar: { keptOffline: "حُفظ على هذا الهاتف وسيُرسل عند عودة الاتصال.", notKept: "تعذّر الحفظ على الهاتف (مساحة ممتلئة أو محظورة). أعد الحفظ عند الاتصال.", title: "تحديث الإنجاز", back: "الإدخال الميداني", summary: "اختر النشاط من جدول الأوزان، ثم الفلل، ثم الحالة والتاريخ، واحفظ مرة واحدة.", statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", COMPLETE: "مكتمل", UNDER_REVIEW: "قيد المراجعة" } as Record<string, string>, weight: "الوزن", result: "بعد الحفظ", villa: "فيلا", project: "نسبة المشروع", history: "آخر التحديثات", noHistory: "لا تحديثات بعد.", by: "بواسطة", tooMany: (max?: string) => `اختر ${max ?? ""} فيلا على الأكثر في المرة الواحدة.` },
+  en: { keptOffline: "Kept on this phone; it will be sent when the connection returns.", notKept: "Could not keep it on this phone (storage full or blocked). Save again when online.", title: "Progress update", back: "Field entry", summary: "Choose the activity from the weights table, then the villas, then the status and the date, and save once.", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", COMPLETE: "Complete", UNDER_REVIEW: "Under review" } as Record<string, string>, weight: "Weight", result: "After the save", villa: "Villa", project: "Project progress", history: "Latest updates", noHistory: "No updates yet.", by: "by", tooMany: (max?: string) => `Choose at most ${max ?? ""} villas at a time.` },
+  ur: { keptOffline: "اس فون پر محفوظ ہو گیا؛ کنکشن واپس آنے پر بھیجا جائے گا۔", notKept: "فون پر محفوظ نہ ہو سکا (اسٹوریج بھرا یا بند)۔ کنکشن پر دوبارہ محفوظ کریں۔", title: "پیش رفت کی تازہ کاری", back: "فیلڈ اندراج", summary: "وزن کی جدول سے سرگرمی منتخب کریں، پھر ولاز، پھر حالت اور تاریخ، اور ایک بار محفوظ کریں۔", statuses: { NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", COMPLETE: "مکمل", UNDER_REVIEW: "زیر جائزہ" } as Record<string, string>, weight: "وزن", result: "محفوظ کرنے کے بعد", villa: "ولا", project: "منصوبے کی پیش رفت", history: "تازہ ترین اپڈیٹس", noHistory: "ابھی کوئی اپڈیٹ نہیں۔", by: "از", tooMany: (max?: string) => `ایک وقت میں زیادہ سے زیادہ ${max ?? ""} ولاز منتخب کریں۔` },
 };
 
 export default function PmcProgressUpdate() {
@@ -53,18 +57,35 @@ export default function PmcProgressUpdate() {
   }, [activities.data, search, c.weight]);
 
   const [lastSave, setLastSave] = useState<{ batchId: string; at: number; undone: boolean } | null>(null);
+  // Q-24 (P-120): a save that cannot reach the server is kept on this phone (with the moment it was kept) and sent when the connection returns; the server
+  // answers a resend of the same identifier with its first answer, and refuses — naming the villas — an entry kept before a newer save of the same villa
+  const me = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const client = trpc.useUtils().client;
+  const send = useCallback(async (item: QueueItem): Promise<SendResult> => {
+    try { await client.pmc.updateProgress.mutate({ ...item.payload, clientRequestId: item.id } as never); }
+    catch (error) { const rejected = issuesAsRejection(error); if (rejected) return rejected; throw error; }
+  }, [client]);
+  const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}:pmcProgress` : null, send);
   const update = trpc.pmc.updateProgress.useMutation({
     onSuccess: result => { setIssues([]); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setVillas(""); setRange(""); void history.refetch(); },
-    onError: error => { const found = issuesOf(error); setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language)); },
+    onError: (error, variables) => {
+      if (isNetworkError(error) && variables.clientRequestId) {
+        const kept = queue.keep({ id: variables.clientRequestId, kind: "pmcProgress", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${variables.activityCode} · ${c.statuses[variables.status] ?? variables.status} · ${variables.villas?.join(", ") ?? variables.range ?? variables.blockCode ?? ""}` });
+        if (kept) { setIssues([]); notify.success(c.keptOffline); setVillas(""); setRange(""); } else notify.error(c.notKept);
+        return;
+      }
+      const found = issuesOf(error); setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language));
+    },
   });
   const undo = trpc.pmc.undoProgressBatch.useMutation({ onSuccess: () => { setLastSave(current => current ? { ...current, undone: true } : current); void history.refetch(); } });
-  const submit = () => update.mutate({ ...scope, activityCode, status, date, ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : { blockCode: block.trim() }) });
+  const submit = () => update.mutate({ ...scope, clientRequestId: crypto.randomUUID(), activityCode, status, date, ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : { blockCode: block.trim() }) });
   const reason = (issue: Issue) => issue.code === "SITE_TOO_MANY_VILLAS" ? c.tooMany(issue.detail) : (t.issues[issue.code] ?? (() => issue.code))(issue.villa, issue.detail);
 
   return (
     <FieldShell title={c.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={c.back} tenantId={tenantId} projectId={projectId} current="progress">
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4 pb-24">
       <p className="text-sm text-muted-foreground">{c.summary}</p>
+      <OfflineQueuePanel identityError={me.error} items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} reason={item => offlineReasons(item.error, t.issues, language)} language={language} />
       <WriteGate permission="project.pmc.update" projectId={projectId} reason={{ ar: wo22Text.ar.noUpdatePermission, en: wo22Text.en.noUpdatePermission, ur: wo22Text.ur.noUpdatePermission }}>
         <Card>
           <CardBody className="flex flex-col gap-4">

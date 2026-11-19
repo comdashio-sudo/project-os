@@ -1138,6 +1138,21 @@ export const projectErrorMessages = {
     en: "Write the decision's text.",
     ur: "فیصلے کا متن لکھیں۔",
   },
+  PROJECT_OS_ACTION_OWNER_ONLY: {
+    ar: "لا يُنجز المهمة إلا صاحبها.",
+    en: "Only the action's owner can mark it done.",
+    ur: "صرف کام کا مالک ہی اسے مکمل کر سکتا ہے۔",
+  },
+  PROJECT_OS_ACTION_NOT_OPEN: {
+    ar: "المهمة ليست مفتوحة (منجزة أو ملغاة).",
+    en: "The action is not open (already done or cancelled).",
+    ur: "یہ کام کھلا نہیں ہے (مکمل یا منسوخ)۔",
+  },
+  PROJECT_OS_ACTION_OWNER_INVALID: {
+    ar: "صاحب المهمة يجب أن يكون عضوًا نشطًا في الشركة.",
+    en: "The action's owner must be an active member of the company.",
+    ur: "کام کا مالک کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
   PROJECT_OS_UNDO_BATCH_NOT_FOUND: {
     ar: "لا يوجد حفظ بهذا المعرّف في هذا المشروع يمكن التراجع عنه.",
     en: "There is no save with this id on this project to undo.",
@@ -1812,6 +1827,16 @@ export const projectErrorMessages = {
     ar: "بعض الأنشطة التي غيّرها هذا التحديث عُدّلت بعده، فالتراجع يمحو عملًا لاحقًا. لم يُغيَّر شيء.",
     en: "Some activities this update changed were edited after it, so undoing it would erase later work. Nothing was changed.",
     ur: "اس تازہ کاری سے بدلی گئی کچھ سرگرمیاں بعد میں دوبارہ بدلی گئیں، اس لیے واپسی بعد کا کام مٹا دے گی۔ کچھ نہیں بدلا۔",
+  },
+  PROJECT_OS_CLIENT_CLOCK_AHEAD: {
+    ar: "ساعة هذا الهاتف متقدمة على الوقت الحقيقي، فلا يمكن التحقق من أن ما حفظته لا يمحو عملًا أحدث. صحّح ساعة الهاتف ثم احفظ من جديد.",
+    en: "This phone's clock is ahead of the real time, so it cannot be checked that what you kept does not erase newer work. Correct the phone's clock, then save again.",
+    ur: "اس فون کی گھڑی اصل وقت سے آگے ہے، اس لیے جانچ نہیں ہو سکتی کہ آپ کا محفوظ کیا نئے کام کو نہ مٹائے۔ فون کی گھڑی درست کریں پھر دوبارہ محفوظ کریں۔",
+  },
+  PROJECT_OS_SITE_REPORT_CHANGED_SINCE: {
+    ar: "حُفظ تقرير هذا اليوم بعد أن حفظتَ نسختك على الهاتف دون اتصال، فلم تُرسل نسختك حتى لا تمحو الأحدث. افتح التقرير وأضف ما ينقصه ثم احذف النسخة المحفوظة.",
+    en: "This day's report was saved after you kept your version on the phone offline, so yours was not sent, to avoid erasing the newer one. Open the report, add what is missing, then discard the kept version.",
+    ur: "اس دن کی رپورٹ آپ کے آف لائن محفوظ کرنے کے بعد محفوظ ہوئی، اس لیے آپ کا نسخہ نہیں بھیجا گیا تاکہ نیا نہ مٹے۔ رپورٹ کھولیں، جو کمی ہو شامل کریں، پھر محفوظ نسخہ حذف کریں۔",
   },
   PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES: {
     ar: "هذا الاستيراد عدّل صفوفًا كانت موجودة، ولم تُحفظ قيمها السابقة، فلا يمكن إعادتها. استورد النسخة الصحيحة فوقه بدل التراجع.",
