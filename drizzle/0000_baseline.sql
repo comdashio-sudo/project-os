@@ -4196,6 +4196,82 @@ REVOKE ALL ON FUNCTION project_os_activity_code_assignment_same_project(), proje
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION project_os_cell_qc_accepted(varchar, varchar) TO project_os_app;
 --> statement-breakpoint
+-- Q-25 (review of #413 by programmer B): «issued minutes are final» and «attendees and minutes items are added, not rewritten» held in the database for every
+-- role, not by the application's grants (project_os_apply_conventions() re-grants the standard UPDATE and DELETE after every migration). ALWAYS: a session that
+-- sets session_replication_role = replica still hits them, as audit_logs does. The one removal allowed is the company's erasure after its freeze.
+CREATE FUNCTION project_os_meeting_rows_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE meeting_status text;
+BEGIN
+  -- the one removal: the company's own erasure (server/tenantData.ts), after freezeTenant suspended it and wrote tenant.deletion_frozen to the audit trail
+  IF TG_OP = 'DELETE' AND EXISTS (SELECT 1 FROM companies c WHERE c.id = OLD.tenant_id AND c.status <> 'active')
+     AND EXISTS (SELECT 1 FROM audit_logs a WHERE a.tenant_id = OLD.tenant_id AND a.action = 'tenant.deletion_frozen') THEN
+    RETURN OLD;
+  END IF;
+  IF TG_OP <> 'INSERT' THEN
+    RAISE EXCEPTION 'MEETING_ROWS_APPEND_ONLY: % rows are added to the minutes, never changed or removed', TG_TABLE_NAME USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  -- the meeting row is held (FOR SHARE) until this insert commits, so it cannot be issued in between
+  SELECT m.status INTO meeting_status FROM project_meetings m WHERE m.id = NEW.meeting_id AND m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id FOR SHARE;
+  IF meeting_status = 'issued' THEN
+    RAISE EXCEPTION 'MEETING_ISSUED: the minutes of meeting % are issued; nothing is added to them', NEW.meeting_id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE FUNCTION project_os_meeting_issue_only() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'DELETE' AND EXISTS (SELECT 1 FROM companies c WHERE c.id = OLD.tenant_id AND c.status <> 'active')
+     AND EXISTS (SELECT 1 FROM audit_logs a WHERE a.tenant_id = OLD.tenant_id AND a.action = 'tenant.deletion_frozen') THEN
+    RETURN OLD; -- the company's own erasure, after its freeze (as above)
+  END IF;
+  IF TG_OP <> 'UPDATE' THEN
+    RAISE EXCEPTION 'MEETING_KEPT: a meeting is never removed, except with the erasure of its whole company' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  -- the one change a meeting takes: a draft is issued (status, issued_at, and the updated_at the conventions keep); everything else is final
+  IF OLD.status <> 'draft' OR NEW.status <> 'issued' OR (to_jsonb(NEW) - 'status' - 'issued_at' - 'updated_at') IS DISTINCT FROM (to_jsonb(OLD) - 'status' - 'issued_at' - 'updated_at') THEN
+    RAISE EXCEPTION 'MEETING_ISSUED: meeting % moves only from draft to issued, once; issued minutes are final', OLD.id USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS project_meeting_items_append_only ON project_meeting_items;
+--> statement-breakpoint
+CREATE TRIGGER project_meeting_items_append_only BEFORE INSERT OR UPDATE OR DELETE ON project_meeting_items FOR EACH ROW EXECUTE FUNCTION project_os_meeting_rows_append_only();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS project_meeting_items_no_truncate ON project_meeting_items;
+--> statement-breakpoint
+CREATE TRIGGER project_meeting_items_no_truncate BEFORE TRUNCATE ON project_meeting_items FOR EACH STATEMENT EXECUTE FUNCTION project_os_meeting_rows_append_only();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS project_meeting_attendees_append_only ON project_meeting_attendees;
+--> statement-breakpoint
+CREATE TRIGGER project_meeting_attendees_append_only BEFORE INSERT OR UPDATE OR DELETE ON project_meeting_attendees FOR EACH ROW EXECUTE FUNCTION project_os_meeting_rows_append_only();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS project_meeting_attendees_no_truncate ON project_meeting_attendees;
+--> statement-breakpoint
+CREATE TRIGGER project_meeting_attendees_no_truncate BEFORE TRUNCATE ON project_meeting_attendees FOR EACH STATEMENT EXECUTE FUNCTION project_os_meeting_rows_append_only();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS project_meetings_issue_only ON project_meetings;
+--> statement-breakpoint
+CREATE TRIGGER project_meetings_issue_only BEFORE UPDATE OR DELETE ON project_meetings FOR EACH ROW EXECUTE FUNCTION project_os_meeting_issue_only();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS project_meetings_no_truncate ON project_meetings;
+--> statement-breakpoint
+CREATE TRIGGER project_meetings_no_truncate BEFORE TRUNCATE ON project_meetings FOR EACH STATEMENT EXECUTE FUNCTION project_os_meeting_issue_only();
+--> statement-breakpoint
+ALTER TABLE project_meeting_items ENABLE ALWAYS TRIGGER project_meeting_items_append_only;
+--> statement-breakpoint
+ALTER TABLE project_meeting_items ENABLE ALWAYS TRIGGER project_meeting_items_no_truncate;
+--> statement-breakpoint
+ALTER TABLE project_meeting_attendees ENABLE ALWAYS TRIGGER project_meeting_attendees_append_only;
+--> statement-breakpoint
+ALTER TABLE project_meeting_attendees ENABLE ALWAYS TRIGGER project_meeting_attendees_no_truncate;
+--> statement-breakpoint
+ALTER TABLE project_meetings ENABLE ALWAYS TRIGGER project_meetings_issue_only;
+--> statement-breakpoint
+ALTER TABLE project_meetings ENABLE ALWAYS TRIGGER project_meetings_no_truncate;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION project_os_meeting_rows_append_only(), project_os_meeting_issue_only() FROM PUBLIC;
+--> statement-breakpoint
 REVOKE ALL ON FUNCTION project_os_apply_conventions(), project_os_analyze(text[]), project_os_set_updated_at(), project_os_audit_logs_refuse() FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION project_os_analyze(text[]) TO project_os_app;

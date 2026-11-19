@@ -1,6 +1,9 @@
 import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
+import { sql } from "drizzle-orm";
+import { withSystemContext } from "./_core/database";
+import { getDb } from "./db";
 import { appRouter } from "./routers";
 
 // Q-25 (P-113): project meetings and their minutes, on a real database, through the real router, as the restricted role. The project manager records a
@@ -90,5 +93,44 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-25: project meetings, 
     expect(await code(callerFor("owner").meetings.get({ tenantId, projectId: P2, meetingId: first }))).toBe("PROJECT_OS_MEETING_NOT_FOUND");
     expect(await code(callerFor("owner").meetings.create({ tenantId, projectId: P2, meetingType: "progress", title: "Follows another project's", heldAt: new Date(), previousMeetingId: first, attendees: [] }))).toBe("PROJECT_OS_MEETING_NOT_FOUND");
     await expect(connection.query("INSERT INTO actions (id, tenantId, projectId, meetingId, title, priority, status) VALUES (?, ?, ?, ?, 'Crossing', 'low', 'open')", [crypto.randomUUID(), tenantId, P2, first])).rejects.toThrow(/actions_meeting_fk/);
+  });
+
+  // Review of #413 (programmer B): the grants do not survive project_os_apply_conventions(), so «issued is final» and «added, never rewritten» are held by
+  // ALWAYS triggers. Each statement runs on the application's own connection (the restricted role, as the server does), with every company in sight.
+  it("DATABASE: issued minutes are final and rows are only added — the restricted role is refused an edit, a removal, an insert into issued minutes, and any change but draft → issued", async () => {
+    const run = (statement: ReturnType<typeof sql>) => withSystemContext("test: meeting minutes are append-only", async () => (await getDb())!.execute(statement)).then(() => "no error", (error: { message?: string; cause?: { message?: string } }) => `${error.cause?.message ?? ""} ${error.message ?? ""}`);
+    expect(await run(sql`UPDATE project_meeting_items SET decision = 'Rewritten afterwards' WHERE meeting_id = ${first}`)).toContain("MEETING_ROWS_APPEND_ONLY");
+    expect(await run(sql`DELETE FROM project_meeting_items WHERE meeting_id = ${first}`)).toContain("MEETING_ROWS_APPEND_ONLY");
+    expect(await run(sql`DELETE FROM project_meeting_attendees WHERE meeting_id = ${first}`)).toContain("MEETING_ROWS_APPEND_ONLY");
+    expect(await run(sql`INSERT INTO project_meeting_items (id, tenant_id, project_id, meeting_id, item_number, topic) VALUES (${crypto.randomUUID()}, ${tenantId}, ${P1}, ${first}, 99, 'Slipped in after issue')`)).toContain("MEETING_ISSUED");
+    expect(await run(sql`INSERT INTO project_meeting_attendees (id, tenant_id, project_id, meeting_id, name) VALUES (${crypto.randomUUID()}, ${tenantId}, ${P1}, ${first}, 'Added after issue (synthetic)')`)).toContain("MEETING_ISSUED");
+    expect(await run(sql`UPDATE project_meetings SET status = 'draft', issued_at = NULL WHERE id = ${first}`)).toContain("MEETING_ISSUED");
+    expect(await run(sql`UPDATE project_meetings SET title = 'Renamed draft' WHERE id = ${second}`)).toContain("MEETING_ISSUED");
+    expect(await run(sql`DELETE FROM project_meetings WHERE id = ${second}`)).toContain("MEETING_KEPT");
+    expect(await run(sql`TRUNCATE project_meeting_items`)).not.toBe("no error");
+    // nothing moved: the issued meeting's two items, the draft's title
+    const [[issued]] = await connection.query<{ status: string; n: number }[]>("SELECT m.status, (SELECT count(*)::int FROM project_meeting_items i WHERE i.meeting_id = m.id) AS n FROM project_meetings m WHERE m.id = ?", [first]);
+    expect(issued).toMatchObject({ status: "issued", n: 2 });
+    const [[draft]] = await connection.query<{ title: string }[]>("SELECT title FROM project_meetings WHERE id = ?", [second]);
+    expect(draft.title).not.toBe("Renamed draft");
+  });
+
+  it("DATABASE: the one removal allowed is the company's erasure — refused while the company is active, allowed once it is frozen (suspended + tenant.deletion_frozen)", async () => {
+    const run = (statement: ReturnType<typeof sql>) => withSystemContext("test: meeting rows under erasure", async () => (await getDb())!.execute(statement)).then(() => "no error", (error: { message?: string; cause?: { message?: string } }) => `${error.cause?.message ?? ""} ${error.message ?? ""}`);
+    const [[other]] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [SLUG_B]);
+    const PB = "25aa0000-0000-4000-8000-0000000000b1"; const MB = crypto.randomUUID();
+    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'Q25-B', 'Other company', 'villas', 'SAR', 'active')", [PB, other.id]);
+    await connection.query("INSERT INTO project_meetings (id, tenantId, projectId, meetingType, title, heldAt, status, createdByUserId) VALUES (?, ?, ?, 'progress', 'To be erased', NOW(), 'draft', ?)", [MB, other.id, PB, ids.ownerB]);
+    await connection.query("INSERT INTO project_meeting_items (id, tenantId, projectId, meetingId, itemNumber, topic) VALUES (?, ?, ?, ?, 1, 'Erased with its company')", [crypto.randomUUID(), other.id, PB, MB]);
+    expect(await run(sql`DELETE FROM project_meeting_items WHERE meeting_id = ${MB}`)).toContain("MEETING_ROWS_APPEND_ONLY");
+    await connection.query("UPDATE companies SET status = 'suspended' WHERE id = ?", [other.id]);
+    // suspended alone is not a freeze: the audit trail must say so
+    expect(await run(sql`DELETE FROM project_meeting_items WHERE meeting_id = ${MB}`)).toContain("MEETING_ROWS_APPEND_ONLY");
+    await connection.query("INSERT INTO audit_logs (id, tenantId, actorUserId, action, entityType, entityId, metadata) VALUES (?, ?, ?, 'tenant.deletion_frozen', 'company', ?, '{}')", [crypto.randomUUID(), other.id, ids.ownerB, other.id]);
+    expect(await run(sql`DELETE FROM project_meeting_items WHERE meeting_id = ${MB}`)).toBe("no error");
+    expect(await run(sql`DELETE FROM project_meetings WHERE id = ${MB}`)).toBe("no error");
+    // and only for that company: the active one's minutes are still refused
+    expect(await run(sql`DELETE FROM project_meeting_items WHERE meeting_id = ${first}`)).toContain("MEETING_ROWS_APPEND_ONLY");
+    await connection.query("DELETE FROM projects WHERE id = ?", [PB]);
   });
 });
