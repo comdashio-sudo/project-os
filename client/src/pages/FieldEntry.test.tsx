@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown, me: { id: 7 } as { id: number } | null, variables: {} as Record<string, unknown>,
 }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
-vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
+vi.mock("wouter", () => ({ useLocation: () => ["/", () => undefined], Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   auth: { me: { useQuery: () => ({ data: state.me }) } },
@@ -127,7 +127,7 @@ describe("FieldEntry (phone entry)", () => {
   it("renders in Arabic, right to left", () => {
     state.arabic = true;
     load();
-    expect(screen.getByText("الإدخال الميداني")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "الإدخال الميداني" })).toBeTruthy();
     expect(screen.getByText("تسجيل تقدم")).toBeTruthy();
     expect(document.querySelector("main")?.getAttribute("dir")).toBe("rtl");
   });
