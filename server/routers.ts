@@ -68,7 +68,7 @@ import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicke
 import { reportDashboardSectionIssueForTenant } from "./db";
 import { getEmailNotificationPreferences, setEmailNotificationPreference, adjustPayrollAllocationForTenant, allocatePayrollEntryByHoursForTenant, allocateApprovedPayrollCostForTenant, archiveEmployeeForTenant, createEmployeeAttendanceForTenant, createEmployeeForTenant, createEmployeeTimeEntryForTenant, createEmploymentContractForTenant, createPayrollRunForTenant, getEmployeeAttendanceForTenant, getEmployeeIdentityForTenant, getEmployeeTimeEntriesForTenant, getEmployeesForTenant, getEmploymentContractsForTenant, getPayrollAllocationOptionsForTenant, getPayrollAllocationProjectsForTenant, getPayrollCapabilitiesForTenant, getPayrollRunDetailsForTenant, getPayrollRunsForTenant, getSalaryStructureForTenant, saveSalaryStructureForTenant, transitionEmployeeAttendanceForTenant, transitionEmployeeTimeEntryForTenant, transitionPayrollRunForTenant } from "./db";
 import { createEmployeeAssignmentForTenant, getEmployeeAssignmentOptionsForTenant, getEmployeeAssignmentsForTenant } from "./db";
-import { createEmployeePerformanceExclusionForTenant, createEmployeePerformanceObjectionForTenant, getEmployeePerformanceForTenant, transitionEmployeePerformanceObjectionForTenant } from "./db";
+import { createEmployeePerformanceExclusionForTenant, createEmployeePerformanceObjectionForTenant, getEmployeePerformanceForTenant, getOwnPerformanceAvailabilityForTenant, transitionEmployeePerformanceObjectionForTenant } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { addDesignRevision, approveDesignDrawing, cancelDesignDrawing, createDesignSubmittal, createDesignTransmittal, getDesignDashboard, listDesignComments, listDesignDrawings, listDesignRevisions, listDesignSubmittals, listDesignTransmittals, raiseDesignComment, registerDesignDrawing, transitionDesignComment, transitionDesignSubmittal, transitionDesignTransmittal } from "./designService";
@@ -800,6 +800,8 @@ export const appRouter = router({
     }),
   }),
   performance: router({
+    // Q-52: may this account read its own indicators here (linked employee record + read_own)? Asked before get, so «not linked» is not a refused request
+    availability: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getOwnPerformanceAvailabilityForTenant({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), employeeId: z.string().uuid().optional() })).query(({ ctx, input }) => getEmployeePerformanceForTenant({ userId: ctx.user.id, ...input })),
     exclude: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), employeeId: z.string().uuid(), sourceType: z.enum(["activity", "action", "rfi", "ncr", "quality_inspection", "field_report", "material_request"]), sourceId: z.string().uuid(), reason: z.string().trim().min(10).max(1000) })).mutation(({ ctx, input }) => createEmployeePerformanceExclusionForTenant({ userId: ctx.user.id, ...input })),
     objections: router({
