@@ -31,13 +31,13 @@ export function TwoStepRequirementCard({ tenantId }: { tenantId: string }) {
           <span className="text-sm font-medium">{t.label}</span>
         </Checkbox>
         {confirming ? (
-          <div role="alertdialog" aria-label={t.label} className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <div role="alertdialog" aria-label={t.label} className="space-y-3 rounded-xl border border-warning/40 bg-warning-soft p-3 text-sm text-warning-soft-foreground">
             <p>{t.confirmText}</p>
             <div className="flex flex-wrap gap-2"><Button className="min-h-11" disabled={save.isPending} onClick={() => save.mutate({ tenantId, requireTwoStep: true })}>{t.confirm}</Button><Button variant="outline" className="min-h-11" disabled={save.isPending} onClick={() => setConfirming(false)}>{t.cancel}</Button></div>
           </div>
         ) : null}
         {save.isPending ? <p role="status" className="text-sm text-muted-foreground">{t.saving}</p> : null}
-        {save.error ? <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(save.error, language)}</p> : null}
+        {save.error ? <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(save.error, language)}</p> : null}
       </CardContent>
     </Card>
   );

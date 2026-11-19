@@ -39,7 +39,7 @@ export const round = (value: number, places = 3) => Math.round(value * 10 ** pla
 const ratio = (part: number | null, whole: number | null) => (part === null || whole === null || whole === 0 ? null : round((part / whole) * 100, 2));
 
 export type ActivityDayRow = { activityId: string; date: string; planned: number | null; actual: number | null; completedUnits: number };
-export type ActivityFacts = { activityId: string; code: string; name: string; modelCode: string; unitsInModel: number };
+export type ActivityFacts = { activityId: string; code: string; name: string; modelCode: string; unitsInModel: number; nameEn?: string | null };
 
 /** Per activity: the period's days, its totals and the project's totals up to the period's end, the average per working day and the best day. */
 /**

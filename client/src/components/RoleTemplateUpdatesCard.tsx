@@ -29,14 +29,14 @@ export function RoleTemplateUpdatesCard({ tenantId }: { tenantId: string }) {
           <div key={item.id} className="space-y-2 rounded-xl border p-3" data-removal={item.id}>
             <p className="text-sm"><span className="font-semibold">{t.role}:</span> <bdi>{item.roleName}</bdi></p>
             <p className="text-sm"><span className="font-semibold">{t.power}:</span> <bdi dir="ltr">{item.permissionCode}</bdi></p>
-            <p className="text-sm text-amber-800">{t.holders(item.holders)}</p>
+            <p className="text-sm text-warning-soft-foreground">{t.holders(item.holders)}</p>
             <div className="flex flex-wrap gap-2">
               <Button className="min-h-[44px]" disabled={decide.isPending} onClick={() => decide.mutate({ tenantId, ids: [item.id], decision: "approve" })}>{decide.isPending ? t.working : t.approve}</Button>
               <Button variant="outline" className="min-h-[44px]" disabled={decide.isPending} onClick={() => decide.mutate({ tenantId, ids: [item.id], decision: "decline" })}>{t.decline}</Button>
             </div>
           </div>
         ))}
-        {decide.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(decide.error, isArabic)}</p>}
+        {decide.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(decide.error, isArabic)}</p>}
       </CardContent>
     </Card>
   );

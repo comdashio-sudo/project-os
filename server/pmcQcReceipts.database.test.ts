@@ -108,7 +108,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-5: the QC engineer's r
     expect(result).toMatchObject({ changed: 2, unchanged: 0, warnings: [{ code: "QC_NOT_COMPLETE_ON_SITE", villas: ["3"] }] });
     expect(await count("pmc_qc_receipt_events")).toBe(2);
     expect(await progressOf(3)).toBe(0); // QC does not move the site's progress
-    expect((await qc().pmc.qcCounters(scope)).find(row => row.code === "FOOT")).toEqual({ code: "FOOT", name: "Footings", received: 2, total: 4, notReceived: 2 });
+    expect((await qc().pmc.qcCounters(scope)).find(row => row.code === "FOOT")).toEqual({ code: "FOOT", name: "Footings", nameEn: null, received: 2, total: 4, notReceived: 2 });
     const card = await qc().pmc.villaStates({ ...scope, villa: "1" });
     expect(card!.activities.find(row => row.code === "FOOT")).toEqual({ code: "FOOT", name: "Footings", siteStatus: "COMPLETE", qcReceived: true, qcOn: yesterday });
     const history = await qc().pmc.qcHistory({ ...scope, villa: "3" });

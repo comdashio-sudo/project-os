@@ -247,5 +247,36 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project base file: the c
     expect(await labourRows()).toEqual(before);
     expect(await count("SELECT COUNT(*) AS n FROM project_planned_labour WHERE tenant_id = ?", [otherTenantId])).toBe(0);
   });
+  // Q-31 (P0-02): a baseline file whose headers no alias knows. The preview names the file's columns; the person's choice travels with the preview AND the save,
+  // so the save reads the file exactly as the preview showed it. An invalid choice is refused whole.
+  it("Q-31 POSITIVE: a BOQ and a cash flow with unknown headers are read with the person's columns; the save writes what the preview showed", async () => {
+    const boq = Buffer.from("Ref,Scope,UOM code,Amount qty,Price\nQ31-01,Formwork,m2,10,50\n").toString("base64");
+    const blind = await callers.owner.projects.baseline.previewBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: boq });
+    expect(blind).toMatchObject({ refusal: "PROJECT_OS_BOQ_COLUMNS_MISSING", columns: { headers: ["Ref", "Scope", "UOM code", "Amount qty", "Price"], overridden: false } });
+    expect(blind.columns?.fields.find(field => field.key === "code")).toEqual({ key: "code", required: true, header: null });
+    const mapping = { code: "Ref", description: "Scope", unitOfMeasure: "UOM code", quantity: "Amount qty", unitRate: "Price", __others__: "ignore" };
+    const seen = await callers.owner.projects.baseline.previewBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: boq, mapping });
+    expect(seen).toMatchObject({ refusal: null, count: 1, totalAmount: 500, columns: { overridden: true } });
+    await callers.owner.projects.baseline.saveBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: boq, mapping });
+    expect(await count("SELECT COUNT(*) AS n FROM boq_items WHERE tenant_id = ? AND code = 'Q31-01' AND total_amount = 500", [tenantId])).toBe(1);
+
+    const flow = Buffer.from("Period,Share\n2028-01,60%\n2028-02,40%\n").toString("base64");
+    expect(await callers.manager.projects.baseline.previewCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: flow })).toMatchObject({ refusal: "PROJECT_OS_CASHFLOW_COLUMNS_MISSING" });
+    await callers.manager.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: flow, mapping: { month: "Period", percent: "Share" } });
+    expect((await months()).map(m => m.month)).toEqual(["2028-01", "2028-02"]);
+  });
+
+  it("Q-31 NEGATIVE: a column the file does not have, or one column for two fields, is refused whole in the preview and the save; the save without the choice is refused too; nothing changes", async () => {
+    const before = await months();
+    const flow = Buffer.from("Period,Share\n2029-01,100%\n").toString("base64");
+    const missing = await callers.manager.projects.baseline.previewCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: flow, mapping: { month: "Period", percent: "Total" } });
+    expect(missing).toMatchObject({ fileError: "PROJECT_OS_IMPORT_MAPPING_INVALID", fileErrorDetail: "Total", refusal: "PROJECT_OS_IMPORT_MAPPING_INVALID" });
+    expect(await code(callers.manager.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: flow, mapping: { month: "Period", percent: "Period" } }))).toBe("PROJECT_OS_IMPORT_MAPPING_INVALID");
+    expect(await code(callers.manager.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: flow }))).toBe("PROJECT_OS_CASHFLOW_COLUMNS_MISSING");
+    const labour = Buffer.from("Period,Craft,Men\n2029-01,Mason,4\n").toString("base64");
+    expect(await code(callers.manager.projects.baseline.saveLabour({ tenantId, projectId: projectA, format: "csv", fileBase64: labour, mapping: { month: "Period", crew: "Men" } }))).toBe("PROJECT_OS_IMPORT_MAPPING_INVALID");
+    expect(await code(callers.engineer.projects.baseline.saveCashFlow({ tenantId, projectId: projectA, format: "csv", fileBase64: flow, mapping: { month: "Period", percent: "Share" } }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await months()).toEqual(before);
+  });
 });
 
