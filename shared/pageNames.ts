@@ -25,6 +25,8 @@ export const PAGE_NAMES = {
   site: { ar: "الموقع والتنفيذ", en: "Site and execution", ur: "سائٹ اور عمل درآمد" },
   reports: { ar: "التقارير", en: "Reports", ur: "رپورٹس" },
   imports: { ar: "الاستيراد", en: "Import", ur: "درآمد" },
+  planning: { ar: "التخطيط والتحكم", en: "Planning and control", ur: "منصوبہ بندی اور کنٹرول" },
+  supply: { ar: "المستودعات والمشتريات", en: "Warehouses and procurement", ur: "گودام اور خریداری" },
   dailyReport: { ar: "التقرير اليومي", en: "Daily report", ur: "روزانہ رپورٹ" },
   progress: { ar: "تحديث الإنجاز", en: "Progress update", ur: "پیش رفت کی تازہ کاری" },
   qcReceipt: { ar: "استلام QC", en: "QC receipt", ur: "کیو سی وصولی" },
