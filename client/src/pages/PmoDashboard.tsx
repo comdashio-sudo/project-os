@@ -19,6 +19,7 @@ import { Link, useParams } from "wouter";
 import { enumLabel } from "@/lib/labels";
 import { useCan, WriteGate } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
+import { PmoRollups } from "@/components/PmoRollups";
 import { OwnerSelect } from "@/components/OwnerSelect";
 import type { Language } from "@/lib/language";
 import { CheckedForm } from "@/components/CheckedForm";
@@ -191,6 +192,7 @@ export default function PmoDashboard() {
         </section>}
         {planningQuery.data && planningOverview.summary.dataRequiredProjects > 0 && <div className="mt-3"><SectionMessage title={planningCopy.title} isArabic={isArabic} kind="partial" detail={planningCopy.partial} /></div>}
         </SectionErrorBoundary>
+        {planningQuery.data?.activitySignals ? <SectionErrorBoundary title={pickLanguage(language, { ar: "الأنشطة والمجاميع", en: "Activities and roll-ups", ur: "سرگرمیاں اور مجموعے" })} isArabic={isArabic}><PmoRollups data={planningQuery.data} /></SectionErrorBoundary> : null}
 
         <SectionErrorBoundary title={pickLanguage(language, { ar: "إعداد المحافظ والبرامج", en: "Portfolio and program setup", ur: "پورٹ فولیو اور پروگرام کی ترتیب" })} isArabic={isArabic}>
         <details className="mt-6 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm">

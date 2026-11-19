@@ -89,6 +89,6 @@ CREATE INDEX IF NOT EXISTS "work_confirmations_tenant_project_subcontract_idx" O
 --> statement-breakpoint
 -- refuse to finish without the same-project line key and the line-shape check
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'work_confirmation_lines_confirmation_fk' AND contype = 'f' AND array_length(conkey, 1) = 3) THEN RAISE EXCEPTION '0037: the same-project line key is missing'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'work_confirmation_lines_shape' AND contype = 'c') THEN RAISE EXCEPTION '0037: the line-shape check is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'work_confirmation_lines_confirmation_fk' AND contype = 'f' AND array_length(conkey, 1) = 3) THEN RAISE EXCEPTION '0038: the same-project line key is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'work_confirmation_lines_shape' AND contype = 'c') THEN RAISE EXCEPTION '0038: the line-shape check is missing'; END IF;
 END $$;

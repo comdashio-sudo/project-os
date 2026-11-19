@@ -146,4 +146,20 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-5: the QC engineer's r
     expect((await callerFor(users.reader, "q5q-reader").pmc.qcMap({ ...scope, activityCode: "FOOT" }))[0]!.status).toBe("RECEIVED");
     await expect(qc().pmc.qcMap({ tenantId: T_OTHER, projectId: P_OTHER, activityCode: "FOOT" })).rejects.toThrow();
   });
+
+  // Q-24 (P-120): a receipt kept offline and sent later is written once (the same identifier again answers the stored result); one kept BEFORE a newer
+  // receipt on the same villa is refused, the villa named, and the newer one stands.
+  it("Q-24: a receipt sent after the connection returns is written once; one kept before a newer receipt is refused, villa named", async () => {
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const queuedAt = new Date().toISOString(); const clientRequestId = crypto.randomUUID();
+    const sent = await qc().pmc.updateQcReceipts({ ...scope, activityCode: "FOOT", villas: ["2"], received: true, date: today, queuedAt, clientRequestId });
+    const again = await qc().pmc.updateQcReceipts({ ...scope, activityCode: "FOOT", villas: ["2"], received: true, date: today, queuedAt, clientRequestId });
+    expect(again).toEqual(sent);
+    const keptAt = new Date().toISOString();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    await qc().pmc.updateQcReceipts({ ...scope, activityCode: "FOOT", villas: ["2"], received: false, date: today });
+    const refused = await qc().pmc.updateQcReceipts({ ...scope, activityCode: "FOOT", villas: ["2"], received: true, date: today, queuedAt: keptAt, clientRequestId: crypto.randomUUID() }).then(() => null, caught => caught);
+    expect(((refused as { cause?: { issues?: Array<{ code: string; villa?: string }> } } | null)?.cause?.issues ?? []).map(issue => `${issue.code}:${issue.villa}`)).toEqual(["SITE_CHANGED_SINCE:2"]);
+    expect((await qc().pmc.qcMap({ ...scope, activityCode: "FOOT" })).find(row => row.unitNumber === 2)?.status).toBe("NOT_RECEIVED");
+  });
 });
