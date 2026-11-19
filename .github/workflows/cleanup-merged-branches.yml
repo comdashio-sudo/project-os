@@ -5,7 +5,7 @@ name: Delete merged branches (D-34)
 # branches (its git proxy refuses with 403), so this workflow does it with the run's own token.
 #
 # It reads .github/cleanup/merged-branches.txt (branch|merged PR|last hash) and, for each line, deletes the branch only if ALL hold:
-#   - the name is not main or production;
+#   - the name is not main or production, and does not contain «tasleem» (any case);
 #   - the branch still exists and its tip is exactly the listed hash (anything pushed since → skipped);
 #   - the listed pull request is merged, its head was this branch, and its head commit was this hash (squash merges are not ancestors of main,
 #     so "merged" is read from the pull request, not from git ancestry);
@@ -56,8 +56,10 @@ jobs:
           while IFS='|' read -r branch pr sha || [ -n "$branch" ]; do
             case "$branch" in ''|'#'*) continue ;; esac
             if [ "$branch" = "main" ] || [ "$branch" = "production" ]; then report "$branch" "$pr" "skipped: protected name"; skipped=$((skipped+1)); continue; fi
+            # adviser 19-11 (I49): nothing that touches TASLEEM is ever deleted here, whatever the list says (case-insensitive)
+            case "$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]')" in *tasleem*) report "$branch" "$pr" "skipped: TASLEEM is never touched"; skipped=$((skipped+1)); continue ;; esac
             encoded=$(jq -rn --arg b "$branch" '$b|@uri')
-            tip=$(gh api "repos/$REPO/git/ref/heads/$branch" --jq .object.sha 2>/dev/null || true)
+            tip=$(gh api "repos/$REPO/git/ref/heads/$encoded" --jq .object.sha 2>/dev/null || true)
             if [ -z "$tip" ]; then report "$branch" "$pr" "absent (already gone)"; absent=$((absent+1)); continue; fi
             if [ "$tip" != "$sha" ]; then report "$branch" "$pr" "skipped: tip is $tip, not the listed hash"; skipped=$((skipped+1)); continue; fi
             pull=$(gh api "repos/$REPO/pulls/$pr" --jq '[.merged, .head.ref, .head.sha] | @tsv' 2>/dev/null || true)

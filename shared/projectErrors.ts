@@ -1103,6 +1103,66 @@ export const projectErrorMessages = {
     en: "The count has no lines; add at least one material.",
     ur: "گنتی میں کوئی قطار نہیں ہے؛ کم از کم ایک مادّہ شامل کریں۔",
   },
+  PROJECT_OS_DECISION_OWNER_INVALID: {
+    ar: "مالك القرار يجب أن يكون عضوًا نشطًا في الشركة.",
+    en: "The decision owner must be an active member of the company.",
+    ur: "فیصلے کا مالک کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
+  PROJECT_OS_DECISION_NOT_FOUND: {
+    ar: "القرار غير موجود في هذا المشروع.",
+    en: "The decision is not on this project.",
+    ur: "یہ فیصلہ اس پروجیکٹ میں موجود نہیں۔",
+  },
+  PROJECT_OS_DECISION_TRANSITION_INVALID: {
+    ar: "لا تصح هذه الخطوة من حالة القرار الحالية (مسودة ← رفع ← اعتماد أو رفض ← تنفيذ، ولا رجوع).",
+    en: "This step is not allowed from the decision's current state (draft → submitted → approved or rejected → implemented, no going back).",
+    ur: "فیصلے کی موجودہ حالت سے یہ قدم درست نہیں (مسودہ ← پیش ← منظور یا مسترد ← نافذ، واپسی نہیں)۔",
+  },
+  PROJECT_OS_DECISION_OWNER_REQUIRED: {
+    ar: "حدّد مالك القرار قبل رفعه.",
+    en: "Name the decision owner before submitting it.",
+    ur: "پیش کرنے سے پہلے فیصلے کا مالک مقرر کریں۔",
+  },
+  PROJECT_OS_DECISION_OWNER_ONLY: {
+    ar: "لا يعتمد القرار أو يرفضه إلا مالكه.",
+    en: "Only the decision owner can approve or reject it.",
+    ur: "صرف فیصلے کا مالک اسے منظور یا مسترد کر سکتا ہے۔",
+  },
+  PROJECT_OS_DECISION_REASON_REQUIRED: {
+    ar: "سبب الرفض إلزامي.",
+    en: "A reason is required to reject.",
+    ur: "مسترد کرنے کی وجہ لازمی ہے۔",
+  },
+  PROJECT_OS_DECISION_TEXT_REQUIRED: {
+    ar: "اكتب نص القرار.",
+    en: "Write the decision's text.",
+    ur: "فیصلے کا متن لکھیں۔",
+  },
+  PROJECT_OS_UNDO_BATCH_NOT_FOUND: {
+    ar: "لا يوجد حفظ بهذا المعرّف في هذا المشروع يمكن التراجع عنه.",
+    en: "There is no save with this id on this project to undo.",
+    ur: "اس پروجیکٹ میں اس شناخت کے ساتھ کوئی محفوظ کردہ عمل نہیں جسے واپس لیا جا سکے۔",
+  },
+  PROJECT_OS_UNDO_NOT_YOURS: {
+    ar: "لا يتراجع عن الحفظ إلا من حفظه؛ صحّح بحفظ جديد.",
+    en: "Only the person who saved it can undo a save; correct it with a new save.",
+    ur: "محفوظ کرنے والا ہی اسے واپس لے سکتا ہے؛ نئی محفوظ کاری سے درست کریں۔",
+  },
+  PROJECT_OS_UNDO_EXPIRED: {
+    ar: "انتهت مدة التراجع (15 دقيقة من الحفظ)؛ صحّح بحفظ جديد.",
+    en: "The undo window (15 minutes after the save) has passed; correct it with a new save.",
+    ur: "واپسی کی مدت (محفوظ کرنے کے 15 منٹ بعد تک) ختم ہو گئی؛ نئی محفوظ کاری سے درست کریں۔",
+  },
+  PROJECT_OS_UNDO_ALREADY_DONE: {
+    ar: "تم التراجع عن هذا الحفظ من قبل؛ لا تراجع ثانٍ.",
+    en: "This save has already been undone; it cannot be undone twice.",
+    ur: "یہ محفوظ کاری پہلے ہی واپس لی جا چکی ہے؛ دوبارہ واپسی نہیں۔",
+  },
+  PROJECT_OS_UNDO_CELLS_CHANGED: {
+    ar: "تغيّرت فلل من هذا الحفظ بعده، فلا تراجع؛ صحّح بحفظ جديد.",
+    en: "Villas of this save changed after it, so it cannot be undone; correct it with a new save.",
+    ur: "اس محفوظ کاری کے بعد اس کے ولاز بدل گئے، اس لیے واپسی نہیں؛ نئی محفوظ کاری سے درست کریں۔",
+  },
   PROJECT_OS_STOCKTAKE_QUICK_STOPPED: {
     ar: "الجرد السريع موقوف؛ سجّل الجرد من «الجرد بالاعتماد» في صفحة المستودع، فيعتمده شخص غير الذي فتحه.",
     en: "The quick count is stopped; record the count through «Approved stocktake» on the warehouse page, approved by someone other than the person who opened it.",
@@ -1617,6 +1677,26 @@ export const projectErrorMessages = {
     ar: "رقم المستخلص مستعمل في هذا المشروع.",
     en: "This certificate number is already used in this project.",
     ur: "سرٹیفکیٹ کا یہ نمبر اس پروجیکٹ میں پہلے ہی استعمال ہو چکا ہے۔",
+  },
+  PROJECT_OS_CERTIFICATE_OPEN_EXISTS: {
+    ar: "لهذا العقد من الباطن مستخلص لم يُعتمد بعد. اعتمده أو ألغه قبل إنشاء مستخلص جديد، حتى لا تُطالب الكمية نفسها مرتين.",
+    en: "This subcontract already has a certificate that is not approved yet. Approve or cancel it before creating a new one, so the same quantity is not claimed twice.",
+    ur: "اس ذیلی ٹھیکے کا ایک سرٹیفکیٹ ابھی منظور نہیں ہوا۔ نیا سرٹیفکیٹ بنانے سے پہلے اسے منظور یا منسوخ کریں، تاکہ ایک ہی مقدار دو بار نہ مانگی جائے۔",
+  },
+  PROJECT_OS_CERTIFICATE_NOT_FOUND: {
+    ar: "المستخلص غير موجود في هذا المشروع.",
+    en: "The certificate was not found in this project.",
+    ur: "یہ سرٹیفکیٹ اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_CERTIFICATE_SELF_APPROVAL: {
+    ar: "لا يعتمد المستخلص من أعدّه أو أرسله. يعتمده شخص آخر يملك صلاحية الالتزامات (فصل المهام).",
+    en: "A certificate is not approved by the person who prepared or submitted it. Someone else who manages commitments approves it (separation of duties).",
+    ur: "سرٹیفکیٹ وہ شخص منظور نہیں کرتا جس نے اسے تیار یا جمع کیا۔ اسے کوئی اور شخص منظور کرے جس کے پاس وابستگیوں کا اختیار ہو (فرائض کی علیحدگی)۔",
+  },
+  PROJECT_OS_CERTIFICATE_TRANSITION_INVALID: {
+    ar: "لا يمكن نقل المستخلص إلى هذه الحالة من حالته الحالية. المسار: مسودة ← مُرسَل ← معتمد ← مدفوع، والإلغاء قبل الاعتماد فقط.",
+    en: "The certificate cannot move to this status from its current one. The path is draft → submitted → approved → paid, and it can be cancelled only before approval.",
+    ur: "سرٹیفکیٹ اپنی موجودہ حالت سے اس حالت میں نہیں جا سکتا۔ راستہ: مسودہ ← جمع شدہ ← منظور شدہ ← ادا شدہ، اور منسوخی صرف منظوری سے پہلے۔",
   },
   PROJECT_OS_DASHBOARD_OWNER_NOT_FOUND: {
     ar: "لا مستلم مؤهل لهذا التنبيه في الشركة.",

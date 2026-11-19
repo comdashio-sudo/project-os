@@ -215,8 +215,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the level reads, scoped 
     it("lists the keeper's own project's warehouses, which the keeper can read without project.read", async () => {
       const list = await callers.keeper.levelReads.projectWarehouses({ tenantId: tenantA, projectId: ids.a });
       expect(list.warehouses.map(item => item.code)).toEqual(["LR-WH-A"]);
-      // the company's own list needs project.read, which the keeper does not hold: the reason the level has its own read
-      await expect(callers.keeper.warehouses.list({ tenantId: tenantA, projectId: ids.a })).rejects.toThrow(PERM_DENIED);
+      // Q-32 (P0-03): the company's own list now opens under the warehouse permissions too (it asked for project.read alone, which the keeper does not hold)
+      await expect(callers.keeper.warehouses.list({ tenantId: tenantA, projectId: ids.a })).resolves.toBeTruthy();
     });
 
     it("refuses the keeper another project's warehouses, and another company's caller this company's list", async () => {

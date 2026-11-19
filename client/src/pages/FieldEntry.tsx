@@ -1,3 +1,4 @@
+import { useCanPage } from "@/lib/permissions";
 import { Select, formatNumber } from "@/components/ds";
 import { riyalLabel } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
@@ -148,8 +149,9 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
   const qty = Number(quantity);
   const cost = Number(unitCost);
   const shelf = material?.onHand.find(h => h.warehouseId === warehouseId);
-  const averageCost = shelf?.averageCost ?? null; // priced stock is issued at its average; the unit cost is asked only for stock nobody priced
-  const ready = Boolean(materialId && warehouseId && wbsItemId && qty > 0 && (averageCost !== null || cost > 0));
+  const averageCost = shelf?.averageCost ?? null; // shown only to the project-money readers (Q-32)
+  const priced = shelf?.priced ?? false; // priced stock is issued at its average; the unit cost is asked only for stock nobody priced
+  const ready = Boolean(materialId && warehouseId && wbsItemId && qty > 0 && (priced || cost > 0));
   const onHand = shelf?.quantity ?? null;
   return (
     <div className="space-y-3">
@@ -167,9 +169,9 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
       {material && (
         <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3">
           <label className="text-sm">{t.quantity} ({material.unitOfMeasure})<input aria-label={t.quantity} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} inputMode="decimal" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
-          {averageCost === null
+          {!priced
             ? <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} inputMode="decimal" value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
-            : <p className="text-sm">{t.averageCost}: <b>{averageCost}</b><span className="block text-xs text-muted-foreground">{t.usesAverage}</span></p>}
+            : <p className="text-sm">{averageCost === null ? null : <>{t.averageCost}: <b>{averageCost}</b></>}<span className="block text-xs text-muted-foreground">{t.usesAverage}</span></p>}
           <p className="col-span-2 text-xs text-muted-foreground">{t.onHand}: <b>{onHand === null ? "—" : onHand}</b>{qty > 0 && (averageCost ?? cost) > 0 && <> · {t.total}: <b>{formatNumber(qty * (averageCost ?? cost), 2)}</b></>}</p>
         </div>
       )}
@@ -180,7 +182,7 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
       </details>
       {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
       {issue.error && !isNetworkError(issue.error) && <FieldFailure error={issue.error} isArabic={isArabic} retryLabel={t.retry} onRetry={issue.variables ? () => issue.mutate(issue.variables!) : undefined} />}
-      <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: averageCost === null ? cost : undefined, issuedAt: new Date(), clientRequestId: requestId.current })}>{issue.isPending ? t.saving : t.save}</Button>
+      <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: priced ? undefined : cost, issuedAt: new Date(), clientRequestId: requestId.current })}>{issue.isPending ? t.saving : t.save}</Button>
     </div>
   );
 }
@@ -370,6 +372,7 @@ export default function FieldEntry() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, isRtl, language } = useLanguage();
   const t = pickLanguage(language, text);
+  const canOpenControls = useCanPage("controls", projectId);
   const [chosen, setTab] = useState<"progress" | "issue" | "receive" | "team" | null>(null);
   const me = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}` : null);
@@ -386,7 +389,8 @@ export default function FieldEntry() {
     <main className="min-h-screen bg-background px-4 py-4 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
       <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className="mx-auto max-w-md space-y-4">
-        <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{t.back}</Link>
+        {/* Q-33: the controls page needs project.read; the way back is drawn only for whoever can open it */}
+        {canOpenControls && <Link href={`/projects/${tenantId}/${projectId}/controls`} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{t.back}</Link>}
         <h1 className="text-xl font-semibold">{t.title}</h1>
         <SourceNotice query={me} isArabic={isArabic} title={t.checkingIdentity} fallback={t.offlineOff} />
         <QueueBanner items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} onRetry={queue.retry} t={t} isArabic={isArabic} language={language} />

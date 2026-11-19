@@ -4,11 +4,11 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Q-4: the site engineer's progress update on the weights table. Synthetic data only.
-const h = vi.hoisted(() => ({ mutate: vi.fn(), result: undefined as unknown, error: null as unknown, options: {} as { onError?: (error: unknown) => void } }));
+const h = vi.hoisted(() => ({ mutate: vi.fn(), result: undefined as unknown, error: null as unknown, options: {} as { onError?: (error: unknown) => void; onSuccess?: (result: unknown) => void }, undo: vi.fn() }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }), useLocation: () => ["/", vi.fn()] }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
-vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>, useCan: () => true }));
+vi.mock("@/lib/permissions", () => ({ useCanPage: () => true, WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>, useCan: () => true }));
 vi.mock("@/components/ds/Feedback", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds/Feedback")>()), Toaster: () => null, notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 // the design system's list opens a Radix popover; a native select with the same props reads in jsdom
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: ({ id, options, value, onValueChange }: { id?: string; options: Array<{ value: string; label: string; description?: string }>; value?: string; onValueChange: (value: string) => void }) => (
@@ -18,7 +18,8 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
   pmc: {
     progressActivities: { useQuery: () => ({ data: [{ code: "FOOT", name: "Footings", section: "03 Concrete", minWeight: 40, maxWeight: 40 }], isLoading: false, error: null }) },
     progressHistory: { useQuery: () => ({ data: [{ at: "2026-11-11T09:00:00Z", from: null, to: "COMPLETE", by: "Site Engineer", unitNumber: 3, villaLabel: null, activityCode: "FOOT", activityName: "Footings" }], error: null, refetch: vi.fn() }) },
-    updateProgress: { useMutation: (options: { onError?: (error: unknown) => void }) => { h.options = options; return { mutate: h.mutate, isPending: false, data: h.result }; } },
+    undoProgressBatch: { useMutation: () => ({ mutate: h.undo, isPending: false, error: null }) },
+    updateProgress: { useMutation: (options: { onError?: (error: unknown) => void; onSuccess?: (result: unknown) => void }) => { h.options = options; return { mutate: h.mutate, isPending: false, data: h.result }; } },
   },
 } }));
 
@@ -51,5 +52,12 @@ describe("PmcProgressUpdate (Q-4)", () => {
     expect(result.textContent).toContain("Project progress: 20.00%");
     expect(result.textContent).toContain("Villa 3: 40.00%");
     expect(document.querySelector("[data-progress-history]")!.textContent).toMatch(/Villa 3 · Footings · — → Complete · 2026-11-11 · by Site Engineer/);
+  });
+  it("Q-44: after a save, «Undo this save» is offered and sends that save's batch", () => {
+    render(<PmcProgressUpdate />);
+    expect(screen.queryByRole("button", { name: "Undo this save" })).toBeNull();
+    act(() => { h.options.onSuccess?.({ batchId: "44444444-4444-4444-8444-444444444444", changed: 2, unchanged: 0, villas: [], warnings: [], projectProgressPercent: 0 }); });
+    fireEvent.click(screen.getByRole("button", { name: "Undo this save" }));
+    expect(h.undo).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", batchId: "44444444-4444-4444-8444-444444444444" });
   });
 });
