@@ -1813,6 +1813,11 @@ export const projectErrorMessages = {
     en: "This kind of import cannot be rolled back (opening balances are a stock-movement ledger that is never erased).",
     ur: "اس قسم کی درآمد واپس نہیں کی جا سکتی (ابتدائی بیلنس اسٹاک حرکات کا ریکارڈ ہے جو مٹایا نہیں جاتا)۔",
   },
+  PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND: {
+    ar: "إحدى لقطتي المقارنة غير موجودة في هذا المشروع.",
+    en: "One of the two snapshots to compare is not in this project.",
+    ur: "موازنے کے دو اسنیپ شاٹس میں سے ایک اس پروجیکٹ میں نہیں۔",
+  },
   PROJECT_OS_SCHEDULE_ROLLBACK_NO_SNAPSHOT: {
     ar: "هذا التحديث أُكّد قبل حفظ لقطات الجدول الزمني، فلا توجد قيم سابقة دقيقة لإعادتها. استورد تحديثًا صحيحًا فوقه بدل التراجع.",
     en: "This update was confirmed before schedule snapshots were kept, so there are no exact previous values to put back. Import a correct update over it instead.",
