@@ -7,6 +7,7 @@ import type { Language } from "./language";
 const STATUS_AR: Record<string, string> = {
   counting: "قيد العدّ", // D-32: a stocktake being counted
   retired: "متوقف", // Q-21: a strategy assumption no longer used
+  won: "فزنا بها", lost: "خسرناها", // Q-21: an opportunity's outcome
   // generic states
   active: "نشط", inactive: "غير نشط", suspended: "موقوف", archived: "مؤرشف", invited: "مدعو", revoked: "مسحوب", ended: "منتهٍ", terminated: "مُنهى",
   draft: "مسودة", submitted: "مُرسل", under_review: "قيد المراجعة", for_review: "للمراجعة", reviewed: "تمت مراجعته", review: "مراجعة", approved: "معتمد", rejected: "مرفوض",
@@ -42,6 +43,7 @@ const STATUS_AR: Record<string, string> = {
 const STATUS_UR: Record<string, string> = {
   counting: "گنتی جاری ہے", // D-32: a stocktake being counted
   retired: "موقوف", // Q-21: a strategy assumption no longer used
+  won: "جیت لیا", lost: "ہار گئے", // Q-21: an opportunity's outcome
   "delivered": "فراہم کیا گیا", "running": "جاری", "ok": "ٹھیک", "partial": "جزوی",
   "active": "فعال", "inactive": "غیر فعال", "suspended": "معطل", "archived": "محفوظ شدہ",
   "invited": "مدعو", "revoked": "منسوخ", "ended": "ختم شدہ", "terminated": "ختم کیا گیا",

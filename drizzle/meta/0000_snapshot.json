@@ -1,5 +1,5 @@
 {
-  "id": "54c18986-5c1b-4e6d-a02b-77188fb97c0c",
+  "id": "b9fb49b6-5571-4a58-ab05-e576d3546d52",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -27378,6 +27378,227 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.strategy_opportunities": {
+      "name": "strategy_opportunities",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_name": {
+          "name": "client_name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sector": {
+          "name": "sector",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "region": {
+          "name": "region",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estimated_value": {
+          "name": "estimated_value",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "probability_percent": {
+          "name": "probability_percent",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_award_at": {
+          "name": "expected_award_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration_months": {
+          "name": "duration_months",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "strategy_opportunity_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "winner_competitor_id": {
+          "name": "winner_competitor_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "winning_value": {
+          "name": "winning_value",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome_note": {
+          "name": "outcome_note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "strategy_opportunities_tenant_code_unique": {
+          "name": "strategy_opportunities_tenant_code_unique",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "strategy_opportunities_tenant_status_idx": {
+          "name": "strategy_opportunities_tenant_status_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "strategy_opportunities_tenant_id_companies_id_fk": {
+          "name": "strategy_opportunities_tenant_id_companies_id_fk",
+          "tableFrom": "strategy_opportunities",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_opportunities_created_by_user_id_users_id_fk": {
+          "name": "strategy_opportunities_created_by_user_id_users_id_fk",
+          "tableFrom": "strategy_opportunities",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_opportunities_winner_fk": {
+          "name": "strategy_opportunities_winner_fk",
+          "tableFrom": "strategy_opportunities",
+          "tableTo": "strategy_competitors",
+          "columnsFrom": [
+            "winner_competitor_id",
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "strategy_opportunities_probability_range": {
+          "name": "strategy_opportunities_probability_range",
+          "value": "\"strategy_opportunities\".\"probability_percent\" >= 0 AND \"strategy_opportunities\".\"probability_percent\" <= 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.strategy_swot_items": {
       "name": "strategy_swot_items",
       "schema": "",
@@ -33442,6 +33663,17 @@
         "months",
         "days",
         "count"
+      ]
+    },
+    "public.strategy_opportunity_status": {
+      "name": "strategy_opportunity_status",
+      "schema": "public",
+      "values": [
+        "open",
+        "submitted",
+        "won",
+        "lost",
+        "withdrawn"
       ]
     },
     "public.strategy_swot_kind": {

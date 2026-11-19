@@ -119,6 +119,7 @@ CREATE TYPE "public"."strategy_assumption_review" AS ENUM('monthly', 'quarterly'
 CREATE TYPE "public"."strategy_assumption_source" AS ENUM('internal', 'external', 'management');--> statement-breakpoint
 CREATE TYPE "public"."strategy_assumption_status" AS ENUM('draft', 'pending', 'approved', 'retired');--> statement-breakpoint
 CREATE TYPE "public"."strategy_assumption_unit" AS ENUM('percent', 'sar', 'months', 'days', 'count');--> statement-breakpoint
+CREATE TYPE "public"."strategy_opportunity_status" AS ENUM('open', 'submitted', 'won', 'lost', 'withdrawn');--> statement-breakpoint
 CREATE TYPE "public"."strategy_swot_kind" AS ENUM('strength', 'weakness', 'opportunity', 'threat');--> statement-breakpoint
 CREATE TYPE "public"."subcontract_certificates_status" AS ENUM('draft', 'submitted', 'approved', 'paid', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."subcontract_contracts_status" AS ENUM('draft', 'active', 'suspended', 'closed', 'cancelled');--> statement-breakpoint
@@ -2464,6 +2465,29 @@ CREATE TABLE "strategy_competitors" (
 	CONSTRAINT "strategy_competitors_id_tenant_unique" UNIQUE("id","tenant_id")
 );
 --> statement-breakpoint
+CREATE TABLE "strategy_opportunities" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"code" varchar(60) NOT NULL,
+	"name" varchar(200) NOT NULL,
+	"client_name" varchar(200),
+	"sector" varchar(120),
+	"region" varchar(120),
+	"estimated_value" numeric(18, 2) NOT NULL,
+	"probability_percent" numeric(5, 2) NOT NULL,
+	"expected_award_at" date,
+	"duration_months" integer,
+	"status" "strategy_opportunity_status" DEFAULT 'open' NOT NULL,
+	"decided_at" date,
+	"winner_competitor_id" varchar(36),
+	"winning_value" numeric(18, 2),
+	"outcome_note" varchar(500),
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "strategy_opportunities_probability_range" CHECK ("strategy_opportunities"."probability_percent" >= 0 AND "strategy_opportunities"."probability_percent" <= 100)
+);
+--> statement-breakpoint
 CREATE TABLE "strategy_swot_items" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -3393,6 +3417,9 @@ ALTER TABLE "strategy_assumptions" ADD CONSTRAINT "strategy_assumptions_submitte
 ALTER TABLE "strategy_assumptions" ADD CONSTRAINT "strategy_assumptions_approved_by_user_id_users_id_fk" FOREIGN KEY ("approved_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "strategy_competitors" ADD CONSTRAINT "strategy_competitors_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "strategy_competitors" ADD CONSTRAINT "strategy_competitors_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "strategy_opportunities" ADD CONSTRAINT "strategy_opportunities_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "strategy_opportunities" ADD CONSTRAINT "strategy_opportunities_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "strategy_opportunities" ADD CONSTRAINT "strategy_opportunities_winner_fk" FOREIGN KEY ("winner_competitor_id","tenant_id") REFERENCES "public"."strategy_competitors"("id","tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "strategy_swot_items" ADD CONSTRAINT "strategy_swot_items_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "strategy_swot_items" ADD CONSTRAINT "strategy_swot_items_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "strategy_swot_items" ADD CONSTRAINT "strategy_swot_items_competitor_fk" FOREIGN KEY ("competitor_id","tenant_id") REFERENCES "public"."strategy_competitors"("id","tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3783,6 +3810,8 @@ CREATE INDEX "strategy_assumption_changes_tenant_assumption_idx" ON "strategy_as
 CREATE UNIQUE INDEX "strategy_assumptions_tenant_code_unique" ON "strategy_assumptions" USING btree ("tenant_id","code");--> statement-breakpoint
 CREATE INDEX "strategy_assumptions_tenant_module_idx" ON "strategy_assumptions" USING btree ("tenant_id","module");--> statement-breakpoint
 CREATE UNIQUE INDEX "strategy_competitors_tenant_name_unique" ON "strategy_competitors" USING btree ("tenant_id","name");--> statement-breakpoint
+CREATE UNIQUE INDEX "strategy_opportunities_tenant_code_unique" ON "strategy_opportunities" USING btree ("tenant_id","code");--> statement-breakpoint
+CREATE INDEX "strategy_opportunities_tenant_status_idx" ON "strategy_opportunities" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE INDEX "strategy_swot_items_tenant_kind_idx" ON "strategy_swot_items" USING btree ("tenant_id","kind");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_line_unique" ON "subcontract_certificate_lines" USING btree ("certificate_id","boq_item_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_project_number_unique" ON "subcontract_certificates" USING btree ("project_id","certificate_number");--> statement-breakpoint
