@@ -19,13 +19,13 @@ import { integrationSystems } from "../drizzle/schema";
 import { getCellCardForTenant } from "./cellCard";
 import { boqTemplate, cashFlowTemplate, getBaselineStatus, labourTemplate, previewProjectLabour, saveProjectLabour, previewProjectBoq, previewProjectCashFlow, saveProjectBoq, saveProjectCashFlow, saveProjectContract } from "./projectBaseline";
 import { deactivateProjectCompany, getProjectProfile, listProjectCompanies, saveProjectCompany, saveProjectProfile } from "./projectProfile";
-import { applyPlannerToProject, exportDevPlanner, plannerInputSchema, runDevPlanner } from "./devPlannerService";
+import { applyPlannerToProject, exportDevPlanner, listPlannerProjects, plannerInputSchema, runDevPlanner } from "./devPlannerService";
 import { APPROVAL_STEPS, getReportApprovers, listInvitableProjectRoles, listProjectInvitations, listProjectTeam, setReportApprover } from "./projectApprovers";
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
 import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
 import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, checkSiteDailyReportForTenant, copySiteDailyReportFromYesterday, HSE_KINDS, saveSiteDailyReportForTenant, saveSiteDailyReportSectionForTenant, submitSiteDailyReportForTenant } from "./siteReports";
-import { findMaterialForTenant, getIssueCellOptionsForTenant, issueMaterialToCellForTenant, recordStocktakeForTenant, returnMaterialToWarehouseForTenant, transferBetweenProjectsForTenant } from "./warehouseOps";
+import { findMaterialForTenant, getIssueCellOptionsForTenant, issueMaterialToCellForTenant, listReturnableIssuesForTenant, listTransferTargetsForTenant, recordStocktakeForTenant, returnMaterialToWarehouseForTenant, transferBetweenProjectsForTenant } from "./warehouseOps";
 import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel } from "./scopeDashboards";
 import { levelReadsRouter } from "./levelReads";
 import { z } from "zod";
@@ -52,6 +52,7 @@ import { PMC_INSPECTION_STEPS, PMC_STATUSES, advancePmcInspectionStep, createPmc
 import { applyMasterPlanMappingFile, importMasterPlanSpatialEntitiesFromFile } from "./db";
 import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, getMasterPlanVisualizationRulesForTenant, saveMasterPlanVisualizationRuleForTenant } from "./db";
 import { getPmcProjectSummaryForTenant } from "./db";
+import { getPmcImportStatus } from "./pmcImportStatus";
 import { analyzeSmartUpload, confirmSmartImport, createSmartUpload, getImportSourceLink, listImportProfiles } from "./smartImport";
 import { createImportUpload, getImportProgress, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
@@ -83,6 +84,7 @@ import { createCompanyLogoUpload, getCompanyProfile, updateCompanyProfile } from
 import { listPmcQcHistory, pmcQcCounters, pmcVillaStates, updatePmcQcReceipts, pmcQcMap } from "./pmcQcReceipts";
 import { getStalledUnits, setStallThreshold } from "./stalledUnits";
 import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
+import { undoPmcProgressBatch, undoPmcQcReceiptBatch } from "./pmcUndo";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
 
@@ -189,6 +191,8 @@ export const appRouter = router({
   }),
   pmc: router({
     summary: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProjectSummaryForTenant({ userId: ctx.user.id, ...input })),
+    // Q-35: per PMC import kind, what the saved imports say (imported, waiting for confirmation, analysing, failed, never) — read from data_imports
+    importStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcImportStatus({ userId: ctx.user.id, ...input })),
     progress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgress({ userId: ctx.user.id, ...input })),
     setUnitActivityStatus: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityDefinitionId: z.string().uuid(), status: z.enum(PMC_STATUSES), verificationStatusId: z.string().uuid().nullable().optional(), note: z.string().trim().max(1000).optional() })).mutation(({ ctx, input }) => setPmcUnitActivityStatus({ userId: ctx.user.id, ...input })),
     // D-80 (work order 21): the PMC table editors (server/pmcEditorService.ts). Read: project.pmc.read; write: project.pmc.manage; the PMC licence feature on both.
@@ -201,6 +205,8 @@ export const appRouter = router({
     stalledUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getStalledUnits({ userId: ctx.user.id, ...input })),
     setStallThreshold: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), thresholdDays: z.number().int().min(1, { message: "PROJECT_OS_STALL_THRESHOLD_INVALID" }).max(60, { message: "PROJECT_OS_STALL_THRESHOLD_INVALID" }) })).mutation(({ ctx, input }) => setStallThreshold({ userId: ctx.user.id, ...input })),
     // Q-5: the QC engineer's receipts (server/pmcQcReceipts.ts): one atomic batch, the counters per activity, the history, a villa's two states
+    undoProgressBatch: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), batchId: z.string().uuid() })).mutation(({ ctx, input }) => undoPmcProgressBatch({ userId: ctx.user.id, ...input })),
+    undoQcReceiptBatch: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), batchId: z.string().uuid() })).mutation(({ ctx, input }) => undoPmcQcReceiptBatch({ userId: ctx.user.id, ...input })),
     updateQcReceipts: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), received: z.boolean(), date: z.string().trim().max(10) })).mutation(({ ctx, input }) => updatePmcQcReceipts({ userId: ctx.user.id, ...input })),
     qcCounters: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => pmcQcCounters({ userId: ctx.user.id, ...input })),
     qcHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcQcHistory({ userId: ctx.user.id, ...input })),
@@ -586,6 +592,8 @@ export const appRouter = router({
     export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), plan: plannerInputSchema, locale: z.enum(["ar", "en", "ur"]) })).mutation(({ ctx, input }) => exportDevPlanner({ userId: ctx.user.id, ...input })),
     // Q-11 (c): the likely plan written into a project's base file — planned labour and the planned cash flow (project.manage on that project)
     applyToProject: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), plan: plannerInputSchema, constructionStart: z.string().max(7) })).mutation(({ ctx, input }) => applyPlannerToProject({ userId: ctx.user.id, ...input })),
+    // Q-34: the projects «apply to a project» may write into (project.manage), not the company register
+    projects: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listPlannerProjects({ userId: ctx.user.id, ...input })),
   }),
   projects: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listProjectsForTenant({ userId: ctx.user.id, ...input })),
@@ -831,6 +839,8 @@ export const appRouter = router({
     // Work order 12, item 3
     returnToWarehouse: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), materialIssueId: z.string().uuid(), quantity: z.number().finite().positive({ message: "PROJECT_OS_MATERIAL_RETURN_QUANTITY_INVALID" }), reason: z.string().trim().max(500), returnedAt: z.date(), warehouseId: z.string().uuid().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "warehouses.returnToWarehouse" }, () => returnMaterialToWarehouseForTenant({ userId: ctx.user.id, ...input }))),
     transferBetweenProjects: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), sourceProjectId: z.string().uuid(), sourceWarehouseId: z.string().uuid(), destinationProjectId: z.string().uuid(), destinationWarehouseId: z.string().uuid(), materialId: z.string().uuid(), quantity: z.number().finite().positive({ message: "PROJECT_OS_INVENTORY_TRANSFER_QUANTITY_INVALID" }), reason: z.string().trim().max(500), transferredAt: z.date(), referenceNumber: z.string().trim().max(120).optional() })).mutation(({ ctx, input }) => transferBetweenProjectsForTenant({ userId: ctx.user.id, ...input })),
+    returnableIssues: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listReturnableIssuesForTenant({ userId: ctx.user.id, ...input })),
+    transferTargets: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listTransferTargetsForTenant({ userId: ctx.user.id, ...input })),
     stocktake: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), warehouseId: z.string().uuid(), note: z.string().trim().max(500), reference: z.string().trim().max(120).optional(), countedAt: z.date(), lines: z.array(z.object({ materialId: z.string().uuid(), countedQuantity: z.number().finite().min(0) })).min(1).max(2000) })).mutation(({ ctx, input }) => recordStocktakeForTenant({ userId: ctx.user.id, ...input })),
     cellOptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getIssueCellOptionsForTenant({ userId: ctx.user.id, ...input })),
     findMaterial: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), warehouseId: z.string().uuid(), query: z.string().trim().min(1).max(120) })).query(({ ctx, input }) => findMaterialForTenant({ userId: ctx.user.id, ...input })),

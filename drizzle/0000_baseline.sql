@@ -1572,7 +1572,8 @@ CREATE TABLE "pmc_qc_receipt_events" (
 	"to_received" boolean NOT NULL,
 	"received_on" date NOT NULL,
 	"changed_by_user_id" integer,
-	"changed_at" timestamp with time zone DEFAULT now() NOT NULL
+	"changed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"batch_id" varchar(36)
 );
 --> statement-breakpoint
 CREATE TABLE "pmc_qc_receipts" (
@@ -3574,6 +3575,7 @@ CREATE INDEX "pmc_inspection_steps_tenant_project_status_idx" ON "pmc_inspection
 CREATE UNIQUE INDEX "pmc_plan_months_project_month_unique" ON "pmc_plan_months" USING btree ("project_id","month");--> statement-breakpoint
 CREATE INDEX "pmc_plan_months_tenant_project_idx" ON "pmc_plan_months" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "pmc_qc_receipt_events_tenant_project_changed_idx" ON "pmc_qc_receipt_events" USING btree ("tenant_id","project_id","changed_at");--> statement-breakpoint
+CREATE INDEX "pmc_qc_receipt_events_batch_idx" ON "pmc_qc_receipt_events" USING btree ("tenant_id","project_id","batch_id") WHERE "pmc_qc_receipt_events"."batch_id" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_qc_receipts_unit_activity_unique" ON "pmc_qc_receipts" USING btree ("tenant_id","project_id","unit_id","activity_definition_id");--> statement-breakpoint
 CREATE INDEX "pmc_qc_receipts_tenant_project_activity_idx" ON "pmc_qc_receipts" USING btree ("tenant_id","project_id","activity_definition_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_site_activities_project_code_unique" ON "pmc_site_activities" USING btree ("project_id","code");--> statement-breakpoint

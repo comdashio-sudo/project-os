@@ -17,7 +17,7 @@ const NONE = "__none";
 // answer is worth: which codes count as an acceptance, and whether an open NCR holds an acceptance back.
 const text = {
   ar: {
-    title: "الجودة", back: "العودة إلى الإدخال السريع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
+    title: "الجودة", back: "العودة إلى الإدخال الميداني", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
     tabInspections: "طلبات الفحص", tabNcrs: "عدم المطابقة (NCR)", tabRules: "قواعد الشركة",
     unit: "الوحدات", activity: "النشاط", consultant: "الاستشاري", contractor: "المقاول", requestedAt: "تاريخ الطلب", age: "عمر الطلب", days: "يوم", step: "الخطوة", answer: "الرد", none: "—",
     filter: "عرض", all: "الكل", awaiting: "بانتظار الرد", answered: "مُجاب عنه", accepted: "مقبول", notAccepted: "غير مقبول",

@@ -15,7 +15,7 @@ import { useLocation, useParams, useSearch } from "wouter";
 // not decide anything; it shows the answer of the same functions the server and the database use (is the activity accepted, is an NCR holding it).
 const text = {
   ar: {
-    title: "بطاقة الوحدة", back: "العودة إلى الإدخال السريع", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", unitUnknown: "لا وحدة بهذا الرقم في هذا المشروع.", unitLabel: "الوحدة", zone: "المنطقة", block: "البلوك", model: "النموذج",
+    title: "بطاقة الوحدة", back: "العودة إلى الإدخال الميداني", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", unitUnknown: "لا وحدة بهذا الرقم في هذا المشروع.", unitLabel: "الوحدة", zone: "المنطقة", block: "البلوك", model: "النموذج",
     activity: "النشاط", allActivities: "كل الأنشطة (سجل الوحدة)", status: "الحالة", openNcrs: "NCR مفتوحة", quality: "الجودة",
     qcReceipt: "استلام QC", qcReceived: "مستلم", qcNotReceived: "غير مستلم", qcNone: "لم يُسجَّل بعد", stalled: "متوقفة", longStalled: "متوقفة طويلًا", workingDays: "أيام عمل بلا حركة", nextActivity: "البند التالي", accepted: "فحص مقبول", notAccepted: "لا فحص مقبول", heldByNcr: "الفحص مقبول لكن NCR مفتوح يمنع احتسابه", policy: "قاعدة الإكمال", ncrRule: "قاعدة NCR",
     modeoff: "معطّلة", modewarn: "تحذير", modeblock: "منع",
