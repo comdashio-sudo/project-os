@@ -17,6 +17,7 @@ export async function updatePmcQcReceipts(input: QcReceiptInput) {
   const targets = await resolveVillaBatch(db, input);
   const unitIds = targets.map(target => target.unitId);
   const now = new Date();
+  const batchId = randomUUID(); // Q-44: the save's id, on each event and the audit row, so it can be undone
   return db.transaction(async tx => {
     const existing = await tx.select({ id: pmcQcReceipts.id, unitId: pmcQcReceipts.unitId, activityDefinitionId: pmcQcReceipts.activityDefinitionId, received: pmcQcReceipts.received, receivedOn: pmcQcReceipts.receivedOn })
       .from(pmcQcReceipts).where(and(mine(pmcQcReceipts, input), inArray(pmcQcReceipts.unitId, unitIds)));
@@ -33,11 +34,11 @@ export async function updatePmcQcReceipts(input: QcReceiptInput) {
       const receiptId = row?.id ?? randomUUID();
       if (row) await tx.update(pmcQcReceipts).set({ received: input.received, receivedOn: input.date, updatedByUserId: input.userId, updatedAt: now }).where(eq(pmcQcReceipts.id, row.id));
       else await tx.insert(pmcQcReceipts).values({ id: receiptId, tenantId: input.tenantId, projectId: input.projectId, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, received: input.received, receivedOn: input.date, updatedByUserId: input.userId });
-      await tx.insert(pmcQcReceiptEvents).values({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, receiptId, fromReceived: row ? row.received : null, toReceived: input.received, receivedOn: input.date, changedByUserId: input.userId, changedAt: now });
+      await tx.insert(pmcQcReceiptEvents).values({ id: randomUUID(), tenantId: input.tenantId, projectId: input.projectId, receiptId, fromReceived: row ? row.received : null, toReceived: input.received, receivedOn: input.date, changedByUserId: input.userId, changedAt: now, batchId });
       changed += 1;
     }
-    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.qc_receipt_batch_updated", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ activityCode: input.activityCode, received: input.received, date: input.date, villas: targets.length, changed }) });
-    return { changed, unchanged: targets.length - changed, villas: targets.map(target => target.villa), warnings: notCompleteOnSite.length ? [{ code: "QC_NOT_COMPLETE_ON_SITE", villas: notCompleteOnSite }] : [] };
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.qc_receipt_batch_updated", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ batchId, activityCode: input.activityCode, received: input.received, date: input.date, villas: targets.length, changed }) });
+    return { batchId, changed, unchanged: targets.length - changed, villas: targets.map(target => target.villa), warnings: notCompleteOnSite.length ? [{ code: "QC_NOT_COMPLETE_ON_SITE", villas: notCompleteOnSite }] : [] };
   });
 }
 
