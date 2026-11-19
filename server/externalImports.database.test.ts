@@ -196,6 +196,34 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC and master-plan impo
     expect(await count("pmc_units")).toBe(60_002);
   }, 120_000);
 
+  it("Q-31 (P0-02): columns the importer does not recognise are mapped by a person, re-analysed, and written with that mapping; a bad mapping or another module's gate is refused", async () => {
+    const pmc = callerFor(users.pmc, "ext-pmc");
+    // headers nobody's alias list knows: the file is refused, and the report lists the file's columns and the fields still unmapped
+    const csv = Buffer.from("Plot Block,House,Kind\nBQ1,71001,A\nBQ1,71002,A\n", "utf8");
+    const { registered } = await upload(pmc, "pmc.locations", { name: "units-own-headers.csv", bytes: csv, format: "csv" });
+    const first = await pollUntilDone(pmc, registered.id);
+    expect(first.view.status).toBe("uploaded");
+    const columns = (first.view.external!.report as { pmc: { details: { columns: { headers: string[]; fields: Array<{ key: string; header: string | null }> } } } }).pmc.details.columns;
+    expect(columns.headers).toEqual(["Plot Block", "House", "Kind"]);
+    expect(columns.fields.filter(field => field.header === null).map(field => field.key)).toEqual(expect.arrayContaining(["blockCode", "unitNumber", "modelCode"]));
+    // NEGATIVE: a header the file does not have — nothing is applied, and the file still cannot be confirmed
+    await pmc.dataImports.reanalyze({ ...scope, importId: registered.id, mappingOverride: { blockCode: "Plot Block", unitNumber: "Villa", modelCode: "Kind" } });
+    const refused = await pollUntilDone(pmc, registered.id);
+    expect(refused.view.status).toBe("uploaded");
+    expect(refused.view.analysis!.errors.map(error => error.code)).toEqual(["IMPORT_MAPPING_INVALID"]);
+    await expect(pmc.dataImports.confirm({ ...scope, importId: registered.id })).rejects.toThrow("PROJECT_OS_IMPORT_NOT_CONFIRMABLE");
+    // NEGATIVE: the general importer (no project.pmc.manage) cannot re-map a PMC file
+    await expect(callerFor(users.importer, "ext-importer").dataImports.reanalyze({ ...scope, importId: registered.id, mappingOverride: { blockCode: "Plot Block" } })).rejects.toThrow();
+    // POSITIVE: the person's mapping — validated, the report says the columns were chosen, and the write uses the same mapping
+    await pmc.dataImports.reanalyze({ ...scope, importId: registered.id, mappingOverride: { blockCode: "Plot Block", unitNumber: "House", modelCode: "Kind" } });
+    const mapped = await pollUntilDone(pmc, registered.id);
+    expect(mapped.view).toMatchObject({ status: "validated", totalRows: 2 });
+    expect((mapped.view.external!.report as { pmc: { details: { columns: { overridden: boolean } } } }).pmc.details.columns.overridden).toBe(true);
+    expect(await pmc.dataImports.confirm({ ...scope, importId: registered.id })).toMatchObject({ status: "completed", createdRows: 2 });
+    const [units] = await connection.query<{ unitNumber: number }[]>("SELECT unitNumber FROM pmc_units WHERE tenantId = ? AND unitNumber IN (71001, 71002) ORDER BY unitNumber", [T]);
+    expect(units.map(unit => Number(unit.unitNumber))).toEqual([71001, 71002]);
+  }, 120_000);
+
   it("the master-plan mapping rides the same path: the version it belongs to is kept with the import, and another company's version is refused", async () => {
     const planner = callerFor(users.planner, "ext-planner");
     const csv = Buffer.from("Code,Status,Progress\nV-1,in_progress,40\nV-2,completed,100\n", "utf8");
