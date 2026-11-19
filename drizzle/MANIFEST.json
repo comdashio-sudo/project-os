@@ -39,8 +39,9 @@
     "0036_qc_receipt_batch_id.sql": "098616f44e12c038577f2b83cef7b43905e9ff1dec8b3a773dae3c66ae117935",
     "0037_schedule_snapshots.sql": "d26a397b86ba18920fe3299c6f1e49151b6acf0506cf5ec930112d00dee70153",
     "0038_p6_same_project_guards.sql": "cf92a6fab0398b6391422f88505cca09b97d268c757f5552712d6a5f6f1dda6c",
-    "0039_strategy_assumptions.sql": "1a1b27514a5b228d5dc18c68e338b30df25ab673982a0f4d4a6f56092a25f694",
-    "0040_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff",
-    "0041_strategy_competitors_swot.sql": "4f0be0b7312f0afa6ca2b4cdb6b4a63716a312b4c42e0e456f4ce8add015596e"
+    "0039_project_meetings.sql": "df1b26f0ed25fd6f2b1fc7eeec81f4c03e0f9f712aead7ce3030c685fd2cec3c",
+    "0040_strategy_assumptions.sql": "712b5cd0cd65ee2fdbf01904f0283a96b6ba0ef39fc677d65931edbe90724bad",
+    "0041_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff",
+    "0042_strategy_competitors_swot.sql": "6318fb2b92e7f0ea8e8bc4e20c438f42788a4126d9738ef3f9790a0968d7f118"
   }
 }

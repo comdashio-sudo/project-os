@@ -26,7 +26,7 @@ for (const [label, viewport] of [["desktop", { width: 1280, height: 900 }], ["mo
   const context = await browser.newContext({ viewport, locale: "ar-SA", acceptDownloads: true });
   await context.addCookies([{ name: "app_session_id", value: await sdk.issueSession(owner.openId, { name: owner.name }), url: BASE_URL }]);
   const page = await context.newPage();
-  await page.goto(`${BASE_URL}/projects/${project.tenantId}/${project.id}/controls?lang=ar#pmc`, { waitUntil: "load" });
+  await page.goto(`${BASE_URL}/projects/${project.tenantId}/${project.id}/pmc?lang=ar`, { waitUntil: "load" });
   await page.waitForTimeout(3000);
   const button = page.getByRole("button", { name: "PDF", exact: true });
   const [download] = await Promise.all([page.waitForEvent("download", { timeout: 60_000 }).catch(() => null), button.click()]);
