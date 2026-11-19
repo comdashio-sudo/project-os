@@ -3501,7 +3501,7 @@ export async function transitionActionEscalation(input: { userId: number; tenant
 }
 
 /** Q-45 (a, adviser 18-11): who records a decision — the project manager or the PMO on the project, or the company manager. Each code is checked with its own product. */
-function assertDecisionRecorder(snapshot: TenantAccessSnapshot, tenantId: string, projectId: string) {
+export function assertDecisionRecorder(snapshot: TenantAccessSnapshot, tenantId: string, projectId: string) {
   const attempts: Array<{ product: ProductCode; permission: string; scope: { type: "project"; id: string } | { type: "company" } }> = [
     { product: "PROJECT", permission: "project.manage", scope: { type: "project", id: projectId } },
     { product: "PMO", permission: "pmo.write", scope: { type: "project", id: projectId } },
@@ -3522,7 +3522,7 @@ export function assertDecisionParticipant(snapshot: TenantAccessSnapshot) {
 }
 
 /** Q-45: an owner (of a decision or an action) is an active member of THIS company. */
-async function assertActiveMember(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string, refusal: string) {
+export async function assertActiveMember(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string, refusal: string) {
   const [owner] = await db.select({ id: memberships.id, status: memberships.status }).from(memberships).where(and(eq(memberships.id, membershipId), eq(memberships.tenantId, tenantId))).limit(1);
   if (!owner || owner.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: refusal });
 }
