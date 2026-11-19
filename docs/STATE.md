@@ -2068,10 +2068,11 @@
 
 | البند | الحالة | الدليل |
 |---|---|---|
-| `siteReports.export` يقبل `docx` و`pdf` إلى جانب `xlsx`: نموذج واحد للأقسام 0–10 (`server/reportExport/dailyReportModel.ts`) يرسمه `docx` (A4، من اليمين لليسار، تذييل PAGE/NUMPAGES) و`pdfkit` (تشكيل `arabic-persian-reshaper` وترتيب `bidi-js`، نص قابل للاستخراج، شعارات وصور PNG/JPEG مضمّنة، تذييل في كل صفحة). الخط Noto Naskh Arabic (OFL) في `server/assets/fonts` ويُنسخ في `build:vercel` | `UNVERIFIED` حتى ينتهي `test:db` | `server/dailyReportDocuments.database.test.ts` (PDF نصًا بـpdf.js، Word بـJSZip، سالب: شركة أخرى وتقرير مجهول) |
+| `siteReports.export` يقبل `docx` و`pdf` إلى جانب `xlsx`: نموذج واحد للأقسام 0–10 (`server/reportExport/dailyReportModel.ts`) يرسمه `docx` (A4، من اليمين لليسار، تذييل PAGE/NUMPAGES) و`pdfkit` (تشكيل `arabic-persian-reshaper` وترتيب `bidi-js`، نص قابل للاستخراج، شعارات وصور PNG/JPEG مضمّنة، تذييل في كل صفحة). الخط Noto Naskh Arabic (OFL) في `server/assets/fonts` ويُنسخ في `build:vercel` | `PROVEN` | `server/dailyReportDocuments.database.test.ts` 3/3 ضمن `pnpm test:db` 888/0 (2026-11-19)؛ (PDF نصًا بـpdf.js، Word بـJSZip، سالب: شركة أخرى وتقرير مجهول) |
 | البوابة: بوابة القراءة نفسها + شرط رؤية قسم الموقع (Q-12) لكل الصيغ، ومن يرى الموقع يرى الأقسام كلها، فلا يكشف المستند قسمًا محجوبًا. ملف بلا صف تدقيق يُحذف (كما في `main`) | `SOURCE_VERIFIED` | `server/dailyReportExport.ts` |
 | الواجهة: في صفحة التقرير اليومي الكاملة زرا PDF وWord يطلبان ملف الخادم؛ عرض القسم الواحد (HSE/QC) يبقى بالتصدير من المتصفح لأن الخادم يرفضه لهم | `PROVEN` | `DailyReportDocument.test.tsx` (+1) |
 | المكتبات: `docx` 9.15.3، `pdfkit` 0.20.2، `bidi-js` 1.1.0، `arabic-persian-reshaper` 1.0.1 (MIT)، `@types/pdfkit` (تطوير)، والخط OFL-1.1 | `SOURCE_VERIFIED` | `package.json` |
+| البوابات: `pnpm check` 0؛ `pnpm test` 4185/0؛ `pnpm test:db` 888/0؛ `pnpm build` ناجح | `PROVEN` | 2026-11-19 |
 | حدود معلنة: الأردية تُصدَّر بالإنجليزية في Word/PDF؛ لا kerning؛ الصور PNG/JPEG فقط. المخطط الملوّن في الأسبوعي والشهري (P-100) في طلب تالٍ | `OPEN` | — |
 
 ### Q-19 (3): لوحة المشروع — التاريخ ويوم البرنامج وبطاقة البطل الداكنة للإنجاز الموزون (2026-11-19، المبرمج ج، واجهة فقط؛ بلا ترحيلة ولا صلاحية ولا خادم)
