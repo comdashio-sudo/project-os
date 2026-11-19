@@ -4,7 +4,8 @@ import { riyalLabel } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
-import { discard, enqueue, flushQueue, isNetworkError, loadQueue, retryFailed, reviveDates, type QueueItem, type SendResult } from "@/lib/offlineQueue";
+import { isNetworkError, reviveDates, type QueueItem, type SendResult } from "@/lib/offlineQueue";
+import { useOfflineQueue, type KeepOffline } from "@/lib/useOfflineQueue";
 import { trpc } from "@/lib/trpc";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
@@ -56,7 +57,6 @@ const remember = (key: string, value: string) => { try { localStorage.setItem(ke
 
 type Context = inferRouterOutputs<AppRouter>["fieldEntry"]["context"];
 type Sheet = inferRouterOutputs<AppRouter>["teamHours"]["sheet"];
-type KeepOffline = (item: Pick<QueueItem, "id" | "kind" | "payload" | "summary">) => boolean;
 
 const newId = () => globalThis.crypto.randomUUID();
 const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -149,8 +149,9 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
   const qty = Number(quantity);
   const cost = Number(unitCost);
   const shelf = material?.onHand.find(h => h.warehouseId === warehouseId);
-  const averageCost = shelf?.averageCost ?? null; // priced stock is issued at its average; the unit cost is asked only for stock nobody priced
-  const ready = Boolean(materialId && warehouseId && wbsItemId && qty > 0 && (averageCost !== null || cost > 0));
+  const averageCost = shelf?.averageCost ?? null; // shown only to the project-money readers (Q-32)
+  const priced = shelf?.priced ?? false; // priced stock is issued at its average; the unit cost is asked only for stock nobody priced
+  const ready = Boolean(materialId && warehouseId && wbsItemId && qty > 0 && (priced || cost > 0));
   const onHand = shelf?.quantity ?? null;
   return (
     <div className="space-y-3">
@@ -168,9 +169,9 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
       {material && (
         <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3">
           <label className="text-sm">{t.quantity} ({material.unitOfMeasure})<input aria-label={t.quantity} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} inputMode="decimal" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
-          {averageCost === null
+          {!priced
             ? <label className="text-sm">{t.unitCost}<input aria-label={t.unitCost} className={`${tap} mt-1 w-full rounded-lg border bg-card px-3 text-lg`} inputMode="decimal" value={unitCost} onChange={event => setUnitCost(event.target.value)} /></label>
-            : <p className="text-sm">{t.averageCost}: <b>{averageCost}</b><span className="block text-xs text-muted-foreground">{t.usesAverage}</span></p>}
+            : <p className="text-sm">{averageCost === null ? null : <>{t.averageCost}: <b>{averageCost}</b></>}<span className="block text-xs text-muted-foreground">{t.usesAverage}</span></p>}
           <p className="col-span-2 text-xs text-muted-foreground">{t.onHand}: <b>{onHand === null ? "—" : onHand}</b>{qty > 0 && (averageCost ?? cost) > 0 && <> · {t.total}: <b>{formatNumber(qty * (averageCost ?? cost), 2)}</b></>}</p>
         </div>
       )}
@@ -181,7 +182,7 @@ function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic
       </details>
       {notKept && <p role="alert" className="text-sm text-danger-soft-foreground">{t.queueNotSaved}</p>}
       {issue.error && !isNetworkError(issue.error) && <FieldFailure error={issue.error} isArabic={isArabic} retryLabel={t.retry} onRetry={issue.variables ? () => issue.mutate(issue.variables!) : undefined} />}
-      <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: averageCost === null ? cost : undefined, issuedAt: new Date(), clientRequestId: requestId.current })}>{issue.isPending ? t.saving : t.save}</Button>
+      <Button className={`${tap} w-full text-base`} disabled={!ready || issue.isPending} onClick={() => issue.mutate({ tenantId, projectId, warehouseId, materialId: materialId!, wbsItemId, issuedQuantity: qty, unitCost: priced ? undefined : cost, issuedAt: new Date(), clientRequestId: requestId.current })}>{issue.isPending ? t.saving : t.save}</Button>
     </div>
   );
 }
@@ -326,47 +327,6 @@ function QueueBanner({ items, online, flushing, onFlush, onDiscard, onRetry, t, 
   );
 }
 
-// The queue belongs to one project on one phone. Online again, it is sent by itself, one request at a time.
-// It also tries again every RETRY_MS while something waits and the phone believes it is online: "online" can stay true
-// while the server is unreachable, and no event fires when it comes back.
-const RETRY_MS = 30_000;
-// `scope` names the person as well as the project (null until the signed-in person is known): a phone shared on site must never
-// send one person's waiting requests under the next person's sign-in.
-function useOfflineQueue(scope: string | null) {
-  const client = trpc.useUtils().client;
-  const [items, setItems] = useState<QueueItem[]>(() => (scope ? loadQueue(scope) : []));
-  const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
-  const [flushing, setFlushing] = useState(false);
-  const refresh = useCallback(() => setItems(scope ? loadQueue(scope) : []), [scope]);
-  useEffect(() => { refresh(); }, [refresh]); // a different person on the same phone sees their own queue
-  // The sender is read through a ref so that `flush` keeps one identity: a changing client must not re-arm the effects below on every render.
-  const send = useCallback(async (item: QueueItem): Promise<SendResult> => {
-    const payload = { ...reviveDates(item.payload), clientRequestId: item.id } as never;
-    if (item.kind === "progress") await client.progress.create.mutate(payload);
-    else if (item.kind === "issue") await client.warehouses.issueToWork.mutate(payload);
-    else if (item.kind === "receipt") await client.goodsReceipts.create.mutate(payload);
-    else { const result = await client.teamHours.save.mutate(payload); if (result.errors.length) return { rejected: result.errors[0].code }; }
-  }, [client]);
-  const sendRef = useRef(send);
-  sendRef.current = send;
-  const flush = useCallback(async () => { if (!scope) return; setFlushing(true); try { await flushQueue(scope, item => sendRef.current(item)); } finally { setFlushing(false); refresh(); } }, [scope, refresh]);
-  useEffect(() => {
-    const goOnline = () => { setOnline(true); void flush(); };
-    const goOffline = () => setOnline(false);
-    window.addEventListener("online", goOnline); window.addEventListener("offline", goOffline);
-    if (scope && navigator.onLine !== false && loadQueue(scope).some(item => item.status === "pending")) void flush();
-    return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
-  }, [scope, flush]);
-  const waiting = items.some(item => item.status === "pending");
-  useEffect(() => {
-    if (!waiting || !online) return undefined;
-    const timer = setInterval(() => { void flush(); }, RETRY_MS);
-    return () => clearInterval(timer);
-  }, [waiting, online, flush]);
-  const keep: KeepOffline = useCallback(item => { if (!scope) return false; const kept = enqueue(scope, item); refresh(); return kept; }, [scope, refresh]);
-  return { items, online, flushing, flush, keep, discard: (id: string) => { if (scope) { discard(scope, id); refresh(); } }, retry: (id: string) => { if (scope) { retryFailed(scope, id); refresh(); void flush(); } } };
-}
-
 export default function FieldEntry() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, isRtl, language } = useLanguage();
@@ -374,7 +334,16 @@ export default function FieldEntry() {
   const canOpenControls = useCanPage("controls", projectId);
   const [chosen, setTab] = useState<"progress" | "issue" | "receive" | "team" | null>(null);
   const me = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
-  const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}` : null);
+  const client = trpc.useUtils().client;
+  const send = useCallback(async (item: QueueItem): Promise<SendResult> => {
+    const payload = { ...reviveDates(item.payload), clientRequestId: item.id } as never;
+    if (item.kind === "progress") await client.progress.create.mutate(payload);
+    else if (item.kind === "issue") await client.warehouses.issueToWork.mutate(payload);
+    else if (item.kind === "receipt") await client.goodsReceipts.create.mutate(payload);
+    else if (item.kind === "team") { const result = await client.teamHours.save.mutate(payload); if (result.errors.length) return { rejected: result.errors[0].code }; }
+    else return { rejected: "UNKNOWN_KIND" }; // the PMC screens keep their own queues (their own scope): never sent through this screen
+  }, [client]);
+  const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}` : null, send);
   const contextKey = `fieldEntry:context:${me.data?.id ?? "anon"}:${tenantId}:${projectId}`;
   const context = trpc.fieldEntry.context.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), ...attempt, retry: 1 });
   useEffect(() => { if (context.data && me.data?.id) remember(contextKey, JSON.stringify(context.data)); }, [context.data, contextKey, me.data?.id]);

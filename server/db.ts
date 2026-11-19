@@ -1386,8 +1386,16 @@ export const BOQ_MONEY_READERS = ["project.cashflow.read", "project.wbs.manage"]
 export function projectMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
   return holdsPermission(snapshot, PROJECT_MONEY_READERS, { type: "project", id: projectId });
 }
+/** Q-45 (b): who sees the value of a project's purchase orders — whoever sees its money (205-1), and whoever manages its procurement. */
+export function purchaseOrderMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
+  return projectMoneyVisible(snapshot, projectId) || holdsPermission(snapshot, "project.procurement.manage", { type: "project", id: projectId });
+}
 export function contractMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
   return holdsPermission(snapshot, CONTRACT_MONEY_READERS, { type: "project", id: projectId });
+}
+/** Q-32 (adviser 18-11): stock value is project money — the warehouse keeper sees quantities, the value is for the project-money readers (205-1). */
+export function inventoryMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
+  return projectMoneyVisible(snapshot, projectId);
 }
 export function boqMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
   return holdsPermission(snapshot, BOQ_MONEY_READERS, { type: "project", id: projectId });
@@ -1599,7 +1607,58 @@ export async function getPmoDashboard(input: { userId: number; tenantId: string 
     materialShortages,
     today,
   });
-  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions };
+  // Q-45 (b, adviser 18-11): overdue and critical activities per project, and the same signals added up per program and portfolio — every number from the
+  // database. «Critical» is total float ≤ 0 as P6 computed it; a project none of whose activities carries a float (scheduled by hand) is null: «غير متاح».
+  const activitySignalRows = projectRows.length
+    ? await db.select({
+      projectId: activities.projectId,
+      overdue: sql<string>`COUNT(*) FILTER (WHERE ${activities.status} <> 'completed' AND ${activities.plannedFinishAt} IS NOT NULL AND ${activities.plannedFinishAt} < now())`,
+      critical: sql<string>`COUNT(*) FILTER (WHERE ${activities.status} <> 'completed' AND ${activities.totalFloatHours} IS NOT NULL AND ${activities.totalFloatHours} <= 0)`,
+      withFloat: sql<string>`COUNT(${activities.totalFloatHours})`,
+    }).from(activities).where(and(eq(activities.tenantId, input.tenantId), inArray(activities.projectId, projectRows.map(project => project.id)))).groupBy(activities.projectId)
+    : [];
+  const activitySignalByProject = new Map(activitySignalRows.map(row => [row.projectId, { overdue: Number(row.overdue), critical: Number(row.withFloat) > 0 ? Number(row.critical) : null }]));
+  const activitySignals = projectRows.map(project => ({ projectId: project.id, overdueActivities: activitySignalByProject.get(project.id)?.overdue ?? 0, criticalActivities: activitySignalByProject.get(project.id)?.critical ?? null }));
+  // Q-45 (b, third batch): open purchase orders and cost against budget per project. The COUNT of open orders is not money and is shown to every reader;
+  // the amounts — the orders' value, the current budget and the posted actual cost — only to whoever may see that project's money (205-1), and the
+  // orders' value also to whoever manages its procurement. Everyone else gets null, which the screen says as «hidden», never 0.
+  const visibleIds = projectRows.map(project => project.id);
+  const [openOrderRows, budgetRows, actualRows] = visibleIds.length ? await Promise.all([
+    db.select({ projectId: purchaseOrders.projectId, n: sql<string>`count(*)`, amount: sql<string>`COALESCE(SUM(${purchaseOrders.amount}), 0)` }).from(purchaseOrders)
+      .where(and(eq(purchaseOrders.tenantId, input.tenantId), inArray(purchaseOrders.projectId, visibleIds), inArray(purchaseOrders.status, ["submitted", "approved", "issued"]))).groupBy(purchaseOrders.projectId),
+    db.select({ projectId: budgetLines.projectId, amount: sql<string>`COALESCE(SUM(${budgetLines.currentAmount}), 0)` }).from(budgetLines)
+      .where(and(eq(budgetLines.tenantId, input.tenantId), inArray(budgetLines.projectId, visibleIds))).groupBy(budgetLines.projectId),
+    db.select({ projectId: costEntries.projectId, amount: sql<string>`COALESCE(SUM(${costEntries.amount}), 0)` }).from(costEntries)
+      .where(and(eq(costEntries.tenantId, input.tenantId), inArray(costEntries.projectId, visibleIds), eq(costEntries.entryType, "actual"), eq(costEntries.status, "posted"))).groupBy(costEntries.projectId),
+  ]) : [[], [], []];
+  const commercialSignals = projectRows.map(project => {
+    const seesMoney = projectMoneyVisible(snapshot, project.id);
+    const seesOrders = purchaseOrderMoneyVisible(snapshot, project.id);
+    const orders = openOrderRows.find(row => row.projectId === project.id);
+    return {
+      projectId: project.id, currency: project.currency,
+      openPurchaseOrders: Number(orders?.n ?? 0),
+      openPurchaseOrderAmount: seesOrders ? Number(orders?.amount ?? 0) : null,
+      budget: seesMoney ? Number(budgetRows.find(row => row.projectId === project.id)?.amount ?? 0) : null,
+      actualCost: seesMoney ? Number(actualRows.find(row => row.projectId === project.id)?.amount ?? 0) : null,
+    };
+  });
+  const planningByProject = new Map(planningOverview.projects.map(item => [item.id, item]));
+  const rollUp = (members: typeof projectRows) => {
+    const signals = members.map(project => activitySignals.find(item => item.projectId === project.id)!);
+    const knownCritical = signals.filter(item => item.criticalActivities !== null);
+    return {
+      projects: members.length,
+      overdueActivities: signals.reduce((total, item) => total + item.overdueActivities, 0),
+      criticalActivities: knownCritical.length ? knownCritical.reduce((total, item) => total + (item.criticalActivities ?? 0), 0) : null,
+      openHighRisks: members.reduce((total, project) => total + (planningByProject.get(project.id)?.openRiskCount ?? 0), 0),
+      criticalIssues: members.reduce((total, project) => total + (planningByProject.get(project.id)?.criticalIssueCount ?? 0), 0),
+      overdueActions: members.reduce((total, project) => total + (planningByProject.get(project.id)?.overdueActionCount ?? 0), 0),
+    };
+  };
+  const programTotals = programRows.map(program => ({ programId: program.id, ...rollUp(projectRows.filter(project => project.programId === program.id)) }));
+  const portfolioTotals = portfolioRows.map(portfolio => ({ portfolioId: portfolio.id, ...rollUp(projectRows.filter(project => project.portfolioId === portfolio.id)) }));
+  return { portfolios: portfolioRows, programs: programRows, projects: projectRows, risks: riskRows, issues: issueRows, actions: actionRows, decisions: decisionRows, rfis: rfiRows, ncrs: ncrRows, planningOverview, todayExceptions, activitySignals, programTotals, portfolioTotals, commercialSignals };
 }
 
 export async function getContractsCommitmentsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
@@ -3009,11 +3068,20 @@ export async function adjustPayrollAllocationForTenant(input: { userId: number; 
   return { id: adjustmentId, allocationId: allocation.id, previousAmount, newAmount, costEntryId: newCostEntryId };
 }
 
+// Q-32 (P0-03): a material request is read by the people who work it, on their own project: who asks (project.material.request), who buys and approves
+// (project.procurement.manage) and who issues from the warehouse against it (project.inventory.manage) — not only by a holder of project.read, which the
+// project manager, the procurement officer and the warehouse keeper templates do not carry (Q-17 205-3 kept it from the warehouse role). Reading matches
+// what each role may already write; nobody gains project.read, and the register carries no amounts (orders: number and status; requests: quantities).
+const MATERIAL_REQUEST_READERS = ["project.read", "project.material.request", "project.procurement.manage", "project.inventory.manage"];
+// the warehouse list, under the same powers the warehouse level reads it with (server/levelReads.ts getProjectWarehouses). It carries stock values, as it does for a
+// holder of project.read: the keeper already records unit costs on receipts and issues.
+const WAREHOUSE_READERS = ["project.read", "project.inventory.manage", "project.manage"];
+
 export async function getMaterialCatalogForTenant(input: { userId: number; tenantId: string; projectId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: MATERIAL_REQUEST_READERS, scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const [masters, overrides] = await Promise.all([db.select().from(materialMasters).where(eq(materialMasters.tenantId, input.tenantId)).orderBy(materialMasters.code), db.select().from(projectMaterialOverrides).where(and(eq(projectMaterialOverrides.tenantId, input.tenantId), eq(projectMaterialOverrides.projectId, input.projectId)))]);
   const byMaterial = new Map(overrides.map(item => [item.materialId, item]));
@@ -3059,6 +3127,7 @@ export async function getFieldEntryContextForTenant(input: { userId: number; ten
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const onProject = { type: "project" as const, id: input.projectId };
+  const seesStockMoney = inventoryMoneyVisible(snapshot, input.projectId);
   const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
   const [warehouses, materials, movements, issues, receipts, wbs, progress, issuedOrders] = await Promise.all([
     db.select({ id: projectWarehouses.id, code: projectWarehouses.code, name: projectWarehouses.name }).from(projectWarehouses).where(and(mine(projectWarehouses), eq(projectWarehouses.active, true))).orderBy(asc(projectWarehouses.code)),
@@ -3082,7 +3151,7 @@ export async function getFieldEntryContextForTenant(input: { userId: number; ten
   progress.forEach(p => { if (p.wbsItemId && !latestProgress.has(p.wbsItemId)) latestProgress.set(p.wbsItemId, { percent: Number(p.progressPercent), measuredAt: p.measuredAt }); });
   return {
     warehouses,
-    materials: materials.map(m => ({ ...m, lastUnitCost: lastCost.get(`issue:${m.id}`) ?? lastCost.get(m.id) ?? null, timesIssued: lastIssued.get(m.id) ?? 0, onHand: warehouses.map(w => { const position = positionAt(w.id, m.id); return { warehouseId: w.id, quantity: position.quantity, averageCost: position.averageCost }; }) })).sort((a, b) => b.timesIssued - a.timesIssued || a.code.localeCompare(b.code)),
+    materials: materials.map(m => ({ ...m, lastUnitCost: seesStockMoney ? lastCost.get(`issue:${m.id}`) ?? lastCost.get(m.id) ?? null : null, timesIssued: lastIssued.get(m.id) ?? 0, onHand: warehouses.map(w => { const position = positionAt(w.id, m.id); return { warehouseId: w.id, quantity: position.quantity, averageCost: seesStockMoney ? position.averageCost : null, priced: position.averageCost !== null }; }) })).sort((a, b) => b.timesIssued - a.timesIssued || a.code.localeCompare(b.code)),
     wbs: wbs.map(w => ({ ...w, lastPercent: latestProgress.get(w.id)?.percent ?? null, lastMeasuredAt: latestProgress.get(w.id)?.measuredAt ?? null })),
     lastIssuedWbsItemId: issues[0]?.wbsItemId ?? null,
     // Issued purchase orders a storekeeper can receive against, each with the material last received on it (the likely next one).
@@ -3095,7 +3164,7 @@ export async function getFieldEntryContextForTenant(input: { userId: number; ten
 export async function getProjectWarehousesForTenant(input: { userId: number; tenantId: string; projectId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: WAREHOUSE_READERS, scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const [warehouses, balanceMovements, transactions, materials] = await Promise.all([
     db.select().from(projectWarehouses).where(and(eq(projectWarehouses.tenantId, input.tenantId), eq(projectWarehouses.projectId, input.projectId))).orderBy(desc(projectWarehouses.createdAt)),
     db.select({ warehouseId: warehouseInventoryTransactions.warehouseId, materialId: warehouseInventoryTransactions.materialId, quantityDelta: warehouseInventoryTransactions.quantityDelta, valueDelta: warehouseInventoryTransactions.valueDelta }).from(warehouseInventoryTransactions).where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), eq(warehouseInventoryTransactions.projectId, input.projectId))),
@@ -3106,8 +3175,9 @@ export async function getProjectWarehousesForTenant(input: { userId: number; ten
   // Quantity, value and weighted-average cost of every (warehouse, material); the unpriced quantity is reported beside the value so a missing price is never read as "worth nothing".
   const movementsByKey = new Map<string, { warehouseId: string; materialId: string; movements: { quantityDelta: number; valueDelta: number | null }[] }>();
   balanceMovements.forEach(item => { const key = `${item.warehouseId}:${item.materialId}`; const entry = movementsByKey.get(key) ?? { warehouseId: item.warehouseId, materialId: item.materialId, movements: [] }; entry.movements.push({ quantityDelta: Number(item.quantityDelta), valueDelta: item.valueDelta === null ? null : Number(item.valueDelta) }); movementsByKey.set(key, entry); });
-  const balances = Array.from(movementsByKey.values()).map(entry => { const position = stockPosition(entry.movements); return { warehouseId: entry.warehouseId, materialId: entry.materialId, quantityOnHand: position.quantity.toFixed(3), stockValue: position.value.toFixed(2), averageCost: position.averageCost === null ? null : position.averageCost.toFixed(4), unpricedQuantity: position.unpricedQuantity.toFixed(3) }; });
-  return { warehouses, balances: balances.map(item => ({ id: `${item.warehouseId}:${item.materialId}`, tenantId: input.tenantId, projectId: input.projectId, ...item, material: materialById.get(item.materialId) ?? null })), transactions: transactions.map(item => ({ ...item, material: materialById.get(item.materialId) ?? null })) };
+  const seesMoney = inventoryMoneyVisible(snapshot, input.projectId);
+  const balances = Array.from(movementsByKey.values()).map(entry => { const position = stockPosition(entry.movements); return { warehouseId: entry.warehouseId, materialId: entry.materialId, quantityOnHand: position.quantity.toFixed(3), stockValue: seesMoney ? position.value.toFixed(2) : null, averageCost: seesMoney && position.averageCost !== null ? position.averageCost.toFixed(4) : null, priced: position.averageCost !== null, unpricedQuantity: position.unpricedQuantity.toFixed(3) }; });
+  return { moneyVisible: seesMoney, warehouses, balances: balances.map(item => ({ id: `${item.warehouseId}:${item.materialId}`, tenantId: input.tenantId, projectId: input.projectId, ...item, material: materialById.get(item.materialId) ?? null })), transactions: transactions.map(item => ({ ...item, unitCost: seesMoney ? item.unitCost : null, valueDelta: seesMoney ? item.valueDelta : null, material: materialById.get(item.materialId) ?? null })) };
 }
 
 export async function createProjectWarehouseForTenant(input: { userId: number; tenantId: string; projectId: string; code: string; name: string; locationDescription?: string }) {
@@ -3183,12 +3253,13 @@ export async function createMaterialIssueForTenant(input: { userId: number; tena
   }
   const transactionId = crypto.randomUUID(); const costEntryId = crypto.randomUUID(); const issueId = crypto.randomUUID(); let previousQuantity = 0; let nextQuantity = 0; let charged = { unitCost: 0, totalCost: 0, basis: "manual" as "weighted_average" | "manual" };
   await db.transaction(async tx => { await tx.execute(sql`SELECT id FROM project_warehouses WHERE id = ${input.warehouseId} FOR UPDATE`); const position = await stockPositionOf(tx, { tenantId: input.tenantId, projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId }); previousQuantity = position.quantity; nextQuantity = previousQuantity - input.issuedQuantity; if (nextQuantity < 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_INVENTORY_INSUFFICIENT_STOCK" }); let costing: ReturnType<typeof issueToWorkCost>; try { costing = issueToWorkCost(position, input.issuedQuantity, input.unitCost); } catch { throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_MATERIAL_ISSUE_COST_REQUIRED" }); } charged = { unitCost: costing.unitCost, totalCost: costing.totalCost, basis: costing.basis }; await tx.insert(warehouseInventoryTransactions).values({ id: transactionId, tenantId: input.tenantId, projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, transactionType: "issue", quantityDelta: String(-input.issuedQuantity), unitCost: costing.basis === "weighted_average" ? costing.unitCost.toFixed(4) : null, valueDelta: costing.valueDelta === null ? null : costing.valueDelta.toFixed(2), referenceNumber: input.referenceNumber, note: input.note, occurredAt: input.issuedAt, createdByUserId: input.userId }); await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, amount: String(charged.totalCost), entryType: "actual", status: "posted", incurredAt: input.issuedAt, category: "materials", sourceType: "material_issue", sourceId: issueId }); await tx.insert(materialIssues).values({ id: issueId, tenantId: input.tenantId, projectId: input.projectId, inventoryTransactionId: transactionId, costEntryId, materialId: input.materialId, wbsItemId: input.wbsItemId, activityId: input.activityId, pmcUnitId: input.pmcUnitId, pmcActivityDefinitionId: input.pmcActivityDefinitionId, issuedQuantity: String(input.issuedQuantity), unitCost: String(charged.unitCost), totalCost: String(charged.totalCost), issuedAt: input.issuedAt, createdByUserId: input.userId }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "warehouse.material_issued_to_work", entityType: "material_issue", entityId: issueId, metadata: JSON.stringify({ projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, wbsItemId: input.wbsItemId, activityId: input.activityId ?? null, issuedQuantity: input.issuedQuantity, unitCost: charged.unitCost, totalCost: charged.totalCost, costBasis: charged.basis, inventoryTransactionId: transactionId, costEntryId, previousQuantity, nextQuantity }) }); await emitWebhookEvent(tx, input.tenantId, "material.issued", { issueId, projectId: input.projectId, warehouseId: input.warehouseId, materialId: input.materialId, quantity: input.issuedQuantity }); }); kickWebhookDelivery();
-  return { id: issueId, inventoryTransactionId: transactionId, costEntryId, totalCost: charged.totalCost, unitCost: charged.unitCost, costBasis: charged.basis, previousQuantity, nextQuantity, warnings: issueWarnings };
+  const seesMoney = inventoryMoneyVisible(snapshot, input.projectId);
+  return { id: issueId, inventoryTransactionId: transactionId, costEntryId, totalCost: seesMoney ? charged.totalCost : null, unitCost: seesMoney ? charged.unitCost : null, costBasis: charged.basis, previousQuantity, nextQuantity, warnings: issueWarnings };
 }
 
 export async function getProcurementRegisterForTenant(input: { userId: number; tenantId: string; projectId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available"); const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId }); if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.read", scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: MATERIAL_REQUEST_READERS, scope: { type: "project", id: input.projectId } }); await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const [supplierRows, requisitions, materials, wbsRows, activityRows, purchaseOrderRows, issueRows] = await Promise.all([db.select().from(suppliers).where(eq(suppliers.tenantId, input.tenantId)).orderBy(suppliers.code), db.select().from(procurementRequisitions).where(and(eq(procurementRequisitions.tenantId, input.tenantId), eq(procurementRequisitions.projectId, input.projectId))).orderBy(desc(procurementRequisitions.createdAt)), db.select({ id: materialMasters.id, code: materialMasters.code, description: materialMasters.description }).from(materialMasters).where(eq(materialMasters.tenantId, input.tenantId)), db.select({ id: wbsItems.id, code: wbsItems.code, name: wbsItems.name }).from(wbsItems).where(and(eq(wbsItems.tenantId, input.tenantId), eq(wbsItems.projectId, input.projectId))), db.select({ id: activities.id, code: activities.code, name: activities.name, wbsItemId: activities.wbsItemId }).from(activities).where(and(eq(activities.tenantId, input.tenantId), eq(activities.projectId, input.projectId))), db.select({ id: purchaseOrders.id, purchaseOrderNumber: purchaseOrders.purchaseOrderNumber, status: purchaseOrders.status }).from(purchaseOrders).where(and(eq(purchaseOrders.tenantId, input.tenantId), eq(purchaseOrders.projectId, input.projectId))).orderBy(desc(purchaseOrders.createdAt)), db.select({ requisitionId: warehouseInventoryTransactions.requisitionId, quantityDelta: warehouseInventoryTransactions.quantityDelta }).from(warehouseInventoryTransactions).where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), eq(warehouseInventoryTransactions.projectId, input.projectId), eq(warehouseInventoryTransactions.transactionType, "issue")))]);
   const supplierById = new Map(supplierRows.map(item => [item.id, item])); const materialById = new Map(materials.map(item => [item.id, item])); const wbsById = new Map(wbsRows.map(item => [item.id, item])); const activityById = new Map(activityRows.map(item => [item.id, item])); const purchaseOrderById = new Map(purchaseOrderRows.map(item => [item.id, item])); const issuedByRequisition = new Map<string, number>(); issueRows.forEach(item => { if (item.requisitionId) issuedByRequisition.set(item.requisitionId, (issuedByRequisition.get(item.requisitionId) ?? 0) + Math.abs(Number(item.quantityDelta))); }); return { suppliers: supplierRows, wbsItems: wbsRows, activities: activityRows, purchaseOrders: purchaseOrderRows, requisitions: requisitions.map(item => { const issuedQuantity = issuedByRequisition.get(item.id) ?? 0; return { ...item, supplier: item.supplierId ? supplierById.get(item.supplierId) ?? null : null, material: item.materialId ? materialById.get(item.materialId) ?? null : null, wbs: item.wbsItemId ? wbsById.get(item.wbsItemId) ?? null : null, activity: item.activityId ? activityById.get(item.activityId) ?? null : null, purchaseOrder: item.purchaseOrderId ? purchaseOrderById.get(item.purchaseOrderId) ?? null : null, issuedQuantity, remainingQuantity: Math.max(0, Number(item.requestedQuantity) - issuedQuantity) }; }) };
 }
@@ -3333,15 +3404,17 @@ export async function createIssue(input: { userId: number; tenantId: string; pro
   return { id };
 }
 
-export async function createAction(input: { userId: number; tenantId: string; projectId: string; title: string; priority: "low" | "medium" | "high" | "critical"; dueAt?: Date }) {
+export async function createAction(input: { userId: number; tenantId: string; projectId: string; title: string; priority: "low" | "medium" | "high" | "critical"; dueAt?: Date; ownerMembershipId?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PMO", permission: "pmo.write", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  // Q-45 (c): the action's owner — whose «مهامي» it appears in — is an active member of this company
+  if (input.ownerMembershipId) await assertActiveMember(db, input.tenantId, input.ownerMembershipId, "PROJECT_OS_ACTION_OWNER_INVALID");
   const id = crypto.randomUUID();
-  await db.transaction(async tx => { await tx.insert(actions).values({ id, tenantId: input.tenantId, projectId: input.projectId, title: input.title, priority: input.priority, dueAt: input.dueAt, status: "open" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.action_created", entityType: "action", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, priority: input.priority }) }); });
+  await db.transaction(async tx => { await tx.insert(actions).values({ id, tenantId: input.tenantId, projectId: input.projectId, title: input.title, priority: input.priority, dueAt: input.dueAt, ownerMembershipId: input.ownerMembershipId, status: "open" }); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmo.action_created", entityType: "action", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, priority: input.priority }) }); });
   return { id };
 }
 
@@ -3408,15 +3481,28 @@ function assertDecisionRecorder(snapshot: TenantAccessSnapshot, tenantId: string
 
 /** Q-45 (a): taking part in a decision (submitting, deciding, implementing) needs an active membership of a company that holds a licensed product; the
  *  step's own rule (recorder / owner) is checked by the caller. */
-function assertDecisionParticipant(snapshot: TenantAccessSnapshot) {
+export function assertDecisionParticipant(snapshot: TenantAccessSnapshot) {
   if (snapshot.membershipStatus !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   if (!(["EXECUTIVE", "PMO", "PROJECT"] as const).some(product => snapshot.entitledProducts.includes(product))) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
 }
 
-/** Q-45 (a): the decision owner is an active member of THIS company. */
-async function assertDecisionOwner(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string) {
+/** Q-45: an owner (of a decision or an action) is an active member of THIS company. */
+async function assertActiveMember(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string, refusal: string) {
   const [owner] = await db.select({ id: memberships.id, status: memberships.status }).from(memberships).where(and(eq(memberships.id, membershipId), eq(memberships.tenantId, tenantId))).limit(1);
-  if (!owner || owner.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_DECISION_OWNER_INVALID" });
+  if (!owner || owner.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: refusal });
+}
+const assertDecisionOwner = (db: NonNullable<Awaited<ReturnType<typeof getDb>>>, tenantId: string, membershipId: string) => assertActiveMember(db, tenantId, membershipId, "PROJECT_OS_DECISION_OWNER_INVALID");
+
+/** Q-45 (c): the active members of the company, by name, to pick an owner for a decision or an action — for whoever may record one on this project. */
+export async function getOwnerOptionsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertDecisionRecorder(snapshot, input.tenantId, input.projectId);
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return db.select({ membershipId: memberships.id, name: users.name }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
+    .where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.status, "active"))).orderBy(asc(users.name));
 }
 
 export async function createDecision(input: { userId: number; tenantId: string; projectId: string; problem: string; options: string; recommendation?: string; decisionOwnerMembershipId?: string; costImpact?: number; scheduleImpactDays?: number; riskImpact?: string }) {
