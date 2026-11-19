@@ -9,12 +9,12 @@ const buildTenantNavigation = (input: NavInput) => build({ ...input, snapshot: {
 describe("buildTenantNavigation", () => {
   it("returns only items backed by licensed products, permissions, and company scope", () => {
     const items = buildTenantNavigation({ tenantId: "tenant-a", projectId: "project-a", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: ["EXECUTIVE", "PMO", "PROJECT"], permissionCodes: ["executive.read", "pmo.read", "project.read", "tenant.manage"], scopes: [{ scopeType: "company", scopeId: null }] } });
-    expect(items.map(item => item.id)).toEqual(["project-controls", "project-site", "project-reports", "project-commercial", "tenant-administration", "project-registry", "pmo-dashboard", "executive-dashboard", "levels"]);
+    expect(items.map(item => item.id)).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "tenant-administration", "project-registry", "pmo-dashboard", "executive-dashboard", "levels"]);
   });
 
   it("does not reveal tenant-wide or unrelated project links to a project-scoped project user", () => {
     const items = buildTenantNavigation({ tenantId: "tenant-a", projectId: "project-a", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: ["PROJECT"], permissionCodes: ["project.read"], scopes: [{ scopeType: "project", scopeId: "project-a" }] } });
-    expect(items.map(item => item.id)).toEqual(["project-controls", "project-site", "project-reports", "project-commercial", "levels"]);
+    expect(items.map(item => item.id)).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "levels"]);
     // the levels entry is company-wide and reveals no project; the project's own links are not offered for project-b
     expect(buildTenantNavigation({ tenantId: "tenant-a", projectId: "project-b", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: ["PROJECT"], permissionCodes: ["project.read"], scopes: [{ scopeType: "project", scopeId: "project-a" }] } }).map(item => item.id)).toEqual(["levels"]);
   });
@@ -52,7 +52,7 @@ describe("buildTenantNavigation by role", () => {
     expect(ids({ tenantId: "tenant-a", snapshot: owner })).toEqual(companyModules);
     // my-performance is listed here although the server refuses the page to a person with no employee record linked to the account.
     // That rule belongs to fix/ui-performance-self-only; this assertion changes with it.
-    expect(ids({ tenantId: "tenant-a", projectId: "project-a", snapshot: owner })).toEqual(["project-controls", "project-site", "project-reports", "project-commercial", "my-performance", ...companyModules]);
+    expect(ids({ tenantId: "tenant-a", projectId: "project-a", snapshot: owner })).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "my-performance", ...companyModules]);
   });
 
   it("shows nothing to a suspended owner", () => {
@@ -75,7 +75,7 @@ describe("buildTenantNavigation: the levels entry", () => {
   });
 
   it("offers a project person the levels entry, and the project's own links once a project is open", () => {
-    expect(ids({ tenantId: "tenant-a", projectId: "project-a", snapshot: snapshot({ permissionCodes: ["project.read"] }) })).toEqual(["project-controls", "project-site", "project-reports", "project-commercial", "levels"]);
+    expect(ids({ tenantId: "tenant-a", projectId: "project-a", snapshot: snapshot({ permissionCodes: ["project.read"] }) })).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "levels"]);
   });
 
   it("does not offer the levels entry to someone holding no level permission", () => {
@@ -99,7 +99,7 @@ describe("Q-36 (step 2): two groups, the project's first", () => {
     const items = buildTenantNavigation({ tenantId: "t", projectId: "p", snapshot: { tenantId: "t", membershipStatus: "active", entitledProducts: [...all], permissionCodes: ["project.read", "project.manage", "tenant.manage", "executive.read"], scopes: [{ scopeType: "company", scopeId: null }] } });
     const groups = items.map(item => item.group);
     expect(groups.indexOf("company")).toBeGreaterThan(groups.lastIndexOf("project"));
-    expect(items.filter(item => item.group === "project").map(item => item.id)).toEqual(["project-controls", "project-site", "project-reports", "project-commercial", "project-team"]);
+    expect(items.filter(item => item.group === "project").map(item => item.id)).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "project-team"]);
     expect(items.find(item => item.id === "project-team")?.href).toBe("/projects/t/p/team");
   });
   it("NEGATIVE: the team link needs project.manage or project.team.invite on THIS project, as its page does; a reader of the project does not get it", () => {
@@ -138,6 +138,20 @@ describe("Q-36 (step 2 c): «التقارير»", () => {
   it("NEGATIVE: a warehouse keeper, or a reader of ANOTHER project, does not get it", () => {
     expect(nav(["project.inventory.manage"]).map(item => item.id)).not.toContain("project-reports");
     expect(nav(["project.read", "project.pmc.read"], "other").map(item => item.id)).not.toContain("project-reports");
+  });
+});
+
+describe("Q-36 (step 4 b): the board's levels in the menu", () => {
+  const nav = (codes: string[], scopeId = "p") => buildTenantNavigation({ tenantId: "t", projectId: "p", snapshot: { tenantId: "t", membershipStatus: "active", entitledProducts: ["PROJECT"], permissionCodes: codes, scopes: [{ scopeType: "project", scopeId }] } });
+  it("POSITIVE: whoever opens the project board gets «Planning and control» and «Warehouses and procurement», each to its section of the board", () => {
+    const items = nav(["project.read"]);
+    expect(items.find(item => item.id === "project-planning")).toMatchObject({ group: "project", href: "/projects/t/p/controls#planning" });
+    expect(items.find(item => item.id === "project-supply")).toMatchObject({ group: "project", href: "/projects/t/p/controls#supply" });
+  });
+  it("NEGATIVE: not without the board's own permission (the board's gate, shared/pageAccess.ts), nor on another project", () => {
+    expect(nav(["project.pmc.read"]).map(item => item.id)).not.toEqual(expect.arrayContaining(["project-planning"]));
+    expect(nav(["project.pmc.read"]).map(item => item.id)).not.toContain("project-supply");
+    expect(nav(["project.read"], "other").map(item => item.id)).not.toContain("project-planning");
   });
 });
 
