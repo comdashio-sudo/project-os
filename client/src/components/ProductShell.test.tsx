@@ -9,7 +9,7 @@ import { LanguageToggle } from "./LanguageToggle";
 import { PermissionProvider } from "@/lib/permissions";
 
 // One frame for every company screen (work order 21, step 1): one top bar, the modules the server allows, one breadcrumb trail.
-const state = vi.hoisted(() => ({ listOptions: [] as Array<{ enabled?: boolean } | undefined>, summary: undefined as unknown, setLocation: vi.fn(), location: "/pmo/t1", projects: [] as Array<{ id: string; code: string; name: string }>, nav: [{ id: "executive", labelKey: "navigation.executiveDashboard", href: "/executive/t1" }, { id: "pmo", labelKey: "navigation.pmoDashboard", href: "/pmo/t1" }] as Array<{ id: string; labelKey: string; href?: string }> }));
+const state = vi.hoisted(() => ({ listOptions: [] as Array<{ enabled?: boolean } | undefined>, summary: undefined as unknown, setLocation: vi.fn(), location: "/pmo/t1", projects: [] as Array<{ id: string; code: string; name: string }>, nav: [{ id: "executive", labelKey: "navigation.executiveDashboard", href: "/executive/t1" }, { id: "pmo", labelKey: "navigation.pmoDashboard", href: "/pmo/t1" }] as Array<{ id: string; labelKey: string; href?: string; group?: string }> }));
 
 vi.mock("wouter", () => ({ useLocation: () => [state.location, state.setLocation] }));
 vi.mock("@/contexts/accountLanguage", () => ({ useAccountLanguage: () => ({ signedIn: true, save: vi.fn() }) }));
@@ -188,4 +188,16 @@ describe("which routes are framed", () => {
     const trail = screen.getByRole("navigation", { name: /breadcrumb/i });
     expect(within(trail).getAllByText("Project board")).toHaveLength(1);
   });
+
+  it("Q-36 (step 2): the menu draws the project's group first, titled with the project, then the company's", () => {
+    state.projects = [{ id: "p1", code: "VIL-1", name: "Villas" }];
+    state.location = "/projects/t1/p1/controls";
+    state.nav = [{ id: "project-controls", labelKey: "navigation.projectControls", href: "/projects/t1/p1/controls", group: "project" }, { id: "project-team", labelKey: "navigation.projectTeam", href: "/projects/t1/p1/team", group: "project" }, { id: "project-registry", labelKey: "navigation.projectRegistry", href: "/projects/t1", group: "company" }];
+    render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    const navigation = screen.getByRole("navigation", { name: "Main navigation" });
+    const headings = Array.from(navigation.querySelectorAll("[data-nav-group]")).map(node => node.textContent);
+    expect(headings).toEqual(["Project: VIL-1 · Villas", "Company"]);
+    expect(within(navigation).getByRole("link", { name: "Project team" }).getAttribute("href")).toBe("/projects/t1/p1/team");
+  });
 });
+

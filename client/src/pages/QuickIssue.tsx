@@ -85,7 +85,7 @@ export default function QuickIssue() {
   const [quantity, setQuantity] = useState("1");
   const [unitNumber, setUnitNumber] = useState(() => remembered(key("unit")) ?? "");
   const [activityId, setActivityId] = useState(() => remembered(key("activity")) ?? "");
-  const [done, setDone] = useState<{ cost: number; summary: string } | null>(null);
+  const [done, setDone] = useState<{ cost: number | null; summary: string } | null>(null);
   const requestId = useRef(globalThis.crypto.randomUUID());
   const quantityBox = useRef<HTMLInputElement>(null);
   const data = options.data;
@@ -133,7 +133,7 @@ export default function QuickIssue() {
         {data && data.activities.length === 0 && <p role="alert" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noActivities}</p>}
         {data && done && (
           <div className="space-y-3">
-            <p role="status" className="rounded-xl bg-success-soft p-4 text-base font-semibold text-success-soft-foreground">{t.saved}: {done.summary}<br />{t.cost}: <bdi>{formatAmount(done.cost)}</bdi></p>
+            <p role="status" className="rounded-xl bg-success-soft p-4 text-base font-semibold text-success-soft-foreground">{t.saved}: {done.summary}{done.cost === null ? null : <><br />{t.cost}: <bdi>{formatAmount(done.cost)}</bdi></>}</p>
             <Button className={`${tap} w-full text-base`} onClick={again}>{t.more}</Button>
           </div>
         )}
