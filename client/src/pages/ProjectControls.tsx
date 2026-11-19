@@ -51,7 +51,7 @@ import { ContentSkeleton } from "@/components/ShellSkeleton";
 import { ProjectUploadContext, SectionActions } from "@/components/SectionActions";
 import { anyImportPermission } from "@shared/importPermissions";
 import { enumLabel } from "@/lib/labels";
-import { PROJECT_PAGE_PERMISSIONS, WriteGate, useCan } from "@/lib/permissions";
+import { PAGE_ACCESS, WriteGate, useCan } from "@/lib/permissions";
 import { ProjectPageLink } from "@/components/ProjectPageLink";
 import { pickLanguage } from "@/lib/language";
 import { CheckedForm } from "@/components/CheckedForm";
@@ -246,8 +246,8 @@ export default function ProjectControls() {
             {([["baseline", pickLanguage(language, { ar: "ملف المشروع الأساسي", en: "Project base file", ur: "پروجیکٹ کی بنیادی فائل" })], ["team", pickLanguage(language, { ar: "فريق المشروع", en: "Project team", ur: "پروجیکٹ ٹیم" })], ["profitability", pickLanguage(language, { ar: "ربحية المشروع", en: "Profitability", ur: "منافع" })], ["commercial", pickLanguage(language, { ar: "المقاولون والعقود", en: "Contractors and contracts", ur: "ٹھیکیدار اور معاہدے" })], ["guide", pickLanguage(language, { ar: "دليل الاستخدام", en: "User guide", ur: "صارف گائیڈ" })]] as const).map(([path, label]) => (
               <ProjectPageLink key={path} tenantId={tenantId} projectId={projectId} path={path} label={label} />
             ))}
-            <WriteGate permission={PROJECT_PAGE_PERMISSIONS.stalled} projectId={projectId}><StalledUnitsLink tenantId={tenantId} projectId={projectId} /></WriteGate>
-            <WriteGate permission={PROJECT_PAGE_PERMISSIONS.schedule} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="schedule" label={pickLanguage(language, PAGE_NAMES.liveSchedule)} /></WriteGate>
+            <WriteGate permission={PAGE_ACCESS.stalled[0]} projectId={projectId}><StalledUnitsLink tenantId={tenantId} projectId={projectId} /></WriteGate>
+            <WriteGate permission={PAGE_ACCESS.schedule[0]} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="schedule" label={pickLanguage(language, PAGE_NAMES.liveSchedule)} /></WriteGate>
           </nav>
           </PageHeader>
         </section>

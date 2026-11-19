@@ -9,7 +9,8 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import RequireAuth from "./components/RequireAuth";
 import { ContentSkeleton } from "./components/ShellSkeleton";
-import { PageGate, PermissionProvider, PROJECT_PAGE_PERMISSIONS } from "./lib/permissions";
+import { PageGate, PermissionProvider } from "./lib/permissions";
+import type { PageKey } from "@shared/pageAccess";
 import { RouteBoundary } from "./components/RouteBoundary";
 import { ProductShell, isFramedPath } from "./components/ProductShell";
 import { Suspense, lazy, type ComponentType } from "react";
@@ -90,27 +91,28 @@ const ProtectedPeople = withAuth(EmployeeRegistry);
 const ProtectedPayroll = withAuth(PayrollWorkspace);
 const ProtectedAdministration = withAuth(TenantAdministration);
 const ProtectedMyPerformance = withAuth(MyPerformance);
-const ProtectedControls = withAuth(ProjectControls);
 // D-20 (G-160/G-161): a project page opened by its address without what its server read needs shows the translated «no permission» page (PageGate)
-function gatedPage<P extends object>(Page: React.ComponentType<P>, page: keyof typeof PROJECT_PAGE_PERMISSIONS) {
+// Q-33: every page of shared/pageAccess.ts, not only six — the controls page, the field entry and its quality, progress and QC screens included
+function gatedPage<P extends object>(Page: React.ComponentType<P>, page: PageKey) {
   return function GatedPage(props: P) {
     const { projectId } = useParams<{ projectId: string }>();
-    return <PageGate permission={PROJECT_PAGE_PERMISSIONS[page]} projectId={projectId}><Page {...props} /></PageGate>;
+    return <PageGate page={page} projectId={projectId}><Page {...props} /></PageGate>;
   };
 }
+const ProtectedControls = withAuth(gatedPage(ProjectControls, "controls"));
 const ProtectedCommercial = withAuth(gatedPage(CommercialChain, "commercial"));
 const ProtectedProfitability = withAuth(gatedPage(ProjectProfitability, "profitability"));
-const ProtectedFieldEntry = withAuth(FieldEntry);
+const ProtectedFieldEntry = withAuth(gatedPage(FieldEntry, "fieldEntry"));
 const ProtectedQuickIssue = withAuth(QuickIssue);
 const ProtectedPmc = withAuth(gatedPage(ProjectPmc, "pmc"));
 const ProtectedBaseline = withAuth(gatedPage(ProjectBaseline, "baseline"));
 const ProtectedSiteConsultant = withAuth(PmcSiteConsultant);
 const ProtectedSiteUpdate = withAuth(PmcSiteUpdate);
-const ProtectedProgressUpdate = withAuth(PmcProgressUpdate);
-const ProtectedQcReceipt = withAuth(PmcQcReceipt);
+const ProtectedProgressUpdate = withAuth(gatedPage(PmcProgressUpdate, "progress"));
+const ProtectedQcReceipt = withAuth(gatedPage(PmcQcReceipt, "qc"));
 const ProtectedStalledUnits = withAuth(gatedPage(StalledUnits, "stalled"));
 const ProtectedLiveSchedule = withAuth(gatedPage(LiveSchedule, "schedule"));
-const ProtectedProjects = withAuth(ProjectRegistry);
+const ProtectedProjects = withAuth(ProjectRegistry); // the registry shows its own «no permission» card (ProjectRegistry: ErrorState); its links are gated (registry)
 const ProtectedSetup = withAuth(SetupWizard);
 const ProtectedMyCompanies = withAuth(MyCompanies);
 const ProtectedTeam = withAuth(gatedPage(ProjectTeam, "team"));
@@ -126,7 +128,7 @@ const ProtectedSiteReport = withAuth(SiteDailyReport);
 const ProtectedSubmittals = withAuth(ProjectSubmittals);
 const ProtectedWeeklyReport = withAuth(WeeklyReport);
 const ProtectedMonthlyReport = withAuth(MonthlyReport);
-const ProtectedQuality = withAuth(ProjectQuality);
+const ProtectedQuality = withAuth(gatedPage(ProjectQuality, "quality"));
 const ProtectedUnitCard = withAuth(UnitCard);
 const ProtectedIntegrations = withAuth(IntegrationSettings);
 

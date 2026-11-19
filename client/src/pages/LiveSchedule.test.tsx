@@ -34,9 +34,9 @@ describe("LiveSchedule (Q-23)", () => {
     expect(document.querySelectorAll("[data-activity]").length).toBe(3);
     expect(screen.getByText("+4")).toBeTruthy(); // finish variance as the server returned it, signed
     fireEvent.change(document.querySelector("select")!, { target: { value: "critical" } });
-    expect([...document.querySelectorAll("[data-activity]")].map(node => node.getAttribute("data-activity"))).toEqual(["A1"]);
+    expect(Array.from(document.querySelectorAll("[data-activity]")).map(node => node.getAttribute("data-activity"))).toEqual(["A1"]);
     fireEvent.change(document.querySelector("select")!, { target: { value: "lookAhead" } });
-    expect([...document.querySelectorAll("[data-activity]")].map(node => node.getAttribute("data-activity"))).toEqual(["A3"]);
+    expect(Array.from(document.querySelectorAll("[data-activity]")).map(node => node.getAttribute("data-activity"))).toEqual(["A3"]);
   });
 
   it("with no baseline the planned counts read «Not available», never 0, and the page says how a baseline is made", () => {
