@@ -33,7 +33,7 @@ export default function ProjectInvoicesPanel({ tenantId, projectId, currency }: 
   const [paying, setPaying] = useState<string | null>(null);
   const [paidOn, setPaidOn] = useState(() => new Date().toISOString().slice(0, 10));
   const move = trpc.projectInvoices.transitionStatus.useMutation({ onSuccess: () => { setPaying(null); list.refetch(); } });
-  if (list.isLoading) return <p role="status" className="mt-6 text-sm text-slate-500">{t.loading}</p>;
+  if (list.isLoading) return <p role="status" className="mt-6 text-sm text-muted-foreground">{t.loading}</p>;
   if (!list.data) return <div className="mt-6"><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(list.error, isArabic)}</p><Button variant="outline" className="mt-2 min-h-[44px]" onClick={() => list.refetch()}>{t.retry}</Button></div>;
   const invoices = list.data;
   // Status is exported as the same text the cell shows, including the payment day of a paid invoice.
@@ -47,10 +47,10 @@ export default function ProjectInvoicesPanel({ tenantId, projectId, currency }: 
   return (
     <section aria-label={t.title} className="mt-6" data-testid="invoices-panel">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{t.title}</h3><ExportExcelButton fileName="project-invoices" sheetName={t.title} title={t.title} rows={invoices} columns={exportColumns} /></div>
-      {list.data.length === 0 ? <p className="mt-2 text-sm text-slate-500">{t.empty}</p> : (
+      {list.data.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t.empty}</p> : (
         <div className="mt-2 overflow-x-auto">
           <table className="w-full min-w-[40rem] text-sm">
-            <thead><tr className="text-xs text-slate-500"><th className="py-1 text-start">{t.number}</th><th className="text-start">{t.date}</th><th className="text-start">{t.client}</th><th className="text-start">{t.total}</th><th className="text-start">{t.status}</th><th /></tr></thead>
+            <thead><tr className="text-xs text-muted-foreground"><th className="py-1 text-start">{t.number}</th><th className="text-start">{t.date}</th><th className="text-start">{t.client}</th><th className="text-start">{t.total}</th><th className="text-start">{t.status}</th><th /></tr></thead>
             <tbody>{list.data.map(invoice => (
               <tr key={invoice.id} className="border-t">
                 <td className="py-1.5 pe-3">{invoice.invoiceNumber}</td><td className="whitespace-nowrap pe-3">{new Date(invoice.invoiceDate).toISOString().slice(0, 10)}</td><td className="pe-3">{invoice.clientName}</td>
@@ -72,7 +72,7 @@ export default function ProjectInvoicesPanel({ tenantId, projectId, currency }: 
         </div>
       )}
       {move.error && <p role="alert" className="mt-2 text-sm text-red-700">{getLocalizedProjectError(move.error, isArabic)}</p>}
-      <p className="mt-2 text-xs text-slate-500">{t.note}</p>
+      <p className="mt-2 text-xs text-muted-foreground">{t.note}</p>
     </section>
   );
 }
