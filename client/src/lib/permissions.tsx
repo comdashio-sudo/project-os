@@ -75,7 +75,7 @@ export function WriteGate({ permission, projectId, reason, children }: { permiss
   const { isArabic, language } = useLanguage();
   if (allowed) return <>{children}</>;
   if (!reason || loading) return null;
-  return <p role="note" data-write-gate="denied" className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">{pickLanguage(language, reason)}</p>;
+  return <p role="note" data-write-gate="denied" className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground ring-1 ring-border">{pickLanguage(language, reason)}</p>;
 }
 
 /**

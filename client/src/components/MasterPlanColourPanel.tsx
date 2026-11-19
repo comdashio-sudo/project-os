@@ -49,7 +49,7 @@ export function MasterPlanColourPanel(props: {
 }) {
   const t = useColourText();
   return (
-    <div className="space-y-2 rounded-lg bg-slate-50 p-3" data-colour-panel>
+    <div className="space-y-2 rounded-lg bg-muted p-3" data-colour-panel>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col text-xs">{t.colourBy}
           <Select className="mt-1 min-w-48" aria-label={t.colourBy} value={props.activityCode || ANY} onValueChange={value => props.onActivity(value === ANY ? "" : value)}
@@ -68,7 +68,7 @@ export function MasterPlanColourPanel(props: {
             </label>
           </>
         ) : null}
-        <button type="button" className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-3 text-sm" onClick={props.onExportPng}>{t.exportPng}</button>
+        <button type="button" className="min-h-[44px] rounded-lg border border-border bg-white px-3 text-sm" onClick={props.onExportPng}>{t.exportPng}</button>
       </div>
       {props.failed ? <p role="note" className="text-xs text-amber-900">{t.noSource}</p> : null}
       {props.activityCode && props.counts ? (
@@ -81,7 +81,7 @@ export function MasterPlanColourPanel(props: {
               </li>
             ))}
           </ul>
-          <p className="text-xs text-slate-600">{t.rule}</p>
+          <p className="text-xs text-muted-foreground">{t.rule}</p>
         </>
       ) : null}
     </div>

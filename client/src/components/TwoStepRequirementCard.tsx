@@ -25,7 +25,7 @@ export function TwoStepRequirementCard({ tenantId }: { tenantId: string }) {
   const required = settings.data.requireTwoStep;
   return (
     <Card data-two-step-requirement>
-      <CardHeader><CardTitle className="flex flex-wrap items-center gap-2 text-lg">{t.title}<Badge tone={required ? "success" : "neutral"}>{required ? t.on : t.off}</Badge></CardTitle><p className="text-sm text-slate-600">{t.note}</p></CardHeader>
+      <CardHeader><CardTitle className="flex flex-wrap items-center gap-2 text-lg">{t.title}<Badge tone={required ? "success" : "neutral"}>{required ? t.on : t.off}</Badge></CardTitle><p className="text-sm text-muted-foreground">{t.note}</p></CardHeader>
       <CardContent className="space-y-3">
         <Checkbox checked={required || confirming} disabled={save.isPending || confirming} onCheckedChange={next => (next ? setConfirming(true) : save.mutate({ tenantId, requireTwoStep: false }))} className="justify-start">
           <span className="text-sm font-medium">{t.label}</span>
@@ -36,7 +36,7 @@ export function TwoStepRequirementCard({ tenantId }: { tenantId: string }) {
             <div className="flex flex-wrap gap-2"><Button className="min-h-11" disabled={save.isPending} onClick={() => save.mutate({ tenantId, requireTwoStep: true })}>{t.confirm}</Button><Button variant="outline" className="min-h-11" disabled={save.isPending} onClick={() => setConfirming(false)}>{t.cancel}</Button></div>
           </div>
         ) : null}
-        {save.isPending ? <p role="status" className="text-sm text-slate-600">{t.saving}</p> : null}
+        {save.isPending ? <p role="status" className="text-sm text-muted-foreground">{t.saving}</p> : null}
         {save.error ? <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(save.error, language)}</p> : null}
       </CardContent>
     </Card>
