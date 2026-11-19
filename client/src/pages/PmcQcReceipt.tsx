@@ -1,11 +1,15 @@
 // Q-5: the QC engineer's receipts (phone and computer): the activity from the weights table, the villas (a list, a range or a whole block), «received» or «not
 // received» and the date; one save. Kept apart from the site's progress. The server refuses the whole entry before writing anything when one villa is wrong and
 // says which; a villa received while not complete on site is saved and named. Counters per activity, and the latest history.
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, Select, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
 import { FieldShell } from "@/components/FieldShell";
 import { UndoLastSave } from "@/components/UndoLastSave";
+import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
+import { isNetworkError, type QueueItem, type SendResult } from "@/lib/offlineQueue";
+import { issuesAsRejection, useOfflineQueue } from "@/lib/useOfflineQueue";
+import { offlineReasons } from "@/lib/offlineReasons";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -21,9 +25,9 @@ type Mode = "list" | "range" | "block";
 type Issue = { code: string; villa?: string; detail?: string };
 
 const copy = {
-  ar: { title: "استلام QC", back: "الإدخال الميداني", summary: "اختر النشاط، ثم الفلل، ثم «مستلم» أو «غير مستلم» والتاريخ، واحفظ مرة واحدة. حالة QC منفصلة عن حالة الموقع.", answers: { received: "مستلم", notReceived: "غير مستلم" } as Record<string, string>, answer: "حالة QC", weight: "الوزن", counters: "العدّاد لكل نشاط", villa: "فيلا", history: "آخر التحديثات", noHistory: "لا تحديثات بعد.", by: "بواسطة", notComplete: "استُلمت وهي غير مكتملة في الموقع لهذا البند:", tooMany: (max?: string) => `اختر ${max ?? ""} فيلا على الأكثر في المرة الواحدة.` },
-  en: { title: "QC receipt", back: "Field entry", summary: "Choose the activity, then the villas, then «received» or «not received» and the date, and save once. The QC state is separate from the site's.", answers: { received: "Received", notReceived: "Not received" } as Record<string, string>, answer: "QC state", weight: "Weight", counters: "Counters per activity", villa: "Villa", history: "Latest updates", noHistory: "No updates yet.", by: "by", notComplete: "Received while not complete on site for this activity:", tooMany: (max?: string) => `Choose at most ${max ?? ""} villas at a time.` },
-  ur: { title: "کیو سی وصولی", back: "فیلڈ اندراج", summary: "سرگرمی منتخب کریں، پھر ولاز، پھر «وصول شدہ» یا «وصول نہیں ہوا» اور تاریخ، اور ایک بار محفوظ کریں۔ کیو سی کی حالت سائٹ سے الگ ہے۔", answers: { received: "وصول شدہ", notReceived: "وصول نہیں ہوا" } as Record<string, string>, answer: "کیو سی کی حالت", weight: "وزن", counters: "ہر سرگرمی کا شمار", villa: "ولا", history: "تازہ ترین اپڈیٹس", noHistory: "ابھی کوئی اپڈیٹ نہیں۔", by: "از", notComplete: "سائٹ پر اس سرگرمی کے لیے مکمل نہ ہوتے ہوئے وصول کیا گیا:", tooMany: (max?: string) => `ایک وقت میں زیادہ سے زیادہ ${max ?? ""} ولاز منتخب کریں۔` },
+  ar: { keptOffline: "حُفظ على هذا الهاتف وسيُرسل عند عودة الاتصال.", notKept: "تعذّر الحفظ على الهاتف (مساحة ممتلئة أو محظورة). أعد الحفظ عند الاتصال.", title: "استلام QC", back: "الإدخال الميداني", summary: "اختر النشاط، ثم الفلل، ثم «مستلم» أو «غير مستلم» والتاريخ، واحفظ مرة واحدة. حالة QC منفصلة عن حالة الموقع.", answers: { received: "مستلم", notReceived: "غير مستلم" } as Record<string, string>, answer: "حالة QC", weight: "الوزن", counters: "العدّاد لكل نشاط", villa: "فيلا", history: "آخر التحديثات", noHistory: "لا تحديثات بعد.", by: "بواسطة", notComplete: "استُلمت وهي غير مكتملة في الموقع لهذا البند:", tooMany: (max?: string) => `اختر ${max ?? ""} فيلا على الأكثر في المرة الواحدة.` },
+  en: { keptOffline: "Kept on this phone; it will be sent when the connection returns.", notKept: "Could not keep it on this phone (storage full or blocked). Save again when online.", title: "QC receipt", back: "Field entry", summary: "Choose the activity, then the villas, then «received» or «not received» and the date, and save once. The QC state is separate from the site's.", answers: { received: "Received", notReceived: "Not received" } as Record<string, string>, answer: "QC state", weight: "Weight", counters: "Counters per activity", villa: "Villa", history: "Latest updates", noHistory: "No updates yet.", by: "by", notComplete: "Received while not complete on site for this activity:", tooMany: (max?: string) => `Choose at most ${max ?? ""} villas at a time.` },
+  ur: { keptOffline: "اس فون پر محفوظ ہو گیا؛ کنکشن واپس آنے پر بھیجا جائے گا۔", notKept: "فون پر محفوظ نہ ہو سکا (اسٹوریج بھرا یا بند)۔ کنکشن پر دوبارہ محفوظ کریں۔", title: "کیو سی وصولی", back: "فیلڈ اندراج", summary: "سرگرمی منتخب کریں، پھر ولاز، پھر «وصول شدہ» یا «وصول نہیں ہوا» اور تاریخ، اور ایک بار محفوظ کریں۔ کیو سی کی حالت سائٹ سے الگ ہے۔", answers: { received: "وصول شدہ", notReceived: "وصول نہیں ہوا" } as Record<string, string>, answer: "کیو سی کی حالت", weight: "وزن", counters: "ہر سرگرمی کا شمار", villa: "ولا", history: "تازہ ترین اپڈیٹس", noHistory: "ابھی کوئی اپڈیٹ نہیں۔", by: "از", notComplete: "سائٹ پر اس سرگرمی کے لیے مکمل نہ ہوتے ہوئے وصول کیا گیا:", tooMany: (max?: string) => `ایک وقت میں زیادہ سے زیادہ ${max ?? ""} ولاز منتخب کریں۔` },
 };
 
 export default function PmcQcReceipt() {
@@ -54,18 +58,34 @@ export default function PmcQcReceipt() {
   }, [activities.data, search, c.weight]);
 
   const [lastSave, setLastSave] = useState<{ batchId: string; at: number; undone: boolean } | null>(null);
+  // Q-24 (P-120): kept on this phone when the server cannot be reached, sent when the connection returns; a receipt kept before a newer one is refused, villa named
+  const me = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const client = trpc.useUtils().client;
+  const send = useCallback(async (item: QueueItem): Promise<SendResult> => {
+    try { await client.pmc.updateQcReceipts.mutate({ ...item.payload, clientRequestId: item.id } as never); }
+    catch (error) { const rejected = issuesAsRejection(error); if (rejected) return rejected; throw error; }
+  }, [client]);
+  const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}:qcReceipt` : null, send);
   const update = trpc.pmc.updateQcReceipts.useMutation({
     onSuccess: result => { setIssues([]); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setVillas(""); setRange(""); void history.refetch(); void counters.refetch(); },
-    onError: error => { const found = issuesOf(error); setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language)); },
+    onError: (error, variables) => {
+      if (isNetworkError(error) && variables.clientRequestId) {
+        const kept = queue.keep({ id: variables.clientRequestId, kind: "qcReceipt", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${variables.activityCode} · ${variables.received ? "✓" : "✗"} · ${variables.villas?.join(", ") ?? variables.range ?? variables.blockCode ?? ""}` });
+        if (kept) { setIssues([]); notify.success(c.keptOffline); setVillas(""); setRange(""); } else notify.error(c.notKept);
+        return;
+      }
+      const found = issuesOf(error); setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language));
+    },
   });
   const undo = trpc.pmc.undoQcReceiptBatch.useMutation({ onSuccess: () => { setLastSave(current => current ? { ...current, undone: true } : current); void history.refetch(); } });
-  const submit = () => update.mutate({ ...scope, activityCode, received: answer === "received", date, ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : { blockCode: block.trim() }) });
+  const submit = () => update.mutate({ ...scope, clientRequestId: crypto.randomUUID(), activityCode, received: answer === "received", date, ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : { blockCode: block.trim() }) });
   const reason = (issue: Issue) => issue.code === "SITE_TOO_MANY_VILLAS" ? c.tooMany(issue.detail) : (t.issues[issue.code] ?? (() => issue.code))(issue.villa, issue.detail);
 
   return (
     <FieldShell title={c.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={c.back} tenantId={tenantId} projectId={projectId} current="qc">
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4 pb-24">
       <p className="text-sm text-muted-foreground">{c.summary}</p>
+      <OfflineQueuePanel identityError={me.error} items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} reason={item => offlineReasons(item.error, t.issues, language)} language={language} />
       <WriteGate permission="project.qc.receive" projectId={projectId} reason={{ ar: wo22Text.ar.noUpdatePermission, en: wo22Text.en.noUpdatePermission, ur: wo22Text.ur.noUpdatePermission }}>
         <Card>
           <CardBody className="flex flex-col gap-4">
