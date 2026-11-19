@@ -13,10 +13,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { auditLogs, dataImportErrors, dataImportRowResults, dataImportSources, dataImports } from "../drizzle/schema";
+import { auditLogs, dataImportErrors, dataImportRowResults, dataImportSources, dataImports, importSourceProfiles } from "../drizzle/schema";
 import { runAfterResponse } from "./_core/afterResponse";
 import { logError } from "./_core/logger";
-import { assertFileNotAlreadyImported, assertImportAccess, previewDataImportDiff, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
+import { assertFileNotAlreadyImported, assertImportAccess, assertProjectWithinTenant, getTenantAccessSnapshot, previewDataImportDiff, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
 import { analysisWarnings, analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
 import { analyzeExternalImport, applyExternalImport, authorizeExternalImport, isExternalModule, pmcKindOf, type ExternalContext, type ExternalModule } from "./externalImports";
 import { DIFF_PAGE_SIZE, summariseDiff } from "./domain/importCycle";
@@ -335,8 +335,8 @@ const PROGRESS_GROUP_SAMPLES = 5;
 async function progressView(db: Db, record: Awaited<ReturnType<typeof readRecord>> | { id: string; status: string; progressPercent: number; progressStage: string | null; failureReason: string | null; totalRows: number; validRows: number; invalidRows: number; createdRows: number; updatedRows: number; skippedRows: number }, input: JobIdentity) {
   const view = { id: record.id, status: record.status, progressPercent: record.progressPercent, progressStage: record.progressStage, failureReason: record.failureReason, totalRows: record.totalRows, validRows: record.validRows, invalidRows: record.invalidRows, createdRows: record.createdRows, updatedRows: record.updatedRows, skippedRows: record.skippedRows };
   // Once the analysis is done the screen needs what the old synchronous answer carried: the file's columns, the detected mapping and the validation errors.
-  if (record.status !== "uploaded" && record.status !== "validated") return { ...view, analysis: null, external: null };
-  const [stored] = await db.select({ mappingJson: dataImports.mappingJson, summaryJson: dataImports.summaryJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  if (record.status !== "uploaded" && record.status !== "validated") return { ...view, analysis: null, external: null, suggestedTemplate: null };
+  const [stored] = await db.select({ mappingJson: dataImports.mappingJson, summaryJson: dataImports.summaryJson, moduleCode: dataImports.moduleCode }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   const errors = await db.select({ rowNumber: dataImportErrors.rowNumber, code: dataImportErrors.code, field: dataImportErrors.suggestedFix }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "error"))).orderBy(dataImportErrors.rowNumber).limit(PROGRESS_ERRORS_LIMIT);
   const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "error")));
   // One line per kind of error, not one per row: a P6 file with 172 rows of the same mistake read as 172 identical lines. Each group carries its true count, the first rows it happens on and a few of the offending values.
@@ -348,8 +348,11 @@ async function progressView(db: Db, record: Awaited<ReturnType<typeof readRecord
   const warnings = await db.select({ code: dataImportErrors.code, field: dataImportErrors.suggestedFix }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "warning"))).orderBy(dataImportErrors.suggestedFix).limit(PROGRESS_ERRORS_LIMIT);
   const parse = parseJson;
   const summary = parse<{ headers?: string[]; report?: Record<string, unknown>; canConfirm?: boolean }>(stored?.summaryJson, {});
+  // Q-50 batch 2: a company template that fits these columns is offered (never applied here: the person applies it through reanalyze after seeing it).
+  const columns = reportColumnsOf(stored?.summaryJson ?? null);
+  const suggestedTemplate = columns && stored ? await suggestImportTemplate(db, { tenantId: input.tenantId, moduleCode: stored.moduleCode, headers: columns.headers }) : null;
   // `external` carries the PMC / master-plan importer's own report (what the file would create or change); the general importer's screen ignores it.
-  return { ...view, analysis: { headers: summary.headers ?? [], mapping: parse<Record<string, string>>(stored?.mappingJson, {}), errors, errorGroups, errorsListed: errors.length, errorsTotal: Number(total), warnings }, external: summary.report ? { report: summary.report, canConfirm: summary.canConfirm === true } : null };
+  return { ...view, suggestedTemplate, analysis: { headers: summary.headers ?? [], mapping: parse<Record<string, string>>(stored?.mappingJson, {}), errors, errorGroups, errorsListed: errors.length, errorsTotal: Number(total), warnings }, external: summary.report ? { report: summary.report, canConfirm: summary.canConfirm === true } : null };
 }
 
 /** What the screen polls. Anyone who can read the project's imports sees the state; a poll by someone who may import also revives a dead job. */
@@ -425,3 +428,104 @@ export async function previewImportDiff(input: { userId: number; tenantId: strin
   return { supported: true as const, moduleCode: record.moduleCode, summary: summariseDiff({ entries: plan.entries, missing: plan.missing }), rejected: plan.errors.length, rejections: plan.errors.slice(0, DIFF_PAGE_SIZE), diffHash: ledgerPlanHash(plan), entries: shown.slice(offset, offset + DIFF_PAGE_SIZE), shownTotal: shown.length, offset, pageSize: DIFF_PAGE_SIZE, missing: plan.missing.slice(0, DIFF_PAGE_SIZE), missingTotal: plan.missing.length };
 }
 
+
+/*
+ * Q-50 batch 2 (docs/proposals/universal-import.md §4; adviser's decision I52): company templates for the files whose columns a person can map (PMC kinds and
+ * the operational ledgers). A mapping the person confirmed on one import is saved for the company and that kind; a later file whose headers match it by at
+ * least TEMPLATE_SUGGEST_AT is offered the template — never applied without the person seeing and confirming the mapping (they apply it through reanalyze,
+ * as with any mapping they choose). Templates live in import_source_profiles (tenant_id + RLS: one company never sees another's), and saving or deleting one
+ * takes the same permission as importing that kind, with an audit row in the same transaction.
+ */
+export const TEMPLATE_SUGGEST_AT = 0.8;
+type ReportColumns = { headers: string[]; fields: Array<{ key: string; header: string | null }> };
+const templateHeaderKey = (value: string) => value.replace(/^﻿/, "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
+const templateSignature = (headers: string[]) => Array.from(new Set(headers.map(templateHeaderKey).filter(Boolean))).sort();
+const signatureOverlap = (a: string[], b: string[]) => { if (!a.length || !b.length) return 0; const set = new Set(b); return a.filter(item => set.has(item)).length / Math.max(a.length, b.length); };
+// where each importer's report keeps the columns it read: a ledger under `ledger.columns`, a PMC file under `pmc.details.columns`
+const reportColumnsOf = (summaryJson: string | null) => {
+  const report = parseJson<{ report?: { columns?: ReportColumns; ledger?: { columns?: ReportColumns }; pmc?: { details?: { columns?: ReportColumns } } } }>(summaryJson, {}).report;
+  return report?.columns ?? report?.ledger?.columns ?? report?.pmc?.details?.columns;
+};
+const mappableModule = (moduleCode: string): moduleCode is ExternalModule => isExternalModule(moduleCode) && (Boolean(pmcKindOf(moduleCode as ExternalModule)) || isLedgerModule(moduleCode));
+
+async function authorizeTemplateKind(input: { userId: number; tenantId: string; projectId: string }, moduleCode: string) {
+  if (!mappableModule(moduleCode)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+  await authorizeExternalImport({ ...input, moduleCode });
+}
+
+/** The company's best template for these headers and this kind, if it matches by at least TEMPLATE_SUGGEST_AT and every header it maps is in the file. */
+export async function suggestImportTemplate(db: Db, input: { tenantId: string; moduleCode: string; headers: string[] }) {
+  if (!mappableModule(input.moduleCode) || input.headers.length === 0) return null;
+  const rows = await db.select({ id: importSourceProfiles.id, name: importSourceProfiles.name, headerSignature: importSourceProfiles.headerSignature, columnMapJson: importSourceProfiles.columnMapJson })
+    .from(importSourceProfiles).where(and(eq(importSourceProfiles.tenantId, input.tenantId), eq(importSourceProfiles.kind, input.moduleCode)));
+  const mine = templateSignature(input.headers);
+  const present = new Set(input.headers);
+  let best: { id: string; name: string; score: number; mapping: Record<string, string> } | null = null;
+  for (const row of rows) {
+    const score = signatureOverlap(mine, parseJson<string[]>(row.headerSignature, []));
+    const mapping = parseJson<Record<string, string>>(row.columnMapJson, {});
+    if (score < TEMPLATE_SUGGEST_AT || !Object.values(mapping).every(header => header === "" || header === "ignore" || present.has(header))) continue;
+    if (!best || score > best.score) best = { id: row.id, name: row.name, score: Math.round(score * 100) / 100, mapping };
+  }
+  return best;
+}
+
+/** Saves the mapping the person confirmed on this import (the columns the analysis used) as the company's template for its kind. */
+export async function saveImportTemplate(input: { userId: number; tenantId: string; projectId: string; importId: string; name: string }) {
+  const { db } = await importAccess(input);
+  const [record] = await db.select({ moduleCode: dataImports.moduleCode, status: dataImports.status, summaryJson: dataImports.summaryJson })
+    .from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_NOT_FOUND" });
+  await authorizeTemplateKind(input, record.moduleCode);
+  const columns = reportColumnsOf(record.summaryJson);
+  const chosen = columns?.fields.filter(field => field.header) ?? [];
+  // only a complete, analysed mapping is worth keeping: an analysis still missing a required column would teach the next file the same gap
+  if (record.status !== "validated" || !columns || chosen.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_TEMPLATE_NOT_READY" });
+  const mapping = Object.fromEntries(chosen.map(field => [field.key, field.header!]));
+  return db.transaction(async tx => {
+    const [row] = await tx.insert(importSourceProfiles).values({ id: randomUUID(), tenantId: input.tenantId, name: input.name, kind: record.moduleCode, headerSignature: JSON.stringify(templateSignature(columns.headers)), columnMapJson: JSON.stringify(mapping), timesUsed: 1, createdByUserId: input.userId })
+      .onConflictDoUpdate({ target: [importSourceProfiles.tenantId, importSourceProfiles.name], set: { kind: record.moduleCode, headerSignature: JSON.stringify(templateSignature(columns.headers)), columnMapJson: JSON.stringify(mapping), updatedAt: sql`now()` } })
+      .returning({ id: importSourceProfiles.id });
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "import_template_saved", entityType: "import_source_profile", entityId: row!.id, metadata: JSON.stringify({ projectId: input.projectId, importId: input.importId, moduleCode: record.moduleCode, name: input.name, fields: Object.keys(mapping) }) });
+    return { id: row!.id, name: input.name, mapping };
+  });
+}
+
+/** A member of the company and a project of that company; which kinds they may import is checked per template (a cost-only role has no general import right). */
+async function templateScope(input: { userId: number; tenantId: string; projectId: string }) {
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  // a company whose PROJECT licence is off is refused before anything is read, like every tenant read (gate6.matrix)
+  if (!snapshot.entitledProducts.includes("PROJECT")) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PRODUCT_NOT_ENTITLED" });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  return database();
+}
+
+/** The company's templates for the kinds the person may import in this project (name, kind, the mapping, when last changed). */
+export async function listImportTemplates(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await templateScope(input);
+  const rows = await db.select({ id: importSourceProfiles.id, name: importSourceProfiles.name, kind: importSourceProfiles.kind, columnMapJson: importSourceProfiles.columnMapJson, updatedAt: importSourceProfiles.updatedAt })
+    .from(importSourceProfiles).where(eq(importSourceProfiles.tenantId, input.tenantId)).orderBy(importSourceProfiles.name);
+  const allowed: typeof rows = [];
+  for (const row of rows) {
+    if (!mappableModule(row.kind)) continue;
+    try { await authorizeExternalImport({ ...input, moduleCode: row.kind }); allowed.push(row); } catch { /* a kind this person may not import is not listed */ }
+  }
+  return allowed.map(row => ({ id: row.id, name: row.name, kind: row.kind, mapping: parseJson<Record<string, string>>(row.columnMapJson, {}), updatedAt: row.updatedAt }));
+}
+
+/** Deletes one of the company's templates; the same permission as importing its kind. A template of another company reads as not found. */
+export async function deleteImportTemplate(input: { userId: number; tenantId: string; projectId: string; templateId: string }) {
+  const db = await templateScope(input);
+  const [row] = await db.select({ kind: importSourceProfiles.kind, name: importSourceProfiles.name }).from(importSourceProfiles)
+    .where(and(eq(importSourceProfiles.id, input.templateId), eq(importSourceProfiles.tenantId, input.tenantId))).limit(1);
+  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND" });
+  if (!mappableModule(row.kind)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_MODULE_INVALID" });
+  await authorizeExternalImport({ ...input, moduleCode: row.kind });
+  return db.transaction(async tx => {
+    const deleted = await tx.delete(importSourceProfiles).where(and(eq(importSourceProfiles.id, input.templateId), eq(importSourceProfiles.tenantId, input.tenantId))).returning({ id: importSourceProfiles.id });
+    if (!deleted.length) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND" });
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "import_template_deleted", entityType: "import_source_profile", entityId: input.templateId, metadata: JSON.stringify({ projectId: input.projectId, kind: row.kind, name: row.name }) });
+    return { id: input.templateId };
+  });
+}

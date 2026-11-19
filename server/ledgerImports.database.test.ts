@@ -23,6 +23,7 @@ const scope = { tenantId: T, projectId: P };
 
 async function clear() {
   await connection.query("DELETE FROM audit_logs WHERE tenantId = ?", [T]);
+  await connection.query("DELETE FROM import_source_profiles WHERE tenantId = ?", [T]);
   await connection.query("DELETE r FROM data_import_row_results r INNER JOIN data_imports i ON i.id = r.importId WHERE i.tenantId = ?", [T]);
   await connection.query("DELETE e FROM data_import_errors e INNER JOIN data_imports i ON i.id = e.importId WHERE i.tenantId = ?", [T]);
   await connection.query("DELETE FROM data_imports WHERE tenantId = ?", [T]);
@@ -413,6 +414,62 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Excel cycle for costs, p
       const reader = callerFor(users.reader, "led-reader");
       await expect(reader.dataImports.reanalyze({ ...scope, importId: view.id, mappingOverride: { incurredAt: "Spend date", amount: "Value" } })).rejects.toMatchObject({ code: "FORBIDDEN" });
       expect(await countOf("cost_entries", "AND sourceId = '" + view.id + "'")).toBe(0);
+    });
+  });
+
+  // Q-50 batch 2 (adviser's decision I52): the mapping a person confirmed is kept as a company template; the next file with the same columns is OFFERED it
+  // (>= 80% header match), never given it silently; saving and deleting take the import permission of that kind and leave audit rows; another company sees none.
+  describe("company templates of a confirmed column mapping (Q-50 batch 2)", () => {
+    const own = async (headers: string[], rows: unknown[][]) => {
+      const workbook = new ExcelJS.Workbook(); const worksheet = workbook.addWorksheet("Data");
+      worksheet.addRow(headers); rows.forEach(row => worksheet.addRow(row));
+      return Buffer.from(await workbook.xlsx.writeBuffer());
+    };
+    const HEADERS = ["Ref WBS", "Spend date", "Value", "Notes"];
+
+    it("POSITIVE: saved after a confirmed mapping, offered to the next file with the same columns (not applied), listed, and deleted with audit rows", async () => {
+      const ops = callerFor(users.ops, "led-ops");
+      const first = await upload(ops, "costs", await own(HEADERS, [["1.2", "2026-09-05", 12, "a"]]), "costs-template-1.xlsx");
+      expect(first.suggestedTemplate).toBeNull();
+      await ops.dataImports.reanalyze({ ...scope, importId: first.id, mappingOverride: { wbsCode: "Ref WBS", incurredAt: "Spend date", amount: "Value", __others__: "ignore" } });
+      expect((await pollUntilDone(ops, first.id)).status).toBe("validated");
+      const saved = await ops.dataImports.saveTemplate({ ...scope, importId: first.id, name: "Site office cost sheet" });
+      expect(saved.mapping).toMatchObject({ wbsCode: "Ref WBS", incurredAt: "Spend date", amount: "Value" });
+      expect(await auditCount("import_template_saved")).toBe(1);
+
+      const second = await upload(ops, "costs", await own(HEADERS, [["1.2", "2026-09-06", 13, "b"]]), "costs-template-2.xlsx");
+      expect(second.status).toBe("uploaded"); // offered, not applied: the file still reads as missing its columns until the person applies the template
+      expect(second.suggestedTemplate).toMatchObject({ id: saved.id, name: "Site office cost sheet", score: 1, mapping: saved.mapping });
+      expect((await ops.dataImports.templates(scope)).map(template => [template.name, template.kind])).toEqual([["Site office cost sheet", "costs"]]);
+
+      await ops.dataImports.reanalyze({ ...scope, importId: second.id, mappingOverride: { ...second.suggestedTemplate!.mapping, __others__: "ignore" } });
+      expect((await pollUntilDone(ops, second.id)).status).toBe("validated");
+
+      await ops.dataImports.deleteTemplate({ ...scope, templateId: saved.id });
+      expect(await auditCount("import_template_deleted")).toBe(1);
+      expect(await ops.dataImports.templates(scope)).toEqual([]);
+    });
+
+    it("NEGATIVE: not saved from an unfinished analysis; not offered below 80% of the headers; not saved, listed or deleted without the kind's import permission; another company's template reads as not found", async () => {
+      const ops = callerFor(users.ops, "led-ops");
+      const reader = callerFor(users.reader, "led-reader");
+      const unfinished = await upload(ops, "costs", await own(HEADERS, [["1.2", "2026-09-07", 14, "c"]]), "costs-template-3.xlsx");
+      await expect(ops.dataImports.saveTemplate({ ...scope, importId: unfinished.id, name: "Too early" })).rejects.toThrow("PROJECT_OS_IMPORT_TEMPLATE_NOT_READY");
+
+      await ops.dataImports.reanalyze({ ...scope, importId: unfinished.id, mappingOverride: { wbsCode: "Ref WBS", incurredAt: "Spend date", amount: "Value", __others__: "ignore" } });
+      await pollUntilDone(ops, unfinished.id);
+      await expect(reader.dataImports.saveTemplate({ ...scope, importId: unfinished.id, name: "Reader" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const saved = await ops.dataImports.saveTemplate({ ...scope, importId: unfinished.id, name: "Cost sheet B" });
+      expect(await reader.dataImports.templates(scope)).toEqual([]); // may not import costs: the costs template is not listed
+      expect((await callerFor(users.costOnly, "led-cost").dataImports.templates(scope)).map(template => template.name)).toContain("Cost sheet B"); // may import costs: sees it
+      await expect(reader.dataImports.deleteTemplate({ ...scope, templateId: saved.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      // half the headers changed: below the threshold, nothing is offered
+      const other = await upload(ops, "costs", await own(["Ref WBS", "Date", "Amount SAR", "Notes"], [["1.2", "2026-09-08", 15, "d"]]), "costs-template-4.xlsx");
+      expect(other.suggestedTemplate).toBeNull();
+
+      // a template id of another company: not found, and nothing deleted
+      await expect(ops.dataImports.deleteTemplate({ ...scope, templateId: "79300000-0000-4000-8000-0000000009ff" })).rejects.toThrow("PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND");
     });
   });
 });

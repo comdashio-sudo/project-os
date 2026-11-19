@@ -983,6 +983,16 @@ export const projectErrorMessages = {
     en: "The requested work-hours transition is not allowed from its current status.",
     ur: "درخواست کردہ کام کے گھنٹوں کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔",
   },
+  PROJECT_OS_IMPORT_TEMPLATE_NOT_READY: {
+    ar: "لا يُحفظ القالب إلا بعد تحليل ناجح للملف بأعمدة مكتملة.",
+    en: "A template can be saved only after the file was analysed successfully with every required column.",
+    ur: "سانچہ صرف اس وقت محفوظ ہوتا ہے جب فائل کا تجزیہ تمام لازمی کالموں کے ساتھ کامیاب ہو جائے۔",
+  },
+  PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND: {
+    ar: "القالب غير موجود في هذه الشركة.",
+    en: "The template does not exist in this company.",
+    ur: "یہ سانچہ اس کمپنی میں موجود نہیں ہے۔",
+  },
   PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED: {
     ar: "يلزم ربط حسابك ببطاقة موظف نشطة لعرض مؤشراتك الفردية.",
     en: "Your account must be linked to an active employee record to view individual indicators.",
