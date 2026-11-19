@@ -21,6 +21,8 @@ export const PAGE_ACCESS = {
   team: [["project.manage", "project.team.invite"]],
   pmc: [["project.pmc.read"]],
   stalled: [["project.pmc.read"]],
+  // meetings.list — listProjectMeetings (server/meetings.ts), Q-25
+  meetings: [["project.read", "project.manage"]],
   profitability: [["project.read"]],
   commercial: [["project.read"]],
 } as const satisfies Record<string, PageAccess>;
