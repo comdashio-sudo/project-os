@@ -1,4 +1,5 @@
 import { indicatorBasisLine } from "@/lib/indicatorBasis";
+import { PAGE_NAMES } from "@shared/pageNames";
 import { PageHeader, PageMain } from "@/components/pageFrame";
 import { MetricCard, formatDate, formatNumber } from "@/components/ds";
 import { UPLOAD_ANY_FILE_FALLBACK_GROUP, uploadAnyFileHref } from "@/lib/uploadAnyFile";
@@ -246,6 +247,7 @@ export default function ProjectControls() {
               <ProjectPageLink key={path} tenantId={tenantId} projectId={projectId} path={path} label={label} />
             ))}
             <WriteGate permission={PROJECT_PAGE_PERMISSIONS.stalled} projectId={projectId}><StalledUnitsLink tenantId={tenantId} projectId={projectId} /></WriteGate>
+            <WriteGate permission={PROJECT_PAGE_PERMISSIONS.schedule} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="schedule" label={pickLanguage(language, PAGE_NAMES.liveSchedule)} /></WriteGate>
           </nav>
           </PageHeader>
         </section>

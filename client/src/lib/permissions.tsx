@@ -86,6 +86,7 @@ export const PROJECT_PAGE_PERMISSIONS = {
   team: ["project.manage", "project.team.invite"],
   pmc: ["project.pmc.read"],
   stalled: ["project.pmc.read"],
+  schedule: ["project.read", "project.manage"],
   profitability: ["project.read"],
   commercial: ["project.read"],
 } as const satisfies Record<string, readonly string[]>;
