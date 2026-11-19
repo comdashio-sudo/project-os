@@ -30,6 +30,7 @@ export const governedActionPermissions = {
   createCommitmentForTenant: ["project.commitment.manage"],
   createSubcontractContractForTenant: ["project.commitment.manage"],
   createSubcontractCertificateForTenant: ["project.commitment.manage"],
+  transitionSubcontractCertificateForTenant: ["project.commitment.manage"],
   createClaimForTenant: ["project.commitment.manage"],
   transitionClaimStatus: ["project.commitment.manage"],
   createProjectCommercialInvoiceForTenant: ["project.invoice.match"],

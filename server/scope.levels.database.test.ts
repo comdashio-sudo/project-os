@@ -115,8 +115,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the four levels, scoped 
   it("level 4: the warehouse is answered for the custodian's own project and refused for any other", async () => {
     const own = await callers.keeper.scopes.warehouse({ tenantId, projectId: ids.a, warehouseId: warehouseA });
     expect(own.warehouse.code).toBe("WH-A");
-    expect(own.totals).toEqual({ materials: 1, stockValue: 1000, materialsBelowReorder: 1 });
-    expect(own.stock[0]).toMatchObject({ code: "CEM-1", quantity: 40, value: 1000, reorderLevel: 100, belowReorder: true });
+    // Q-32 (adviser 18-11): the custodian reads quantities, not value
+    expect(own.totals).toEqual({ materials: 1, stockValue: null, materialsBelowReorder: 1 });
+    expect(own.stock[0]).toMatchObject({ code: "CEM-1", quantity: 40, value: null, reorderLevel: 100, belowReorder: true });
+    expect((await callers.owner.scopes.warehouse({ tenantId, projectId: ids.a, warehouseId: warehouseA })).totals.stockValue).toBe(1000); // a money reader still sees it
     await expect(callers.keeper.scopes.warehouse({ tenantId, projectId: ids.b, warehouseId: warehouseB })).rejects.toThrow(SCOPE_DENIED);
     // a warehouse of another project under the caller's own project id is not found, not served
     await expect(callers.keeper.scopes.warehouse({ tenantId, projectId: ids.a, warehouseId: warehouseB })).rejects.toThrow("PROJECT_OS_WAREHOUSE_NOT_FOUND");

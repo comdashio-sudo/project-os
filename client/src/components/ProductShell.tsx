@@ -6,7 +6,7 @@ import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { useCan } from "@/lib/permissions";
 import { PAGE_NAMES, PROJECT_SUBPAGE_NAMES } from "@shared/pageNames";
-import { Briefcase, FolderKanban, Gauge, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, Wallet, type LucideIcon } from "lucide-react";
+import { Briefcase, FolderKanban, Gauge, Handshake, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
 import { InShellProvider } from "@/components/pageFrame";
 import React from "react";
 import { useLocation } from "wouter";
@@ -22,6 +22,8 @@ const MODULE_LABELS: Record<string, { ar: string; en: string; ur: string }> = {
   "navigation.employeeRegistry": { ar: "الموظفون والقوى العاملة", en: "People & workforce", ur: "افراد اور افرادی قوت" },
   "navigation.payroll": { ar: "الرواتب وتكلفة العمالة", en: "Payroll & labor cost", ur: "تنخواہ اور لیبر لاگت" },
   "navigation.projectControls": PAGE_NAMES.board,
+  "navigation.projectCommercial": PAGE_NAMES.commercial,
+  "navigation.projectTeam": PAGE_NAMES.team,
   "navigation.myPerformance": { ar: "مؤشراتي", en: "My indicators", ur: "میرے اشاریے" },
   "navigation.tenantAdministration": { ar: "إدارة الشركة", en: "Tenant administration", ur: "کمپنی کا انتظام" },
 };
@@ -34,10 +36,14 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   "employee-registry": Users,
   "payroll": Wallet,
   "project-controls": SlidersHorizontal,
+  "project-commercial": Handshake,
+  "project-team": UsersRound,
   "my-performance": Target,
   "tenant-administration": Settings,
 };
 const WORKSPACE = { ar: "مساحة العمل", en: "Workspace", ur: "ورک اسپیس" };
+// Q-36 (step 2): the two groups of the side menu, the open project's first
+const GROUP_TITLES = { project: { ar: "المشروع", en: "Project", ur: "منصوبہ" }, company: { ar: "الشركة", en: "Company", ur: "کمپنی" } };
 const SOURCE_TITLES = {
   navigation: { ar: "القائمة الجانبية", en: "side menu", ur: "سائیڈ مینو" },
   companies: { ar: "قائمة الشركات", en: "company list", ur: "کمپنیوں کی فہرست" },
@@ -74,11 +80,14 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   const canReadProjects = useCan("project.read");
   const projects = trpc.projects.list.useQuery({ tenantId }, { enabled: canReadProjects });
 
+  // Q-36 (step 2): the project group is titled with the project («المشروع: رمز · اسم») once its name is known
+  const projectTitle = (() => { const named = projectId ? (projects.data ?? []).find(item => item.id === projectId) : undefined; const word = pickLanguage(language, GROUP_TITLES.project); return named ? `${word}: ${named.code} · ${named.name}` : word; })();
   const nav: NavItem[] = (navigation.data ?? []).map(item => ({
     id: item.id,
     label: MODULE_LABELS[item.labelKey] ? pickLanguage(language, MODULE_LABELS[item.labelKey]) : item.id,
     icon: MODULE_ICONS[item.id] ?? LayoutPanelTop,
     href: item.href,
+    group: "group" in item && item.group === "project" ? projectTitle : pickLanguage(language, GROUP_TITLES.company),
   }));
   // The module the person is in: the LONGEST link the address equals or starts with followed by "/" (so /p1 never matches /p10). The registry's
   // /projects/:tenantId is a prefix of every project address, so on a project page whose longest match is the registry (or nothing), the
@@ -96,7 +105,7 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
     <>
       <SourceNotice query={navigation} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.navigation)} />
       <SourceNotice query={tenants} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.companies)} />
-      <SourceNotice query={projects} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.projects)} />
+      {canReadProjects && <SourceNotice query={projects} isArabic={isArabic} title={pickLanguage(language, SOURCE_TITLES.projects)} />}
     </>
   );
   const crumbs: Crumb[] = [{ label: pickLanguage(language, WORKSPACE), href: "/" }];

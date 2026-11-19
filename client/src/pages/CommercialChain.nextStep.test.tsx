@@ -17,7 +17,7 @@ vi.mock("@/lib/trpc", () => {
     useUtils: () => ({ boq: { list: { invalidate: vi.fn() } }, subcontracts: { list: { invalidate: vi.fn() }, listCertificates: { invalidate: vi.fn() } }, projectInvoices: { list: { invalidate: vi.fn() } } }),
     boq: { list: list(() => state.boq), create: mutation },
     procurement: { register: { useQuery: () => ({ data: { suppliers: [] } }) } },
-    subcontracts: { list: list(() => state.contracts), listCertificates: list(() => []), create: mutation, createCertificate: mutation },
+    subcontracts: { list: list(() => state.contracts), listCertificates: list(() => []), create: mutation, createCertificate: mutation, transitionCertificate: mutation },
     projectInvoices: { list: list(() => []), create: mutation },
   } };
 });
