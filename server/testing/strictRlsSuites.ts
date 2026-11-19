@@ -51,6 +51,7 @@ export const STRICT_RLS_SUITES: readonly string[] = [
   "pmc.import.database.test.ts",
   "pmc.plan.database.test.ts",
   "pmcEditor.database.test.ts",
+  "pmcImportStatus.database.test.ts",
   "pmcPercentagesByProject.database.test.ts",
   "pmcProgressUpdate.database.test.ts",
   "pmcQcReceipts.database.test.ts",

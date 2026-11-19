@@ -10,7 +10,7 @@ import { downloadBytes, weeklyDeckPptx } from "@/lib/weeklyDeckPptx";
 
 const PX = 96;
 const text = {
-  ar: { title: "تصدير التقرير الأسبوعي", pptx: "PowerPoint", pdf: "PDF", map: "صورة المخطط الملوّن (اختياري)", mapHint: "صدّرها PNG من «الرسم التفاعلي للخطة الرئيسية» ثم اخترها هنا.", working: "جارٍ الإعداد…", failed: "تعذّر إنشاء الملف. أعد المحاولة." },
+  ar: { title: "تصدير التقرير الأسبوعي", pptx: "PowerPoint", pdf: "PDF", map: "صورة المخطط الملوّن (اختياري)", mapHint: "صدّرها PNG من «الماستر بلان» ثم اخترها هنا.", working: "جارٍ الإعداد…", failed: "تعذّر إنشاء الملف. أعد المحاولة." },
   en: { title: "Export the weekly report", pptx: "PowerPoint", pdf: "PDF", map: "Coloured master plan picture (optional)", mapHint: "Export it as PNG from «Interactive master plan drawing», then choose it here.", working: "Preparing…", failed: "The file could not be made. Try again." },
   ur: { title: "ہفتہ وار رپورٹ برآمد کریں", pptx: "PowerPoint", pdf: "PDF", map: "رنگین ماسٹر پلان کی تصویر (اختیاری)", mapHint: "اسے «ماسٹر پلان کی انٹرایکٹو ڈرائنگ» سے PNG برآمد کریں، پھر یہاں منتخب کریں۔", working: "تیار ہو رہا ہے…", failed: "فائل نہیں بن سکی۔ دوبارہ کوشش کریں۔" },
 };

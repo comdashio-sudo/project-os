@@ -127,7 +127,7 @@ describe("FieldEntry (phone entry)", () => {
   it("renders in Arabic, right to left", () => {
     state.arabic = true;
     load();
-    expect(screen.getByText("إدخال سريع من الموقع")).toBeTruthy();
+    expect(screen.getByText("الإدخال الميداني")).toBeTruthy();
     expect(screen.getByText("تسجيل تقدم")).toBeTruthy();
     expect(document.querySelector("main")?.getAttribute("dir")).toBe("rtl");
   });
