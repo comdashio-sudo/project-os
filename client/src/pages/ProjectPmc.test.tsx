@@ -84,6 +84,17 @@ describe("ProjectPmc screens", () => {
     open("Stages"); expect(screen.getByText(/WALLS \(Actual 75% \/ Planned 80%\)/)).toBeTruthy();
   });
 
+  it("Q-37 (c): the open tab says what it is for and when to use it, and the full guide lists every tab and what PMC does not have", () => {
+    render(<ProjectPmc />);
+    const guide = document.querySelector("[data-pmc-tab-guide]")!;
+    expect(guide.getAttribute("data-pmc-tab-guide")).toBe("latestUpdates");
+    expect(guide.textContent).toContain("Who updated progress and when");
+    fireEvent.click(screen.getByRole("tab", { name: "Approvals" }));
+    expect(document.querySelector("[data-pmc-tab-guide]")!.textContent).toContain("Inspection requests sent to the consultant");
+    expect(document.querySelectorAll("[data-pmc-guide-all] dt")).toHaveLength(13);
+    expect(document.querySelector("[data-pmc-not-in-platform]")!.textContent).toContain("Google Sheets");
+  });
+
   it("sends the chosen filters with the query", () => {
     render(<ProjectPmc />);
     fireEvent.change(screen.getByLabelText("Zone"), { target: { value: "Z2" } });
