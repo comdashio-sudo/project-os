@@ -27,11 +27,11 @@ export function OperationalRoleGuide({ roles, isArabic, language: languageProp }
       <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {profiles.map(({ role, profile }) => (
           <article key={role.code} className="rounded-xl border border-border bg-white p-4">
-            <div className="flex items-start justify-between gap-3"><h2 className="font-semibold text-slate-900">{getOperationalRoleName(role, language)}</h2><Badge variant="secondary">{role.permissions.length}</Badge></div>
+            <div className="flex items-start justify-between gap-3"><h2 className="font-semibold text-foreground">{getOperationalRoleName(role, language)}</h2><Badge variant="secondary">{role.permissions.length}</Badge></div>
             <p className="mt-2 text-sm font-medium text-primary">{profile.purpose}</p>
-            <p className="mt-3 text-xs font-semibold text-slate-500">{text.focus}</p><p className="mt-1 text-sm text-slate-700">{profile.focus}</p>
-            <p className="mt-3 text-xs font-semibold text-slate-500">{text.boundary}</p><p className="mt-1 text-sm text-slate-700">{profile.boundary}</p>
-            <p className="mt-3 text-xs text-slate-500">{text.permissions}: {role.permissions.length}</p>
+            <p className="mt-3 text-xs font-semibold text-muted-foreground">{text.focus}</p><p className="mt-1 text-sm text-foreground">{profile.focus}</p>
+            <p className="mt-3 text-xs font-semibold text-muted-foreground">{text.boundary}</p><p className="mt-1 text-sm text-foreground">{profile.boundary}</p>
+            <p className="mt-3 text-xs text-muted-foreground">{text.permissions}: {role.permissions.length}</p>
           </article>
         ))}
       </CardContent>

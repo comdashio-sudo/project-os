@@ -40,16 +40,16 @@ export function ManualLinkPanel(props: {
   notice: { kind: "linked" | "already" | "few"; code?: string } | null;
 }) {
   const t = useManualText();
-  const button = "min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm disabled:opacity-50";
+  const button = "min-h-[44px] rounded-lg border border-border px-3 text-sm disabled:opacity-50";
   const active = "min-h-[44px] rounded-lg bg-slate-900 px-3 text-sm text-white";
   return (
-    <div className="space-y-2 rounded-lg bg-slate-50 p-3" data-manual-link>
+    <div className="space-y-2 rounded-lg bg-muted p-3" data-manual-link>
       <p className="text-sm font-semibold" data-unlinked-count>{props.unlinked.length === 0 ? t.all : t.title(props.unlinked.length, props.total)}</p>
       {props.unlinked.length > 0 ? (
         <>
           <ul className="flex max-h-28 flex-wrap gap-1 overflow-y-auto" aria-label={t.title(props.unlinked.length, props.total)}>
             {props.unlinked.map(unit => (
-              <li key={unit.id}><button type="button" className={`min-h-[44px] rounded-md border px-2 text-xs ${unit.id === props.unitId ? "border-slate-900 bg-white font-semibold" : "border-slate-300"}`} aria-pressed={unit.id === props.unitId} onClick={() => props.onUnit(unit.id)}>{unit.code}</button></li>
+              <li key={unit.id}><button type="button" className={`min-h-[44px] rounded-md border px-2 text-xs ${unit.id === props.unitId ? "border-slate-900 bg-white font-semibold" : "border-border"}`} aria-pressed={unit.id === props.unitId} onClick={() => props.onUnit(unit.id)}>{unit.code}</button></li>
             ))}
           </ul>
           <div className="flex flex-wrap gap-2">
@@ -58,7 +58,7 @@ export function ManualLinkPanel(props: {
             {props.tool === "polygon" ? <button type="button" className={button} disabled={props.polygonPoints < 3} onClick={props.onClose}>{t.close(props.polygonPoints)}</button> : null}
             {props.tool ? <button type="button" className={button} onClick={() => props.onTool(null)}>{t.stop}</button> : null}
           </div>
-          {props.tool ? <p className="text-xs text-slate-600">{props.tool === "point" ? t.hintPoint : t.hintPolygon}</p> : null}
+          {props.tool ? <p className="text-xs text-muted-foreground">{props.tool === "point" ? t.hintPoint : t.hintPolygon}</p> : null}
         </>
       ) : null}
       {props.notice?.kind === "linked" ? <p role="status" className="text-sm text-emerald-800">{t.linked(props.notice.code ?? "")}</p> : null}

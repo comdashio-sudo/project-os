@@ -41,7 +41,7 @@ export function isRetryable(error: unknown): boolean {
 /** Loading: a short line that names what is being read, so the place is never blank. */
 export function LoadingState({ isArabic, label }: { isArabic: boolean; label?: string }) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
-  return <p role="status" data-screen-state="loading" className="flex items-center gap-2 py-4 text-sm text-slate-600">
+  return <p role="status" data-screen-state="loading" className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
     <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
     <span>{label ?? pickLanguage(lang, { ar: "جارٍ التحميل…", en: "Loading…", ur: "لوڈ ہو رہا ہے…" })}</span>
   </p>;
@@ -55,9 +55,9 @@ export type NextAction = { label: string; href: string };
  */
 export function EmptyState({ isArabic, title, body, action }: { isArabic: boolean; title: string; body: string; action?: NextAction }) {
   const className = "inline-flex min-h-[44px] items-center rounded-lg bg-primary px-4 text-sm font-semibold text-white";
-  return <div role="status" data-screen-state="empty" className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
-    <Inbox className="mx-auto h-6 w-6 text-slate-400" aria-hidden="true" />
-    <p className="mt-3 font-semibold text-slate-900">{title}</p>
+  return <div role="status" data-screen-state="empty" className="rounded-2xl border border-dashed border-border bg-white p-8 text-center text-muted-foreground">
+    <Inbox className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
+    <p className="mt-3 font-semibold text-foreground">{title}</p>
     <p className="mx-auto mt-2 max-w-md text-sm">{body}</p>
     {action && (action.href.startsWith("/")
       ? <Link href={action.href} className={`mt-4 ${className}`}>{action.label}</Link>
@@ -101,13 +101,13 @@ export function NoPermission({ isArabic, error, title, scope = "screen" }: { isA
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   const sentence = refusalSentence(error, lang, scope);
   const next = pickLanguage(lang, { ar: "اطلب من مالك الشركة أو من يدير صلاحيات فريقك إضافتها لك، ثم أعد فتح الشاشة.", en: "Ask the company owner or whoever manages your team's permissions to grant it, then reopen this screen.", ur: "کمپنی کے مالک یا اپنی ٹیم کی صلاحیتیں منظم کرنے والے شخص سے یہ صلاحیت دینے کو کہیں، پھر یہ اسکرین دوبارہ کھولیں۔" });
-  return <section role="note" data-screen-state="no-permission" className="rounded-2xl border border-slate-300 bg-slate-50 p-5 text-sm text-slate-800">
+  return <section role="note" data-screen-state="no-permission" className="rounded-2xl border border-border bg-muted p-5 text-sm text-foreground">
     <div className="flex items-start gap-3">
-      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div>
         <p className="font-semibold">{title ?? (scope === "section" ? pickLanguage(lang, { ar: "لا صلاحية لعرض هذا القسم", en: "No permission to view this section", ur: "اس حصے کو دیکھنے کی اجازت نہیں" }) : null) ?? pickLanguage(lang, { ar: "لا صلاحية لعرض هذه الشاشة", en: "No permission to view this screen", ur: "اس اسکرین کو دیکھنے کی اجازت نہیں" })}</p>
         <p className="mt-1">{sentence}</p>
-        <p className="mt-1 text-slate-600">{next}</p>
+        <p className="mt-1 text-muted-foreground">{next}</p>
       </div>
     </div>
   </section>;

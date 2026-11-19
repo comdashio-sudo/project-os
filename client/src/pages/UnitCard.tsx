@@ -75,12 +75,12 @@ export default function UnitCard() {
   const back = `/m/${tenantId}/${projectId}`;
   const shell = (children: React.ReactNode) => <FieldShell wide tenantId={tenantId} projectId={projectId} title={`${t.title} ${unitNumber}`} backHref={back} backLabel={t.back}>{children}</FieldShell>;
 
-  if (options.isLoading || (unit && card.isLoading)) return shell(<p role="status" className="text-sm text-slate-500">{t.loading}</p>);
+  if (options.isLoading || (unit && card.isLoading)) return shell(<p role="status" className="text-sm text-muted-foreground">{t.loading}</p>);
   const failure = options.error ?? card.error;
   if (failure) return shell(<><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(failure, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void card.refetch(); }}>{t.retry}</Button></>);
   if (!unit) return shell(<p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.unitUnknown}</p>);
   const data = card.data;
-  if (!data) return shell(<p role="status" className="text-sm text-slate-500">{t.loading}</p>);
+  if (!data) return shell(<p role="status" className="text-sm text-muted-foreground">{t.loading}</p>);
 
   const name = (key: string) => (t as Record<string, string>)[key] ?? key;
   // a status change is recorded as codes (FROM → TO); the person reads them in their language
@@ -102,10 +102,10 @@ export default function UnitCard() {
     <>
       {stallRow && <p role="status" data-stall-badge className="rounded-xl border border-warning bg-warning-soft p-3 text-sm text-warning-soft-foreground">{stallRow.state === "long" ? t.longStalled : t.stalled}: <bdi dir="ltr">{stallRow.workingDays}</bdi> {t.workingDays}{stallRow.nextActivity ? <> · {t.nextActivity}: {stallRow.nextActivity.name}</> : null}</p>}
       <section aria-label={t.unitLabel} className="grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-4">
-        <p><span className="block text-xs text-slate-600">{t.unitLabel}</span><b className="text-lg">{data.unit.number}</b></p>
-        <p><span className="block text-xs text-slate-600">{t.zone} / {t.block}</span><b>{data.unit.zone} / {data.unit.block}</b></p>
-        <p><span className="block text-xs text-slate-600">{t.model}</span><b>{data.unit.modelCode}</b></p>
-        <p><span className="block text-xs text-slate-600">{t.openNcrs}</span><b className={data.openNcrs > 0 ? "text-red-700" : ""}>{data.openNcrs}</b></p>
+        <p><span className="block text-xs text-muted-foreground">{t.unitLabel}</span><b className="text-lg">{data.unit.number}</b></p>
+        <p><span className="block text-xs text-muted-foreground">{t.zone} / {t.block}</span><b>{data.unit.zone} / {data.unit.block}</b></p>
+        <p><span className="block text-xs text-muted-foreground">{t.model}</span><b>{data.unit.modelCode}</b></p>
+        <p><span className="block text-xs text-muted-foreground">{t.openNcrs}</span><b className={data.openNcrs > 0 ? "text-red-700" : ""}>{data.openNcrs}</b></p>
         <label className="block text-sm font-medium sm:col-span-4">{t.activity}
           <Select className="mt-1" aria-label={t.allActivities} value={activity?.code ?? ALL_ACTIVITIES} onValueChange={value => { setShownCount(PAGE); navigate(`${back}/unit/${encodeURIComponent(unitNumber)}${value !== ALL_ACTIVITIES ? `?activity=${encodeURIComponent(value)}` : ""}`); }} options={[{ value: ALL_ACTIVITIES, label: t.allActivities }, ...activities.map(item => ({ value: item.code, label: `${item.code} — ${item.name}` }))]} /></label>
         {data.activity && (
@@ -113,7 +113,7 @@ export default function UnitCard() {
             <p className="text-sm"><b>{t.status}:</b> {name(data.status ?? "NOT_STARTED")}</p>
             {!states.isError && (() => { const qc = states.data?.activities.find(item => item.code === data.activity?.code); return <p className="text-sm" data-qc-receipt><b>{t.qcReceipt}:</b> {qc?.qcReceived === true ? t.qcReceived : qc?.qcReceived === false ? t.qcNotReceived : t.qcNone}{qc?.qcOn ? <> · <bdi dir="ltr">{qc.qcOn}</bdi></> : null}</p>; })()}
             {data.qc && <>
-              <p className={`text-sm font-semibold ${data.qc.accepted ? "text-emerald-700" : "text-red-700"}`}>{t.quality}: {data.qc.accepted ? t.accepted : t.notAccepted} <span className="font-normal text-slate-600">({t.policy}: {name("mode" + data.qc.policy)} · {t.ncrRule}: {name("mode" + data.qc.ncrMode)})</span></p>
+              <p className={`text-sm font-semibold ${data.qc.accepted ? "text-emerald-700" : "text-red-700"}`}>{t.quality}: {data.qc.accepted ? t.accepted : t.notAccepted} <span className="font-normal text-muted-foreground">({t.policy}: {name("mode" + data.qc.policy)} · {t.ncrRule}: {name("mode" + data.qc.ncrMode)})</span></p>
               {data.qc.heldByNcr && <p role="note" className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{t.heldByNcr}</p>}
             </>}
           </div>
@@ -123,11 +123,11 @@ export default function UnitCard() {
       <section aria-label={t.timeline} className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{t.timeline}</h2>
           <label className="flex items-center gap-2 text-sm font-medium">{t.filter}<Select aria-label={t.all} value={kind} onValueChange={value => { setKind(value as typeof kind); setShownCount(PAGE); }} options={[{ value: "all", label: t.all }, ...KINDS.map(value => ({ value, label: name(value) }))]} /></label></div>
-        {events.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.empty}</p>
+        {events.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.empty}</p>
           : <ol className="space-y-2">{events.slice(0, shownCount).map(event => (
             <li key={`${event.kind}-${event.ref}-${event.at}`} className="rounded-xl border bg-white p-3" data-kind={event.kind}>
-              <p className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm font-semibold">{name(event.kind)} · <bdi>{eventTitle(event)}</bdi></span><span className="text-xs text-slate-600">{showDate(event.at, language)}</span></p>
-              {detail(event) && <p className="text-sm text-slate-700"><bdi>{detail(event)}</bdi></p>}
+              <p className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm font-semibold">{name(event.kind)} · <bdi>{eventTitle(event)}</bdi></span><span className="text-xs text-muted-foreground">{showDate(event.at, language)}</span></p>
+              {detail(event) && <p className="text-sm text-foreground"><bdi>{detail(event)}</bdi></p>}
             </li>))}</ol>}
         {events.length > shownCount && <Button variant="outline" className={`${tap} w-full`} onClick={() => setShownCount(count => count + PAGE)}>{t.showAll}</Button>}
       </section>
