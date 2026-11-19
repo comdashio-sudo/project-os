@@ -1153,6 +1153,31 @@ export const projectErrorMessages = {
     en: "The action's owner must be an active member of the company.",
     ur: "کام کا مالک کمپنی کا فعال رکن ہونا چاہیے۔",
   },
+  PROJECT_OS_UNDO_BATCH_NOT_FOUND: {
+    ar: "لا يوجد حفظ بهذا المعرّف في هذا المشروع يمكن التراجع عنه.",
+    en: "There is no save with this id on this project to undo.",
+    ur: "اس پروجیکٹ میں اس شناخت کے ساتھ کوئی محفوظ کردہ عمل نہیں جسے واپس لیا جا سکے۔",
+  },
+  PROJECT_OS_UNDO_NOT_YOURS: {
+    ar: "لا يتراجع عن الحفظ إلا من حفظه؛ صحّح بحفظ جديد.",
+    en: "Only the person who saved it can undo a save; correct it with a new save.",
+    ur: "محفوظ کرنے والا ہی اسے واپس لے سکتا ہے؛ نئی محفوظ کاری سے درست کریں۔",
+  },
+  PROJECT_OS_UNDO_EXPIRED: {
+    ar: "انتهت مدة التراجع (15 دقيقة من الحفظ)؛ صحّح بحفظ جديد.",
+    en: "The undo window (15 minutes after the save) has passed; correct it with a new save.",
+    ur: "واپسی کی مدت (محفوظ کرنے کے 15 منٹ بعد تک) ختم ہو گئی؛ نئی محفوظ کاری سے درست کریں۔",
+  },
+  PROJECT_OS_UNDO_ALREADY_DONE: {
+    ar: "تم التراجع عن هذا الحفظ من قبل؛ لا تراجع ثانٍ.",
+    en: "This save has already been undone; it cannot be undone twice.",
+    ur: "یہ محفوظ کاری پہلے ہی واپس لی جا چکی ہے؛ دوبارہ واپسی نہیں۔",
+  },
+  PROJECT_OS_UNDO_CELLS_CHANGED: {
+    ar: "تغيّرت فلل من هذا الحفظ بعده، فلا تراجع؛ صحّح بحفظ جديد.",
+    en: "Villas of this save changed after it, so it cannot be undone; correct it with a new save.",
+    ur: "اس محفوظ کاری کے بعد اس کے ولاز بدل گئے، اس لیے واپسی نہیں؛ نئی محفوظ کاری سے درست کریں۔",
+  },
   PROJECT_OS_STOCKTAKE_QUICK_STOPPED: {
     ar: "الجرد السريع موقوف؛ سجّل الجرد من «الجرد بالاعتماد» في صفحة المستودع، فيعتمده شخص غير الذي فتحه.",
     en: "The quick count is stopped; record the count through «Approved stocktake» on the warehouse page, approved by someone other than the person who opened it.",

@@ -54,8 +54,8 @@ export default function ExecutiveDashboard() {
   });
   const t = pickLanguage(language, { ar: { notAssessed: "غير مقيَّم",
         back: "مساحة العمل",
-        level: "المستوى 1 · القيادة التنفيذية",
-        title: "نظرة القيادة",
+        level: "المستوى 1 · الإدارة التنفيذية",
+        title: "الإدارة التنفيذية",
         sub: "مؤشرات المحفظة والقرارات التي تتطلب انتباه الإدارة.",
         budget: "الميزانية الحالية",
         actual: "التكلفة الفعلية",

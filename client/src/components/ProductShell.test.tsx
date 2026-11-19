@@ -39,7 +39,7 @@ describe("ProductShell", () => {
     render(<ProductShell tenantId="t1"><p>screen</p></ProductShell>);
     expect(screen.getAllByRole("banner")).toHaveLength(1);
     const navigation = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(navigation).getByRole("link", { name: "Executive" }).getAttribute("href")).toBe("/executive/t1");
+    expect(within(navigation).getByRole("link", { name: "Executive management" }).getAttribute("href")).toBe("/executive/t1");
     expect(within(navigation).getByRole("link", { name: "PMO" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("screen")).toBeTruthy();
   });
@@ -84,7 +84,7 @@ describe("project page in the frame", () => {
     expect(projectCrumb.getAttribute("href")).toBe("/projects/t1/p1/controls");
     expect(projectCrumb.className).toContain("min-h-11");
     const navigation = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(navigation).getByRole("link", { name: "Project controls" }).getAttribute("aria-current")).toBe("page");
+    expect(within(navigation).getByRole("link", { name: "Project board" }).getAttribute("aria-current")).toBe("page");
     expect(within(navigation).getByRole("link", { name: "Project registry" }).getAttribute("aria-current")).toBeNull();
   });
 });
@@ -107,7 +107,7 @@ describe("current module on a project page", () => {
     state.location = "/projects/t1/p1/quality";
     state.nav = projectNav;
     render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
-    expect(current()).toEqual(["Project controls"]);
+    expect(current()).toEqual(["Project board"]);
   });
 
   it("project p1 is not on the page of project p10 (the prefix ends in a slash)", () => {
@@ -170,5 +170,22 @@ describe("which routes are framed", () => {
     cleanup(); state.listOptions = [];
     render(<ProductShell tenantId="t1"><p>screen</p></ProductShell>);
     expect(state.listOptions.at(-1)?.enabled).toBe(true);
+  });
+
+  it("Q-36: a project sub-page names itself in the breadcrumb — workspace › project › Project board › Project team", () => {
+    state.projects = [{ id: "p1", code: "VIL-1", name: "Villas" }];
+    state.location = "/projects/t1/p1/team";
+    render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    const trail = screen.getByRole("navigation", { name: /breadcrumb/i });
+    expect(within(trail).getByText("Project team")).toBeTruthy();
+    expect(within(trail).getByRole("link", { name: "Project board" }).getAttribute("href")).toBe("/projects/t1/p1/controls");
+  });
+
+  it("Q-36: the board itself ends the trail as «Project board», once", () => {
+    state.projects = [{ id: "p1", code: "VIL-1", name: "Villas" }];
+    state.location = "/projects/t1/p1/controls";
+    render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    const trail = screen.getByRole("navigation", { name: /breadcrumb/i });
+    expect(within(trail).getAllByText("Project board")).toHaveLength(1);
   });
 });
