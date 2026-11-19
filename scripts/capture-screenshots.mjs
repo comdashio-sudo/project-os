@@ -81,7 +81,7 @@ const SCREENS = [
   { slug: "profile", title: "الملف الشخصي", note: "بيانات المستخدم ولغة الواجهة.", path: "/profile" },
   { slug: "evm", title: "حاسبة EVM", note: "حساب مؤشرات القيمة المكتسبة.", path: "/evm" },
   // work order 5 (items 7-12): the screens it added
-  { slug: "pmc-tab", title: "ضبط المشروع PMC كتبويب داخل الضوابط", note: "يفتحه الرابط #pmc؛ أزرار Excel وPDF والطباعة على كل شاشة لها جسم.", path: "/projects/:t/:p/controls#pmc" },
+  { slug: "pmc-tab", title: "ضبط المشروع PMC (صفحته الوحيدة؛ العنوان القديم controls#pmc يحوّل إليها)", note: "أزرار Excel وPDF والطباعة على كل شاشة لها جسم.", path: "/projects/:t/:p/pmc" },
   { slug: "design", title: "التنسيق الفني والمعماري", note: "سجل المخططات والمراجعات والإحالات وملاحظات التصميم وتقديمات الاستشاري A/B/C/D.", path: "/projects/:t/:p/controls", open: "التنسيق الفني والمعماري", heading: "سجل المخططات" },
   { slug: "tenders", title: "المناقصات قبل الترسية", note: "الحزم والمدعوون والعروض والمعايرة والترسية التي تنشئ عقدًا والتزامًا.", path: "/projects/:t/:p/controls", open: "المناقصات قبل الترسية", heading: "حزم المناقصة" },
   { slug: "master-plan-tools", title: "الخطة الرئيسية: التدوير والمعايرة والعروض المشتركة", note: "تدوير خلفية الخطة ومعايرتها بالمتر، ومشاركة العروض، والتنبيهات.", path: "/projects/:t/:p/controls", open: "التخطيط وملفات البيانات", heading: "تدوير الخطة ومعايرتها" },

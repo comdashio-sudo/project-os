@@ -1,6 +1,6 @@
 import { holdsPermission, type ScopeType, type TenantAccessSnapshot } from "./authorization";
 import type { ProductCode } from "../../drizzle/schema";
-import { SITE_HUB_READERS } from "../../shared/pageAccess";
+import { REPORTS_HUB_READERS, SITE_HUB_READERS } from "../../shared/pageAccess";
 
 export type NavigationItem = { id: string; level: "EXECUTIVE" | "PMO" | "PROJECT" | "ADMIN"; group: "project" | "company"; labelKey: string; href: string; product: ProductCode; permission: string | readonly string[]; scope: { type: ScopeType; id?: string }; visible?: (snapshot: TenantAccessSnapshot) => boolean };
 
@@ -42,6 +42,8 @@ export function buildTenantNavigation(input: { snapshot: TenantAccessSnapshot; t
       { id: "project-controls", level: "PROJECT", group: "project", labelKey: "navigation.projectControls", href: `/projects/${t}/${p}/controls`, product: "PROJECT", permission: "project.read", scope: project },
       // Q-36 (2 b): the site's entry page, for whoever may open at least one of its four pages (shared/pageAccess.ts SITE_HUB_READERS)
       { id: "project-site", level: "PROJECT", group: "project", labelKey: "navigation.projectSite", href: `/projects/${t}/${p}/site`, product: "PROJECT", permission: SITE_HUB_READERS, scope: project },
+      // Q-36 (2 c): the reports' entry page, for whoever may open one of them (shared/pageAccess.ts REPORTS_HUB_READERS)
+      { id: "project-reports", level: "PROJECT", group: "project", labelKey: "navigation.projectReports", href: `/projects/${t}/${p}/reports`, product: "PROJECT", permission: REPORTS_HUB_READERS, scope: project },
       { id: "project-commercial", level: "PROJECT", group: "project", labelKey: "navigation.projectCommercial", href: `/projects/${t}/${p}/commercial`, product: "PROJECT", permission: "project.read", scope: project },
       { id: "project-team", level: "PROJECT", group: "project", labelKey: "navigation.projectTeam", href: `/projects/${t}/${p}/team`, product: "PROJECT", permission: ["project.manage", "project.team.invite"], scope: project },
       { id: "my-performance", level: "PROJECT", group: "project", labelKey: "navigation.myPerformance", href: `/projects/${t}/${p}/my-performance`, product: "PROJECT", permission: "project.performance.read_own", scope: project },
