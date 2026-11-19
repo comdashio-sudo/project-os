@@ -6,6 +6,7 @@ import { PayrollPanel } from "./PayrollPanel";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
 const state = vi.hoisted(() => ({
+  denied: new Set<string>(), employeesQuery: vi.fn(),
   isArabic: false,
   capabilities: { canManageStructure: true, canRunPayroll: false, canApprovePayroll: false, canReadSensitivePayroll: true },
   runs: [] as Array<{ id: string; periodStart: Date; periodEnd: Date; status: "draft" | "review" | "approved" | "paid"; entryCount: number }>,
@@ -14,11 +15,12 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.isArabic, language: (state.isArabic) ? "ar" : "en", isRtl: state.isArabic }) }));
+vi.mock("@/lib/permissions", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/permissions")>()), useCan: (code: string) => !state.denied.has(code) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized payroll error" }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     employees: {
-      list: { useQuery: () => ({ data: [{ id: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner" }], error: null, isLoading: false }) },
+      list: { useQuery: (...args: unknown[]) => { state.employeesQuery(...args); return { data: [{ id: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner" }], error: null, isLoading: false }; } },
       payroll: {
         capabilities: { useQuery: () => ({ data: state.capabilities, error: null, isLoading: false }) },
         runs: { useQuery: () => ({ data: state.runs, error: null, isLoading: false, refetch: vi.fn() }) },
@@ -42,6 +44,7 @@ vi.mock("@/lib/trpc", () => ({
 describe("PayrollPanel", () => {
   beforeEach(() => {
     cleanup();
+    state.denied.clear(); state.employeesQuery.mockReset();
     state.isArabic = false;
     state.capabilities = { canManageStructure: true, canRunPayroll: false, canApprovePayroll: false, canReadSensitivePayroll: true };
     state.runs = []; state.shares = [];
@@ -159,5 +162,32 @@ describe("PayrollPanel salary-structure form checks itself in the page's languag
     const form = document.querySelector<HTMLInputElement>('input[inputmode="decimal"][required]')!.form!;
     expectEmptySubmitRefused(form, "ar", state.save);
     state.isArabic = false;
+  });
+
+});
+
+describe("Q-38 (P1-06): fields named, sensitive reads asked for only by whom the server allows", () => {
+  beforeEach(() => { cleanup(); state.denied.clear(); state.employeesQuery.mockReset(); state.structureQuery.mockReset(); state.isArabic = false; });
+
+  it("Q-38: the structure's amounts are named above their boxes, and the GOSI rate says it is a fraction, not a percentage", () => {
+    render(<PayrollPanel tenantId="tenant-1" />);
+    const gosi = screen.getByLabelText("GOSI rate");
+    expect(gosi.closest("label")!.textContent).toContain("A fraction between 0 and 1, not a percentage: 0.0975 means 9.75%.");
+    expect(screen.getByLabelText("Base salary").closest("label")!.querySelector("span")!.textContent).toBe("Base salary");
+  });
+
+  it("Q-38 NEGATIVE: without the employee register permission the employee list is not asked for, and the screen says why", () => {
+    state.denied.add("project.hr.manage");
+    render(<PayrollPanel tenantId="tenant-1" />);
+    expect(screen.getByRole("note").textContent).toContain("project.hr.manage");
+    expect(state.employeesQuery.mock.calls.every(([, options]) => !(options as { enabled?: boolean }).enabled)).toBe(true);
+  });
+
+  it("Q-38 NEGATIVE: without the sensitive payroll read, «view the protected structure» is not offered and the structure is never asked for", () => {
+    state.capabilities = { ...state.capabilities, canReadSensitivePayroll: false };
+    render(<PayrollPanel tenantId="tenant-1" />);
+    expect(screen.queryByRole("button", { name: /protected salary structure/i })).toBeNull();
+    expect(state.structureQuery.mock.calls.every(([, options]) => !(options as { enabled?: boolean }).enabled)).toBe(true);
+    state.capabilities = { ...state.capabilities, canReadSensitivePayroll: true };
   });
 });
