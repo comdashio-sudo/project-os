@@ -24,6 +24,8 @@ export const PAGE_ACCESS = {
   team: [["project.manage", "project.team.invite"]],
   pmc: [["project.pmc.read"]],
   stalled: [["project.pmc.read"]],
+  // meetings.list — listProjectMeetings (server/meetings.ts), Q-25
+  meetings: [["project.read", "project.manage"]],
   // siteReports.list — listSiteDailyReportsForTenant (server/siteReports.ts)
   dailyReport: [DAILY_REPORT_READERS],
   // reportPeriods.weekly / reportPeriods.monthly — getWeeklyReport, getMonthlyReport (server/siteReports.ts READ_PERMISSIONS)
@@ -31,6 +33,8 @@ export const PAGE_ACCESS = {
   monthlyReport: [DAILY_REPORT_READERS],
   // pmcSite.percentages — pmcSourcePercentages (server/pmcSiteService.ts)
   siteConsultant: [["project.pmc.read"]],
+  // pmcSite.activities — listSiteActivities (server/pmcSiteService.ts); the «site update» screen (review of #419)
+  siteUpdate: [["project.pmc.read"]],
   // schedule.live — getLiveSchedule (server/scheduleSnapshots.ts), Q-23
   schedule: [["project.read", "project.manage"]],
   profitability: [["project.read"]],
