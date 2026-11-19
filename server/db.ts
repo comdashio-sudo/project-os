@@ -4255,11 +4255,11 @@ export async function createSubcontractCertificateForTenant(input: { userId: num
   const [subcontract] = await db.select().from(subcontractContracts).where(and(eq(subcontractContracts.id, input.subcontractId), eq(subcontractContracts.tenantId, input.tenantId), eq(subcontractContracts.projectId, input.projectId))).limit(1);
   if (!subcontract) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SUBCONTRACT_NOT_FOUND" });
 
-  const [duplicate] = await db.select({ id: subcontractCertificates.id }).from(subcontractCertificates).where(and(eq(subcontractCertificates.projectId, input.projectId), eq(subcontractCertificates.certificateNumber, input.certificateNumber))).limit(1);
+  const [duplicate] = await db.select({ id: subcontractCertificates.id }).from(subcontractCertificates).where(and(eq(subcontractCertificates.tenantId, input.tenantId), eq(subcontractCertificates.projectId, input.projectId), eq(subcontractCertificates.certificateNumber, input.certificateNumber))).limit(1);
   if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_CERTIFICATE_NUMBER_EXISTS" });
 
   const boqIds = input.lines.map(l => l.boqItemId);
-  const boqRows = await db.select().from(boqItems).where(and(eq(boqItems.projectId, input.projectId), inArray(boqItems.id, boqIds)));
+  const boqRows = await db.select().from(boqItems).where(and(eq(boqItems.tenantId, input.tenantId), eq(boqItems.projectId, input.projectId), inArray(boqItems.id, boqIds)));
   const boqMap = new Map(boqRows.map(b => [b.id, b]));
 
   const certificateId = crypto.randomUUID();
