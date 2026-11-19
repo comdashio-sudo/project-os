@@ -21,7 +21,7 @@ const figures: WeekFigures & Record<string, unknown> = {
 };
 vi.mock("wouter", () => ({ Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
-vi.mock("@/lib/permissions", () => ({ useCan: () => h.canWrite }));
+vi.mock("@/lib/permissions", () => ({ useCan: () => h.canWrite, useCanPage: () => true }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   projects: { profile: { get: { useQuery: () => ({ data: h.profile, error: h.profileError }) } } },
   useUtils: () => ({ reportPeriods: { weekly: { invalidate: vi.fn() } } }),

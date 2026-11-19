@@ -149,6 +149,8 @@ export const outsideColumns: Readonly<Record<string, string>> = {
   "strategy.read": "Q-21 (أ): قراءة سجل افتراضات مركز التخطيط وسجل تغييراتها (server/strategyAssumptions.ts)، بتعيين على نطاق الشركة فقط؛ يملكه مالك الشركة وقالب EXECUTIVE؛ لا عمود.",
   "strategy.manage": "Q-21 (أ): إدخال مسودة افتراض وتصحيحها وإرسالها، وطلب تغيير افتراض معتمد (server/strategyAssumptions.ts)، بنطاق الشركة؛ يملكه مالك الشركة؛ لا عمود.",
   "strategy.approve": "Q-21 (أ): اعتماد الافتراض وطلبات تغييره وإيقافه (server/strategyAssumptions.ts)، بنطاق الشركة، ولا يعتمد من أعدّ أو طلب؛ يملكه مالك الشركة؛ لا عمود.",
+
+  "project.subcontract.progress.record": "Q-43 (P2-06): إعداد إثبات أعمال المقاول وإرساله وإلغاء مسودته، بلا أسعار (server/workConfirmations.ts)؛ يملكه مهندس الموقع ومدير المشروع، والاعتماد بـproject.commitment.manage لغير المُعِدّ؛ لا عمود.",
   "project.consultant.respond": "Q-17 (205-4): تسجيل رد الاستشاري على تقديم مواد (server/consultantSubmittals.ts، REPLY مع project.design.approve)؛ يملكه مدير المشروع ومهندس التخطيط، ولم يعد project.manage يكفي له؛ لا عمود.",
   "project.qc.receive": "Q-5: استلام QC (مستلم / غير مستلم) لعدة فلل مرة واحدة (server/pmcQcReceipts.ts updatePmcQcReceipts)؛ يملكه دور QA_QC_MANAGER وحده، لا عمود.",
   "project.team.invite": "Q-12 (ج): دعوة أشخاص إلى مشروع واحد بدور مشروع مسموح (server/db.ts createMembershipInvitation، القاعدة projectInviteRoleRefusal)؛ لا عمود.",
