@@ -34,6 +34,7 @@ async function count(table: string) {
 async function clear() {
   const t = [T, T_OTHER];
   await connection.query("DELETE FROM audit_logs WHERE tenantId IN (?, ?)", t);
+  for (const table of ["subcontract_work_confirmation_lines", "subcontract_work_confirmations", "subcontract_contracts"]) await connection.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, t);
   for (const table of ["pmc_qc_receipt_events", "pmc_qc_receipts", "pmc_unit_activity_history", "pmc_inspection_steps", "pmc_inspection_request_units", "pmc_inspection_requests", "pmc_unit_activity_progress", "pmc_baselines", "pmc_status_factors", "pmc_verification_statuses", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones"]) await connection.query(`DELETE FROM ${table} WHERE tenantId IN (?, ?)`, t);
   await connection.query("DELETE mr FROM membership_roles mr INNER JOIN roles r ON r.id = mr.roleId WHERE r.tenantId IN (?, ?)", t);
   await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId IN (?, ?)", t);
@@ -139,6 +140,26 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-44: undo the last prog
     expect(await code(manager().pmc.undoProgressBatch({ ...scope, batchId: late.batchId }))).toBe("PROJECT_OS_UNDO_EXPIRED");
     expect(await statusOf(3, "FOOT")).toBe("IN_PROGRESS");
     expect(await writes()).toBe(before);
+  });
+
+  it("Q-44 after Q-43 (I46): a progress batch whose cell a subcontractor's SUBMITTED or APPROVED work confirmation claims is not undone (villa named, nothing written); a rejected one does not hold", async () => {
+    const saved = await manager().pmc.updateProgress({ ...scope, activityCode: "FOOT", villas: ["3", "4"], status: "COMPLETE", date: today });
+    const [[cell]] = await connection.query<{ unitId: string; activityDefinitionId: string }[]>("SELECT c.unitId, c.activityDefinitionId FROM pmc_unit_activity_progress c JOIN pmc_units u ON u.id = c.unitId JOIN pmc_activity_definitions d ON d.id = c.activityDefinitionId WHERE c.tenantId = ? AND u.unitNumber = '3' AND d.code = 'FOOT'", [T]);
+    const SUB = "44000000-0000-4000-8000-0000000005c1"; const WC = "44000000-0000-4000-8000-0000000005c2";
+    await connection.query("INSERT INTO subcontract_contracts (id, tenantId, projectId, code, title, subcontractorName, contractValue, createdByUserId) VALUES (?, ?, ?, 'SC-Q44', 'Block work (synthetic)', 'Subcontractor Co. (synthetic)', 1000, ?)", [SUB, T, P, users.manager]);
+    await connection.query("INSERT INTO subcontract_work_confirmations (id, tenantId, projectId, subcontractId, confirmationNumber, periodStart, periodEnd, status, preparedByUserId) VALUES (?, ?, ?, ?, 'WC-Q44-1', '2026-11-01', '2026-11-30', 'submitted', ?)", [WC, T, P, SUB, users.manager]);
+    await connection.query("INSERT INTO subcontract_work_confirmation_lines (id, tenantId, projectId, confirmationId, kind, pmcUnitId, pmcActivityDefinitionId, percent) VALUES (?, ?, ?, ?, 'unit', ?, ?, 100)", ["44000000-0000-4000-8000-0000000005c3", T, P, WC, cell.unitId, cell.activityDefinitionId]);
+    const before = await writes();
+    const refused = await manager().pmc.undoProgressBatch({ ...scope, batchId: saved.batchId }).then(() => null, (error: { message: string; cause?: { villas?: string[] } }) => error);
+    expect(refused?.message).toBe("PROJECT_OS_UNDO_CELLS_CONFIRMED");
+    expect(refused?.cause?.villas).toEqual(["3"]);
+    expect([await statusOf(3, "FOOT"), await statusOf(4, "FOOT")]).toEqual(["COMPLETE", "COMPLETE"]);
+    expect(await writes()).toBe(before);
+    await connection.query("UPDATE subcontract_work_confirmations SET status = 'approved' WHERE id = ?", [WC]);
+    expect(await code(manager().pmc.undoProgressBatch({ ...scope, batchId: saved.batchId }))).toBe("PROJECT_OS_UNDO_CELLS_CONFIRMED");
+    // a rejected confirmation claims nothing: the undo goes through
+    await connection.query("UPDATE subcontract_work_confirmations SET status = 'rejected' WHERE id = ?", [WC]);
+    expect(await manager().pmc.undoProgressBatch({ ...scope, batchId: saved.batchId })).toEqual({ batchId: saved.batchId, cells: 2 });
   });
 
   it("POSITIVE (QC): the receipts go back by a new event, the new receipt to «not received»; NEGATIVE: another person, a receipt changed after, a second undo — refused, nothing written", async () => {

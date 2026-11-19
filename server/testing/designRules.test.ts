@@ -95,4 +95,14 @@ describe("design rules: the build gate", () => {
       expect(result.stderr).toMatch(/components\/ds\/Bad\.tsx: hardcoded-colour 1 \(allowed 0\)/);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+
+  it("Q-19 (4): counts Tailwind palette classes (any shade, any prefix) but not tokens or comments, and the repository sits exactly at its falling ceiling", async () => {
+    const { paletteCount, PALETTE_CEILING } = (await import(/* @vite-ignore */ script)) as unknown as { paletteCount: (source: string) => number; PALETTE_CEILING: number };
+    expect(paletteCount(`<p className="text-slate-500 hover:bg-red-50 md:ring-amber-200 border-emerald-700/40" />`)).toBe(4);
+    expect(paletteCount(`<p className="text-muted-foreground bg-muted ring-border text-success-soft-foreground bg-[var(--dashio-paper)]" />`)).toBe(0);
+    expect(paletteCount(`// was text-slate-500\n/* bg-red-50 */ const a = 1;`)).toBe(0);
+    const result = run();
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain(`Tailwind palette classes ${PALETTE_CEILING} (ceiling ${PALETTE_CEILING}`);
+  });
 });

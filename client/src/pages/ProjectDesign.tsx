@@ -67,14 +67,14 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
   const label = (code: string) => enumLabel(code, language);
   const list = drawings.data ?? [];
   const live = list.filter(item => item.status !== "cancelled");
-  const sheet = (heading: string, children: React.ReactNode) => <section className="rounded-xl border border-slate-200 p-4"><h3 className="font-semibold">{heading}</h3><div className="mt-3 space-y-3">{children}</div></section>;
+  const sheet = (heading: string, children: React.ReactNode) => <section className="rounded-xl border border-border p-4"><h3 className="font-semibold">{heading}</h3><div className="mt-3 space-y-3">{children}</div></section>;
   const submit = (action: () => void) => (event: React.FormEvent) => { event.preventDefault(); action(); };
   const b = board.data;
 
   return <Card>
     <CardHeader><CardTitle>{t.title}</CardTitle></CardHeader>
     <CardContent className="space-y-5">
-      <p className="text-xs leading-5 text-slate-600">{t.note}</p>
+      <p className="text-xs leading-5 text-muted-foreground">{t.note}</p>
       <SourceNotice query={board} isArabic={isArabic} title={t.board} />
       <SourceNotice query={drawings} isArabic={isArabic} title={t.drawingsTitle} />
       <SourceNotice query={transmittals} isArabic={isArabic} title={t.transmittalsTitle} />
@@ -107,7 +107,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
           </CheckedForm>
         </WriteGate>
         {list.length ? <div className="divide-y rounded-xl border">{list.map(item => <div key={item.id} className="p-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.drawingNumber} · {item.title}</b><span className="text-xs text-slate-500">{label(item.discipline)} · {t.revisionLabel} {item.currentRevision} · {label(item.status)}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.drawingNumber} · {item.title}</b><span className="text-xs text-muted-foreground">{label(item.discipline)} · {t.revisionLabel} {item.currentRevision} · {label(item.status)}</span></div>
           {item.unresolvedComments ? <p className="mt-1 text-xs text-amber-800">{t.unresolved}: {item.unresolvedComments}</p> : null}
           {item.status !== "cancelled" ? <div className="mt-2 flex flex-wrap items-end gap-2">
             <WriteGate permission="project.design.manage" projectId={projectId}>
@@ -117,7 +117,7 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
             </WriteGate>
             <WriteGate permission="project.design.approve" projectId={projectId}>{item.status === "under_review" ? <Button size="sm" disabled={approveDrawing.isPending} onClick={() => approveDrawing.mutate({ ...scope, drawingId: item.id })}>{t.approve}</Button> : null}</WriteGate>
           </div> : null}
-        </div>)}</div> : <p className="text-sm text-slate-500">{drawings.isLoading ? t.loading : t.empty}</p>}
+        </div>)}</div> : <p className="text-sm text-muted-foreground">{drawings.isLoading ? t.loading : t.empty}</p>}
       </>)}
 
       {sheet(t.transmittalsTitle, <>
@@ -132,10 +132,10 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
           </CheckedForm>
         </WriteGate>
         {(transmittals.data ?? []).length ? <div className="divide-y rounded-xl border">{(transmittals.data ?? []).map(item => <div key={item.id} className="p-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.transmittalNumber} · {item.subject}</b><span className="text-xs text-slate-500">{label(item.direction)} · {item.counterparty} · {label(item.status)}</span></div>
-          <p className="mt-1 text-xs text-slate-600">{item.items.join("، ")}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.transmittalNumber} · {item.subject}</b><span className="text-xs text-muted-foreground">{label(item.direction)} · {item.counterparty} · {label(item.status)}</span></div>
+          <p className="mt-1 text-xs text-muted-foreground">{item.items.join("، ")}</p>
           <WriteGate permission="project.design.manage" projectId={projectId}>{item.status === "draft" ? <Button size="sm" className="mt-2" disabled={moveTransmittal.isPending} onClick={() => moveTransmittal.mutate({ ...scope, transmittalId: item.id, nextStatus: "sent" })}>{t.send}</Button> : item.status === "sent" ? <Button size="sm" variant="outline" className="mt-2" disabled={moveTransmittal.isPending} onClick={() => moveTransmittal.mutate({ ...scope, transmittalId: item.id, nextStatus: "acknowledged" })}>{t.acknowledge}</Button> : null}</WriteGate>
-        </div>)}</div> : <p className="text-sm text-slate-500">{transmittals.isLoading ? t.loading : t.empty}</p>}
+        </div>)}</div> : <p className="text-sm text-muted-foreground">{transmittals.isLoading ? t.loading : t.empty}</p>}
       </>)}
 
       {sheet(t.commentsTitle, <>
@@ -151,12 +151,12 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
           </CheckedForm>
         </WriteGate>
         {(comments.data ?? []).length ? <div className="divide-y rounded-xl border">{(comments.data ?? []).map(item => <div key={item.id} className="p-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.commentNumber} · {item.drawingNumber} / {item.revision}</b><span className="text-xs text-slate-500">{label(item.severity)} · {label(item.status)} · {item.raisedBy}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, language)}` : ""}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.commentNumber} · {item.drawingNumber} / {item.revision}</b><span className="text-xs text-muted-foreground">{label(item.severity)} · {label(item.status)} · {item.raisedBy}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, language)}` : ""}</span></div>
           <p className="mt-1">{item.commentText}</p>
-          {item.responseText ? <p className="mt-1 text-xs text-slate-600">{t.response}: {item.responseText}</p> : null}
+          {item.responseText ? <p className="mt-1 text-xs text-muted-foreground">{t.response}: {item.responseText}</p> : null}
           {item.status === "open" ? <WriteGate permission="project.design.manage" projectId={projectId}><div className="mt-2 flex flex-wrap items-end gap-2"><Input aria-label={`${t.response} ${item.commentNumber}`} placeholder={t.response} className="h-9 min-w-48 flex-1" value={answers[item.id] ?? ""} onChange={event => setAnswers({ ...answers, [item.id]: event.target.value })} /><Button size="sm" disabled={!answers[item.id]?.trim() || moveComment.isPending} onClick={() => moveComment.mutate({ ...scope, commentId: item.id, nextStatus: "responded", responseText: answers[item.id]!.trim() })}>{t.respond}</Button></div></WriteGate> : null}
           {item.status === "responded" ? <WriteGate permission="project.design.approve" projectId={projectId}><div className="mt-2 flex gap-2"><Button size="sm" disabled={moveComment.isPending} onClick={() => moveComment.mutate({ ...scope, commentId: item.id, nextStatus: "closed" })}>{t.close}</Button><Button size="sm" variant="outline" disabled={moveComment.isPending} onClick={() => moveComment.mutate({ ...scope, commentId: item.id, nextStatus: "open" })}>{t.reopen}</Button></div></WriteGate> : null}
-        </div>)}</div> : <p className="text-sm text-slate-500">{comments.isLoading ? t.loading : t.empty}</p>}
+        </div>)}</div> : <p className="text-sm text-muted-foreground">{comments.isLoading ? t.loading : t.empty}</p>}
       </>)}
 
       {sheet(t.submittalsTitle, <>
@@ -171,8 +171,8 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
           </CheckedForm>
         </WriteGate>
         {(submittals.data ?? []).length ? <div className="divide-y rounded-xl border">{(submittals.data ?? []).map(item => <div key={item.id} className="p-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.submittalNumber} · {item.title}</b><span className="text-xs text-slate-500">{label(item.discipline)} · {label(item.status)}{item.replyCode ? ` · ${(t.replyNames as Record<string, string>)[item.replyCode] ?? item.replyCode}` : ""}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, language)}` : ""}</span></div>
-          {item.replyNote ? <p className="mt-1 text-xs text-slate-600">{item.replyNote}</p> : null}
+          <div className="flex flex-wrap items-center justify-between gap-2"><b>{item.submittalNumber} · {item.title}</b><span className="text-xs text-muted-foreground">{label(item.discipline)} · {label(item.status)}{item.replyCode ? ` · ${(t.replyNames as Record<string, string>)[item.replyCode] ?? item.replyCode}` : ""}{item.dueAt ? ` · ${t.dueShort} ${when(item.dueAt, language)}` : ""}</span></div>
+          {item.replyNote ? <p className="mt-1 text-xs text-muted-foreground">{item.replyNote}</p> : null}
           <div className="mt-2 flex flex-wrap items-end gap-2">
             {item.status === "draft" ? <WriteGate permission="project.design.manage" projectId={projectId}><Button size="sm" disabled={moveSubmittal.isPending} onClick={() => moveSubmittal.mutate({ ...scope, submittalId: item.id, nextStatus: "submitted" })}>{t.submit}</Button></WriteGate> : null}
             {item.status === "submitted" ? <WriteGate permission="project.design.approve" projectId={projectId}>
@@ -184,12 +184,12 @@ export function ProjectDesign({ tenantId, projectId }: { tenantId: string; proje
               {item.replyCode === "C" || item.replyCode === "D" ? <Button size="sm" disabled={createSubmittal.isPending} onClick={() => createSubmittal.mutate({ ...scope, submittalNumber: `${item.submittalNumber}-R${(submittals.data ?? []).filter(other => other.resubmissionOfId === item.id).length + 1}`, title: item.title, discipline: item.discipline as never, resubmissionOfId: item.id })}>{t.resubmit}</Button> : null}
             </WriteGate> : null}
           </div>
-        </div>)}</div> : <p className="text-sm text-slate-500">{submittals.isLoading ? t.loading : t.empty}</p>}
+        </div>)}</div> : <p className="text-sm text-muted-foreground">{submittals.isLoading ? t.loading : t.empty}</p>}
       </>)}
     </CardContent>
   </Card>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg bg-white/80 p-3"><p className="text-xs text-slate-600">{label}</p><p className="mt-1 text-lg font-semibold text-primary">{value}</p></div>;
+  return <div className="rounded-lg bg-white/80 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-lg font-semibold text-primary">{value}</p></div>;
 }

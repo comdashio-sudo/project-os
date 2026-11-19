@@ -139,10 +139,10 @@ export default function ProjectQuality() {
   const error = createInspection.error ?? advance.error ?? respond.error ?? createNcr.error ?? transition.error ?? saveRules.error;
   const back = `/m/${tenantId}/${projectId}`;
   const loadError = options.error ?? inspections.error ?? ncrList.error;
-  if (options.isLoading || inspections.isLoading || ncrList.isLoading) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-slate-500">{t.loading}</p></FieldShell>;
+  if (options.isLoading || inspections.isLoading || ncrList.isLoading) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="status" className="text-sm text-muted-foreground">{t.loading}</p></FieldShell>;
   if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void inspections.refetch(); void ncrList.refetch(); }}>{t.retry}</Button></FieldShell>;
 
-  const tabButton = (value: typeof tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-primary text-white" : "border bg-white text-slate-800"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
+  const tabButton = (value: typeof tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-primary text-white" : "border bg-white text-foreground"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
   const draft = rules ?? (policy ? { qcCompletionMode: policy.qcCompletionMode as Mode, materialApprovalMode: policy.materialApprovalMode as Mode, ncrAcceptanceMode: policy.ncrAcceptanceMode as Mode, codes: policy.qcAcceptedCodes } : null);
   const modeSelect = (label: string, key: "qcCompletionMode" | "materialApprovalMode" | "ncrAcceptanceMode") => draft && <label className="block text-sm font-medium">{label}<Select className="mt-1" value={draft[key]} disabled={!isManager} onValueChange={value => setRules({ ...draft, [key]: value as Mode })} options={MODES.map(mode => ({ value: mode, label: (t as Record<string, string>)[mode] }))} /></label>;
 
@@ -161,7 +161,7 @@ export default function ProjectQuality() {
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <label className="block text-sm font-medium">{t.requestCode}<input className={`${fieldInput} mt-1`} value={form.code} onChange={event => setForm({ ...form, code: event.target.value })} /></label>
                 <label className="block text-sm font-medium">{t.unitNumbers}<input className={`${fieldInput} mt-1`} inputMode="numeric" value={form.units} onChange={event => setForm({ ...form, units: event.target.value, activityId: "" })} /></label>
-                {typed.length === 0 && <p className="text-sm text-slate-600 sm:col-span-2">{t.needUnits}</p>}
+                {typed.length === 0 && <p className="text-sm text-muted-foreground sm:col-span-2">{t.needUnits}</p>}
                 {unitsUnknown && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsUnknown}</p>}
                 {unitsMixed && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{t.unitsMixed}</p>}
                 <label className="block text-sm font-medium sm:col-span-2">{t.activity}<Select className="mt-1" value={form.activityId} placeholder={t.pickActivity} disabled={activityChoices.length === 0} onValueChange={value => setForm({ ...form, activityId: value })} options={activityChoices.map(activity => ({ value: activity.id, label: `${activity.code} — ${activity.name}` }))} /></label>
@@ -172,8 +172,8 @@ export default function ProjectQuality() {
             </details>
           </WriteGate>
           <label className="block text-sm font-medium sm:max-w-xs">{t.filter}<Select className="mt-1" value={view} onValueChange={value => setView(value as typeof view)} options={[{ value: "all", label: t.all }, { value: "awaiting", label: t.awaiting }, { value: "answered", label: t.answered }, { value: "accepted", label: t.accepted }, { value: "notAccepted", label: t.notAccepted }]} /></label>
-          {requests.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noInspections}</p>
-            : shown.length === 0 ? <p role="status" className="text-sm text-slate-600">{t.noMatch}</p>
+          {requests.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noInspections}</p>
+            : shown.length === 0 ? <p role="status" className="text-sm text-muted-foreground">{t.noMatch}</p>
             : <ul className="space-y-2">{shown.map(request => {
               const current = request.steps.find(step => step.status === "in_progress");
               const atResult = current?.stepCode === "RESULT_RECEIVING";
@@ -183,10 +183,10 @@ export default function ProjectQuality() {
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div><p className="text-base font-semibold">{request.requestCode}</p>
                       <p className="text-sm">{t.unit}: <bdi dir="ltr">{request.unitIds.map(id => unitById.get(id)?.number ?? "?").join(", ")}</bdi> · <bdi dir="ltr">{activityById.get(request.activityDefinitionId)?.code ?? "?"}</bdi></p>
-                      <p className="text-xs text-slate-600">{t.consultant}: <bdi>{request.consultantLabel ?? t.none}</bdi> · {t.contractor}: <bdi>{request.contractorLabel ?? t.none}</bdi> · {showDate(request.requestedAt, language)}</p></div>
+                      <p className="text-xs text-muted-foreground">{t.consultant}: <bdi>{request.consultantLabel ?? t.none}</bdi> · {t.contractor}: <bdi>{request.contractorLabel ?? t.none}</bdi> · {showDate(request.requestedAt, language)}</p></div>
                     <div className="text-end text-sm">
-                      {request.responseCode ? <p className="font-semibold">{t.answer}: {request.responseCode} · <span className={accepted ? "text-emerald-700" : "text-red-700"}>{accepted ? t.acceptedBadge : t.notAcceptedBadge}</span></p> : <p className="text-slate-600">{t.age}: {dayAge(request.requestedAt)} {t.days}</p>}
-                      {current && <p className="text-xs text-slate-600">{t.step}: {stepName(current.stepCode)} ({request.steps.findIndex(step => step.id === current.id) + 1}/{STEPS.length})</p>}
+                      {request.responseCode ? <p className="font-semibold">{t.answer}: {request.responseCode} · <span className={accepted ? "text-emerald-700" : "text-red-700"}>{accepted ? t.acceptedBadge : t.notAcceptedBadge}</span></p> : <p className="text-muted-foreground">{t.age}: {dayAge(request.requestedAt)} {t.days}</p>}
+                      {current && <p className="text-xs text-muted-foreground">{t.step}: {stepName(current.stepCode)} ({request.steps.findIndex(step => step.id === current.id) + 1}/{STEPS.length})</p>}
                     </div>
                   </div>
                   {heldByNcr(request) && <p role="note" className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{t.holdNote}</p>}
@@ -204,7 +204,7 @@ export default function ProjectQuality() {
 
       {tab === "ncrs" && (
         <section aria-label={t.tabNcrs} className="space-y-3">
-          <p className="text-sm text-slate-600">{t.ncrBlocks}.</p>
+          <p className="text-sm text-muted-foreground">{t.ncrBlocks}.</p>
           <WriteGate permission="project.pmc.update" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
             <details className="rounded-xl border bg-white p-3">
               <summary className={`${tap} flex cursor-pointer items-center text-base font-semibold`}>{t.createNcr}</summary>
@@ -220,14 +220,14 @@ export default function ProjectQuality() {
               <Button className={`${tap} mt-2 w-full sm:w-auto`} disabled={!canCreateNcr || createNcr.isPending} onClick={() => { setMessage(null); createNcr.mutate({ ...scope, ncrNumber: ncr.number.trim(), title: ncr.title.trim(), description: ncr.description.trim(), dueAt: ncr.due ? new Date(`${ncr.due}T12:00:00Z`) : undefined, pmcUnitId: ncrUnit?.id, pmcActivityDefinitionId: ncr.activityId || undefined }); }}>{t.createNcr}</Button>
             </details>
           </WriteGate>
-          {ncrs.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-slate-600">{t.noNcrs}</p>
+          {ncrs.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noNcrs}</p>
             : <ul className="space-y-2">{ncrs.map(item => {
               const next = NEXT[item.status] ?? [];
               const cell = item.pmcUnitId ? `${t.unit}: ${unitById.get(item.pmcUnitId)?.number ?? "?"}${item.pmcActivityDefinitionId ? ` · ${activityById.get(item.pmcActivityDefinitionId)?.code ?? "?"}` : ""}` : null;
               return (
                 <li key={item.id} className="space-y-2 rounded-xl border bg-white p-3" data-ncr={item.ncrNumber} data-status={item.status}>
-                  <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-base font-semibold">{item.ncrNumber} · {item.title}</p><p className="text-sm text-slate-700">{item.description}</p>{cell && <p className="text-xs text-slate-600">{cell}</p>}</div>
-                    <div className="text-end text-sm"><p className="font-semibold">{statusName(item.status)}</p><p className="text-xs text-slate-600">{t.age}: {dayAge(item.createdAt)} {t.days}</p></div></div>
+                  <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-base font-semibold">{item.ncrNumber} · {item.title}</p><p className="text-sm text-foreground">{item.description}</p>{cell && <p className="text-xs text-muted-foreground">{cell}</p>}</div>
+                    <div className="text-end text-sm"><p className="font-semibold">{statusName(item.status)}</p><p className="text-xs text-muted-foreground">{t.age}: {dayAge(item.createdAt)} {t.days}</p></div></div>
                   <WriteGate permission="project.pmc.update" projectId={projectId}>
                     <div className="flex flex-wrap gap-2">
                       {next.map(status => <Button key={status} variant="outline" className={tap} disabled={transition.isPending} onClick={() => transition.mutate({ ...scope, ncrId: item.id, nextStatus: status as "closed" })}>{status === "closed" ? t.closeNcr : `${t.toNext} ${statusName(status)}`}</Button>)}
@@ -243,7 +243,7 @@ export default function ProjectQuality() {
       {tab === "rules" && (
         <section aria-label={t.tabRules} className="space-y-3">
           {policyQuery.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(policyQuery.error, isArabic)}</p>}
-          {!isManager && <p role="note" className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">{t.rulesManager}</p>}
+          {!isManager && <p role="note" className="rounded-xl bg-muted p-3 text-sm text-foreground">{t.rulesManager}</p>}
           {draft && (
             <div className="space-y-3 rounded-xl border bg-white p-3">
               <fieldset className="space-y-1"><legend className="text-sm font-medium">{t.rulesAccepted}</legend><div className="flex flex-wrap gap-3">{RESPONSES.map(code => <label key={code} className={`${tap} flex items-center gap-2 text-sm`}><input type="checkbox" disabled={!isManager} checked={draft.codes.includes(code)} onChange={event => setRules({ ...draft, codes: event.target.checked ? [...draft.codes, code] : draft.codes.filter(item => item !== code) })} />{(t as Record<string, string>)[`response${code}`]}</label>)}</div></fieldset>
