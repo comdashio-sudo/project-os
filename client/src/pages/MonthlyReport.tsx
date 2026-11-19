@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useParams } from "wouter";
 import { Button, Card, CardBody, CardHeader, CardTitle, Field, TableScroll, TextInput, formatDate, formatNumber } from "@/components/ds";
 import { PageMain } from "@/components/pageFrame";
+import { ReportPeriodTabs } from "@/components/ReportPeriodTabs";
 import { SectionFailed } from "@/components/ScreenStates";
 import { WeeklyExports } from "@/components/WeeklyDeckSlides";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -35,7 +36,7 @@ export default function MonthlyReport() {
   return (
     <PageMain className="mx-auto flex max-w-6xl flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-11 items-center text-sm text-primary">{t.back}</Link><h1 className="text-xl font-semibold">{t.title}</h1></div>
+        <div className="flex flex-col gap-2"><ReportPeriodTabs tenantId={tenantId} projectId={projectId} current="monthly" /><h1 className="text-xl font-semibold">{t.title}</h1></div>
         <div className="flex flex-wrap items-end gap-2">
           <Button variant="secondary" onClick={() => setMonth(shiftMonth(month, -1))}>{t.previous}</Button>
           <Field label={t.month}>{props => <TextInput {...props} type="month" value={month} onChange={event => setMonth(event.target.value)} />}</Field>
