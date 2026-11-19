@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import React from "react";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Work order 21: the PMC table editors (bulk units, weights to 100%, the click-to-update status matrix).
 const h = vi.hoisted(() => ({
+  saveName: vi.fn(),
   canUpdate: true, canManage: true,
   structure: {
     blocks: [{ id: "b1", code: "B1", name: "Block 1", zoneCode: "Z1" }],
@@ -25,6 +26,7 @@ vi.mock("@/lib/trpc", () => ({
       structure: { useQuery: () => ({ data: h.structure, error: null, refetch: vi.fn() }) },
       statusGrid: { useQuery: (_input: unknown, options: { enabled: boolean }) => ({ data: options.enabled ? h.grid : undefined, error: null, refetch: vi.fn() }) },
       createUnits: { useMutation: () => ({ mutate: h.createUnits, isPending: false, error: h.createError, data: undefined }) },
+      saveActivityEnglishName: { useMutation: (config: { onSuccess: () => void }) => ({ mutate: (input: unknown) => { h.saveName(input); config.onSuccess(); }, isPending: false, error: null, isSuccess: false }) },
       saveActivityWeights: { useMutation: (config: { onSuccess: () => void }) => ({ mutate: (input: unknown) => { h.saveWeights(input); config.onSuccess(); }, isPending: false, error: null, isSuccess: false }) },
       setUnitActivityStatus: { useMutation: () => ({ mutate: h.setStatus, isPending: false, error: null }) },
     },
@@ -139,5 +141,19 @@ describe("PmcEditors — review of #252", () => {
     expect(screen.queryByRole("region", { name: "Create units in bulk" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Save the weights" })).toBeNull();
     expect(screen.getByRole("button", { name: "Show" })).toBeTruthy();
+  });
+
+  it("Q-49: an activity's English name is saved on its own for its code (empty clears it); nothing to save until it changes", () => {
+    render(<PmcEditors tenantId="t" projectId="p" />);
+    const field = screen.getByLabelText("English name (optional): WALLS") as HTMLInputElement;
+    const save = within(document.querySelector('[data-english-name="WALLS"]') as HTMLElement).getByRole("button", { name: "Save name" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.change(field, { target: { value: "  Block walls " } });
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    expect(h.saveName).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", activityCode: "WALLS", nameEn: "Block walls" });
+    fireEvent.change(field, { target: { value: "x" } });
+    fireEvent.change(field, { target: { value: "   " } });
+    expect(save.disabled).toBe(true); // blank again equals the stored (none): nothing to save
   });
 });
