@@ -3043,6 +3043,19 @@
 | بلا تراجع في القرّاء الثلاثة | `PROVEN` | `boqFile` و`plannedCashFlow` و`plannedLabour` و`columnChoice` 25/25 كما هي؛ `projectBaseline*` بالقاعدة 15/15؛ `pnpm check` ناجح و`pnpm test` 4244/0 — 2026-11-19 |
 | رسالة `PROJECT_OS_IMPORT_SHEET_AMBIGUOUS` ع/En/أردو (رفض الخط الأساسي يمر بـ`PROJECT_OS_<code>`) | `SOURCE_VERIFIED` | `shared/projectErrors.ts` |
 
+### Q-50 الدفعة 2أ: قوالب الشركة لتعيين الأعمدة — الخادم (2026-11-19، المبرمج ب، بلا ترحيلة، فوق #443)
+
+قرار المستشار (I52): القالب يُقترح عند تطابق ≥ 80% من العناوين، ولا يُطبَّق قبل أن يرى الشخص التعيين ويؤكده. المكان: `import_source_profiles` القائم (عليه `tenant_id` وRLS)، بنوع الاستيراد في `kind`.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `dataImports.saveTemplate`: يحفظ تعيين استيراد تحليلُه ناجح (validated) قالبًا للشركة ولنوعه، بصلاحية استيراد ذلك النوع، وسطر تدقيق `import_template_saved` في المعاملة نفسها؛ تحليل غير مكتمل ← `PROJECT_OS_IMPORT_TEMPLATE_NOT_READY`؛ من لا يملك استيراد النوع ← FORBIDDEN | `PROVEN` | `server/ledgerImports.database.test.ts` (Q-50 الدفعة 2، موجب وسالب) |
+| الاقتراح: الملف التالي بالعناوين نفسها يُعرض له القالب في `progress.suggestedTemplate` (الاسم والتعيين والنسبة) ويبقى «uploaded» حتى يطبّقه الشخص عبر `reanalyze`؛ ملف تغيّر نصف عناوينه (دون 80%) ← لا اقتراح؛ قالب يذكر عمودًا ليس في الملف لا يُقترح | `PROVEN` | الاختبار نفسه |
+| `dataImports.templates` يعرض قوالب الأنواع التي يملك الشخص استيرادها فقط (صاحب التكاليف وحدها يراها، والقارئ لا يرى شيئًا)؛ `dataImports.deleteTemplate` بصلاحية النوع، وسطر `import_template_deleted`، وقالب ليس للشركة ← `PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND` | `PROVEN` | الاختبار نفسه |
+| مراجعة المبرمج ج (#446): الاسم فريد في الشركة عبر كل الأنواع، فالحفظ يحدّث قالبًا من النوع نفسه فقط، واسم يستعمله نوع آخر (قالب PMC أو ملف استيراد ذكي) ← `PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN` ويبقى ذلك الصف كما هو؛ والحفظ ثانيةً بالاسم والنوع نفسيهما يحدّث الصف نفسه | `PROVEN` | `server/ledgerImports.database.test.ts` (سالب وموجب) |
+| الواجهة (الاقتراح وزر «طبّق» و«احفظ قالبًا» وقائمة القوالب) | `OPEN` | الدفعة 2ب |
+| الفحوص | `PROVEN` | `pnpm check` ناجح؛ `pnpm test` 4196/0 (ومنها `entitlementGate` و`gate6`)؛ `coverage:trpc` ناجح؛ `ledgerImports.database.test.ts` 18/18. مجموعة القاعدة كاملة: 886 ناجحًا وفاشل واحد هو `gate6.matrix` › بلا رخصة (القائمة والحذف كانا يجيبان شركة رخصتها معطّلة)، فأُضيف فحص الرخصة في `templateScope`، ثم `gate6.matrix` و`ledgerImports` معًا 24/24 — 2026-11-19 |
+
 ### Q-50 الدفعة 1: القارئ المشترك (الطبقة 1) للـPMC والدفاتر (2026-11-19، المبرمج ب، بلا ترحيلة)
 
 **جدول المطابقة** (التصوّر `docs/proposals/universal-import.md`، §3 و§5):
