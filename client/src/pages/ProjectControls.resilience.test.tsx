@@ -212,15 +212,13 @@ describe("ProjectControls section resilience", () => {
     for (const name of ["Upload any file", "Upload the P6 programme", "Upload the progress report", "Upload file", "Add by hand", "Add"]) expect(screen.queryByRole("button", { name })).toBeNull();
   });
 
-  it("the start card's upload opens the data-imports group (#217 kept)", () => {
+  it("Q-36 (3 c): the start card's upload opens the ONE import entry (it sends each kind of file where it is imported)", () => {
     state.performancePartial = true;
-    const frames: FrameRequestCallback[] = [];
-    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+    const navigate = vi.fn(); state.navigate = navigate;
     render(<ProjectControls />);
     fireEvent.click(screen.getByRole("button", { name: "Upload the P6 programme" }));
-    frames.forEach(callback => callback(0));
-    expect((document.getElementById("manager-assurance") as HTMLDetailsElement).open).toBe(true);
-    raf.mockRestore();
+    expect(navigate.mock.calls.map(call => call[0])).toEqual(["/projects/tenant-1/project-1/import"]);
+    state.navigate = () => undefined;
   });
 
   it("an empty project says the section is empty and what to do; \"not in your access scope\" stays for a real refusal", () => {

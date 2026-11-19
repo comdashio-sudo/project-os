@@ -55,3 +55,8 @@ export const SITE_HUB_READERS: readonly string[] = Array.from(new Set(SITE_HUB_P
 /** Q-36 (step 2 c): «التقارير» — the weekly report, the monthly report and the site ↔ consultant comparison, gathered the same way as the site's page. */
 export const REPORTS_HUB_PAGES = ["weeklyReport", "monthlyReport", "siteConsultant"] as const satisfies readonly PageKey[];
 export const REPORTS_HUB_READERS: readonly string[] = Array.from(new Set(REPORTS_HUB_PAGES.flatMap(page => PAGE_ACCESS[page].length === 1 ? PAGE_ACCESS[page][0] : [])));
+
+/** Q-36 (step 3 c): ONE entry for every import — it names each kind of file and sends it where it is imported (the project board's data group, the PMC
+ *  import tab, the project base file). It opens for whoever may open at least one of those pages; each card for whoever may open its own. */
+export const IMPORT_HUB_PAGES = ["controls", "pmc", "baseline"] as const satisfies readonly PageKey[];
+export const IMPORT_HUB_READERS: readonly string[] = Array.from(new Set(IMPORT_HUB_PAGES.flatMap(page => PAGE_ACCESS[page].length === 1 ? PAGE_ACCESS[page][0] : [])));
