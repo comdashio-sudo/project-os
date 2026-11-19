@@ -1,4 +1,4 @@
-import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
+import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
@@ -219,6 +219,8 @@ export const appRouter = router({
     qcMap: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().min(1).max(80) })).query(({ ctx, input }) => pmcQcMap({ userId: ctx.user.id, ...input })),
     villaStates: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().min(1).max(40) })).query(({ ctx, input }) => pmcVillaStates({ userId: ctx.user.id, ...input })),
     createUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), from: z.number().int().min(1), to: z.number().int().min(1) })).mutation(({ ctx, input }) => createPmcUnits({ userId: ctx.user.id, ...input })),
+    // Q-49: the catalogue as a file that imports back (each name beside its English one); project.pmc.read
+    exportCatalog: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportPmcCatalog({ userId: ctx.user.id, ...input })),
     // Q-49: an activity's optional English name (every model's definition of the code); project.pmc.manage, audited
     saveActivityEnglishName: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().min(1).max(80), nameEn: z.string().trim().max(255).nullable() })).mutation(({ ctx, input }) => savePmcActivityEnglishName({ userId: ctx.user.id, ...input })),
     saveActivityWeights: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), weights: z.array(z.object({ activityDefinitionId: z.string().uuid(), weightPercent: z.number().min(0).max(100) })).min(1).max(500) })).mutation(({ ctx, input }) => savePmcActivityWeights({ userId: ctx.user.id, ...input })),

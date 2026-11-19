@@ -174,6 +174,29 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-3: the weights table a
     expect(cleared.map(item => [item.nameEn, Number(item.weightPercent), item.name])).toEqual([[null, 25, "صب القواعد"], [null, 25, "صب القواعد"]]);
   });
 
+  it("Q-49: the catalogue exported with both names imports back as nothing to do; an English name typed into the file is an update, not a duplicate", async () => {
+    const owner = { tenantId: T, projectId: P_OWNER };
+    const file = await manager().pmc.exportCatalog({ ...owner, locale: "ar" });
+    expect(file.rows).toBe(10);
+    const again = await manager().pmc.analyzeImport({ ...owner, kind: "catalog", format: "xlsx", base64: file.base64 });
+    expect(again.errors).toEqual([]);
+    expect(again.counts).toEqual({ create: 0, update: 0, unchanged: 10 });
+    // the same file with one activity's English name typed in: an update of that activity in each model
+    const ExcelJS = (await import("exceljs")).default;
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(Buffer.from(file.base64, "base64") as never);
+    const sheet = book.worksheets[0];
+    sheet.eachRow((row, number) => { if (number > 1 && row.getCell(8).text === "WIR.3.1.1") row.getCell(10).value = "Footings (typed)"; });
+    const edited = Buffer.from(await book.xlsx.writeBuffer()).toString("base64");
+    const update = await manager().pmc.analyzeImport({ ...owner, kind: "catalog", format: "xlsx", base64: edited });
+    expect(update.errors).toEqual([]);
+    expect(update.counts).toEqual({ create: 0, update: 2, unchanged: 8 });
+    await manager().pmc.confirmImport({ ...owner, kind: "catalog", format: "xlsx", base64: edited, approvedHash: update.fileHash });
+    const [rows] = await connection.query<{ n: number; en: string }[]>("SELECT COUNT(*) AS n, MAX(nameEn) AS en FROM pmc_activity_definitions WHERE tenantId = ? AND projectId = ? AND code = 'WIR.3.1.1'", [T, P_OWNER]);
+    expect([Number(rows[0].n), rows[0].en]).toEqual([2, "Footings (typed)"]);
+    expect(await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM pmc_activity_definitions WHERE tenantId = ? AND projectId = ?", [T, P_OWNER]).then(([r]) => Number(r[0].n))).toBe(10);
+  });
+
   it("Q-49 NEGATIVE: an unknown code is NOT_FOUND (no silent 0 rows); a reader and the other company's project are refused; nothing changes", async () => {
     const owner = { tenantId: T, projectId: P_OWNER };
     await expect(manager().pmc.saveActivityEnglishName({ ...owner, activityCode: "NO-SUCH", nameEn: "x" })).rejects.toThrow("PROJECT_OS_PMC_ACTIVITY_NOT_FOUND");

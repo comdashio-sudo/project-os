@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Work order 21: the PMC table editors (bulk units, weights to 100%, the click-to-update status matrix).
 const h = vi.hoisted(() => ({
-  saveName: vi.fn(),
+  saveName: vi.fn(), exportCatalog: vi.fn(),
   canUpdate: true, canManage: true,
   structure: {
     blocks: [{ id: "b1", code: "B1", name: "Block 1", zoneCode: "Z1" }],
@@ -26,6 +26,7 @@ vi.mock("@/lib/trpc", () => ({
       structure: { useQuery: () => ({ data: h.structure, error: null, refetch: vi.fn() }) },
       statusGrid: { useQuery: (_input: unknown, options: { enabled: boolean }) => ({ data: options.enabled ? h.grid : undefined, error: null, refetch: vi.fn() }) },
       createUnits: { useMutation: () => ({ mutate: h.createUnits, isPending: false, error: h.createError, data: undefined }) },
+      exportCatalog: { useMutation: () => ({ mutate: h.exportCatalog, isPending: false, error: null }) },
       saveActivityEnglishName: { useMutation: (config: { onSuccess: () => void }) => ({ mutate: (input: unknown) => { h.saveName(input); config.onSuccess(); }, isPending: false, error: null, isSuccess: false }) },
       saveActivityWeights: { useMutation: (config: { onSuccess: () => void }) => ({ mutate: (input: unknown) => { h.saveWeights(input); config.onSuccess(); }, isPending: false, error: null, isSuccess: false }) },
       setUnitActivityStatus: { useMutation: () => ({ mutate: h.setStatus, isPending: false, error: null }) },
@@ -155,5 +156,11 @@ describe("PmcEditors — review of #252", () => {
     fireEvent.change(field, { target: { value: "x" } });
     fireEvent.change(field, { target: { value: "   " } });
     expect(save.disabled).toBe(true); // blank again equals the stored (none): nothing to save
+  });
+
+  it("Q-49: the catalogue is exported in the reader's language as a file that imports back", () => {
+    render(<PmcEditors tenantId="t" projectId="p" />);
+    fireEvent.click(screen.getByRole("button", { name: "Export the catalogue (Excel, both names)" }));
+    expect(h.exportCatalog).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", locale: "en" });
   });
 });
