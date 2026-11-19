@@ -73,7 +73,7 @@ export function ProjectBoardHero({ tenantId, projectId, starts }: { tenantId: st
             <p className="text-sm opacity-80">{t.title}</p>
             {report.isLoading ? <p className="text-sm">{t.loading}</p> : report.error ? <p className="text-sm">{t.failed}</p> : latest ? (
               <>
-                <p className="text-4xl font-bold" dir="ltr" data-hero-actual>{formatPercent(latest.actual, 1)}</p>
+                <p className="text-4xl font-bold" data-hero-actual><bdi dir="ltr">{formatPercent(latest.actual, 1)}</bdi></p>
                 <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm opacity-90">
                   <span>{t.planned}: <bdi dir="ltr" data-hero-planned>{latest.planned === null ? "—" : formatPercent(latest.planned, 1)}</bdi></span>
                   {deviation !== null ? <span>{t.deviation}: <bdi dir="ltr">{`${deviation > 0 ? "+" : ""}${formatNumber(Math.round(deviation * 10) / 10, 1)}`}</bdi> · {state}</span> : null}
