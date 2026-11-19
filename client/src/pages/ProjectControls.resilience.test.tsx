@@ -158,6 +158,15 @@ describe("ProjectControls section resilience", () => {
     consoleError.mockRestore();
   });
 
+  it("Q-36 (step 4): the groups sit under titled level sections, each with its own address; every older group address still exists, under its level", () => {
+    render(<ProjectControls />);
+    expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["planning", "site", "supply", "contracts", "support"]);
+    expect(document.getElementById("planning")!.querySelector("h2")!.textContent).toBe("Planning and control");
+    const under = (group: string) => document.getElementById(group)!.closest("[data-level-section]")!.id;
+    expect(["manager-schedule", "manager-assurance", "manager-site", "manager-design", "manager-supply", "manager-commercial", "manager-tenders", "manager-oversight"].map(under))
+      .toEqual(["planning", "planning", "site", "site", "supply", "contracts", "contracts", "support"]);
+  });
+
   it("Q-36 (step 3): no PMC tab inside the page — one link to the PMC page; the old address controls#pmc goes there; no link without PMC access", () => {
     const navigate = vi.fn(); state.navigate = navigate;
     render(<ProjectControls />);
