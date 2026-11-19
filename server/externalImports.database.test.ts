@@ -37,6 +37,8 @@ async function clear() {
     await connection.query("DELETE FROM memberships WHERE tenantId = ?", [tenant]);
     await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [tenant]);
     await connection.query("DELETE FROM subscriptions WHERE tenantId = ?", [tenant]);
+    await connection.query("DELETE FROM schedule_snapshot_activities WHERE tenantId = ?", [tenant]); // Q-23
+    await connection.query("DELETE FROM schedule_snapshots WHERE tenantId = ?", [tenant]); // Q-23
     await connection.query("DELETE FROM projects WHERE tenantId = ?", [tenant]);
     await connection.query("DELETE FROM companies WHERE id = ?", [tenant]);
   }

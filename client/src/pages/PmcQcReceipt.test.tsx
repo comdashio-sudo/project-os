@@ -15,6 +15,8 @@ vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<t
   <select id={id} aria-label="Activity" value={value ?? ""} onChange={event => onValueChange(event.target.value)}><option value="" />{options.map(option => <option key={option.value} value={option.value}>{`${option.label} — ${option.description ?? ""}`}</option>)}</select>
 ) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
+  auth: { me: { useQuery: () => ({ data: { id: 7 }, isLoading: false, error: null }) } },
+  useUtils: () => ({ client: { pmc: { updateQcReceipts: { mutate: vi.fn() } } } }),
   pmc: {
     progressActivities: { useQuery: () => ({ data: [{ code: "FOOT", name: "Footings", section: "03 Concrete", minWeight: 40, maxWeight: 40 }], isLoading: false, error: null }) },
     qcHistory: { useQuery: () => ({ data: [{ at: "2026-11-11T09:00:00Z", on: "2026-11-11", from: null, to: true, by: "QC Engineer", unitNumber: 3, villaLabel: null, activityCode: "FOOT", activityName: "Footings" }], error: null, refetch: vi.fn() }) },

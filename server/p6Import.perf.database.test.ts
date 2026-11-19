@@ -26,6 +26,8 @@ async function clear() {
   await connection.query("DELETE FROM memberships WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM tenant_entitlements WHERE tenantId = ?", [T]);
   await connection.query("DELETE FROM subscriptions WHERE tenantId = ?", [T]);
+  await connection.query("DELETE FROM schedule_snapshot_activities WHERE projectId = ?", [P]); // Q-23
+  await connection.query("DELETE FROM schedule_snapshots WHERE projectId = ?", [P]); // Q-23
   await connection.query("DELETE FROM projects WHERE id = ?", [P]);
   await connection.query("DELETE FROM companies WHERE id = ?", [T]);
   await connection.query("DELETE FROM users WHERE openId = 'p6perf-manager'");
