@@ -2268,6 +2268,11 @@ export const projectErrorMessages = {
     en: "The unit range is invalid: it must start at 1 or more, not end before it starts, and cover at most 500 units at a time.",
     ur: "یونٹس کی حد درست نہیں: یہ 1 یا اس سے زیادہ سے شروع ہو، شروع سے پہلے ختم نہ ہو، اور ایک بار میں زیادہ سے زیادہ 500 یونٹس ہوں۔",
   },
+  PROJECT_OS_PMC_ACTIVITY_CHANGED: {
+    ar: "تغيّرت أنشطة هذا الرمز أثناء الحفظ؛ لم يُحفظ شيء. أعد المحاولة.",
+    en: "The activities of this code changed while saving; nothing was saved. Try again.",
+    ur: "محفوظ کرتے وقت اس کوڈ کی سرگرمیاں بدل گئیں؛ کچھ محفوظ نہیں ہوا۔ دوبارہ کوشش کریں۔",
+  },
   PROJECT_OS_PMC_UNITS_EXIST: {
     ar: "بعض أرقام هذا النطاق موجودة في المشروع؛ لم تُنشأ أي وحدة. اختر نطاقًا لا يتداخل معها.",
     en: "Some numbers in this range already exist in the project; no unit was created. Choose a range that does not overlap them.",
