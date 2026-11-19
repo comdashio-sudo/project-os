@@ -107,7 +107,7 @@ export function MeasurePanel(props: {
   const [problem, setProblem] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
   const button = "min-h-[44px] rounded-lg border border-border px-3 text-sm";
-  const active = "min-h-[44px] rounded-lg bg-slate-900 px-3 text-sm text-white";
+  const active = "min-h-[44px] rounded-lg bg-foreground px-3 text-sm text-white";
   const { tool, picks, calibration } = props;
 
   async function save() {

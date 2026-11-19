@@ -92,6 +92,6 @@ export function SourceNotice({ query, isArabic, title, fallback, className = "" 
   return <div role="alert" aria-label={title} className={`rounded-xl border border-warning/40 bg-warning-soft p-3 text-sm text-warning-soft-foreground ${className}`}>
     <p className="font-semibold">{pickLanguage(lang, { ar: `تعذّر تحميل: ${title}`, en: `Could not load: ${title}`, ur: `لوڈ نہیں ہو سکا: ${title}` })}</p>
     <p className="mt-1">{getLocalizedProjectError(query.error, lang)}{fallback ? ` ${fallback}` : ""}</p>
-    {query.refetch && <button type="button" disabled={query.isFetching} className="mt-2 min-h-[44px] rounded-lg border border-amber-700 bg-white px-4 font-semibold disabled:opacity-60" onClick={() => void query.refetch?.()}>{pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}
+    {query.refetch && <button type="button" disabled={query.isFetching} className="mt-2 min-h-[44px] rounded-lg border border-warning bg-white px-4 font-semibold disabled:opacity-60" onClick={() => void query.refetch?.()}>{pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}
   </div>;
 }
