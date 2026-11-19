@@ -3283,6 +3283,15 @@
 | حالات الاستخدام والبيانات والمصادقة والحدود والمخاطر والتكلفة والبدائل، مبنية على القنوات القائمة (`/api/v1`، CSV، Webhooks) | `WRITTEN` | `docs/proposals/integration-study.md` |
 | التوصية: بقاء المنصتين مستقلتين الآن؛ وإن لزم ربط فباتجاه واحد عبر القنوات القائمة؛ لا مزامنة ثنائية. لا كود ولا API ولا مشاركة قاعدة أو مفاتيح | `BLOCKED_BY_OWNER` — قرار | الوثيقة §6–7 |
 
+### Q-39 (تنفيذ القرار): قالب «مشاهد الإدارة» `MANAGEMENT_VIEWER` (2026-11-18، المبرمج أ، قرار المستشار I41)
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| قالب جاهز جديد `MANAGEMENT_VIEWER` بـ`project.read` و`pmo.read` فقط، باسمه بالعربية والإنجليزية والأردية ووصف ما يفعله وحدّه. يُركَّب كدور PROJECT؛ و`pmo.read` لا يعمل إلا حيث تملك الشركة PMO | `PROVEN` | `server/domain/operationalRoles.ts`، `client/src/lib/operationalRolePresentation.ts`؛ `server/domain/viewerRole.test.ts` (6) |
+| لا «يعدّل» ولا «يعتمد» في أي عمود من المصفوفة، ولا رواتب ولا موظفين ولا مستفيدين ولا تكاليف ولا عقود ولا ربح؛ وصفّه في `docs/ROLE_MATRIX.md` مولَّد من الكود | `PROVEN` | `server/domain/roleMatrix.test.ts`، `scripts/write-role-matrix.ts` |
+| يصل الشركات القائمة بنفسه عند قراءة الإدارة التالية، بصف تدقيق `role_template.permission_added` لكل صلاحية، دون ترحيلة؛ الشركة الأخرى لا تُمسّ؛ والشركة الجديدة تولد به | `PROVEN` | `server/managementViewer.database.test.ts` (6)، قاعدة حقيقية بدور التطبيق المقيَّد |
+| موجب: يقرأ سجل المشاريع وضوابط المشروع ولوحة PMO. سالب: لا ميزانية ولا تكلفة ولا توقع (`null`) و`moneyVisible: false`، والمالك يرى 900 للمشروع نفسه؛ لوحة التنفيذي والربحية مرفوضتان؛ تسعة إجراءات كتابة/اعتماد (منها تسجيل قرار تنفيذي وإنشاء دور وإدارة الشركة) مرفوضة ولا يُكتب صف؛ ولا يصل شركة أخرى | `PROVEN` | المصدر نفسه |
+| مراجعة المبرمج ج على #385 (مانعة، مال): `getPmoDashboard` كان يعيد لكل من يملك `pmo.read` تقدير التكلفة عند الإتمام وانحرافها (EAC/VAC) ومبلغ أثر طلب التغيير في سطر الاستثناء. صار كلاهما لمن يحقق `projectMoneyVisible` وحده؛ CPI/SPI نسب وتبقى، والتغيير يبقى مُدرجًا بأيامه. **والمسار الشقيق** — المستويات (`scopes.portfolio` بـ`pmo.read` و`scopes.project` بـ`project.read`) — كان يعيد مبالغ EVM والربح المتوقع وقيمة المخزون لكل من يفتحها، فصارت `MONEY_HIDDEN` و`null` لمن لا يرى مال المشروع. مستوى الشركة (`executive.read` بنطاق الشركة) يبقى بالمال كما في ROLE_MATRIX | `PROVEN` | `server/db.ts` `getPmoDashboard`، `server/domain/pmoTodayExceptions.ts`، `server/scopeDashboards.ts` `kpisFor`؛ `server/managementViewer.database.test.ts` (سالب للمشاهد وموجب للمالك)، `scope.levels.database.test.ts` 7/7 |
 ### Q-45 (ب، تنفيذ القرار): لوحة PMO — الأنشطة المتأخرة والحرجة ومجاميع البرامج والمحافظ (2026-11-19، المبرمج أ، قرار المستشار I47)
 
 | البند | الحالة | الدليل |
