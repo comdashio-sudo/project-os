@@ -2882,6 +2882,20 @@
 
 **إصلاح على main (2026-11-19، المبرمج أ):** `materialRequestAccess.database.test.ts:79` كان يتوقع رفض `projects.getControls` لمدير المشروع، وQ-33 (#378) أعطى قالبه `project.read` عمدًا، فسقط test:db على main (`2a776db`). صار السطر يثبت أن مدير المشروع يفتح الصفحة؛ بلا تغيير في الكود. الدليل: الملف 6/6 على قاعدة حقيقية.
 
+### Q-52: الإنتاج متوقف منذ 13-11 — السبب الجذري وإصلاحه (2026-11-19، المبرمج ب، بلا ترحيلة)
+
+**السبب:** خط الإطلاق (`migrate-production.yml`) يعمل بعد CI على main ولا يعمل إلا إن نجح. آخر CI أخضر على main كان `7ab680a` (13-11)، وفرع الإنتاج عنده. كل CI على main بعده فشل في مهمة «ui screenshots» (`tests/ui/audit.mjs`) بنتيجتين قاطعتين (hard=2) في العربية والإنجليزية والأردية: خطأ متصفح «Failed to load resource: 403» على `/projects/:t/:p/my-performance` (سطح المكتب والجوال). الصفحة كانت تطلب `performance.get` لكل زائر، والخادم يرفضه (عمدًا) بـ`PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED` لمن لا بطاقة موظف نشطة مرتبطة بحسابه، ومنهم مدير شركة العرض. أول تشغيل فاشل على main: `8734497` (#363). أمثلة: CI على main `2599107` (run 44529917703) و`881e130` (run 44525263748) و`96109a3` (run 44504088091)، وmigrate-production بعدها كلها «skipped».
+
+**الإصلاح:** لا تعطيل لفحص ولا تخفيف للرفض. إجراء قراءة جديد `performance.availability` (`server/db.ts`: `getOwnPerformanceAvailabilityForTenant`) يقول بلا رفض هل للحساب بطاقة موظف نشطة مرتبطة (`linked`) وهل يملك `project.performance.read_own` على المشروع (`canRead`)؛ لا يقرأ إلا ربط الحساب نفسه، ويرفض الشركة الأخرى والمشروع خارج الشركة كما كان. الصفحة تطلب المؤشرات فقط حين يتحقق الشرطان، وإلا تقول السبب بكلمات بالعربية والإنجليزية والأردية. `performance.get` نفسه لم يتغير ويبقى يرفض الطلب المباشر.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `performance.availability`: مرتبط ومخوَّل ← `{linked:true, canRead:true}`؛ بلا ربط ← `linked:false` بلا رفض؛ بطاقة موقوفة ← `linked:false`؛ الاشتراك معطَّل ← `PROJECT_OS_PRODUCT_NOT_ENTITLED` (كبقية قراءات المستأجر، بوابة gate6.matrix)؛ شركة أخرى ← `PROJECT_OS_TENANT_ACCESS_DENIED`؛ مشروع خارج الشركة ← `PROJECT_OS_PROJECT_NOT_FOUND`؛ ورفض `performance.get` للحالات نفسها باقٍ | `PROVEN` | `server/integration.database.test.ts` 76/76 على قاعدة الاختبار المبنية من الفرع — 2026-11-19 |
+| الصفحة: بلا ربط ← السبب بالعربية والإنجليزية والأردية ولا طلب للمؤشرات ولا نموذج اعتراض؛ مرتبط بلا صلاحية ← «لا تملك الصلاحية…»؛ مرتبط ومخوَّل ← تُطلب المؤشرات؛ رفض `get` نفسه يظهر بلا إعادة محاولة؛ فشل الشبكة يُعاد ويعرض «حاول مجددًا» | `PROVEN` | `client/src/pages/MyPerformance.access.test.tsx` 6/6 (+3)، و`MyPerformance.test.tsx` و`MyPerformance.screenStates.test.tsx` |
+| تدقيق الواجهة محليًا بشركة العرض المختلقة (67 مسارًا × 1280 و390): hard=0 في en، وفي ar وur (بعد مسح اختيار اللغة المحفوظ بين التشغيلات، لأن CI يبني قاعدة لكل لغة) | `PROVEN` | `node tests/ui/audit.mjs` على خادم محلي من الفرع — 2026-11-19 |
+| CI أخضر على main بعد الدمج، وتشغيل migrate-production، و`/api/readyz` وفرع الإنتاج = main | `OPEN` | يُكتب بعد الدمج |
+| الفحوص | `PROVEN` | `pnpm check` ناجح (0 مخالفات تصميم)؛ `pnpm test` 4160/0 (بعد دمج main)؛ `pnpm coverage:trpc` ناجح؛ `pnpm build` ناجح؛ مجموعة القاعدة كاملة (`node scripts/run-integration-database-test.mjs`) 885/0، ومنها `gate6.matrix` (رفض الشركة بلا رخصة، ملاحظة مراجعة المبرمج ج) — 2026-11-19 |
+
 ### Q-52 (ب): لا معاينات Vercel لفروع الطلبات (2026-11-19، المبرمج ب، بلا ترحيلة)
 
 قرار المستشار (16:15 في ورقة الطابور): الطلبات المفتوحة استهلكت حد Vercel اليومي المتدحرج (100 نشر)، فتعطّلت بنايات main نفسها منذ 12:26 UTC. الـCI هو فحص الطلب، لا المعاينة.
