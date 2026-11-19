@@ -47,7 +47,7 @@ export async function updatePmcQcReceipts(input: QcReceiptInput) {
 export async function pmcQcCounters(input: Scope) {
   const db = await authorize(input, "project.pmc.read");
   const [definitions, units, receipts] = await Promise.all([
-    db.select({ id: pmcActivityDefinitions.id, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, modelCode: pmcActivityDefinitions.modelCode }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, input)),
+    db.select({ id: pmcActivityDefinitions.id, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, modelCode: pmcActivityDefinitions.modelCode }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, input)),
     db.select({ modelCode: pmcUnits.modelCode }).from(pmcUnits).where(mine(pmcUnits, input)),
     db.select({ activityDefinitionId: pmcQcReceipts.activityDefinitionId, received: pmcQcReceipts.received }).from(pmcQcReceipts).where(and(mine(pmcQcReceipts, input), eq(pmcQcReceipts.received, true))),
   ]);
@@ -55,9 +55,9 @@ export async function pmcQcCounters(input: Scope) {
   for (const unit of units) unitsPerModel.set(unit.modelCode, (unitsPerModel.get(unit.modelCode) ?? 0) + 1);
   const receivedPerDefinition = new Map<string, number>();
   for (const receipt of receipts) receivedPerDefinition.set(receipt.activityDefinitionId, (receivedPerDefinition.get(receipt.activityDefinitionId) ?? 0) + 1);
-  const byCode = new Map<string, { code: string; name: string; received: number; total: number }>();
+  const byCode = new Map<string, { code: string; name: string; nameEn: string | null; received: number; total: number }>();
   for (const definition of definitions) {
-    const row = byCode.get(definition.code) ?? { code: definition.code, name: definition.name, received: 0, total: 0 };
+    const row = byCode.get(definition.code) ?? { code: definition.code, name: definition.name, nameEn: definition.nameEn, received: 0, total: 0 };
     row.received += receivedPerDefinition.get(definition.id) ?? 0; row.total += unitsPerModel.get(definition.modelCode) ?? 0;
     byCode.set(definition.code, row);
   }

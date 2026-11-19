@@ -156,10 +156,53 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-3: the weights table a
     expect(structure.models.map(model => model.activities.find(activity => activity.code === "WIR.3.1.1")!.nameEn)).toEqual(["Footings and pads", "Footings and pads"]);
     const [audit] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'pmc.activity_english_name_saved'", [T]);
     expect(audit.map(item => JSON.parse(item.metadata))).toEqual([{ activityCode: "WIR.3.1.1", before: ["Footings"], after: "Footings and pads", definitions: 2 }]);
+    // the site screens read it too (progress update and QC receipt): the activity and its section with their English names
+    const picker = await manager().pmc.progressActivities(owner);
+    expect(picker.find(activity => activity.code === "WIR.3.1.1")).toMatchObject({ name: "صب القواعد", nameEn: "Footings and pads", section: "03 30 00 خرسانة مختلقة", sectionEn: null });
+    const counters = await manager().pmc.qcCounters(owner);
+    expect(counters.find(row => row.code === "WIR.3.1.1")).toMatchObject({ name: "صب القواعد", nameEn: "Footings and pads" });
+    // the PMC screens: English when asked (display only), Arabic otherwise; the switch is offered because the project has an English name
+    const english = await manager().pmc.activitiesMatrix({ ...owner, filters: {}, names: "en", language: "ar" });
+    const arabic = await manager().pmc.activitiesMatrix({ ...owner, filters: {} });
+    expect(english.hasEnglishNames).toBe(true);
+    expect(JSON.stringify(english.data)).toContain("Footings and pads");
+    expect(JSON.stringify(arabic.data)).toContain("صب القواعد");
+    expect(JSON.stringify(arabic.data)).not.toContain("Footings and pads");
+    // the master plan and the unit card in the chosen language (display only)
+    const map = await manager().pmc.siteMap({ ...owner, names: "en", language: "en" });
+    expect(map.hasEnglishNames).toBe(true);
+    expect(map.activities.find(activity => activity.code === "WIR.3.1.1")!.name).toBe("Footings and pads");
+    const cardEn = await manager().pmc.unitCard({ ...owner, unitNumber: 1, names: "en", language: "en" });
+    const cardAr = await manager().pmc.unitCard({ ...owner, unitNumber: 1 });
+    expect(cardEn.activities.find(activity => activity.code === "WIR.3.1.1")!.name).toBe("Footings and pads");
+    expect(cardAr.activities.find(activity => activity.code === "WIR.3.1.1")!.name).toBe("صب القواعد");
     // cleared: the Arabic name is what remains; the weights and codes did not move
     await manager().pmc.saveActivityEnglishName({ ...owner, activityCode: "WIR.3.1.1", nameEn: "" });
     const [cleared] = await connection.query<{ nameEn: string | null; weightPercent: string; name: string }[]>("SELECT nameEn, weightPercent, name FROM pmc_activity_definitions WHERE tenantId = ? AND projectId = ? AND code = 'WIR.3.1.1'", [T, P_OWNER]);
     expect(cleared.map(item => [item.nameEn, Number(item.weightPercent), item.name])).toEqual([[null, 25, "صب القواعد"], [null, 25, "صب القواعد"]]);
+  });
+
+  it("Q-49: the catalogue exported with both names imports back as nothing to do; an English name typed into the file is an update, not a duplicate", async () => {
+    const owner = { tenantId: T, projectId: P_OWNER };
+    const file = await manager().pmc.exportCatalog({ ...owner, locale: "ar" });
+    expect(file.rows).toBe(10);
+    const again = await manager().pmc.analyzeImport({ ...owner, kind: "catalog", format: "xlsx", base64: file.base64 });
+    expect(again.errors).toEqual([]);
+    expect(again.counts).toEqual({ create: 0, update: 0, unchanged: 10 });
+    // the same file with one activity's English name typed in: an update of that activity in each model
+    const ExcelJS = (await import("exceljs")).default;
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(Buffer.from(file.base64, "base64") as never);
+    const sheet = book.worksheets[0];
+    sheet.eachRow((row, number) => { if (number > 1 && row.getCell(8).text === "WIR.3.1.1") row.getCell(10).value = "Footings (typed)"; });
+    const edited = Buffer.from(await book.xlsx.writeBuffer()).toString("base64");
+    const update = await manager().pmc.analyzeImport({ ...owner, kind: "catalog", format: "xlsx", base64: edited });
+    expect(update.errors).toEqual([]);
+    expect(update.counts).toEqual({ create: 0, update: 2, unchanged: 8 });
+    await manager().pmc.confirmImport({ ...owner, kind: "catalog", format: "xlsx", base64: edited, approvedHash: update.fileHash });
+    const [rows] = await connection.query<{ n: number; en: string }[]>("SELECT COUNT(*) AS n, MAX(nameEn) AS en FROM pmc_activity_definitions WHERE tenantId = ? AND projectId = ? AND code = 'WIR.3.1.1'", [T, P_OWNER]);
+    expect([Number(rows[0].n), rows[0].en]).toEqual([2, "Footings (typed)"]);
+    expect(await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM pmc_activity_definitions WHERE tenantId = ? AND projectId = ?", [T, P_OWNER]).then(([r]) => Number(r[0].n))).toBe(10);
   });
 
   it("Q-49 NEGATIVE: an unknown code is NOT_FOUND (no silent 0 rows); a reader and the other company's project are refused; nothing changes", async () => {

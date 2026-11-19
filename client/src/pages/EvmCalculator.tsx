@@ -134,7 +134,7 @@ export default function EvmCalculator() {
             <div>
               <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-[.14em] text-[var(--dashio-aqua)]"><Calculator className="h-3.5 w-3.5" />{t.controlLabel}</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{t.engine}</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{t.engineSub}</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-hero-foreground/80">{t.engineSub}</p>
             </div>
             <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--dashio-aqua)]/20 bg-[var(--dashio-aqua)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--dashio-aqua)]"><ShieldCheck className="h-3.5 w-3.5" />{t.secure}</p>
           </div>

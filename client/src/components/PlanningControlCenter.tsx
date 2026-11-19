@@ -23,11 +23,11 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
   // Q-17 (205-1): without the right to see the project's money the three amounts say so, rather than showing zeroes
   const hidden = pickLanguage(language, { ar: "مخفي: يحتاج صلاحية قراءة التدفق النقدي", en: "Hidden: needs the cash-flow read permission", ur: "پوشیدہ: نقد بہاؤ دیکھنے کی اجازت درکار ہے" });
   const amount = (value: number) => (result.moneyVisible ? formatPlanningAmount(value, currency, language) : "—");
-  const tone = result.riskLevel === "attention" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50";
+  const tone = result.riskLevel === "attention" ? "border-warning/40 bg-warning-soft" : "border-success/40 bg-success-soft";
   return <section aria-label={t.eyebrow} className={`rounded-2xl border p-5 shadow-sm ${tone}`}>
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><p className="text-xs font-bold tracking-[.14em] text-primary">{t.eyebrow}</p><h2 className="mt-2 text-xl font-semibold text-foreground">{t.title}</h2><p className="mt-2 max-w-4xl text-sm leading-6 text-muted-foreground">{t.note}</p></div>
-      <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${result.riskLevel === "attention" ? "bg-amber-200 text-amber-950" : "bg-emerald-200 text-emerald-950"}`}>{result.riskLevel === "attention" ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{result.riskLevel === "attention" ? t.attention : t.controlled}</div>
+      <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${result.riskLevel === "attention" ? "bg-warning/20 text-warning-soft-foreground" : "bg-success/20 text-success-soft-foreground"}`}>{result.riskLevel === "attention" ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{result.riskLevel === "attention" ? t.attention : t.controlled}</div>
     </div>
     {isLoading ? <p className="mt-5 rounded-xl bg-white/70 p-4 text-sm text-muted-foreground">{t.loading}</p> : <>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -43,7 +43,7 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
       </div>
       <div className="mt-4 rounded-xl bg-white/80 p-4">
         <p className="text-sm font-semibold text-foreground">{t.gaps}</p>
-        {result.dataGaps.length ? <ul className="mt-2 grid gap-2 text-sm text-amber-900 sm:grid-cols-2">{result.dataGaps.map(gap => <li key={gap} className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" />{planningControlLabel(gap, language)}</li>)}</ul> : <p className="mt-2 flex items-center gap-2 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4" />{t.noGaps}</p>}
+        {result.dataGaps.length ? <ul className="mt-2 grid gap-2 text-sm text-warning-soft-foreground sm:grid-cols-2">{result.dataGaps.map(gap => <li key={gap} className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" />{planningControlLabel(gap, language)}</li>)}</ul> : <p className="mt-2 flex items-center gap-2 text-sm text-success-soft-foreground"><CheckCircle2 className="h-4 w-4" />{t.noGaps}</p>}
       </div>
       <p className="mt-3 text-xs text-muted-foreground">{t.sourceNote}</p>
     </>}

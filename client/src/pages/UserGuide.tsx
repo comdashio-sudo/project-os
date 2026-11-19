@@ -38,7 +38,7 @@ export default function UserGuide() {
           <h2 id="guide-section-title" className="text-2xl font-semibold">{section.title[lang]}</h2>
           <p className="mt-1 text-xs font-semibold text-primary">{getOperationalRoleName({ code: section.roleCode, name: section.roleCode }, isArabic)}</p>
           <p className="mt-3 leading-7">{section.intro[lang]}</p>
-          <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-900"><strong>{t.cannot}:</strong> {section.cannot[lang]}</p>
+          <p className="mt-3 rounded-xl bg-warning-soft p-3 text-sm leading-6 text-warning-soft-foreground"><strong>{t.cannot}:</strong> {section.cannot[lang]}</p>
           {GUIDE_CADENCES.map(cadence => {
             const items = ordered.filter(item => item.step.cadence === cadence);
             if (!items.length) return null;

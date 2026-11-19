@@ -82,6 +82,20 @@ describe("the export bar", () => {
     await waitFor(() => screen.getByText("Downloaded: labour-2026-10-20.xlsx"));
   });
 
+  it("Q-29: with the server's export, PDF and Word are the server's files (text PDF, real .docx), not drawn in the browser", async () => {
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.mocked(pdf.exportElementToPdf).mockClear();
+    const onServerExport = vi.fn(async (format: "docx" | "pdf") => ({ url: `https://files.example.test/DR-0001.${format}`, fileName: `DR-0001.${format}` }));
+    const ref = { current: null as HTMLElement | null };
+    render(<><ReportExports language="en" fileBase="daily-report-2026-10-20" documentRef={ref} onExcel={vi.fn()} onServerExport={onServerExport} buttonClass="b" /><article ref={node => { ref.current = node; }}>doc</article></>);
+    fireEvent.click(screen.getByText("Download Word"));
+    await waitFor(() => screen.getByText("Downloaded: DR-0001.docx"));
+    fireEvent.click(screen.getByText("Download PDF"));
+    await waitFor(() => screen.getByText("Downloaded: DR-0001.pdf"));
+    expect(onServerExport.mock.calls.map(call => call[0])).toEqual(["docx", "pdf"]);
+    expect(pdf.exportElementToPdf).not.toHaveBeenCalled();
+  });
+
   it("a failed export says so and never claims a download", async () => {
     bar(vi.fn(async () => { throw new Error("PROJECT_OS_PERMISSION_DENIED"); }));
     fireEvent.click(screen.getByText("Labour sheet (Excel)"));

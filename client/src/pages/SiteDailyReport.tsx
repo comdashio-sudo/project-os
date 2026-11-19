@@ -357,7 +357,8 @@ export default function SiteDailyReport() {
       {reportId && detail.data && (
         <>
           <ReportExports language={language} fileBase={`daily-report-${detail.data.report.reportNumber ?? date}`} documentRef={documentRef} buttonClass={`${tap} rounded-xl border bg-card px-3 text-sm font-medium disabled:opacity-50`}
-            onExcel={() => exportSheet.mutateAsync({ ...scope, reportId, format: "xlsx", locale: language })} />
+            onExcel={() => exportSheet.mutateAsync({ ...scope, reportId, format: "xlsx", locale: language })}
+            onServerExport={format => exportSheet.mutateAsync({ ...scope, reportId, format, locale: language })} />
           {/* drawn off screen: the PDF is a picture of this element, and Word takes its HTML */}
           <div aria-hidden="true" style={{ position: "fixed", insetInlineStart: -20000, top: 0 }}>
             <DailyReportDocument ref={documentRef} data={detail.data} language={language}

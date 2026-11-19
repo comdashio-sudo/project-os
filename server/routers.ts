@@ -1,4 +1,4 @@
-import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
+import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation } from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
@@ -37,7 +37,7 @@ import { levelReadsRouter } from "./levelReads";
 import { z } from "zod";
 import { INTERFACE_LANGUAGES } from "@shared/interfaceLanguages";
 import { EXPORT_LOCALES } from "@shared/exportLocale";
-import { exportSiteDailyReport } from "./dailyReportExport";
+import { EXPORT_FORMATS, exportSiteDailyReport } from "./dailyReportExport";
 import { getAccountLanguage, setAccountLanguage } from "./userLanguage";
 import { EXTERNAL_MODULES } from "./externalImports";
 import { LEDGER_MODULES } from "@shared/ledgerImportColumns";
@@ -60,7 +60,16 @@ import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, get
 import { getPmcProjectSummaryForTenant } from "./db";
 import { getPmcImportStatus } from "./pmcImportStatus";
 import { analyzeSmartUpload, confirmSmartImport, createSmartUpload, getImportSourceLink, listImportProfiles } from "./smartImport";
-import { createImportUpload, getImportProgress, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis } from "./importJobs";
+import { closeProjectRisk, convertRiskToIssue, listProjectRisks, projectRiskHistory, updateProjectRisk } from "./projectRisks";
+// Q-27 (P-115): what a risk update may change. Text fields take null to clear; scores are 1–5; the review date is a calendar day; "closed" goes through closeRisk.
+const riskText = (max: number) => z.string().trim().max(max).transform(value => value || null).nullable();
+const riskScale = z.number().int().min(1).max(5);
+const riskPatchSchema = z.object({
+  title: z.string().trim().min(2).max(255), cause: riskText(4000), impact: riskText(4000), probability: riskScale, severity: riskScale,
+  residualProbability: riskScale.nullable(), residualSeverity: riskScale.nullable(), response: riskText(4000), mitigation: riskText(4000), trigger: riskText(2000),
+  ownerMembershipId: z.string().uuid().nullable(), nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), status: z.enum(["open", "mitigating", "accepted"]),
+}).partial().strict();
+import { createImportUpload, deleteImportTemplate, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis, saveImportTemplate } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
@@ -106,7 +115,8 @@ const masterPlanVisualizationRuleSchema = z.discriminatedUnion("metric", [
 ]);
 
 const pmcFiltersInput = z.object({ zone: z.string().max(80).optional(), block: z.string().max(80).optional(), unitFrom: z.number().int().min(0).optional(), unitTo: z.number().int().min(0).optional(), group: z.string().max(80).optional(), stage: z.string().max(80).optional(), activity: z.string().max(80).optional(), contractor: z.string().max(255).optional(), consultant: z.string().max(255).optional(), since: z.date().optional(), until: z.date().optional() }).optional();
-const pmcScreenInput = z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), filters: pmcFiltersInput });
+// Q-49: `names` — the activity names in Arabic or English (display only); `language` — the reader's language, for the mark on a missing English name
+const pmcScreenInput = z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), filters: pmcFiltersInput, names: z.enum(["ar", "en"]).optional(), language: z.enum(EXPORT_LOCALES).optional() });
 const pmcScreen = <N extends PmcScreenName>(screen: N) => protectedProcedure.input(pmcScreenInput).query(({ ctx, input }) => getPmcScreen({ userId: ctx.user.id, screen, ...input }));
 
 // the project profile's free text: trimmed, an empty string stored as «not given»
@@ -140,6 +150,10 @@ const strategyAssumptionFields = {
   evidence: z.enum(["confirmed", "estimate", "analysis"]).optional(),
   sourceUrl: z.string().trim().max(500).nullish(),
 };
+
+// Q-31 (P0-02): a person's choice of columns for a baseline file sent inside the request (field key → the header as the file writes it; "" = no column)
+const baselineColumnChoice = z.record(z.string().min(1).max(64), z.string().max(128)).refine(value => Object.keys(value).length <= 8, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }).optional();
+
 export const appRouter = router({
   system: systemRouter,
   // Work order 16, item 4 (G-203): the interface language kept on the signed-in person's account. Only their own row (server/userLanguage.ts).
@@ -235,6 +249,8 @@ export const appRouter = router({
     qcMap: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().min(1).max(80) })).query(({ ctx, input }) => pmcQcMap({ userId: ctx.user.id, ...input })),
     villaStates: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().min(1).max(40) })).query(({ ctx, input }) => pmcVillaStates({ userId: ctx.user.id, ...input })),
     createUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), from: z.number().int().min(1), to: z.number().int().min(1) })).mutation(({ ctx, input }) => createPmcUnits({ userId: ctx.user.id, ...input })),
+    // Q-49: the catalogue as a file that imports back (each name beside its English one); project.pmc.read
+    exportCatalog: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportPmcCatalog({ userId: ctx.user.id, ...input })),
     // Q-49: an activity's optional English name (every model's definition of the code); project.pmc.manage, audited
     saveActivityEnglishName: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().min(1).max(80), nameEn: z.string().trim().max(255).nullable() })).mutation(({ ctx, input }) => savePmcActivityEnglishName({ userId: ctx.user.id, ...input })),
     saveActivityWeights: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), modelCode: z.string().trim().min(1).max(80), weights: z.array(z.object({ activityDefinitionId: z.string().uuid(), weightPercent: z.number().min(0).max(100) })).min(1).max(500) })).mutation(({ ctx, input }) => savePmcActivityWeights({ userId: ctx.user.id, ...input })),
@@ -256,8 +272,8 @@ export const appRouter = router({
     pendingAtVerifier: pmcScreen("pending"),
     stagesView: pmcScreen("stages"),
     programme: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgramme({ userId: ctx.user.id, ...input })),
-    siteMap: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().max(80).optional() })).query(({ ctx, input }) => getPmcSiteMap({ userId: ctx.user.id, ...input })),
-    unitCard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitNumber: z.number().int().min(0) })).query(({ ctx, input }) => getPmcUnitCard({ userId: ctx.user.id, ...input })),
+    siteMap: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().max(80).optional(), names: z.enum(["ar", "en"]).optional(), language: z.enum(EXPORT_LOCALES).optional() })).query(({ ctx, input }) => getPmcSiteMap({ userId: ctx.user.id, ...input })),
+    unitCard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitNumber: z.number().int().min(0), names: z.enum(["ar", "en"]).optional(), language: z.enum(EXPORT_LOCALES).optional() })).query(({ ctx, input }) => getPmcUnitCard({ userId: ctx.user.id, ...input })),
     uploadSitePlan: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileName: z.string().trim().min(1).max(255) }).and(z.union([z.object({ base64: z.string().min(1).max(12_000_000) }), z.object({ uploadKey: z.string().min(1).max(1024) })]))).mutation(({ ctx, input }) => uploadPmcSitePlan({ userId: ctx.user.id, ...input })),
     saveUnitGeometries: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), geojson: z.string().min(2).max(8_000_000) })).mutation(({ ctx, input }) => savePmcUnitGeometries({ userId: ctx.user.id, ...input })),
     exportScreen: protectedProcedure.input(pmcScreenInput.extend({ screen: z.enum(PMC_SCREEN_NAMES), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportPmcScreen({ userId: ctx.user.id, ...input })),
@@ -279,6 +295,10 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid().optional() })).query(({ ctx, input }) => getDataImportsForTenant({ userId: ctx.user.id, ...input })),
     detail: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).query(({ ctx, input }) => getDataImportDetailForTenant({ userId: ctx.user.id, ...input })),
     analyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "contracts", "materials", "schedule", "openingBalances"]), fileName: z.string().trim().min(1).max(255), sourceFormat: z.enum(["xlsx", "csv", "xer"]), base64: z.string().min(1).max(14_000_000), duplicateMode: z.enum(["create_only", "update_existing", "upsert", "skip_duplicates", "fail_on_duplicate"]).optional(), mappingOverride: z.record(z.string().min(1).max(64), z.string().min(1).max(128)).optional() }).superRefine((value, context) => { if (value.moduleCode === "schedule" && value.sourceFormat !== "xlsx" && value.sourceFormat !== "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_SCHEDULE_FORMAT_INVALID" }); if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" }); if (value.mappingOverride && Object.keys(value.mappingOverride).length > 6) context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_MAPPING_INVALID" }); })).mutation(({ ctx, input }) => createAndAnalyzeDataImport({ userId: ctx.user.id, ...input })),
+    // Q-50 batch 2: company templates of column mappings (PMC files and operational ledgers), offered at >= 80% header match, applied only by the person
+    templates: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listImportTemplates({ userId: ctx.user.id, ...input })),
+    saveTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), name: z.string().trim().min(2).max(160) })).mutation(({ ctx, input }) => saveImportTemplate({ userId: ctx.user.id, ...input })),
+    deleteTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), templateId: z.string().uuid() })).mutation(({ ctx, input }) => deleteImportTemplate({ userId: ctx.user.id, ...input })),
     reanalyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), mappingOverride: z.record(z.string().min(1).max(64), z.string().max(128)) }).refine(value => Object.keys(value.mappingOverride).length <= 12, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" })).mutation(({ ctx, input }) => requestImportReanalysis({ userId: ctx.user.id, ...input })),
     confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), approvedDiffHash: z.string().regex(/^[0-9a-f]{64}$/).optional() })).mutation(({ ctx, input }) => requestImportConfirmation({ userId: ctx.user.id, ...input })),
     // Export → edit → re-import: what the file would change, row by row, before anything is written.
@@ -545,7 +565,7 @@ export const appRouter = router({
     review: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), decision: z.enum(["approve", "reject"]), note: z.string().trim().max(500).optional(), dryRun: z.boolean().optional() })).mutation(({ ctx, input }) => reviewSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
     attachPhoto: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), uploadKey: z.string().min(10).max(600), fileName: z.string().trim().min(1).max(255), caption: z.string().trim().max(255).optional(), zone: z.string().trim().max(80).optional(), pmcUnitId: z.string().uuid().optional() })).mutation(({ ctx, input }) => attachSiteReportPhotoForTenant({ userId: ctx.user.id, ...input })),
     // D-47: the report's exports, read through the same gate as reading it; a signed link to the file written to storage
-    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), format: z.enum(["xlsx"]), locale: z.enum(EXPORT_LOCALES).default("ar") })).mutation(({ ctx, input }) => exportSiteDailyReport({ userId: ctx.user.id, ...input })),
+    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), format: z.enum(EXPORT_FORMATS), locale: z.enum(EXPORT_LOCALES).default("ar") })).mutation(({ ctx, input }) => exportSiteDailyReport({ userId: ctx.user.id, ...input })),
     // D-45 (c): the review step of the chain (prepare → review → approve)
     check: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), decision: z.enum(["pass", "return"]), note: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => checkSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
   }),
@@ -605,6 +625,12 @@ export const appRouter = router({
     createAction: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), title: z.string().trim().min(2).max(255), priority: z.enum(["low", "medium", "high", "critical"]), dueAt: z.date().optional(), ownerMembershipId: z.string().uuid().optional() })).mutation(({ ctx, input }) => createAction({ userId: ctx.user.id, ...input })),
     transitionIssueEscalation: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), issueId: z.string().uuid(), nextStatus: z.enum(["pending", "escalated"]) })).mutation(({ ctx, input }) => transitionIssueEscalation({ userId: ctx.user.id, ...input })),
     transitionActionEscalation: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), actionId: z.string().uuid(), nextStatus: z.enum(["pending", "escalated"]) })).mutation(({ ctx, input }) => transitionActionEscalation({ userId: ctx.user.id, ...input })),
+    // Q-27 (P-115): the project risk register — read with pmo.read, written with pmo.write, on the project (server/projectRisks.ts)
+    projectRisks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectRisks({ userId: ctx.user.id, ...input })),
+    updateRisk: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), patch: riskPatchSchema })).mutation(({ ctx, input }) => updateProjectRisk({ userId: ctx.user.id, ...input })),
+    closeRisk: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), reason: z.string().trim().min(3).max(2000) })).mutation(({ ctx, input }) => closeProjectRisk({ userId: ctx.user.id, ...input })),
+    convertRiskToIssue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), issueCode: z.string().trim().min(1).max(80), priority: z.enum(["low", "medium", "high", "critical"]), dueAt: z.date().optional() })).mutation(({ ctx, input }) => convertRiskToIssue({ userId: ctx.user.id, ...input })),
+    riskHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid() })).query(({ ctx, input }) => projectRiskHistory({ userId: ctx.user.id, ...input })),
   }),
   // Q-25 (P-113): project meetings — the minutes, item by item, and the actions they raise (server/meetings.ts)
   meetings: router({
@@ -662,16 +688,16 @@ export const appRouter = router({
       status: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getBaselineStatus({ userId: ctx.user.id, ...input })),
       saveContract: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), contractValue: z.number({ message: "PROJECT_OS_CONTRACT_VALUE_INVALID" }), plannedStartAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }), plannedFinishAt: z.string({ message: "PROJECT_OS_CONTRACT_DATES_INVALID" }).max(10, { message: "PROJECT_OS_CONTRACT_DATES_INVALID" }) })).mutation(({ ctx, input }) => saveProjectContract({ userId: ctx.user.id, ...input })),
       // Q-10 (b): the planned cash flow from a small Excel/CSV file (a month and a share per row; the shares total 100%). preview writes nothing; save replaces the plan.
-      previewCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectCashFlow({ userId: ctx.user.id, ...input })),
-      saveCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectCashFlow({ userId: ctx.user.id, ...input })),
+      previewCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => previewProjectCashFlow({ userId: ctx.user.id, ...input })),
+      saveCashFlow: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => saveProjectCashFlow({ userId: ctx.user.id, ...input })),
       cashFlowTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => cashFlowTemplate({ userId: ctx.user.id, ...input })),
       // Q-10 (c): the bill of quantities from an Excel/CSV file (item code, description, unit, quantity, rate). Same authority as adding one item (project.wbs.manage).
-      previewBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectBoq({ userId: ctx.user.id, ...input })),
-      saveBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectBoq({ userId: ctx.user.id, ...input })),
+      previewBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => previewProjectBoq({ userId: ctx.user.id, ...input })),
+      saveBoq: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => saveProjectBoq({ userId: ctx.user.id, ...input })),
       boqTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => boqTemplate({ userId: ctx.user.id, ...input })),
       // Q-10 (d): the planned labour histogram (month, optional trade, workers). preview writes nothing; save replaces the plan. project.manage.
-      previewLabour: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => previewProjectLabour({ userId: ctx.user.id, ...input })),
-      saveLabour: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]) })).mutation(({ ctx, input }) => saveProjectLabour({ userId: ctx.user.id, ...input })),
+      previewLabour: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => previewProjectLabour({ userId: ctx.user.id, ...input })),
+      saveLabour: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(1_500_000), format: z.enum(["xlsx", "csv"]), mapping: baselineColumnChoice })).mutation(({ ctx, input }) => saveProjectLabour({ userId: ctx.user.id, ...input })),
       labourTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(["ar", "en", "ur"]) })).query(({ ctx, input }) => labourTemplate({ userId: ctx.user.id, ...input })),
     }),
     // Work order 23, P-17 (D-42 a): the project's profile and the companies on it (server/projectProfile.ts). Read: project.read or project.manage; write: project.manage.
