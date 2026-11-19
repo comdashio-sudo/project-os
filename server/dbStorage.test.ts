@@ -37,7 +37,9 @@ describe("database storage (D-79)", () => {
     const token = await signStorageToken({ key: `uploads/${TENANT}/a.png`, op: "get" });
     expect(await readStorageToken(token, "get")).toMatchObject({ key: `uploads/${TENANT}/a.png`, op: "get" });
     expect(await readStorageToken(token, "put")).toBeNull();
-    expect(await readStorageToken(`${token.slice(0, -2)}xx`, "get")).toBeNull();
+    // forged: one character of the signature changed where all six bits count (the last character holds only two, so «…xx» was sometimes the same signature)
+    const at = token.length - 10; const forged = `${token.slice(0, at)}${token[at] === "A" ? "B" : "A"}${token.slice(at + 1)}`;
+    expect(await readStorageToken(forged, "get")).toBeNull();
     const old = await signStorageToken({ key: `uploads/${TENANT}/a.png`, op: "get" }, Date.now() - (SIGNED_URL_TTL_SECONDS + 5) * 1000);
     expect(await readStorageToken(old, "get")).toBeNull();
   });

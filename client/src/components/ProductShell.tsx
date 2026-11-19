@@ -4,6 +4,8 @@ import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
+import { useCan } from "@/lib/permissions";
+import { PAGE_NAMES, PROJECT_SUBPAGE_NAMES } from "@shared/pageNames";
 import { Briefcase, FolderKanban, Gauge, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, Wallet, type LucideIcon } from "lucide-react";
 import { InShellProvider } from "@/components/pageFrame";
 import React from "react";
@@ -14,12 +16,12 @@ import { useLocation } from "wouter";
 // only what their roles allow. Direction A is the platform's visual direction (owner's choice, work order 21).
 const MODULE_LABELS: Record<string, { ar: string; en: string; ur: string }> = {
   "navigation.levels": { ar: "المستويات", en: "Levels", ur: "سطحیں" },
-  "navigation.executiveDashboard": { ar: "القيادة التنفيذية", en: "Executive", ur: "ایگزیکٹو" },
+  "navigation.executiveDashboard": PAGE_NAMES.executive, // Q-36: one name per page (shared/pageNames.ts)
   "navigation.pmoDashboard": { ar: "PMO", en: "PMO", ur: "PMO" },
   "navigation.projectRegistry": { ar: "سجل المشاريع", en: "Project registry", ur: "پروجیکٹ رجسٹر" },
   "navigation.employeeRegistry": { ar: "الموظفون والقوى العاملة", en: "People & workforce", ur: "افراد اور افرادی قوت" },
   "navigation.payroll": { ar: "الرواتب وتكلفة العمالة", en: "Payroll & labor cost", ur: "تنخواہ اور لیبر لاگت" },
-  "navigation.projectControls": { ar: "ضوابط المشروع", en: "Project controls", ur: "پروجیکٹ کنٹرولز" },
+  "navigation.projectControls": PAGE_NAMES.board,
   "navigation.myPerformance": { ar: "مؤشراتي", en: "My indicators", ur: "میرے اشاریے" },
   "navigation.tenantAdministration": { ar: "إدارة الشركة", en: "Tenant administration", ur: "کمپنی کا انتظام" },
 };
@@ -66,7 +68,11 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   const [location, setLocation] = useLocation();
   const navigation = trpc.navigation.get.useQuery(projectId ? { tenantId, projectId } : { tenantId });
   const tenants = trpc.tenant.mine.useQuery();
-  const projects = trpc.projects.list.useQuery({ tenantId });
+  // Q-34: the project register is read only by who holds project.read (the server's own check): asking without it put «could not load: project list — you do not
+  // have permission» above every page of a planning engineer or a project manager scoped to their project (the planner opened on it). Unknown permissions
+  // (no provider, failed lookup) still ask, and the server still refuses.
+  const canReadProjects = useCan("project.read");
+  const projects = trpc.projects.list.useQuery({ tenantId }, { enabled: canReadProjects });
 
   const nav: NavItem[] = (navigation.data ?? []).map(item => ({
     id: item.id,
@@ -76,7 +82,7 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   }));
   // The module the person is in: the LONGEST link the address equals or starts with followed by "/" (so /p1 never matches /p10). The registry's
   // /projects/:tenantId is a prefix of every project address, so on a project page whose longest match is the registry (or nothing), the
-  // module is "Project controls"; a project page with its own module (e.g. my-performance) keeps it.
+  // module is "Project board"; a project page with its own module (e.g. my-performance) keeps it.
   const projectBase = projectId ? `/projects/${tenantId}/${projectId}` : undefined;
   const onProject = Boolean(projectBase) && (location === projectBase || location.startsWith(`${projectBase}/`));
   const controlsId = (navigation.data ?? []).find(item => item.labelKey === "navigation.projectControls")?.id;
@@ -97,7 +103,11 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   // a project screen names its project between the workspace and the module
   const currentProject = projectId ? (projects.data ?? []).find(item => item.id === projectId) : undefined;
   if (currentProject) crumbs.push({ label: `${currentProject.code} · ${currentProject.name}`, href: `/projects/${tenantId}/${projectId}/controls` });
-  if (active) crumbs.push({ label: active.label });
+  // Q-36 (step 1): a project page names itself — workspace › project › «لوحة المشروع» or the sub-page (team, base file, PMC…), not always the module
+  const subpage = onProject && projectBase ? PROJECT_SUBPAGE_NAMES[location.split("?")[0].split("#")[0].slice(projectBase.length + 1).split("/")[0] ?? ""] : undefined;
+  if (subpage && subpage !== "board" && subpage !== "myPerformance") crumbs.push({ label: pickLanguage(language, PAGE_NAMES.board), href: `/projects/${tenantId}/${projectId}/controls` }, { label: pickLanguage(language, PAGE_NAMES[subpage]) });
+  else if (subpage) crumbs.push({ label: pickLanguage(language, PAGE_NAMES[subpage]) });
+  else if (active) crumbs.push({ label: active.label });
 
   const companies = (tenants.data ?? []).map(item => ({ value: item.tenantId, label: item.legalName }));
   const projectOptions = (projects.data ?? []).map(item => ({ value: item.id, label: `${item.code} · ${item.name}` }));

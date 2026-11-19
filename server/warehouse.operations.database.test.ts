@@ -105,6 +105,19 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("warehouse operations on 
     await expect(callers.owner.warehouses.returnToWarehouse({ tenantId, projectId: A, materialIssueId, quantity: 0.5, reason: "Again", returnedAt: new Date() })).rejects.toThrow("PROJECT_OS_MATERIAL_RETURN_EXCEEDS_ISSUE");
   });
 
+  it("Q-41: the «إرجاع» list shows each issue with what can still come back (quantities, no money); a fully returned issue drops out; the keeper of A is refused B", async () => {
+    const list = await callers.keeperA.warehouses.returnableIssues({ tenantId, projectId: A });
+    expect(list.map(issue => ({ issued: issue.issuedQuantity, returnable: issue.returnable, code: issue.material?.code }))).toEqual([{ issued: 2, returnable: 2, code: "CEM-1" }]);
+    expect(Object.keys(list[0]).some(key => /cost|amount|value/i.test(key))).toBe(false);
+    await expect(callers.keeperA.warehouses.returnableIssues({ tenantId, projectId: B })).rejects.toThrow(SCOPE_DENIED);
+  });
+
+  it("Q-41: «تحويل إلى مشروع آخر» offers only the other projects where this person also manages stock, with their active warehouses", async () => {
+    expect((await callers.owner.warehouses.transferTargets({ tenantId, projectId: A })).map(project => ({ code: project.code, warehouses: project.warehouses.map(item => item.code) }))).toEqual([{ code: "WH-B", warehouses: ["WH-B"] }]);
+    expect(await callers.keeperA.warehouses.transferTargets({ tenantId, projectId: A })).toEqual([]); // keeper of A only: no other project to move into
+    await expect(callers.keeperA.warehouses.transferTargets({ tenantId, projectId: B })).rejects.toThrow(SCOPE_DENIED);
+  });
+
   it("stock moves between projects with its value, books no cost, and needs the right on BOTH projects", async () => {
     const before = await onHand(A, warehouseA, cement);
     const moved = await callers.owner.warehouses.transferBetweenProjects({ tenantId, sourceProjectId: A, sourceWarehouseId: warehouseA, destinationProjectId: B, destinationWarehouseId: warehouseB, materialId: cement, quantity: 30, reason: "Project B needs cement", transferredAt: new Date() });
@@ -119,19 +132,15 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("warehouse operations on 
     expect((await onHand(B, warehouseB, cement)).quantity).toBe(30);
   });
 
-  it("a stock count adjusts each difference at the shelf's average and keeps what the books said beside what was counted", async () => {
+  it("Q-41 (adviser 18-11): the quick count is stopped — refused with the message that points to the approved stocktake, nothing moves, and the counts already recorded stay", async () => {
     await callers.owner.warehouses.recordInventory({ tenantId, projectId: A, warehouseId: warehouseA, materialId: sand, transactionType: "receipt", quantityDelta: 50, unitCost: 8, occurredAt: new Date() });
     const cementNow = (await onHand(A, warehouseA, cement)).quantity;
-    const count = await callers.owner.warehouses.stocktake({ tenantId, projectId: A, warehouseId: warehouseA, note: "Monthly count", countedAt: new Date(), lines: [{ materialId: cement, countedQuantity: cementNow - 3 }, { materialId: sand, countedQuantity: 50 }] });
-    expect(count.adjusted).toBe(1);
-    expect(count.lines.find(line => line.materialId === cement)).toMatchObject({ systemQuantity: cementNow, variance: -3, valueDelta: -60, adjusted: true });
-    expect(count.lines.find(line => line.materialId === sand)).toMatchObject({ variance: 0, adjusted: false });
-    expect((await onHand(A, warehouseA, cement)).quantity).toBe(cementNow - 3);
-    expect(await costTotal(A)).toBe(40); // a count difference is an inventory adjustment, not a project cost
-    await expect(callers.owner.warehouses.stocktake({ tenantId, projectId: A, warehouseId: warehouseA, note: "Dup", countedAt: new Date(), lines: [{ materialId: sand, countedQuantity: 1 }, { materialId: sand, countedQuantity: 2 }] })).rejects.toThrow("PROJECT_OS_STOCKTAKE_DUPLICATE_MATERIAL");
-    await expect(callers.owner.warehouses.stocktake({ tenantId, projectId: A, warehouseId: warehouseA, note: "", countedAt: new Date(), lines: [{ materialId: sand, countedQuantity: 1 }] })).rejects.toThrow("PROJECT_OS_INVENTORY_REASON_REQUIRED");
-    const over = await callers.owner.warehouses.stocktake({ tenantId, projectId: A, warehouseId: warehouseA, note: "Found more", countedAt: new Date(), lines: [{ materialId: sand, countedQuantity: 55 }] });
-    expect(over.lines[0]).toMatchObject({ variance: 5, valueDelta: 40 });
+    const [[{ before }]] = await connection.query<{ before: number }[]>("SELECT (SELECT count(*) FROM warehouse_stocktakes WHERE tenantId = ?) + (SELECT count(*) FROM warehouse_inventory_transactions WHERE tenantId = ?) AS before", [tenantId, tenantId]);
+    for (const caller of [callers.owner, callers.keeperA]) await expect(caller.warehouses.stocktake({ tenantId, projectId: A, warehouseId: warehouseA, note: "Monthly count", countedAt: new Date(), lines: [{ materialId: cement, countedQuantity: cementNow - 3 }, { materialId: sand, countedQuantity: 55 }] })).rejects.toThrow("PROJECT_OS_STOCKTAKE_QUICK_STOPPED");
+    const [[{ after }]] = await connection.query<{ after: number }[]>("SELECT (SELECT count(*) FROM warehouse_stocktakes WHERE tenantId = ?) + (SELECT count(*) FROM warehouse_inventory_transactions WHERE tenantId = ?) AS after", [tenantId, tenantId]);
+    expect(Number(after)).toBe(Number(before));
+    expect((await onHand(A, warehouseA, cement)).quantity).toBe(cementNow);
+    expect(await costTotal(A)).toBe(40);
   });
 
   it("finds a material by scanned code, QR label, or part of the name — with what is on the shelf", async () => {
@@ -139,7 +148,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("warehouse operations on 
     expect(scanned).toHaveLength(1);
     expect(scanned[0]).toMatchObject({ code: "CEM-1", exact: true });
     expect(scanned[0].onHand).toBeGreaterThan(0);
-    expect((await callers.keeperA.warehouses.findMaterial({ tenantId, projectId: A, warehouseId: warehouseA, query: "MAT:SND-1" }))[0]).toMatchObject({ code: "SND-1", onHand: 55 });
+    expect((await callers.keeperA.warehouses.findMaterial({ tenantId, projectId: A, warehouseId: warehouseA, query: "MAT:SND-1" }))[0]).toMatchObject({ code: "SND-1", onHand: 50 });
     expect((await callers.keeperA.warehouses.findMaterial({ tenantId, projectId: A, warehouseId: warehouseA, query: "sand" })).map(row => row.code)).toEqual(["SND-1"]);
     expect(await callers.keeperA.warehouses.findMaterial({ tenantId, projectId: A, warehouseId: warehouseA, query: "100%_nothing" })).toEqual([]);
   });

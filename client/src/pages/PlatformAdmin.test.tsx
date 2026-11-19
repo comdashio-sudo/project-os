@@ -4,14 +4,14 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import PlatformAdmin from "./PlatformAdmin";
 
-const state = vi.hoisted(() => ({ role: "admin" as string, overview: { data: undefined as unknown, isLoading: false, error: null as unknown, refetch: vi.fn(), isFetching: false }, requested: false }));
+const state = vi.hoisted(() => ({ language: "en" as "ar" | "en" | "ur", role: "admin" as string, overview: { data: undefined as unknown, isLoading: false, error: null as unknown, refetch: vi.fn(), isFetching: false }, requested: false }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { name: "Owner", role: state.role }, loading: false, isAuthenticated: true }) }));
-vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
+vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.language === "ar", language: state.language, isRtl: state.language !== "en" }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Safe error" }));
 vi.mock("wouter", () => ({ Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/lib/trpc", () => ({ trpc: { selfService: { plans: { useQuery: () => ({ data: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT" }] }) }, signup: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) } }, platform: { overview: { useQuery: (_input: unknown, options?: { enabled?: boolean }) => { state.requested = state.requested || options?.enabled !== false; return state.overview; } } } } }));
 
-afterEach(() => { cleanup(); state.role = "admin"; state.requested = false; state.overview = { data: undefined, isLoading: false, error: null, refetch: vi.fn(), isFetching: false }; });
+afterEach(() => { cleanup(); state.language = "en"; state.role = "admin"; state.requested = false; state.overview = { data: undefined, isLoading: false, error: null, refetch: vi.fn(), isFetching: false }; });
 
 const overview = { totalCompanies: 2, shownCompanies: 2, truncated: false, companies: [
   { id: "11111111-1111-4111-8111-111111111111", legalName: "Alpha Co", slug: "alpha-co", status: "active", createdAt: new Date(), license: { status: "active", seats: 5, planCode: "ALL_IN_ONE_STANDARD", planName: "All-In-One Standard" } },
@@ -19,6 +19,17 @@ const overview = { totalCompanies: 2, shownCompanies: 2, truncated: false, compa
 ], plans: [{ code: "PROJECT_STANDARD", name: "Project Standard", packageCode: "PROJECT", active: true }, { code: "PMO_STANDARD", name: "PMO Standard", packageCode: "PMO", active: false }] };
 
 describe("platform administration page", () => {
+  it("names every plan in Arabic by its code, in the company table and the catalogue (G-213)", () => {
+    state.language = "ar";
+    state.overview = { ...state.overview, data: overview };
+    render(<PlatformAdmin />);
+    expect(screen.getByText("الشاملة — القياسية")).toBeTruthy();
+    expect(screen.getByText("المشروع — القياسية")).toBeTruthy();
+    expect(screen.getByText("مكتب إدارة المشاريع — القياسية")).toBeTruthy();
+    expect(screen.queryByText("All-In-One Standard")).toBeNull();
+    expect(screen.queryByText("Project Standard")).toBeNull();
+  });
+
   it("lists every company with its plan, a link to its licences, and the plan catalogue with each plan's state", () => {
     state.overview = { ...state.overview, data: overview };
     render(<PlatformAdmin />);

@@ -15,12 +15,12 @@ describe("GovernedProjectControlLink", () => {
   it("renders the direct project path only when server-authorized navigation returns it", () => {
     state.items = [{ id: "project-controls", href: "/projects/tenant-a/project-a/controls" }];
     render(<GovernedProjectControlLink tenantId="tenant-a" projectId="project-a" />);
-    expect(screen.getByRole("link", { name: "Open project command center" }).getAttribute("href")).toBe("/projects/tenant-a/project-a/controls");
+    expect(screen.getByRole("link", { name: "Open project board" }).getAttribute("href")).toBe("/projects/tenant-a/project-a/controls");
   });
 
   it("does not render an optimistic project path for a non-authorized account", () => {
     state.items = [];
     render(<GovernedProjectControlLink tenantId="tenant-a" projectId="project-a" />);
-    expect(screen.queryByRole("link", { name: "Open project command center" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Open project board" })).toBeNull();
   });
 });

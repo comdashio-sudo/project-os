@@ -9,11 +9,12 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
-import { SourceNotice } from "@/components/SectionResilience";
+import { SectionErrorBoundary, SourceNotice } from "@/components/SectionResilience";
 import { enumLabel } from "@/lib/labels";
 import { WriteGate } from "@/lib/permissions";
 import { pickLanguage } from "@/lib/language";
 import { ProjectStocktakes } from "./ProjectStocktakes";
+import { WarehouseReturnTransfer } from "./WarehouseReturnTransfer";
 
 /** Radix lists carry no empty value: "no activity" is this sentinel, sent to the server as an empty choice, never as an id. */
 const NONE = "__none";
@@ -62,7 +63,8 @@ export function ProjectWarehouses({ tenantId, projectId }: { tenantId: string; p
     }} className="inline-flex min-h-11 items-center rounded-lg border px-3 text-sm font-medium text-primary">
       {pickLanguage(language, { ar: "طلبات المواد وجدول تواريخ الاحتياج", en: "Material requests and required dates", ur: "مادّوں کی درخواستیں اور مطلوبہ تاریخیں" })}
     </a>
-    {register.data ? <ProjectStocktakes tenantId={tenantId} projectId={projectId} warehouses={register.data.warehouses} /> : null}
+    {register.data && materials.data ? <SectionErrorBoundary title={pickLanguage(language, { ar: "الإرجاع والتحويل إلى مشروع آخر", en: "Returns and transfers to another project", ur: "واپسی اور دوسرے پروجیکٹ میں منتقلی" })} isArabic={isArabic}><WarehouseReturnTransfer tenantId={tenantId} projectId={projectId} warehouses={register.data.warehouses} materials={materials.data} onMoved={() => void register.refetch()} /></SectionErrorBoundary> : null}
+    {register.data ? <SectionErrorBoundary title={pickLanguage(language, { ar: "الجرد", en: "Stocktake", ur: "اسٹاک کی گنتی" })} isArabic={isArabic}><ProjectStocktakes tenantId={tenantId} projectId={projectId} warehouses={register.data.warehouses} /></SectionErrorBoundary> : null}
     <div><h3 className="text-sm font-semibold">{t.balances}</h3><div className="mt-2 grid gap-2">{register.data?.balances.map(item => <div key={item.id} className="rounded-lg border p-3 text-sm"><strong>{item.material?.code ?? item.materialId}</strong> · {item.material?.description} <span className="text-muted-foreground">{t.onHand}: {item.quantityOnHand} {item.material?.unitOfMeasure ?? ""}</span>{item.averageCost !== null && <span className="block text-xs text-muted-foreground">{t.value}: {item.stockValue} · {t.average}: {item.averageCost}</span>}{Number(item.unpricedQuantity) > 0 && <span className="block text-xs text-amber-700">{t.unpriced}: {item.unpricedQuantity}</span>}</div>)}</div><p className="mt-2 text-xs text-muted-foreground">{t.valuationNote}</p></div>
     <div><h3 className="text-sm font-semibold">{t.history}</h3><div className="mt-2 grid gap-2">{register.data?.transactions.map(item => <div key={item.id} className="rounded-lg border p-3 text-sm"><strong>{enumLabel(item.transactionType, language)}</strong> · {item.material?.code ?? item.materialId} · {item.quantityDelta} <span className="text-muted-foreground">{t.date}: {formatDate(item.occurredAt, language)}</span></div>)}</div></div>
     {error ? <p role="alert" className="text-sm text-destructive">{getLocalizedProjectError(error, isArabic)}</p> : null}
