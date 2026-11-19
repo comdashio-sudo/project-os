@@ -75,8 +75,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-32 (P0-03): the materi
     expect(await code(callerFor("keeper").procurement.createRequisition({ ...scope(), requisitionNumber: "MR-Q32-K", materialId, description: "Not the keeper's to ask", requestedQuantity: 1, unitOfMeasure: "bag", requiredAt: new Date("2026-12-01T00:00:00Z") }))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callerFor("proc").warehouses.list(scope()))).toBe("PROJECT_OS_PERMISSION_DENIED");
     for (const read of [(c: ReturnType<typeof callerFor>) => c.procurement.register(scope()), (c: ReturnType<typeof callerFor>) => c.materials.list(scope()), (c: ReturnType<typeof callerFor>) => c.warehouses.list(scope())]) expect(await code(read(callerFor("accountant")))).toBe("PROJECT_OS_PERMISSION_DENIED");
-    // and nobody gained project.read: the project manager still does not open the whole controls page through this change
-    expect(await code(callerFor("pm").projects.getControls(scope()))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    // Q-33 (#378, adviser 18-11) gave the PROJECT_MANAGER template project.read on purpose («opens the project like the field roles, 205-3»), so the project
+    // manager now opens the controls page: this change added no permission of its own — the accountant above still reads none of the requests
+    expect(await code(callerFor("pm").projects.getControls(scope()))).toBe("no error");
   });
 
   // Adviser 18-11 (Q-32): the warehouse keeper sees quantities, not value; the value is for the project-money readers (205-1).
