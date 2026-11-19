@@ -272,7 +272,7 @@ for (const view of VIEWS) {
     check(role, v, "دليل الاستخدام يفتح بالعربية بأقسامه الخمسة", guideText.includes("دليل الاستخدام") && ["الكوست كنترول", "التخطيط", "منسقو المشاريع", "منسقو التصميم", "العقود"].every(name => guideText.includes(name)));
     const guideShell = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     check(role, v, "لا تمرير أفقي في دليل الاستخدام", guideShell <= 1, `overflow ${guideShell}px`);
-    await visit(page, "/projects/:t/:p/controls#pmc", 2200);
+    await visit(page, "/projects/:t/:p/pmc", 2200);
     const pmcTab = page.getByRole("tab", { name: "ضبط المشروع PMC" });
     check(role, v, "تبويب PMC يفتح من العنوان داخل الضوابط", (await pmcTab.count()) === 1 && (await pmcTab.getAttribute("aria-selected")) === "true");
 

@@ -6,7 +6,7 @@ import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { useCan } from "@/lib/permissions";
 import { PAGE_NAMES, PROJECT_SUBPAGE_NAMES } from "@shared/pageNames";
-import { Briefcase, FolderKanban, Gauge, HardHat, Handshake, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { Briefcase, FileBarChart, FolderKanban, Gauge, HardHat, Handshake, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
 import { InShellProvider } from "@/components/pageFrame";
 import React from "react";
 import { useLocation } from "wouter";
@@ -23,6 +23,7 @@ const MODULE_LABELS: Record<string, { ar: string; en: string; ur: string }> = {
   "navigation.payroll": { ar: "الرواتب وتكلفة العمالة", en: "Payroll & labor cost", ur: "تنخواہ اور لیبر لاگت" },
   "navigation.projectControls": PAGE_NAMES.board,
   "navigation.projectSite": PAGE_NAMES.site,
+  "navigation.projectReports": PAGE_NAMES.reports,
   "navigation.projectCommercial": PAGE_NAMES.commercial,
   "navigation.projectTeam": PAGE_NAMES.team,
   "navigation.myPerformance": { ar: "مؤشراتي", en: "My indicators", ur: "میرے اشاریے" },
@@ -38,6 +39,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   "payroll": Wallet,
   "project-controls": SlidersHorizontal,
   "project-site": HardHat,
+  "project-reports": FileBarChart,
   "project-commercial": Handshake,
   "project-team": UsersRound,
   "my-performance": Target,

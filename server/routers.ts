@@ -1,6 +1,8 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
+import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
+import { getMyDeadlinesForTenant } from "./deadlineAlerts";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
 import { createStrategyAssumption, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
 import { getReportPeriod } from "./reportPeriods";
@@ -601,10 +603,22 @@ export const appRouter = router({
     transitionIssueEscalation: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), issueId: z.string().uuid(), nextStatus: z.enum(["pending", "escalated"]) })).mutation(({ ctx, input }) => transitionIssueEscalation({ userId: ctx.user.id, ...input })),
     transitionActionEscalation: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), actionId: z.string().uuid(), nextStatus: z.enum(["pending", "escalated"]) })).mutation(({ ctx, input }) => transitionActionEscalation({ userId: ctx.user.id, ...input })),
   }),
+  // Q-25 (P-113): project meetings — the minutes, item by item, and the actions they raise (server/meetings.ts)
+  meetings: router({
+    list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectMeetings({ userId: ctx.user.id, ...input })),
+    get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid() })).query(({ ctx, input }) => getProjectMeeting({ userId: ctx.user.id, ...input })),
+    create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingType: z.enum(MEETING_TYPES), title: z.string().trim().min(2).max(255), heldAt: z.date(), location: z.string().trim().max(255).optional(), previousMeetingId: z.string().uuid().optional(),
+      attendees: z.array(z.object({ membershipId: z.string().uuid().optional(), name: z.string().trim().min(1).max(160), organisation: z.string().trim().max(160).optional(), present: z.boolean().optional() })).max(100) })).mutation(({ ctx, input }) => createProjectMeeting({ userId: ctx.user.id, ...input })),
+    addItem: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid(), topic: z.string().trim().min(1).max(255), discussion: z.string().trim().max(5000).optional(), decision: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => addProjectMeetingItem({ userId: ctx.user.id, ...input })),
+    addAction: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid(), title: z.string().trim().min(2).max(255), ownerMembershipId: z.string().uuid(), dueAt: z.date().optional(), priority: z.enum(["low", "medium", "high", "critical"]).default("medium") })).mutation(({ ctx, input }) => addProjectMeetingAction({ userId: ctx.user.id, ...input })),
+    issue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid() })).mutation(({ ctx, input }) => issueProjectMeeting({ userId: ctx.user.id, ...input })),
+  }),
   executive: router({
     createDecision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), problem: z.string().trim().min(2).max(5000), options: z.string().trim().min(2).max(5000), recommendation: z.string().trim().max(5000).optional(), decisionOwnerMembershipId: z.string().uuid().optional(), costImpact: z.number().finite().optional(), scheduleImpactDays: z.number().int().min(-3650).max(3650).optional(), riskImpact: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => createDecision({ userId: ctx.user.id, ...input })),
     ownerOptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getOwnerOptionsForTenant({ userId: ctx.user.id, ...input })),
     myWork: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getMyWorkForTenant({ userId: ctx.user.id, ...input })),
+    // Q-26 (P-119): what is overdue for me in this company now, by the daily digest's own rule (server/deadlineAlerts.ts)
+    myDeadlines: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getMyDeadlinesForTenant({ userId: ctx.user.id, ...input })),
     completeMyAction: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), actionId: z.string().uuid() })).mutation(({ ctx, input }) => completeMyActionForTenant({ userId: ctx.user.id, ...input })),
     transitionDecision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), decisionId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "implemented"]), decision: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => transitionDecision({ userId: ctx.user.id, ...input })),
   }),
