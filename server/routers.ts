@@ -1,5 +1,6 @@
 import { createPmcUnits, getPmcStatusGrid, getPmcStructure, savePmcActivityWeights } from "./pmcEditorService";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
+import { createStrategyAssumption, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
 import { getMonthlyReport } from "./monthlyReport";
@@ -118,6 +119,17 @@ const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, c
   if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" });
 };
 
+const strategyValues = z.object({ conservative: z.number().finite(), base: z.number().finite(), optimistic: z.number().finite() });
+const strategyAssumptionFields = {
+  name: z.string().trim().min(2).max(200),
+  unit: z.enum(["percent", "sar", "months", "days", "count"]),
+  sourceType: z.enum(["internal", "external", "management"]),
+  sourceNote: z.string().trim().max(500).nullish(),
+  confidence: z.enum(["high", "medium", "low"]),
+  reviewFrequency: z.enum(["monthly", "quarterly", "annual", "event"]),
+  nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  values: strategyValues,
+};
 export const appRouter = router({
   system: systemRouter,
   // Work order 16, item 4 (G-203): the interface language kept on the signed-in person's account. Only their own row (server/userLanguage.ts).
@@ -816,6 +828,18 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getMaterialCatalogForTenant({ userId: ctx.user.id, ...input })),
     createMaster: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(1).max(120), description: z.string().trim().min(2).max(255), unitOfMeasure: z.string().trim().min(1).max(40), category: z.string().trim().min(2).max(120), referenceSpecification: z.string().trim().max(255).optional() })).mutation(({ ctx, input }) => createMaterialMasterForTenant({ userId: ctx.user.id, ...input })),
     saveProjectOverride: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), materialId: z.string().uuid(), projectDescription: z.string().trim().max(255).optional(), referenceSpecification: z.string().trim().max(255).optional(), reorderLevel: z.number().finite().positive().nullable().optional(), active: z.boolean() })).mutation(({ ctx, input }) => saveProjectMaterialOverrideForTenant({ userId: ctx.user.id, ...input, reorderLevel: input.reorderLevel ?? undefined })),
+  }),
+  // Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (server/strategyAssumptions.ts).
+  strategy: router({
+    assumptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listStrategyAssumptions({ userId: ctx.user.id, ...input })),
+    assumptionChanges: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid() })).query(({ ctx, input }) => getStrategyAssumptionChanges({ userId: ctx.user.id, ...input })),
+    createAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(2).max(60).regex(/^[A-Za-z0-9_.-]+$/), ...strategyAssumptionFields })).mutation(({ ctx, input }) => createStrategyAssumption({ userId: ctx.user.id, ...input })),
+    updateDraft: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), ...strategyAssumptionFields })).mutation(({ ctx, input }) => updateStrategyAssumptionDraft({ userId: ctx.user.id, ...input })),
+    submitAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid() })).mutation(({ ctx, input }) => submitStrategyAssumption({ userId: ctx.user.id, ...input })),
+    decideAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "return"]), reason: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => decideStrategyAssumption({ userId: ctx.user.id, ...input })),
+    requestChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), values: strategyValues, reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => requestStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
+    decideChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "reject"]) })).mutation(({ ctx, input }) => decideStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
+    retireAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => retireStrategyAssumption({ userId: ctx.user.id, ...input })),
   }),
   // G-104 (D-32 part 2): the stocktake document — open, count, approve (server/stocktakes.ts).
   stocktakes: router({

@@ -147,7 +147,9 @@ export class Connection {
     // The audit trail refuses UPDATE, DELETE and TRUNCATE for everyone, the table owner included (that is the point of it). A fixture that has to
     // leave the TEST database clean, or to back-date a row, lifts the guard for that one statement, in a transaction, and puts it back before
     // anything else runs. It only ever does so in project_os_integration_test.
-    if (/^\s*(DELETE\s+FROM|TRUNCATE(\s+TABLE)?|UPDATE)\s+"?audit_logs"?\b/i.test(text)) return this.changeAuditRows<T>(text, values);
+    // The same holds for the other append-only table, a strategy assumption's change history (Q-21).
+    const appendOnly = text.match(/^\s*(?:DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|UPDATE)\s+"?(audit_logs|strategy_assumption_changes)"?\b/i);
+    if (appendOnly) return this.changeAuditRows<T>(text, values, appendOnly[1].toLowerCase());
     if (/^\s*DELETE\s+FROM\b/i.test(text) && !/\bRETURNING\b/i.test(text)) return this.deleteWithoutForeignKeyChecks<T>(text, values);
     const needsId = /^\s*INSERT\s+INTO\s+"?users"?\b/i.test(text) && !/RETURNING/i.test(text);
     const result = await this.client.query({ text: needsId ? `${text} RETURNING id` : text, values, rowMode: "array" });
@@ -161,15 +163,15 @@ export class Connection {
     return [header as unknown as T, fields];
   }
 
-  private async changeAuditRows<T>(text: string, values: unknown[]): Promise<[T, pg.FieldDef[]]> {
+  private async changeAuditRows<T>(text: string, values: unknown[], table: string): Promise<[T, pg.FieldDef[]]> {
     const database = (await this.client.query("SELECT current_database() AS name")).rows[0]?.name;
     if (database !== "project_os_integration_test") throw new Error("pgCompat: the audit trail is only ever cleared in the test database");
-    const triggers = ["audit_logs_refuse_update", "audit_logs_refuse_delete", "audit_logs_refuse_truncate"];
+    const triggers = ["update", "delete", "truncate"].map(operation => `${table}_refuse_${operation}`);
     await this.client.query("BEGIN");
     try {
-      for (const name of triggers) await this.client.query(`ALTER TABLE audit_logs DISABLE TRIGGER ${name}`);
+      for (const name of triggers) await this.client.query(`ALTER TABLE ${table} DISABLE TRIGGER ${name}`);
       const result = await this.client.query({ text, values });
-      for (const name of triggers) await this.client.query(`ALTER TABLE audit_logs ENABLE ALWAYS TRIGGER ${name}`);
+      for (const name of triggers) await this.client.query(`ALTER TABLE ${table} ENABLE ALWAYS TRIGGER ${name}`);
       await this.client.query("COMMIT");
       return [{ affectedRows: result.rowCount ?? 0, insertId: 0 } as unknown as T, []];
     } catch (error) {

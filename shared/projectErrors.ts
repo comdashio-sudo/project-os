@@ -2248,6 +2248,66 @@ export const projectErrorMessages = {
     en: "A supplier was chosen from the register but the counterparty type is not \"supplier\".",
     ur: "رجسٹر سے سپلائر منتخب کیا گیا ہے مگر فریق کی قسم “سپلائر” نہیں ہے۔",
   },
+  PROJECT_OS_STRATEGY_ASSUMPTION_APPROVED_LOCKED: {
+    ar: "الافتراض معتمد ولا يُعدَّل مباشرة؛ قدّم طلب تغيير يعتمده شخص آخر.",
+    en: "This assumption is approved and cannot be edited directly; submit a change request for someone else to approve.",
+    ur: "یہ مفروضہ منظور شدہ ہے اور براہ راست تبدیل نہیں ہوتا؛ تبدیلی کی درخواست دیں جسے کوئی اور منظور کرے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_CODE_EXISTS: {
+    ar: "في الشركة افتراض بهذا الرمز.",
+    en: "The company already has an assumption with this code.",
+    ur: "کمپنی میں اس کوڈ کا مفروضہ پہلے سے موجود ہے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_NOT_APPROVED: {
+    ar: "طلب التغيير لافتراض معتمد فقط؛ المسودة تُعدَّل مباشرة.",
+    en: "A change request is only for an approved assumption; a draft is edited directly.",
+    ur: "تبدیلی کی درخواست صرف منظور شدہ مفروضے کے لیے ہے؛ مسودہ براہ راست تبدیل ہوتا ہے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_NOT_DRAFT: {
+    ar: "هذا الإجراء للمسودة فقط.",
+    en: "This action is for a draft only.",
+    ur: "یہ عمل صرف مسودے کے لیے ہے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_NOT_FOUND: {
+    ar: "الافتراض غير موجود في هذه الشركة.",
+    en: "The assumption was not found in this company.",
+    ur: "یہ مفروضہ اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_NOT_PENDING: {
+    ar: "الافتراض ليس بانتظار الاعتماد.",
+    en: "The assumption is not awaiting approval.",
+    ur: "یہ مفروضہ منظوری کا منتظر نہیں ہے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_RETIRED: {
+    ar: "الافتراض متوقف بالفعل.",
+    en: "The assumption is already retired.",
+    ur: "یہ مفروضہ پہلے ہی موقوف ہے۔",
+  },
+  PROJECT_OS_STRATEGY_CHANGE_ALREADY_PENDING: {
+    ar: "لهذا الافتراض طلب تغيير بانتظار القرار؛ يُبَتّ فيه أولًا.",
+    en: "This assumption already has a change request awaiting a decision; decide it first.",
+    ur: "اس مفروضے کی ایک تبدیلی کی درخواست فیصلے کی منتظر ہے؛ پہلے اس کا فیصلہ کریں۔",
+  },
+  PROJECT_OS_STRATEGY_CHANGE_REASON_REQUIRED: {
+    ar: "اكتب سبب التغيير.",
+    en: "Write the reason for the change.",
+    ur: "تبدیلی کی وجہ لکھیں۔",
+  },
+  PROJECT_OS_STRATEGY_NO_PENDING_CHANGE: {
+    ar: "لا طلب تغيير بانتظار القرار لهذا الافتراض.",
+    en: "This assumption has no change request awaiting a decision.",
+    ur: "اس مفروضے کی کوئی تبدیلی کی درخواست فیصلے کی منتظر نہیں۔",
+  },
+  PROJECT_OS_STRATEGY_SELF_APPROVAL: {
+    ar: "من أعدّ الافتراض أو طلب تغييره لا يعتمده؛ يعتمده شخص آخر.",
+    en: "Whoever prepared the assumption or requested its change cannot approve it; someone else must.",
+    ur: "جس نے مفروضہ تیار کیا یا اس کی تبدیلی مانگی وہ اسے منظور نہیں کر سکتا؛ کوئی اور منظور کرے۔",
+  },
+  PROJECT_OS_STRATEGY_VALUE_INVALID: {
+    ar: "قيم السيناريوهات الثلاثة أرقام.",
+    en: "The three scenario values must be numbers.",
+    ur: "تینوں منظرناموں کی قدریں عدد ہونی چاہئیں۔",
+  },
   PROJECT_OS_STOCKTAKE_ALREADY_OPEN: {
     ar: "لهذا المستودع جرد مفتوح لم يُعتمد بعد؛ أكمله أو اعتمده قبل فتح جرد جديد.",
     en: "This warehouse already has a stocktake being counted; finish or approve it before opening another.",

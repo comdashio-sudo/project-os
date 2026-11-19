@@ -3827,3 +3827,70 @@ export const weeklyReportPhotos = pgTable(
     index("weekly_report_photos_report_idx").on(table.weeklyReportId),
   ],
 );
+
+// Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (no project). The values it holds for the three scenarios are the ones the
+// financial model (server/domain/strategyModel.ts) reads, and only once approved: a draft or a pending assumption moves no number. An approved assumption is
+// changed only through a change request (proposed_* + change_reason) that someone other than the requester approves; every approval, change, refusal and
+// retirement leaves one row in strategy_assumption_changes, which the database keeps append-only (UPDATE, DELETE and TRUNCATE refused by trigger for every role).
+export const strategyAssumptionUnitEnum = pgEnum("strategy_assumption_unit", ["percent", "sar", "months", "days", "count"]);
+export const strategyAssumptionSourceEnum = pgEnum("strategy_assumption_source", ["internal", "external", "management"]);
+export const strategyAssumptionConfidenceEnum = pgEnum("strategy_assumption_confidence", ["high", "medium", "low"]);
+export const strategyAssumptionReviewEnum = pgEnum("strategy_assumption_review", ["monthly", "quarterly", "annual", "event"]);
+export const strategyAssumptionStatusEnum = pgEnum("strategy_assumption_status", ["draft", "pending", "approved", "retired"]);
+export const strategyAssumptions = pgTable(
+  "strategy_assumptions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 60 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    unit: strategyAssumptionUnitEnum("unit").notNull(),
+    sourceType: strategyAssumptionSourceEnum("source_type").notNull(),
+    sourceNote: varchar("source_note", { length: 500 }),
+    confidence: strategyAssumptionConfidenceEnum("confidence").notNull(),
+    reviewFrequency: strategyAssumptionReviewEnum("review_frequency").notNull(),
+    nextReviewAt: date("next_review_at", { mode: "string" }),
+    status: strategyAssumptionStatusEnum("status").default("draft").notNull(),
+    valueConservative: numeric("value_conservative", { precision: 18, scale: 4 }).notNull(),
+    valueBase: numeric("value_base", { precision: 18, scale: 4 }).notNull(),
+    valueOptimistic: numeric("value_optimistic", { precision: 18, scale: 4 }).notNull(),
+    proposedConservative: numeric("proposed_conservative", { precision: 18, scale: 4 }),
+    proposedBase: numeric("proposed_base", { precision: 18, scale: 4 }),
+    proposedOptimistic: numeric("proposed_optimistic", { precision: 18, scale: 4 }),
+    changeReason: varchar("change_reason", { length: 500 }),
+    changeRequestedByUserId: integer("change_requested_by_user_id").references(() => users.id),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    submittedByUserId: integer("submitted_by_user_id").references(() => users.id),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_assumptions_tenant_code_unique").on(table.tenantId, table.code),
+    unique("strategy_assumptions_id_tenant_unique").on(table.id, table.tenantId),
+  ],
+);
+export const strategyAssumptionChanges = pgTable(
+  "strategy_assumption_changes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    assumptionId: varchar("assumption_id", { length: 36 }).notNull(),
+    kind: varchar("kind", { length: 30 }).notNull(),
+    previousConservative: numeric("previous_conservative", { precision: 18, scale: 4 }),
+    previousBase: numeric("previous_base", { precision: 18, scale: 4 }),
+    previousOptimistic: numeric("previous_optimistic", { precision: 18, scale: 4 }),
+    newConservative: numeric("new_conservative", { precision: 18, scale: 4 }),
+    newBase: numeric("new_base", { precision: 18, scale: 4 }),
+    newOptimistic: numeric("new_optimistic", { precision: 18, scale: 4 }),
+    reason: varchar("reason", { length: 500 }),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id),
+    decidedByUserId: integer("decided_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "strategy_assumption_changes_assumption_fk", columns: [table.assumptionId, table.tenantId], foreignColumns: [strategyAssumptions.id, strategyAssumptions.tenantId] }),
+    index("strategy_assumption_changes_tenant_assumption_idx").on(table.tenantId, table.assumptionId, table.createdAt),
+  ],
+);
