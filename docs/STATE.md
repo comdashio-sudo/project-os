@@ -3052,7 +3052,7 @@
 | المطابقة (`analyze`) وقائمة `smartImport.profiles` تقرآن أنواع الاستيراد الذكي وحدها (أنواعه و`unitMatrix`)؛ قالب Q-50 بالعناوين نفسها لا يُقترح ولا يظهر | `PROVEN` | `server/smartImport.database.test.ts` › «a Q-50 column template is not a smart profile» (فاشل بلا الإصلاح، ناجح معه) |
 | `confirm` باسم يستعمله نوع آخر ← `PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN` قبل أي كتابة: لا صف `data_imports` جديد، وقالب Q-50 باقٍ بنوعه وتعيينه؛ والتحديث بالاسم نفسه مقصور على النوع نفسه (`setWhere`)، وسباق بين الفحص والكتابة يُرفض ولا يأخذ الاسم | `PROVEN` | الاختبار نفسه؛ وحفظ الملف بالاسم نفسه ونوعه (الاختبار الأول) ما زال يعمل |
 | `writeEvidence.test.ts`: سقطت ثلاثة استثناءات لـ`smartImport.ts` لأن قبل كل تحديث الآن قراءة (`assertProfileName`)، وبقي سبب كل منها تعليقًا في الكود | `PROVEN` | الاختبار 4/4 |
-| الفحوص | `PROVEN` | `pnpm check` ناجح؛ `pnpm test` 4241/0؛ `coverage:trpc` ناجح؛ `smartImport` و`smartMatrix` على القاعدة 9/9 |
+| الفحوص | `PROVEN` | `pnpm check` ناجح؛ `pnpm test` 4241/0؛ `coverage:trpc` ناجح؛ `smartImport` و`smartMatrix` على القاعدة 9/9؛ مجموعة القاعدة كاملة 899/0 |
 
 ### Q-50 الدفعة 1: القارئ المشترك (الطبقة 1) للـPMC والدفاتر (2026-11-19، المبرمج ب، بلا ترحيلة)
 
