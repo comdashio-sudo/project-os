@@ -2893,7 +2893,7 @@
 | `performance.availability`: مرتبط ومخوَّل ← `{linked:true, canRead:true}`؛ بلا ربط ← `linked:false` بلا رفض؛ بطاقة موقوفة ← `linked:false`؛ الاشتراك معطَّل ← `PROJECT_OS_PRODUCT_NOT_ENTITLED` (كبقية قراءات المستأجر، بوابة gate6.matrix)؛ شركة أخرى ← `PROJECT_OS_TENANT_ACCESS_DENIED`؛ مشروع خارج الشركة ← `PROJECT_OS_PROJECT_NOT_FOUND`؛ ورفض `performance.get` للحالات نفسها باقٍ | `PROVEN` | `server/integration.database.test.ts` 76/76 على قاعدة الاختبار المبنية من الفرع — 2026-11-19 |
 | الصفحة: بلا ربط ← السبب بالعربية والإنجليزية والأردية ولا طلب للمؤشرات ولا نموذج اعتراض؛ مرتبط بلا صلاحية ← «لا تملك الصلاحية…»؛ مرتبط ومخوَّل ← تُطلب المؤشرات؛ رفض `get` نفسه يظهر بلا إعادة محاولة؛ فشل الشبكة يُعاد ويعرض «حاول مجددًا» | `PROVEN` | `client/src/pages/MyPerformance.access.test.tsx` 6/6 (+3)، و`MyPerformance.test.tsx` و`MyPerformance.screenStates.test.tsx` |
 | تدقيق الواجهة محليًا بشركة العرض المختلقة (67 مسارًا × 1280 و390): hard=0 في en، وفي ar وur (بعد مسح اختيار اللغة المحفوظ بين التشغيلات، لأن CI يبني قاعدة لكل لغة) | `PROVEN` | `node tests/ui/audit.mjs` على خادم محلي من الفرع — 2026-11-19 |
-| CI أخضر على main بعد الدمج، وتشغيل migrate-production، و`/api/readyz` وفرع الإنتاج = main | `OPEN` | يُكتب بعد الدمج |
+| CI أخضر على main بعد الدمج، وتشغيل migrate-production، و`/api/readyz` وفرع الإنتاج = main | `PROVEN` | #430 مدموج `fc7b700` (15:30 UTC). CI على main أخضر بكل مهامه، ومنها ui screenshots بالثلاث لغات وdatabase suite وdemo journeys: التشغيل 44555447019، أول أخضر على main منذ 13-11. «Migrate and promote production» نجح: التشغيل 44557471135، ومر بفحص التوافق والترحيلات وverify-db-security وتشغيل المرشح. الخطوتان 4b و5 تُخطّيتا لأن VERCEL_TOKEN بلا صلاحية، فنشر Vercel من فرع production (الخطوة 6). الخطوة 6b سجّلت `production https://dashio-lovat.vercel.app serves fc7b700239b7 and is ready (49s)`، أي أن `/api/readyz` يذكر الـcommit و`ready=true`، وهي لا تكون إلا بلا ترحيلات معلقة. `git ls-remote`: production = main = `fc7b700`. post-deploy (يدوي، بلا تراجع) أخضر: التشغيل 44558634327. لم يكن قد شُغّل قط، لأن أحداث `deployment_status` لا تصله — 2026-11-19 |
 | الفحوص | `PROVEN` | `pnpm check` ناجح (0 مخالفات تصميم)؛ `pnpm test` 4160/0 (بعد دمج main)؛ `pnpm coverage:trpc` ناجح؛ `pnpm build` ناجح؛ مجموعة القاعدة كاملة (`node scripts/run-integration-database-test.mjs`) 885/0، ومنها `gate6.matrix` (رفض الشركة بلا رخصة، ملاحظة مراجعة المبرمج ج) — 2026-11-19 |
 
 ### Q-52 (ب): لا معاينات Vercel لفروع الطلبات (2026-11-19، المبرمج ب، بلا ترحيلة)
@@ -2903,7 +2903,7 @@
 | البند | الحالة | الدليل |
 |---|---|---|
 | `scripts/ci/vercel-ignore.sh` يتخطى أي Preview لفرع مسمّى غير main ولو تغيّر الكود؛ ويبني Preview لـmain، وبناء الإنتاج من فرع `production`، وPreview لا يسمّي Vercel فرعه (عند الشك يبني)؛ رفض بناء إنتاج من main باقٍ | `PROVEN` | `server/testing/vercelIgnore.test.ts` 19/19 (+2)؛ السالب: بلا تعديل السكربت يسقط اختبار التخطي — 2026-11-19 |
-| أثره على Vercel الفعلي (عدد النشرات اليومي) | `UNVERIFIED` | يُرى بعد الدمج في قائمة نشرات المشروع؛ أداة Vercel هنا ترد 403 |
+| أثره على Vercel الفعلي (عدد النشرات اليومي) | `UNVERIFIED` | تحت الحد: معاينة #414 بعد الدمج «Ignored» (14:19). فوق الحد: معاينات #427 #428 #429 #414 الساعة 15:33 رُفضت «rate limited» قبل خطوة التجاهل، فالمرجّح أن Vercel يعدّ إنشاء النشر قبل تشغيل ignoreCommand. أي أن الطلب يمنع البناء، ولا يُعرف أنه يخفض العدد. أداة Vercel هنا ترد 403 |
 
 ### Q-48: ملف الأوزان الحقيقي للمالك — الأسباب الستة وإصلاحها (2026-11-19، المبرمج ب، بلا ترحيلة)
 
