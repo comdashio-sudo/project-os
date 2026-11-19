@@ -1,4 +1,5 @@
 import { PmcColumnMapping, type PmcImportColumns } from "@/components/PmcColumnMapping";
+import { ActivityNameToggle, hasEnglishNames, useActivityNameLanguage, type ActivityNameLanguage } from "@/lib/activityNames";
 import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
 import { SiteWorkbookImport } from "@/components/SiteWorkbookImport";
 import { PageMain, PageHeader } from "@/components/pageFrame";
@@ -176,8 +177,10 @@ type MatrixCell = { count: number; weightPoints: number; sharePercent: number };
 /** One row of the activities matrix: a group subtotal (`label` null) or an activity under its group. */
 type MatrixRow = { groupName: string; label: string | null; cells: MatrixCell[] };
 
-function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData }: { tab: Exclude<Tab, "import" | "sitePlan" | "programme" | "editors">; tenantId: string; projectId: string; filters: Filters; t: T; isArabic: boolean; onData: (options: Options) => void }) {
-  const input = { tenantId, projectId, filters };
+function ScreenBody({ tab, tenantId, projectId, filters, t, isArabic, onData, names }: { tab: Exclude<Tab, "import" | "sitePlan" | "programme" | "editors">; tenantId: string; projectId: string; filters: Filters; t: T; isArabic: boolean; onData: (options: Options) => void; names?: ActivityNameLanguage }) {
+  const { language } = useLanguage();
+  // Q-49: the activity names in the chosen language (the server substitutes them; every figure is the same)
+  const input = { tenantId, projectId, filters, names, language };
   const common = { t, isArabic, onOptions: onData };
   /** Export names: the file gets the screen's tab and the table's name, e.g. pmc-approvals-requests-<date>.xlsx. */
   const exp = (file: string, sheet: string): ExportAs => ({ file: `pmc-${tab}-${file}`, sheet, title: `${t.title} · ${sheet}` });
@@ -355,6 +358,12 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   const days = PERIODS.find(([key]) => key === period)![1];
   const since = useMemo(() => (days === undefined ? undefined : new Date(new Date().setUTCHours(0, 0, 0, 0) - days * 86_400_000)), [days]);
   const effective = useMemo(() => ({ ...filters, since }), [filters, since]);
+  // Q-49: the activity names switch, offered when the project has an English name
+  const [nameLanguage, setNameLanguage] = useActivityNameLanguage();
+  const structure = trpc.pmc.structure.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId) });
+  // a structure that could not be read offers no switch: the names stay as stored (the screens below say their own failures)
+  const withEnglish = !structure.error && (structure.data?.models ?? []).some(model => hasEnglishNames(model.activities) || model.activities.some(activity => activity.sectionEn || activity.subEn));
+  const names = withEnglish ? nameLanguage : undefined;
   const exportScreen = trpc.pmc.exportScreen.useMutation({
     onSuccess: file => { const bytes = Uint8Array.from(atob(file.base64), c => c.charCodeAt(0)); const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); const link = document.createElement("a"); link.href = url; link.download = file.fileName; link.click(); URL.revokeObjectURL(url); },
   });
@@ -368,13 +377,14 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
         <PageHeader className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div>{embedded ? <h2 className="text-xl font-semibold">{t.title}</h2> : <h1 className="text-2xl font-semibold">{t.title}</h1>}</div>
           {tab !== "import" && tab !== "sitePlan" && tab !== "programme" && tab !== "editors" && <div className="flex gap-2">
-            <Button variant="outline" className="min-h-[44px]" disabled={exportScreen.isPending} onClick={() => exportScreen.mutate({ tenantId, projectId, screen: screenOfTab[tab], locale: language, filters: effective })}><Download className="me-1 h-4 w-4" />{t.export}</Button>
+            <Button variant="outline" className="min-h-[44px]" disabled={exportScreen.isPending} onClick={() => exportScreen.mutate({ tenantId, projectId, screen: screenOfTab[tab], locale: language, filters: effective, names })}><Download className="me-1 h-4 w-4" />{t.export}</Button>
             <Button variant="outline" className="min-h-[44px]" disabled={pdfBusy} onClick={async () => { if (!bodyRef.current) return; setPdfBusy(true); setPdfError(false); try { await exportElementToPdf(bodyRef.current, `project-os-pmc-${tab}`); } catch (error) { console.error("PDF export failed:", error instanceof Error ? error.message : String(error)); setPdfError(true); } finally { setPdfBusy(false); } }}><Download className="me-1 h-4 w-4" />{t.pdf}</Button>
             <Button variant="outline" className="min-h-[44px]" onClick={() => window.print()}><Printer className="me-1 h-4 w-4" />{t.print}</Button>
           </div>}
         </PageHeader>
         {/* Work order 22: the three percentages and the two site screens */}
         <section className="space-y-3 print:hidden"><div className="flex flex-wrap gap-2"><Link href={`/projects/${tenantId}/${projectId}/site-consultant`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToComparison}</Button></Link><Link href={`/m/${tenantId}/${projectId}/site-update`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToUpdate}</Button></Link></div><SourcePercentages tenantId={tenantId} projectId={projectId} levels={false} /></section>
+        {withEnglish && <div className="print:hidden"><ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} /></div>}
         <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-[var(--radius)] border px-4 text-sm font-medium ${tab === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
         {/* Q-37 (c): what the open tab is for and when to use it; the whole list, and what PMC does not have, one click away */}
         <section className="space-y-2 print:hidden" data-pmc-tab-guide={tab}>
@@ -397,7 +407,7 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
         <section ref={bodyRef} className="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-border">
           {/* A screen that fails to render shows its own message and the tabs stay usable; moving to another tab starts it clean. */}
           <SectionErrorBoundary key={tab} title={pickLanguage(language, { ar: "هذه الشاشة", en: "This screen", ur: "یہ اسکرین" })} isArabic={isArabic}>
-            {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : tab === "editors" ? <PmcEditors tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} />}
+            {tab === "import" ? <ImportPanel tenantId={tenantId} projectId={projectId} t={t} isArabic={isArabic} /> : tab === "sitePlan" ? <PmcSitePlan tenantId={tenantId} projectId={projectId} /> : tab === "programme" ? <PmcProgramme tenantId={tenantId} projectId={projectId} /> : tab === "editors" ? <PmcEditors tenantId={tenantId} projectId={projectId} /> : <ScreenBody tab={tab} tenantId={tenantId} projectId={projectId} filters={effective} t={t} isArabic={isArabic} onData={setOptions} names={names} />}
           </SectionErrorBoundary>
         </section>
       </div>

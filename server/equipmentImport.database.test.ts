@@ -126,4 +126,39 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("equipment list import on
     expect(await count("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ?", [tenantId])).toBe(before);
     expect(await count("SELECT COUNT(*) AS n FROM project_equipment WHERE tenantId = ? AND plateOrSize = 'EQ-950'", [tenantId])).toBe(0);
   }, 120_000);
+
+  // Q-31 (P0-02): a list whose headers the importer does not know is no longer a dead end: the report names the columns, the person picks them
+  async function ownHeaders(rows: unknown[][]) {
+    const book = new ExcelJS.Workbook(); const sheet = book.addWorksheet("Fleet");
+    sheet.addRow(["Asset class", "Units", "Make", "Reg"]); rows.forEach(row => sheet.addRow(row));
+    return Buffer.from(await book.xlsx.writeBuffer());
+  }
+  const columnsOf = (view: Awaited<ReturnType<typeof settle>>) => (view.external?.report as { equipment?: { columns?: { headers: string[]; fields: Array<{ key: string; header: string | null }>; overridden: boolean } } } | undefined)?.equipment?.columns;
+
+  it("unknown headers: the report lists the file's columns with «type: missing»; the chosen columns are analysed again and written the same way", async () => {
+    const file = await importFile(callers.manager, "fleet.xlsx", await ownHeaders([["Grader", 1, "G-1", "EQ-970"], ["Grader", 2, "G-2", ""]]));
+    expect(file.analysed.status).toBe("uploaded");
+    expect(file.analysed.analysis?.errors.map(error => error.code)).toEqual(["IMPORT_REQUIRED_COLUMN_MISSING"]);
+    expect(columnsOf(file.analysed)).toMatchObject({ headers: ["Asset class", "Units", "Make", "Reg"], overridden: false, fields: expect.arrayContaining([{ key: "equipmentType", required: true, header: null }]) });
+    await callers.manager.dataImports.reanalyze({ tenantId, projectId: A, importId: file.id, mappingOverride: { equipmentType: "Asset class", count: "Units", model: "Make", plateOrSize: "Reg", __others__: "ignore" } });
+    const again = await settle(callers.manager, file.id);
+    expect(again).toMatchObject({ status: "validated", totalRows: 2 });
+    expect(columnsOf(again)).toMatchObject({ overridden: true, fields: expect.arrayContaining([{ key: "plateOrSize", required: false, header: "Reg" }]) });
+    expect(await count("SELECT COUNT(*) AS n FROM project_equipment WHERE tenantId = ? AND equipmentType = 'Grader'", [tenantId])).toBe(0);
+    expect(await file.confirm()).toMatchObject({ status: "completed", createdRows: 3 });
+    expect(await count("SELECT COUNT(*) AS n FROM project_equipment WHERE tenantId = ? AND equipmentType = 'Grader' AND plateOrSize = 'EQ-970' AND model = 'G-1'", [tenantId])).toBe(1);
+  }, 120_000);
+
+  it("a choice naming a column no row holds, or one column for two fields, is refused whole; the site engineer cannot re-analyse; nothing is written", async () => {
+    const file = await importFile(callers.manager, "fleet-bad.xlsx", await ownHeaders([["Dozer", 1, "", "EQ-980"]]));
+    await callers.manager.dataImports.reanalyze({ tenantId, projectId: A, importId: file.id, mappingOverride: { equipmentType: "Category" } });
+    const missing = await settle(callers.manager, file.id);
+    expect(missing.analysis?.errors).toEqual([expect.objectContaining({ code: "IMPORT_MAPPING_INVALID", field: "Category" })]);
+    await callers.manager.dataImports.reanalyze({ tenantId, projectId: A, importId: file.id, mappingOverride: { equipmentType: "Asset class", model: "Asset class" } });
+    const twice = await settle(callers.manager, file.id);
+    expect(twice.analysis?.errors).toEqual([expect.objectContaining({ code: "IMPORT_MAPPING_INVALID", field: "Asset class" })]);
+    expect(twice.external?.canConfirm).toBe(false);
+    expect(await code(callers.engineer.dataImports.reanalyze({ tenantId, projectId: A, importId: file.id, mappingOverride: { equipmentType: "Asset class" } }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await count("SELECT COUNT(*) AS n FROM project_equipment WHERE tenantId = ? AND plateOrSize = 'EQ-980'", [tenantId])).toBe(0);
+  }, 120_000);
 });

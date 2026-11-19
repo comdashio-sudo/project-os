@@ -55,7 +55,7 @@ export function ExportExcelButton<Row>({ fileName, sheetName, title, company, pr
       </Button>
       {busy && <span role="status" className="text-xs text-muted-foreground">{working}</span>}
       {rows.length === 0 && <span id={emptyId} data-export-empty className="max-w-xs text-xs text-muted-foreground">{empty}{emptyHint ? `. ${pickLanguage(language, emptyHint)}` : ""}</span>}
-      {failed && <span role="alert" className="text-xs text-red-700">{error}</span>}
+      {failed && <span role="alert" className="text-xs text-danger-soft-foreground">{error}</span>}
     </span>
   );
 }

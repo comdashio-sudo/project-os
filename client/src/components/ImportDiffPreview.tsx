@@ -36,15 +36,15 @@ export function ImportDiffPreview({ diff, isArabic, fieldLabel }: { diff: DiffDa
   const reason = conflictReasons[lang];
   const label = (field: string) => fieldLabel?.(field) ?? field;
   const kindLabel = (kind: string) => (kind === "new" ? t.diffNew : kind === "modified" ? t.diffModified : t.diffConflict);
-  const kindClass = (kind: string) => (kind === "new" ? "bg-emerald-100 text-emerald-800" : kind === "modified" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800");
+  const kindClass = (kind: string) => (kind === "new" ? "bg-success-soft text-success-soft-foreground" : kind === "modified" ? "bg-warning-soft text-warning-soft-foreground" : "bg-danger-soft text-danger-soft-foreground");
   const noChanges = diff.summary.new === 0 && diff.summary.modified === 0 && diff.summary.conflict === 0;
   return (
     <div className="mt-3 rounded-[var(--radius-sm)] border border-border bg-background p-3" data-testid="import-diff">
       <p className="font-semibold">{t.diffTitle}</p>
       <p className="mt-1">{t.diffNew}: {diff.summary.new} · {t.diffModified}: {diff.summary.modified} · {t.diffUnchanged}: {diff.summary.unchanged} · {t.diffConflict}: {diff.summary.conflict} · {t.diffMissing}: {diff.summary.missing}</p>
       {noChanges && <p className="mt-1 text-muted-foreground">{t.diffNoChanges}</p>}
-      {diff.summary.conflict > 0 && <p role="alert" className="mt-1 text-red-700">{t.diffConflictNote}</p>}
-      {diff.entries.some(entry => entry.kind === "conflict") && <ul className="mt-1 space-y-0.5 text-red-700">{diff.entries.filter(entry => entry.kind === "conflict").map(entry => <li key={`${entry.rowNumber}-reason`}>#{entry.rowNumber} · {entry.key} — {reason[entry.conflict ?? ""] ?? entry.conflict}</li>)}</ul>}
+      {diff.summary.conflict > 0 && <p role="alert" className="mt-1 text-danger-soft-foreground">{t.diffConflictNote}</p>}
+      {diff.entries.some(entry => entry.kind === "conflict") && <ul className="mt-1 space-y-0.5 text-danger-soft-foreground">{diff.entries.filter(entry => entry.kind === "conflict").map(entry => <li key={`${entry.rowNumber}-reason`}>#{entry.rowNumber} · {entry.key} — {reason[entry.conflict ?? ""] ?? entry.conflict}</li>)}</ul>}
       {diff.entries.length > 0 && <div className="mt-2 overflow-x-auto"><table className="w-full text-start text-xs"><thead><tr className="text-muted-foreground"><th className="p-1 text-start">#</th><th className="p-1 text-start">{pickLanguage(lang, { ar: "المفتاح", en: "Key", ur: "کلید" })}</th><th className="p-1 text-start">{pickLanguage(lang, { ar: "الحالة", en: "Status", ur: "حیثیت" })}</th><th className="p-1 text-start">{pickLanguage(lang, { ar: "الحقل", en: "Field", ur: "فیلڈ" })}</th><th className="p-1 text-start">{t.diffOld}</th><th className="p-1 text-start">{t.diffNewValue}</th></tr></thead><tbody>
         {diff.entries.flatMap(entry => (entry.changes.length ? entry.changes : [{ field: "", oldValue: "", newValue: "" }]).map((change, index) => (
           <tr key={`${entry.rowNumber}-${index}`} className="border-t border-border"><td className="p-1">{index === 0 ? entry.rowNumber : ""}</td><td className="p-1">{index === 0 ? entry.key : ""}</td><td className="p-1">{index === 0 ? <span className={`rounded-full px-2 py-0.5 ${kindClass(entry.kind)}`}>{kindLabel(entry.kind)}</span> : ""}</td><td className="p-1">{label(change.field)}</td><td className="p-1">{entry.kind === "modified" ? change.oldValue : ""}</td><td className="p-1">{entry.kind === "conflict" ? "" : change.newValue}</td></tr>

@@ -67,7 +67,7 @@ const text = {
   },
 };
 
-const toneClass = { good: "text-emerald-700", bad: "text-red-700", flat: "text-muted-foreground" };
+const toneClass = { good: "text-success-soft-foreground", bad: "text-danger-soft-foreground", flat: "text-muted-foreground" };
 type T = typeof text.en;
 
 function Unavailable({ reason, t }: { reason: string; t: T }) {
@@ -129,7 +129,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
       <div className="flex items-center gap-3"><TrendingUp className="text-primary" /><div><h2 className="font-semibold">{t.title}</h2><p className="text-xs text-muted-foreground">{t.subtitle}</p></div></div>
 
       {stale && (
-        <p role="alert" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+        <p role="alert" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">
           <AlertTriangle className="h-4 w-4" />
           {staleAge === null ? t.neverWarning(t[stalest as Source]) : t.staleWarning(staleAge, t[stalest as Source])}
           <a className="font-semibold underline" href={sourceAnchor[stalest]}>{t.openSource}</a>
@@ -139,9 +139,9 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
       {headline.status === "ok" ? (
         <div className="mt-5">
           <p className="text-xs text-muted-foreground">{t.fpac}</p>
-          <p data-testid="fpac-value" className={`text-4xl font-bold ${headline.data.isLoss ? "text-red-700" : "text-emerald-700"}`}>{money(headline.data.fpac)}</p>
+          <p data-testid="fpac-value" className={`text-4xl font-bold ${headline.data.isLoss ? "text-danger-soft-foreground" : "text-success-soft-foreground"}`}>{money(headline.data.fpac)}</p>
           <p className="mt-1 text-sm">{t.margin}: <b>{formatPercent(headline.data.marginPercent, isArabic)}</b> · {t.plannedProfit}: <b>{money(headline.data.plannedProfit)}</b> · {t.variance}: <b className={toneClass[trend(headline.data.profitVariance).tone]}>{money(headline.data.profitVariance)}</b></p>
-          {headline.data.isLoss && <p role="alert" className="mt-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{t.loss}</p>}
+          {headline.data.isLoss && <p role="alert" className="mt-2 rounded-xl bg-danger-soft p-3 text-sm font-semibold text-danger-soft-foreground">{t.loss}</p>}
           <div className="mt-4 flex justify-end"><ExportExcelButton fileName={`${data.project.code}-profitability`} sheetName={t.title} title={t.title} project={projectTag} rows={headlineRows} columns={headlineColumns} emptyHint={{ ar: "أدخل قيمة العقد والميزانية في «تحديث التخطيط والتكلفة» لتُحسب الربحية", en: "Enter the contract value and the budget in “Schedule & cost updates” to calculate profitability", ur: "منافع کے حساب کے لیے «شیڈول اور لاگت کی تازہ کاری» میں معاہدے کی قیمت اور بجٹ درج کریں" }} /></div>
           {/* G-155: the ds frame shows the scroll cue when the table is wider than a phone, and the formula wraps instead of being cut */}
           <TableScroll className="mt-2" label={pickLanguage(language, { ar: "جدول التكلفة والقيمة", en: "Cost and value table", ur: "لاگت اور قدر کا جدول" })}>
@@ -203,7 +203,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
             <li className="rounded-xl bg-muted p-3"><span className="text-xs text-muted-foreground">{t.outflows}</span><br /><b>{money(data.cash.data.outflows)}</b></li>
             <li className="rounded-xl bg-muted p-3"><span className="text-xs text-muted-foreground">{t.netCash}</span><br /><b className={toneClass[trend(data.cash.data.netCashFlow).tone]}>{money(data.cash.data.netCashFlow)}</b></li>
           </ul>
-          {data.cash.data.warning && <p role="alert" className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{t.cashWarning}</p>}
+          {data.cash.data.warning && <p role="alert" className="mt-2 rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.cashWarning}</p>}
         </div>
       ) : <div className="mt-2"><Unavailable reason={data.cash.reason} t={t} /></div>}
 
@@ -235,7 +235,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
                       <tr><td colSpan={7} className="bg-muted p-3">
                         <p className="text-xs text-muted-foreground">{t.breakdown}</p>
                         {breakdown.isLoading && <p role="status" className="text-sm">{t.loading}</p>}
-                        {breakdown.error && <p role="alert" className="text-sm text-red-700">{getLocalizedProjectError(breakdown.error, isArabic)}</p>}
+                        {breakdown.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(breakdown.error, isArabic)}</p>}
                         {breakdown.data && (breakdown.data.lines.length === 0 ? <p className="text-sm text-muted-foreground">{t.noBreakdown}</p> : (
                           <>
                             <ul className="mt-1 flex flex-wrap gap-2 text-sm">{breakdown.data.byCategory.map(c => <li key={c.category} className="rounded-xl bg-white px-3 py-1">{({ materials: t.materialsC, labour: t.labourC, subcontract: t.subcontractC, other: t.otherC } as Record<string, string>)[c.category] ?? c.category}: <b>{money(c.amount)}</b></li>)}</ul>
@@ -249,7 +249,7 @@ export function ProjectFpac({ tenantId, projectId }: { tenantId: string; project
               </tbody>
             </table>
             {data.drill.data.unallocatedActual !== 0 && <p className="mt-2 text-xs text-muted-foreground">{t.unallocated}: <b>{money(data.drill.data.unallocatedActual)}</b></p>}
-            {data.drill.data.reconciliationDifference !== null && data.drill.data.reconciliationDifference !== 0 && <p className="mt-1 text-xs text-amber-800">{t.reconciliation}: <b>{money(data.drill.data.reconciliationDifference)}</b></p>}
+            {data.drill.data.reconciliationDifference !== null && data.drill.data.reconciliationDifference !== 0 && <p className="mt-1 text-xs text-warning-soft-foreground">{t.reconciliation}: <b>{money(data.drill.data.reconciliationDifference)}</b></p>}
           </TableScroll>
         )
       ) : <div className="mt-2"><Unavailable reason={data.drill.reason} t={t} /></div>}

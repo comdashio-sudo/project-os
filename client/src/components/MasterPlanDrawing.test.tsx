@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 // Synthetic fixtures only. Plan, unit codes and drawing are built here; no real project or drawing data.
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MasterPlanDrawing } from "./MasterPlanDrawing";
 import { buildRasterDrawing, type GrayImage } from "@/lib/raster/rasterCore";
@@ -392,6 +392,96 @@ describe("MasterPlanDrawing", () => {
       await upload(container, DRAWING);
       await waitFor(() => screen.getByText(/Site statuses could not be loaded/));
       expect(container.querySelectorAll("polygon[data-colour]")).toHaveLength(0);
+    });
+  });
+
+  describe("Q-40: one choice of villas on the plan and in the side list; types by hatch over the progress colour", () => {
+    async function linkedDrawing(colour = true) {
+      state.data = plan();
+      (state.siteMap as { units: unknown[] }).units = [
+        { unitNumber: 1, modelCode: "A", blockCode: "B1", status: "COMPLETE" },
+        { unitNumber: 2, modelCode: "B", blockCode: "B2", status: "IN_PROGRESS" },
+      ];
+      const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+      await upload(container, DRAWING);
+      await waitFor(() => screen.getByText(/Proposed: 2/));
+      for (const name of [/Shape 1 · Proposed/, /Shape 2 · Proposed/]) { fireEvent.click(screen.getByRole("button", { name })); fireEvent.click(screen.getByRole("button", { name: "Confirm" })); }
+      if (colour) fireEvent.change(screen.getByLabelText("Colour by"), { target: { value: "BLK" } });
+      return container;
+    }
+    const pickedOnPlan = (container: HTMLElement) => Array.from(container.querySelectorAll("polygon[data-picked]")).map(node => node.getAttribute("aria-label"));
+    const pickedInList = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-villa-row][data-picked]")).map(row => row.textContent);
+
+    it("lists only the confirmed villas, with their type; a tap on the plan marks the same villa in the list and replaces the choice", async () => {
+      const container = await linkedDrawing();
+      const rows = Array.from(container.querySelectorAll("[data-villa-row]")).map(row => row.textContent);
+      expect(rows).toEqual(["B1-U-0001Type A", "B1-U-0002Type B"]); // the unlinked third shape is not a villa
+      const [first, second] = Array.from(container.querySelectorAll("polygon[data-colour]"));
+      fireEvent.click(first!);
+      expect(pickedInList(container)).toEqual(["B1-U-0001Type A"]);
+      fireEvent.click(second!);
+      expect(pickedInList(container)).toEqual(["B1-U-0002Type B"]);
+      expect(pickedOnPlan(container)).toEqual(["Shape 2: B1-U-0002 · Type B"]);
+      expect(container.querySelector("#mp-map-summary")?.textContent).toBe("2 linked villas, 1 selected");
+    });
+
+    it("with «several» on, or Ctrl held, taps add and remove; clearing empties both sides", async () => {
+      const container = await linkedDrawing();
+      const [first, second] = Array.from(container.querySelectorAll("polygon[data-colour]"));
+      fireEvent.click(first!);
+      fireEvent.click(second!, { ctrlKey: true });
+      expect(pickedOnPlan(container)).toHaveLength(2);
+      fireEvent.click(first!, { ctrlKey: true });
+      expect(pickedInList(container)).toEqual(["B1-U-0002Type B"]);
+      fireEvent.click(screen.getByLabelText("Choose several villas"));
+      fireEvent.click(first!);
+      expect(screen.getByText("Selected: 2 of 2")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+      expect(pickedOnPlan(container)).toEqual([]);
+      expect(pickedInList(container)).toEqual([]);
+    });
+
+    it("the search finds a villa by its number (Western or Eastern digits) and choosing it in the list marks it on the plan", async () => {
+      const container = await linkedDrawing();
+      const search = screen.getByLabelText("Search by villa number, code or type");
+      fireEvent.change(search, { target: { value: "٢" } });
+      expect(Array.from(container.querySelectorAll("[data-villa-row]")).map(row => row.getAttribute("data-villa-row"))).toHaveLength(1);
+      fireEvent.click(within(container.querySelector("[data-villa-list]") as HTMLElement).getByRole("button", { name: /B1-U-0002/ }));
+      expect(pickedOnPlan(container)).toEqual(["Shape 2: B1-U-0002 · Type B"]);
+      fireEvent.change(search, { target: { value: "77" } });
+      expect(screen.getByText("No villa matches the search.")).toBeTruthy();
+      expect(screen.queryByLabelText("B1-U-0002", { selector: "input" })).toBeNull(); // the row is gone: nothing to tick
+    });
+
+    it("types show as hatches over the shapes only when asked; the progress colour underneath stays as it was", async () => {
+      const container = await linkedDrawing();
+      expect(container.querySelectorAll("polygon[data-hatch]")).toHaveLength(0);
+      fireEvent.click(screen.getByLabelText("Show villa types as hatching"));
+      const hatches = Array.from(container.querySelectorAll("polygon[data-hatch]")).map(node => node.getAttribute("fill"));
+      expect(hatches).toEqual(["url(#mp-hatch-0)", "url(#mp-hatch-1)"]);
+      expect(container.querySelectorAll("pattern[id^='mp-hatch-']").length).toBeGreaterThanOrEqual(2);
+      expect(Array.from(container.querySelectorAll("polygon[data-colour]")).map(node => node.getAttribute("data-colour"))).toEqual(["COMPLETE", "IN_PROGRESS"]);
+      expect(Array.from(container.querySelectorAll("[data-model-key]")).map(node => node.textContent)).toEqual(["Type A", "Type B"]);
+    });
+
+    it("one chosen villa shows its details (block, type, site status) and its card; two chosen or none show no details", async () => {
+      const container = await linkedDrawing();
+      expect(container.querySelector("[data-villa-info]")).toBeNull();
+      const [first, second] = Array.from(container.querySelectorAll("polygon[data-colour]"));
+      fireEvent.click(second!);
+      const info = container.querySelector("[data-villa-info]") as HTMLElement;
+      expect(info.textContent).toContain("B1-U-0002");
+      expect(info.textContent).toContain("B2");
+      expect(info.textContent).toContain("B");
+      expect(within(info).getByRole("link", { name: "Villa card" }).getAttribute("href")).toBe("/m/t/p/unit/2?activity=BLK");
+      fireEvent.click(first!, { ctrlKey: true });
+      expect(container.querySelector("[data-villa-info]")).toBeNull();
+    });
+
+    it("before an activity is chosen the villas are listed without a type, and no type toggle is offered", async () => {
+      const container = await linkedDrawing(false);
+      expect(Array.from(container.querySelectorAll("[data-villa-row]")).map(row => row.textContent)).toEqual(["B1-U-0001No type", "B1-U-0002No type"]);
+      expect(screen.queryByLabelText("Show villa types as hatching")).toBeNull();
     });
   });
 

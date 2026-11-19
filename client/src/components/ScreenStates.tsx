@@ -72,13 +72,13 @@ export function EmptyState({ isArabic, title, body, action }: { isArabic: boolea
 export function ErrorState({ isArabic, error, onRetry, retrying = false, title, retryLabel }: { isArabic: boolean; error: unknown; onRetry?: () => unknown; retrying?: boolean; title?: string; retryLabel?: string }) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   if (isRefusal(error)) return <NoPermission isArabic={isArabic} error={error} />;
-  return <div role="alert" data-screen-state="error" className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+  return <div role="alert" data-screen-state="error" className="rounded-2xl border border-destructive/30 bg-danger-soft p-5 text-sm text-danger-soft-foreground">
     <div className="flex items-start gap-2">
       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <div>
         {title && <p className="font-semibold">{title}</p>}
         <p className={title ? "mt-1" : "font-semibold"}>{getLocalizedProjectError(error, lang)}</p>
-        {onRetry && <button type="button" disabled={retrying} onClick={() => void onRetry()} className="mt-3 min-h-[44px] rounded-lg border border-red-700 bg-white px-4 font-semibold text-red-900 disabled:opacity-60">{retryLabel ?? pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}
+        {onRetry && <button type="button" disabled={retrying} onClick={() => void onRetry()} className="mt-3 min-h-[44px] rounded-lg border border-destructive bg-white px-4 font-semibold text-danger-soft-foreground disabled:opacity-60">{retryLabel ?? pickLanguage(lang, { ar: "أعد المحاولة", en: "Try again", ur: "دوبارہ کوشش کریں" })}</button>}
       </div>
     </div>
   </div>;

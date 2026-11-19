@@ -6,6 +6,7 @@ import { pickLanguage } from "@/lib/language";
 import { WriteGate } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { ColumnChoice, offersColumnChoice } from "@/components/ColumnChoice";
 import { projectErrorMessages } from "@shared/projectErrors";
 import { readPickedFile, saveBase64File } from "./ProjectBaselineCashFlow";
 
@@ -36,13 +37,18 @@ export function LabourHistogram({ bars, label, peakLabel }: { bars: Bar[]; label
   );
 }
 
+// Q-31 (P0-02): the fields by name, for the column picker
+const FIELD_LABELS: Record<"ar" | "en" | "ur", Record<string, string>> = { ar: { month: "الشهر", trade: "المهنة", workers: "العمالة" }, en: { month: "Month", trade: "Trade", workers: "Workers" }, ur: { month: "مہینہ", trade: "پیشہ", workers: "مزدور" } };
+
 export function LabourItem({ tenantId, projectId, histogram }: { tenantId: string; projectId: string; histogram: Bar[] }) {
   const { language } = useLanguage(); const t = pickLanguage(language, text);
   const utils = trpc.useUtils();
   const [file, setFile] = React.useState<Awaited<ReturnType<typeof readPickedFile>> | null>(null);
   const preview = trpc.projects.baseline.previewLabour.useMutation();
+  // the person's choice of columns (Q-31): the preview and the save carry the same one; a new file starts without
+  const [mapping, setMapping] = React.useState<Record<string, string> | undefined>(undefined);
   const save = trpc.projects.baseline.saveLabour.useMutation({ onSuccess: () => { void utils.projects.baseline.status.invalidate(); } });
-  const take = async (picked: File) => { const next = await readPickedFile(picked); setFile(next); save.reset(); preview.mutate({ tenantId, projectId, fileBase64: next.base64, format: next.format }); };
+  const take = async (picked: File) => { const next = await readPickedFile(picked); setFile(next); setMapping(undefined); save.reset(); preview.mutate({ tenantId, projectId, fileBase64: next.base64, format: next.format }); };
   const report = preview.data;
   const refusal = report?.refusal;
   const items: UploadItem[] = file ? [{ id: "labour", name: file.name, size: file.size, status: preview.isPending ? "uploading" : preview.isError || refusal ? "failed" : "done" }] : [];
@@ -59,7 +65,9 @@ export function LabourItem({ tenantId, projectId, histogram }: { tenantId: strin
             <p className="mt-1 text-sm">{t.rows(report.count)} · {t.peak}: {t.workers(report.peak)}</p>
             {report.issues.length ? <ul className="mt-2 list-disc space-y-1 ps-5 text-sm text-destructive">{report.issues.map(issue => <li key={`${issue.rowNumber}-${issue.code}`}>{t.row} {formatNumber(issue.rowNumber)}: {t.issues[issue.code]}{issue.value ? <> — <bdi dir="ltr">{issue.value}</bdi></> : null}</li>)}</ul> : null}
             {refusal ? <p role="alert" className="mt-2 text-sm font-medium text-destructive">{refusal in projectErrorMessages ? projectErrorMessages[refusal as keyof typeof projectErrorMessages][language] : refusal}</p> : <LabourHistogram bars={report.histogram} label={t.chart} peakLabel={t.peak} />}
-            {file && !refusal ? <Button type="button" className="mt-3 min-h-11 md:min-h-11" loading={save.isPending} onClick={() => save.mutate({ tenantId, projectId, fileBase64: file.base64, format: file.format })}>{t.save}</Button> : null}
+            {report.fileErrorDetail ? <p className="text-sm text-destructive"><bdi dir="auto">{report.fileErrorDetail}</bdi></p> : null}
+            {offersColumnChoice(report) ? <ColumnChoice key={JSON.stringify(report.columns)} columns={report.columns} language={language} fieldLabel={key => FIELD_LABELS[language][key]} pending={preview.isPending} onApply={chosen => { if (!file) return; setMapping(chosen); save.reset(); preview.mutate({ tenantId, projectId, fileBase64: file.base64, format: file.format, mapping: chosen }); }} /> : null}
+            {file && !refusal ? <Button type="button" className="mt-3 min-h-11 md:min-h-11" loading={save.isPending} onClick={() => save.mutate({ tenantId, projectId, fileBase64: file.base64, format: file.format, mapping })}>{t.save}</Button> : null}
             {save.error ? <p role="alert" className="mt-2 text-sm font-medium text-destructive">{getLocalizedProjectError(save.error, language)}</p> : null}
             {save.isSuccess ? <p role="status" className="mt-2 text-sm text-success">{t.saved}</p> : null}
           </section>

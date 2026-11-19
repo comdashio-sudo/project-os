@@ -16,7 +16,7 @@ export function OfflineCopyNotice({ copiedAt }: { copiedAt: number | null }) {
   if (!offline || copiedAt === null) return null;
   const when = formatDateTime(new Date(copiedAt), language);
   return (
-    <p role="status" data-testid="offline-copy-notice" className="bg-amber-100 px-4 py-2 text-center text-sm font-semibold text-amber-900 print:hidden" dir={isRtl ? "rtl" : "ltr"}>
+    <p role="status" data-testid="offline-copy-notice" className="bg-warning-soft px-4 py-2 text-center text-sm font-semibold text-warning-soft-foreground print:hidden" dir={isRtl ? "rtl" : "ltr"}>
       {pickLanguage(language, {
         ar: `لا يوجد اتصال. ما تراه نسخة محفوظة على هذا الجهاز بتاريخ ${when} وقد تكون قديمة؛ لا يُحفظ أي تغيير حتى يعود الاتصال.`,
         en: `You are offline. What you see is the copy kept on this device from ${when} and may be out of date; no change is saved until the connection returns.`,

@@ -4,11 +4,13 @@
 //  - how: NEVER a delete — a new save puts every cell of the batch back to what it was before, with its own history rows (noted `undo <batchId>`) and audit row;
 //    the original rows stay as they are (append-only);
 //  - refused whole when any cell of the batch changed after it (another save, a daily report's approval, a QC receipt on it) — the villas are named — and
-//    once undone, a batch is not undone again (and an undo is not itself undone: save again instead).
+//    once undone, a batch is not undone again (and an undo is not itself undone: save again instead);
+//  - a progress batch is refused whole, too, when a subcontractor's work confirmation already claims one of its cells (submitted or approved — Q-43): the claim
+//    was made on that progress, so taking it back would leave a payment standing on nothing (adviser 18-11, Q-44 I46). A draft, rejected or cancelled one does not hold.
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gt, inArray, isNotNull, lt, ne, sql } from "drizzle-orm";
-import { auditLogs, pmcQcReceiptEvents, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits } from "../drizzle/schema";
+import { auditLogs, pmcQcReceiptEvents, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, subcontractWorkConfirmationLines, subcontractWorkConfirmations } from "../drizzle/schema";
 import { applyCellStatus, authorize, type Scope } from "./pmcService";
 import { villaKey } from "./wo22Shared";
 
@@ -63,6 +65,15 @@ export async function undoPmcProgressBatch(input: Scope & { batchId: string }) {
       if (moved || later || qcAfter) changedUnits.push(cell.unitId);
     }
     if (changedUnits.length) throw refuse("CONFLICT", "PROJECT_OS_UNDO_CELLS_CHANGED", { villas: await villaNames(tx, input, Array.from(new Set(changedUnits))) });
+    // Q-44 (I46) after Q-43: a cell a subcontractor's submitted or approved work confirmation claims is not taken back
+    const claimed = cells.length ? await tx.select({ unitId: subcontractWorkConfirmationLines.pmcUnitId, activityId: subcontractWorkConfirmationLines.pmcActivityDefinitionId })
+      .from(subcontractWorkConfirmationLines)
+      .innerJoin(subcontractWorkConfirmations, and(eq(subcontractWorkConfirmations.id, subcontractWorkConfirmationLines.confirmationId), eq(subcontractWorkConfirmations.tenantId, subcontractWorkConfirmationLines.tenantId), eq(subcontractWorkConfirmations.projectId, subcontractWorkConfirmationLines.projectId)))
+      .where(and(eq(subcontractWorkConfirmationLines.tenantId, input.tenantId), eq(subcontractWorkConfirmationLines.projectId, input.projectId), eq(subcontractWorkConfirmationLines.kind, "unit"),
+        inArray(subcontractWorkConfirmations.status, ["submitted", "approved"]), inArray(subcontractWorkConfirmationLines.pmcUnitId, Array.from(new Set(cells.map(cell => cell.unitId)))))) : [];
+    const claimedCells = new Set(claimed.map(line => `${line.unitId}:${line.activityId}`));
+    const claimedUnits = cells.filter(cell => claimedCells.has(`${cell.unitId}:${cell.activityDefinitionId}`)).map(cell => cell.unitId);
+    if (claimedUnits.length) throw refuse("CONFLICT", "PROJECT_OS_UNDO_CELLS_CONFIRMED", { villas: await villaNames(tx, input, Array.from(new Set(claimedUnits))) });
     const now = new Date();
     for (const row of rows) {
       const cell = cellOf.get(row.progressId)!;
