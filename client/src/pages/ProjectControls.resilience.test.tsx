@@ -158,6 +158,24 @@ describe("ProjectControls section resilience", () => {
     consoleError.mockRestore();
   });
 
+  it("Q-36 (step 4): the groups sit under titled level sections, each with its own address; every older group address still exists, under its level", () => {
+    render(<ProjectControls />);
+    expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["planning", "site", "supply", "contracts"]);
+    expect(document.getElementById("planning")!.querySelector("h2")!.textContent).toBe("Planning and control");
+    const under = (group: string) => document.getElementById(group)!.closest("[data-level-section]")!.id;
+    expect(["manager-schedule", "manager-assurance", "manager-site", "manager-design", "manager-supply", "manager-commercial", "manager-tenders"].map(under))
+      .toEqual(["planning", "planning", "site", "site", "supply", "contracts", "contracts"]);
+    expect(document.getElementById("manager-oversight")!.closest("[data-level-section]")).toBeNull();
+  });
+
+  it("Q-36 (step 4): a link to a level (controls#supply) opens that level's groups, and only those", () => {
+    window.history.replaceState(null, "", "/projects/tenant-1/project-1/controls#supply");
+    render(<ProjectControls />);
+    expect((document.getElementById("manager-supply") as HTMLDetailsElement).open).toBe(true);
+    expect((document.getElementById("manager-commercial") as HTMLDetailsElement).open).toBe(false);
+    window.history.replaceState(null, "", "/");
+  });
+
   it("Q-36 (step 3): no PMC tab inside the page — one link to the PMC page; the old address controls#pmc goes there; no link without PMC access", () => {
     const navigate = vi.fn(); state.navigate = navigate;
     render(<ProjectControls />);

@@ -1432,8 +1432,8 @@ export const suppliers = pgTable(
 export const procurementRequisitionsStatusEnum = pgEnum("procurement_requisitions_status", ["draft", "submitted", "approved", "partially_issued", "closed", "rejected", "cancelled"]);
 export const procurementRequisitions = pgTable(
   "procurement_requisitions",
-  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), requisitionNumber: varchar("requisition_number", { length: 120 }).notNull(), supplierId: varchar("supplier_id", { length: 36 }), materialId: varchar("material_id", { length: 36 }), wbsItemId: varchar("wbs_item_id", { length: 36 }), activityId: varchar("activity_id", { length: 36 }), purchaseOrderId: varchar("purchase_order_id", { length: 36 }), purchaseOrderLinkedAt: timestamp("purchase_order_linked_at", { withTimezone: true }), purchaseOrderLinkedByUserId: integer("purchase_order_linked_by_user_id"), description: text("description").notNull(), requestedQuantity: numeric("requested_quantity", { precision: 18, scale: 3 }).notNull(), unitOfMeasure: varchar("unit_of_measure", { length: 40 }).notNull(), requiredAt: timestamp("required_at", { withTimezone: true }).notNull(), status: procurementRequisitionsStatusEnum("status").default("draft").notNull(), reviewedAt: timestamp("reviewed_at", { withTimezone: true }), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull() },
-  table => [uniqueIndex("procurement_requisitions_project_number_unique").on(table.projectId, table.requisitionNumber), index("procurement_requisitions_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("procurement_requisitions_purchase_order_idx").on(table.purchaseOrderId), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "prq_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "prq_project_fk" }), foreignKey({ columns: [table.supplierId], foreignColumns: [suppliers.id], name: "prq_supplier_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "prq_material_fk" }), foreignKey({ columns: [table.wbsItemId], foreignColumns: [wbsItems.id], name: "prq_wbs_fk" }), foreignKey({ columns: [table.activityId], foreignColumns: [activities.id], name: "prq_activity_fk" }), foreignKey({ columns: [table.purchaseOrderId], foreignColumns: [purchaseOrders.id], name: "prq_purchase_order_fk" }), foreignKey({ columns: [table.purchaseOrderLinkedByUserId], foreignColumns: [users.id], name: "prq_po_linker_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "prq_creator_fk" })],
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), projectId: varchar("project_id", { length: 36 }).notNull(), requisitionNumber: varchar("requisition_number", { length: 120 }).notNull(), supplierId: varchar("supplier_id", { length: 36 }), materialId: varchar("material_id", { length: 36 }), wbsItemId: varchar("wbs_item_id", { length: 36 }), activityId: varchar("activity_id", { length: 36 }), purchaseOrderId: varchar("purchase_order_id", { length: 36 }), purchaseOrderLinkedAt: timestamp("purchase_order_linked_at", { withTimezone: true }), purchaseOrderLinkedByUserId: integer("purchase_order_linked_by_user_id"), description: text("description").notNull(), requestedQuantity: numeric("requested_quantity", { precision: 18, scale: 3 }).notNull(), unitOfMeasure: varchar("unit_of_measure", { length: 40 }).notNull(), requiredAt: timestamp("required_at", { withTimezone: true }).notNull(), warehouseId: varchar("warehouse_id", { length: 36 }), subcontractId: varchar("subcontract_id", { length: 36 }), status: procurementRequisitionsStatusEnum("status").default("draft").notNull(), reviewedAt: timestamp("reviewed_at", { withTimezone: true }), createdByUserId: integer("created_by_user_id").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull() },
+  table => [uniqueIndex("procurement_requisitions_project_number_unique").on(table.projectId, table.requisitionNumber), index("procurement_requisitions_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), index("procurement_requisitions_purchase_order_idx").on(table.purchaseOrderId), index("prq_tenant_project_warehouse_required_idx").on(table.tenantId, table.projectId, table.warehouseId, table.requiredAt), foreignKey({ columns: [table.warehouseId], foreignColumns: [projectWarehouses.id], name: "prq_warehouse_fk" }), foreignKey({ columns: [table.subcontractId], foreignColumns: [subcontractContracts.id], name: "prq_subcontract_fk" }), foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "prq_tenant_fk" }), foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "prq_project_fk" }), foreignKey({ columns: [table.supplierId], foreignColumns: [suppliers.id], name: "prq_supplier_fk" }), foreignKey({ columns: [table.materialId], foreignColumns: [materialMasters.id], name: "prq_material_fk" }), foreignKey({ columns: [table.wbsItemId], foreignColumns: [wbsItems.id], name: "prq_wbs_fk" }), foreignKey({ columns: [table.activityId], foreignColumns: [activities.id], name: "prq_activity_fk" }), foreignKey({ columns: [table.purchaseOrderId], foreignColumns: [purchaseOrders.id], name: "prq_purchase_order_fk" }), foreignKey({ columns: [table.purchaseOrderLinkedByUserId], foreignColumns: [users.id], name: "prq_po_linker_fk" }), foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "prq_creator_fk" })],
 );
 
 export const materialMasters = pgTable(
@@ -3954,5 +3954,73 @@ export const weeklyReportPhotos = pgTable(
     foreignKey({ name: "weekly_report_photos_photo_fk", columns: [table.photoId, table.tenantId, table.projectId], foreignColumns: [siteDailyReportPhotos.id, siteDailyReportPhotos.tenantId, siteDailyReportPhotos.projectId] }),
     uniqueIndex("weekly_report_photos_report_photo_unique").on(table.weeklyReportId, table.photoId),
     index("weekly_report_photos_report_idx").on(table.weeklyReportId),
+  ],
+);
+
+// Q-43 (P2-06, docs/proposals/subcontractor-progress.md): proof of a subcontractor's work WITHOUT prices. The engineer in charge records which units ×
+// activities (by percent) or which BOQ items (by quantity) a subcontract completed; whoever manages commitments approves it. These two tables hold no rate,
+// amount or contract value at all — the price is applied only when an approved confirmation is pulled into a certificate (a later batch), inside the
+// money-guarded certificate code. A unit × activity is never confirmed for more than 100% (per subcontract and across subcontracts), a BOQ item never for
+// more than its BOQ quantity; corrections are new lines (corrects_line_id), never edits; historical lines record work approved before the platform.
+export const workConfirmationStatusEnum = pgEnum("work_confirmation_status", ["draft", "submitted", "approved", "rejected", "cancelled"]);
+export const workConfirmationLineKindEnum = pgEnum("work_confirmation_line_kind", ["unit", "quantity"]);
+export const subcontractWorkConfirmations = pgTable(
+  "subcontract_work_confirmations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    subcontractId: varchar("subcontract_id", { length: 36 }).notNull(),
+    confirmationNumber: varchar("confirmation_number", { length: 60 }).notNull(),
+    periodStart: date("period_start", { mode: "string" }).notNull(),
+    periodEnd: date("period_end", { mode: "string" }).notNull(),
+    status: workConfirmationStatusEnum("status").default("draft").notNull(),
+    rejectionReason: varchar("rejection_reason", { length: 500 }),
+    note: varchar("note", { length: 500 }),
+    preparedByUserId: integer("prepared_by_user_id").notNull().references(() => users.id),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    certificateId: varchar("certificate_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("work_confirmations_project_number_unique").on(table.projectId, table.confirmationNumber),
+    unique("work_confirmations_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
+    foreignKey({ name: "work_confirmations_subcontract_fk", columns: [table.subcontractId], foreignColumns: [subcontractContracts.id] }),
+    foreignKey({ name: "work_confirmations_certificate_fk", columns: [table.certificateId], foreignColumns: [subcontractCertificates.id] }),
+    index("work_confirmations_tenant_project_subcontract_idx").on(table.tenantId, table.projectId, table.subcontractId),
+    check("work_confirmations_period_order", sql`${table.periodEnd} >= ${table.periodStart}`),
+  ],
+);
+export const subcontractWorkConfirmationLines = pgTable(
+  "subcontract_work_confirmation_lines",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    confirmationId: varchar("confirmation_id", { length: 36 }).notNull(),
+    kind: workConfirmationLineKindEnum("kind").notNull(),
+    pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
+    pmcActivityDefinitionId: varchar("pmc_activity_definition_id", { length: 36 }),
+    percent: numeric("percent", { precision: 7, scale: 3 }),
+    boqItemId: varchar("boq_item_id", { length: 36 }),
+    quantity: numeric("quantity", { precision: 18, scale: 3 }),
+    correctsLineId: varchar("corrects_line_id", { length: 36 }),
+    historical: boolean("historical").default(false).notNull(),
+    note: varchar("note", { length: 300 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "work_confirmation_lines_confirmation_fk", columns: [table.confirmationId, table.tenantId, table.projectId], foreignColumns: [subcontractWorkConfirmations.id, subcontractWorkConfirmations.tenantId, subcontractWorkConfirmations.projectId] }),
+    foreignKey({ name: "work_confirmation_lines_unit_fk", columns: [table.pmcUnitId], foreignColumns: [pmcUnits.id] }),
+    foreignKey({ name: "work_confirmation_lines_activity_fk", columns: [table.pmcActivityDefinitionId], foreignColumns: [pmcActivityDefinitions.id] }),
+    foreignKey({ name: "work_confirmation_lines_boq_fk", columns: [table.boqItemId], foreignColumns: [boqItems.id] }),
+    foreignKey({ name: "work_confirmation_lines_corrects_fk", columns: [table.correctsLineId], foreignColumns: [table.id] }),
+    index("work_confirmation_lines_unit_activity_idx").on(table.tenantId, table.pmcUnitId, table.pmcActivityDefinitionId),
+    index("work_confirmation_lines_boq_idx").on(table.tenantId, table.boqItemId),
+    check("work_confirmation_lines_shape", sql`(${table.kind} = 'unit' AND ${table.pmcUnitId} IS NOT NULL AND ${table.pmcActivityDefinitionId} IS NOT NULL AND ${table.percent} IS NOT NULL AND ${table.boqItemId} IS NULL AND ${table.quantity} IS NULL) OR (${table.kind} = 'quantity' AND ${table.boqItemId} IS NOT NULL AND ${table.quantity} IS NOT NULL AND ${table.pmcUnitId} IS NULL AND ${table.pmcActivityDefinitionId} IS NULL AND ${table.percent} IS NULL)`),
   ],
 );
