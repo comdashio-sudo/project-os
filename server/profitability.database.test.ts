@@ -56,7 +56,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Project profitability (F
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('profit-role-manager', ?, 'PROFIT_MANAGER','Profit manager','PROJECT'), ('profit-role-scoped', ?, 'PROFIT_SCOPED','Profit scoped','PROJECT')", [T, T]);
     await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES ('profit-role-manager', ?),('profit-role-manager', ?),('profit-role-manager', ?),('profit-role-scoped', ?),('profit-role-scoped', ?)", [pid("executive.read"), pid("project.read"), pid("project.write"), pid("executive.read"), pid("project.read")]);
     await grantOperationalPermissions(connection, "profit-role-manager");
-    await grantOperationalPermissions(connection, "profit-role-scoped", ["project.cashflow.read"]);
+    await grantOperationalPermissions(connection, "profit-role-scoped", ["project.cashflow.read", "project.profit.read"]); // Q-53: profitability reads project.profit.read (0046 gave it to every cash-flow reader)
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('profit-m-manager', ?, ?, 'active'),('profit-m-low', ?, ?, 'active'),('profit-m-scoped', ?, ?, 'active')", [T, ids.manager, T, ids.low, T, ids.scoped]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType, scopeId) VALUES ('profit-mr-manager','profit-m-manager','profit-role-manager','company',NULL),('profit-mr-scoped','profit-m-scoped','profit-role-scoped','project',?)", [P]);
   }, 60_000);
