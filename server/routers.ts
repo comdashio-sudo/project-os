@@ -6,6 +6,7 @@ import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
+import { createStrategyOpportunity, decideStrategyOpportunity, getStrategyPipelineSummary, listStrategyOpportunities, updateStrategyOpportunity } from "./strategyOpportunities";
 import { createStrategyCompetitor, createStrategySwot, listStrategyCompetitors, listStrategySwot, updateStrategyCompetitor, updateStrategySwot } from "./strategyCompetitors";
 import { createStrategyAssumption, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
 import { getReportPeriod } from "./reportPeriods";
@@ -138,6 +139,18 @@ const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, c
   if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" });
 };
 
+const strategyOpportunityFields = {
+  code: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(2).max(200),
+  clientName: z.string().trim().max(200).nullish(),
+  sector: z.string().trim().max(120).nullish(),
+  region: z.string().trim().max(120).nullish(),
+  estimatedValue: z.number().finite(),
+  probabilityPercent: z.number().finite(),
+  expectedAwardAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  durationMonths: z.number().int().nullish(),
+  status: z.enum(["open", "submitted"]).optional(),
+};
 const strategyCompetitorFields = {
   name: z.string().trim().min(2).max(200),
   sector: z.string().trim().max(120).nullish(),
@@ -953,6 +966,12 @@ export const appRouter = router({
     decideAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "return"]), reason: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => decideStrategyAssumption({ userId: ctx.user.id, ...input })),
     requestChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), values: strategyValues, reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => requestStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
     decideChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "reject"]) })).mutation(({ ctx, input }) => decideStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
+    // Q-21 (a), batch 4: the company's opportunities pipeline (server/strategyOpportunities.ts)
+    opportunities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), status: z.enum(["open", "submitted", "won", "lost", "withdrawn"]).optional() })).query(({ ctx, input }) => listStrategyOpportunities({ userId: ctx.user.id, ...input })),
+    createOpportunity: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyOpportunityFields })).mutation(({ ctx, input }) => createStrategyOpportunity({ userId: ctx.user.id, ...input })),
+    updateOpportunity: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), opportunityId: z.string().uuid(), ...strategyOpportunityFields })).mutation(({ ctx, input }) => updateStrategyOpportunity({ userId: ctx.user.id, ...input })),
+    decideOpportunity: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), opportunityId: z.string().uuid(), outcome: z.enum(["won", "lost", "withdrawn"]), decidedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), winnerCompetitorId: z.string().uuid().nullish(), winningValue: z.number().finite().nullish(), note: z.string().trim().max(500).nullish() })).mutation(({ ctx, input }) => decideStrategyOpportunity({ userId: ctx.user.id, ...input })),
+    pipeline: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), months: z.number().int().min(1).max(60).optional() })).query(({ ctx, input }) => getStrategyPipelineSummary({ userId: ctx.user.id, ...input })),
     // Q-21 (a), batch 3: competitors and SWOT (server/strategyCompetitors.ts)
     competitors: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), includeArchived: z.boolean().optional() })).query(({ ctx, input }) => listStrategyCompetitors({ userId: ctx.user.id, ...input })),
     createCompetitor: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyCompetitorFields })).mutation(({ ctx, input }) => createStrategyCompetitor({ userId: ctx.user.id, ...input })),

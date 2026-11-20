@@ -2591,6 +2591,31 @@ export const projectErrorMessages = {
     en: "The SWOT point was not found in this company.",
     ur: "یہ SWOT نکتہ اس کمپنی میں نہیں ملا۔",
   },
+  PROJECT_OS_STRATEGY_DECIDED_AT_FUTURE: {
+    ar: "تاريخ النتيجة لم يأتِ بعد. اختر اليوم أو تاريخًا مضى.",
+    en: "The outcome date is in the future. Choose today or an earlier date.",
+    ur: "نتیجے کی تاریخ ابھی نہیں آئی۔ آج یا گزری ہوئی تاریخ منتخب کریں۔",
+  },
+  PROJECT_OS_STRATEGY_OPPORTUNITY_CODE_EXISTS: {
+    ar: "في الشركة فرصة بهذا الرمز.",
+    en: "The company already has an opportunity with this code.",
+    ur: "کمپنی میں اس کوڈ کا موقع پہلے سے موجود ہے۔",
+  },
+  PROJECT_OS_STRATEGY_OPPORTUNITY_DECIDED: {
+    ar: "حُسمت نتيجة هذه الفرصة، فأرقامها لا تُعدَّل لأن منها تُحسب نسبة الفوز الفعلية.",
+    en: "This opportunity's outcome is decided; its figures are not edited because the actual win rate is computed from them.",
+    ur: "اس موقع کا نتیجہ طے ہو چکا ہے؛ اس کے اعداد تبدیل نہیں ہوتے کیونکہ اصل جیت کی شرح انہی سے نکلتی ہے۔",
+  },
+  PROJECT_OS_STRATEGY_OPPORTUNITY_NOT_FOUND: {
+    ar: "الفرصة غير موجودة في هذه الشركة.",
+    en: "The opportunity was not found in this company.",
+    ur: "یہ موقع اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_WINNER_ONLY_WHEN_LOST: {
+    ar: "المنافس الفائز وقيمته تُذكر فقط حين تكون النتيجة «خسارة».",
+    en: "The winning competitor and its value are given only when the outcome is «lost».",
+    ur: "جیتنے والا حریف اور اس کی قیمت صرف اس وقت درج ہوتی ہے جب نتیجہ «ہار» ہو۔",
+  },
   PROJECT_OS_STRATEGY_MARKET_SOURCE_REQUIRED: {
     ar: "مؤشر السوق يحتاج مصدرًا: رابطًا أو ملاحظة بمكان المعلومة.",
     en: "A market indicator needs a source: a link or a note saying where the figure came from.",
