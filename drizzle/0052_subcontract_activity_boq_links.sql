@@ -23,11 +23,11 @@ DO $$ BEGIN ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "subcont
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "subcontract_activity_boq_links_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "subcontract_activity_boq_links_subcontract_id_subcontract_contracts_id_fk" FOREIGN KEY ("subcontract_id") REFERENCES "public"."subcontract_contracts"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "activity_boq_links_subcontract_fk" FOREIGN KEY ("subcontract_id") REFERENCES "public"."subcontract_contracts"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "subcontract_activity_boq_links_pmc_activity_definition_id_pmc_activity_definitions_id_fk" FOREIGN KEY ("pmc_activity_definition_id") REFERENCES "public"."pmc_activity_definitions"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "activity_boq_links_activity_fk" FOREIGN KEY ("pmc_activity_definition_id") REFERENCES "public"."pmc_activity_definitions"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
-DO $$ BEGIN ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "subcontract_activity_boq_links_boq_item_id_boq_items_id_fk" FOREIGN KEY ("boq_item_id") REFERENCES "public"."boq_items"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "activity_boq_links_boq_fk" FOREIGN KEY ("boq_item_id") REFERENCES "public"."boq_items"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint
 DO $$ BEGIN ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "subcontract_activity_boq_links_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 --> statement-breakpoint

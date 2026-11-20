@@ -1,5 +1,5 @@
 {
-  "id": "e8380ab5-ff25-4ba1-8f8a-0cc303e52b40",
+  "id": "dcfd7d68-c376-4e75-92ab-06afc561cda6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -29763,8 +29763,21 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "subcontract_activity_boq_links_subcontract_id_subcontract_contracts_id_fk": {
-          "name": "subcontract_activity_boq_links_subcontract_id_subcontract_contracts_id_fk",
+        "subcontract_activity_boq_links_created_by_user_id_users_id_fk": {
+          "name": "subcontract_activity_boq_links_created_by_user_id_users_id_fk",
+          "tableFrom": "subcontract_activity_boq_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "activity_boq_links_subcontract_fk": {
+          "name": "activity_boq_links_subcontract_fk",
           "tableFrom": "subcontract_activity_boq_links",
           "tableTo": "subcontract_contracts",
           "columnsFrom": [
@@ -29776,8 +29789,8 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "subcontract_activity_boq_links_pmc_activity_definition_id_pmc_activity_definitions_id_fk": {
-          "name": "subcontract_activity_boq_links_pmc_activity_definition_id_pmc_activity_definitions_id_fk",
+        "activity_boq_links_activity_fk": {
+          "name": "activity_boq_links_activity_fk",
           "tableFrom": "subcontract_activity_boq_links",
           "tableTo": "pmc_activity_definitions",
           "columnsFrom": [
@@ -29789,25 +29802,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "subcontract_activity_boq_links_boq_item_id_boq_items_id_fk": {
-          "name": "subcontract_activity_boq_links_boq_item_id_boq_items_id_fk",
+        "activity_boq_links_boq_fk": {
+          "name": "activity_boq_links_boq_fk",
           "tableFrom": "subcontract_activity_boq_links",
           "tableTo": "boq_items",
           "columnsFrom": [
             "boq_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "subcontract_activity_boq_links_created_by_user_id_users_id_fk": {
-          "name": "subcontract_activity_boq_links_created_by_user_id_users_id_fk",
-          "tableFrom": "subcontract_activity_boq_links",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by_user_id"
           ],
           "columnsTo": [
             "id"
