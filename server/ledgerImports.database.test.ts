@@ -392,7 +392,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Excel cycle for costs, p
       await ops.dataImports.reanalyze({ ...scope, importId: view.id, mappingOverride: { wbsCode: "Ref WBS", incurredAt: "Spend date", amount: "Value", __others__: "ignore" } });
       const again = await pollUntilDone(ops, view.id);
       expect(again.status).toBe("validated");
-      expect(ledgerColumnsOf(again)).toMatchObject({ overridden: true, fields: expect.arrayContaining([{ key: "amount", required: true, header: "Value" }]) });
+      expect(ledgerColumnsOf(again)).toMatchObject({ overridden: true, fields: expect.arrayContaining([expect.objectContaining({ key: "amount", required: true, header: "Value", source: "chosen" })]) });
       expect(await ops.dataImports.diff({ ...scope, importId: view.id })).toMatchObject({ supported: true, summary: { new: 1, conflict: 0 }, rejected: 0 });
       expect(await countOf("cost_entries")).toBe(before); // nothing written before the confirmation
       expect(await confirmWithHash(ops, view.id)).toMatchObject({ status: "completed", createdRows: 1 });

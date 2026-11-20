@@ -43,23 +43,27 @@ function FieldTabs({ tenantId, projectId, current }: { tenantId: string; project
 
 /** Q-33: the way back is drawn only when it leads somewhere the person can open (the field entry and the controls page need project.read). */
 const pageOfHref = (href: string): PageKey | null => (/^\/m\/[^/]+\/[^/]+$/.test(href) ? "fieldEntry" : /^\/projects\/[^/]+\/[^/]+\/controls$/.test(href) ? "controls" : null);
-function BackLink({ href, label, projectId }: { href: string; label: string; projectId?: string }) {
+function BackLink({ href, label, projectId, className = "text-primary" }: { href: string; label: string; projectId?: string; className?: string }) {
   const page = pageOfHref(href);
   const allowed = useCanPage(page ?? "registry", projectId);
   if (page && !allowed) return null;
-  return <Link href={href} className={`${tap} inline-flex items-center text-sm font-semibold text-primary`}>{label}</Link>;
+  return <Link href={href} className={`${tap} inline-flex items-center text-sm font-semibold ${className}`}>{label}</Link>;
 }
 
 /** The frame the field screens share: the language switch, a way back, the title, the ways between the field screens. Right to left for Arabic and Urdu, left to right for English. */
-export function FieldShell({ title, backHref, backLabel, wide, tenantId, projectId, current, children }: { title: string; backHref: string; backLabel: string; wide?: boolean; tenantId?: string; projectId?: string; current?: string; children: React.ReactNode }) {
+export function FieldShell({ title, backHref, backLabel, wide, tenantId, projectId, current, header, children }: { title: string; backHref: string; backLabel: string; wide?: boolean; tenantId?: string; projectId?: string; current?: string; header?: React.ReactNode; children: React.ReactNode }) {
   const { isRtl, language } = useLanguage();
   // the Urdu face (Nastaliq) needs far more room between lines than the tight default: without it the label of one field sits on the value of the one above
   return (
     <PageMain className={`min-h-screen bg-background px-4 py-4 text-foreground ${language === "ur" ? "[&_*]:!leading-[2.1]" : ""}`} dir={isRtl ? "rtl" : "ltr"}>
       <div className="mb-2 flex justify-end"><LanguageToggle /></div>
       <div className={`mx-auto space-y-4 ${wide ? "max-w-5xl" : "max-w-md"}`}>
-        <BackLink href={backHref} label={backLabel} projectId={projectId} />
-        <h1 className="text-xl font-semibold">{title}</h1>
+        {/* Q-19 (4): the dark band of the reference's phone screens (way back, title, and what a screen adds, such as its steps) */}
+        <div data-field-header className="rounded-[18px] bg-hero px-4 pb-4 pt-1 text-hero-foreground">
+          <BackLink href={backHref} label={backLabel} projectId={projectId} className="text-hero-foreground/75 hover:text-hero-foreground" />
+          <h1 className="text-2xl font-bold">{title}</h1>
+          {header}
+        </div>
         {tenantId && projectId && <FieldTabs tenantId={tenantId} projectId={projectId} current={current} />}
         {children}
       </div>

@@ -7,7 +7,7 @@ import { LEDGER_MODULES, ledgerImportPermission } from "@shared/ledgerImportColu
 import { masterPlanVersions } from "../drizzle/schema";
 import { applyMasterPlanMappingFile, assertProjectWithinTenant, assertTenantFeatureAccess, getDb, importMasterPlanSpatialEntitiesFromFile } from "./db";
 import { analyzeMasterPlanMappingFile, analyzeMasterPlanSpatialEntityFile } from "./domain/dataImport";
-import { PMC_IMPORT_KINDS, type PmcImportKind } from "./domain/pmcImport";
+import { PMC_IMPORT_KINDS, type PmcImportEdits, type PmcImportKind } from "./domain/pmcImport";
 import { analyzePmcImport, confirmPmcImport } from "./pmcImportService";
 import { auditEmployeeRecordsRead, authorizeLedgerModule, isLedgerModule, ledgerPlanHash, planLedgerImport } from "./ledgerImports";
 import { applyEquipmentImport, planEquipmentImport, readEquipmentRows } from "./equipmentImport";
@@ -50,9 +50,16 @@ export async function authorizeExternalImport(input: ExternalScope & { moduleCod
   return db;
 }
 
+/** Q-50 batch 4 (adviser's decision 3): corrections in the preview are for the non-financial kinds first — the PMC files (villas, activities, weights, statuses,
+ * requests, baseline). The operational ledgers (costs, orders, hours), the equipment list and the master plan are refused, never read with the edits dropped. */
+export function assertEditsAllowed(moduleCode: ExternalModule, edits: PmcImportEdits | undefined) {
+  if (edits && (edits.cells.length || edits.ignoreRows.length) && !pmcKindOf(moduleCode)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED" });
+}
+
 /** Reads and checks the file; writes nothing. */
 /** `mappingOverride`: a person's choice of columns (Q-31: PMC files, the four operational ledgers and the equipment list; the master-plan files keep fixed columns). */
-export async function analyzeExternalImport(input: ExternalScope & { moduleCode: ExternalModule; format: ExternalFormat; bytes: Buffer; mappingOverride?: Record<string, string> }): Promise<ExternalAnalysis> {
+export async function analyzeExternalImport(input: ExternalScope & { moduleCode: ExternalModule; format: ExternalFormat; bytes: Buffer; mappingOverride?: Record<string, string>; edits?: PmcImportEdits }): Promise<ExternalAnalysis> {
+  assertEditsAllowed(input.moduleCode, input.edits);
   if (isLedgerModule(input.moduleCode)) {
     const db = await getDb();
     if (!db) throw new Error("Database connection is not available");
@@ -76,7 +83,7 @@ export async function analyzeExternalImport(input: ExternalScope & { moduleCode:
   }
   const kind = pmcKindOf(input.moduleCode);
   if (kind) {
-    const report = await analyzePmcImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, kind, format: input.format, bytes: input.bytes, mappingOverride: input.mappingOverride });
+    const report = await analyzePmcImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, kind, format: input.format, bytes: input.bytes, mappingOverride: input.mappingOverride, edits: input.edits });
     const invalidRows = new Set(report.errors.map(error => error.rowNumber).filter(row => row > 0)).size;
     return { totalRows: report.totalRows, validRows: Math.max(0, report.totalRows - invalidRows), errors: report.errors, report: { pmc: report }, canConfirm: report.canConfirm };
   }
@@ -87,7 +94,8 @@ export async function analyzeExternalImport(input: ExternalScope & { moduleCode:
 
 /** The write. For PMC the approved hash is the stored file's own hash (the report the person read described exactly those bytes). */
 export type ExternalResults = Array<{ rowNumber: number; key: string; action: "created" | "updated" | "skipped"; entityId: string | null }>;
-export async function applyExternalImport(input: ExternalScope & { moduleCode: ExternalModule; format: ExternalFormat; bytes: Buffer; fileHash: string; importId: string; approvedDiffHash?: string; context?: ExternalContext; mappingOverride?: Record<string, string> }): Promise<{ createdRows: number; updatedRows: number; skippedRows: number; results?: ExternalResults }> {
+export async function applyExternalImport(input: ExternalScope & { moduleCode: ExternalModule; format: ExternalFormat; bytes: Buffer; fileHash: string; importId: string; approvedDiffHash?: string; context?: ExternalContext; mappingOverride?: Record<string, string>; edits?: PmcImportEdits }): Promise<{ createdRows: number; updatedRows: number; skippedRows: number; results?: ExternalResults }> {
+  assertEditsAllowed(input.moduleCode, input.edits);
   if (isLedgerModule(input.moduleCode)) {
     const db = await getDb();
     if (!db) throw new Error("Database connection is not available");
@@ -109,7 +117,7 @@ export async function applyExternalImport(input: ExternalScope & { moduleCode: E
   }
   const kind = pmcKindOf(input.moduleCode);
   if (kind) {
-    const done = await confirmPmcImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, kind, format: input.format, bytes: input.bytes, approvedHash: input.fileHash, mappingOverride: input.mappingOverride });
+    const done = await confirmPmcImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, kind, format: input.format, bytes: input.bytes, approvedHash: input.fileHash, mappingOverride: input.mappingOverride, edits: input.edits });
     return { createdRows: done.counts.create, updatedRows: done.counts.update, skippedRows: done.counts.unchanged };
   }
   const masterPlanVersionId = input.context?.masterPlanVersionId;
