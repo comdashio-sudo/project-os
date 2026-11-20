@@ -2,7 +2,7 @@
 // own (siteReports.get computes the totals, the variance and the day's inspections; nothing here is typed); the report number, the project and the date come from
 // the system and go in the footer of every page. Logos and photos are read from storage; only PNG and JPEG are drawn (an SVG logo shows the party's name instead).
 import { and, eq, inArray } from "drizzle-orm";
-import { projectProfiles, projects, siteDailyReportPhotos, users } from "../../drizzle/schema";
+import { pmcActivityDefinitions, projectProfiles, projects, siteDailyReportPhotos, users } from "../../drizzle/schema";
 import type { ExportLocale } from "../../shared/exportLocale";
 import type { getSiteDailyReportForTenant } from "../siteReports";
 import { storageRead } from "../storage";
@@ -22,6 +22,7 @@ const AR = {
   kind: "النوع", submitted: "مقدّم", approved: "معتمد", rejected: "مرفوض", pending: "معلّق", material: "المادة", quantity: "الكمية", unit: "الوحدة", supplier: "المورد",
   description: "الوصف", people: "العدد", action: "الإجراء", issue: "المشكلة", impact: "الأثر", responsible: "المسؤول", due: "التاريخ", area: "المنطقة", activity: "النشاط",
   resources: "الموارد", step: "الخطوة", by: "بواسطة", at: "الوقت", prepare: "أعدّه", review: "راجعه", approve: "اعتمده", page: "صفحة", of: "من",
+  otherLanguage: "(بالإنجليزية)",
   hse: { meeting: "اجتماع", incident: "حادث", near_miss: "شبه حادث", violation: "مخالفة", corrective_action: "إجراء تصحيحي" } as Record<string, string>,
   days: ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"], parties: ["العميل", "الاستشاري", "المقاول"],
 };
@@ -33,6 +34,7 @@ const EN: typeof AR = {
   kind: "Kind", submitted: "Submitted", approved: "Approved", rejected: "Rejected", pending: "Pending", material: "Material", quantity: "Quantity", unit: "Unit", supplier: "Supplier",
   description: "Description", people: "People", action: "Action", issue: "Issue", impact: "Impact", responsible: "Responsible", due: "Date", area: "Area", activity: "Activity",
   resources: "Resources", step: "Step", by: "By", at: "At", prepare: "Prepared", review: "Reviewed", approve: "Approved", page: "Page", of: "of",
+  otherLanguage: "(in Arabic)",
   hse: { meeting: "Meeting", incident: "Incident", near_miss: "Near miss", violation: "Violation", corrective_action: "Corrective action" },
   days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], parties: ["Client", "Consultant", "Contractor"],
 };
@@ -56,6 +58,18 @@ export async function buildDailyReportDocument(db: Db, scope: { tenantId: string
   const ids = [approval.prepare.by, approval.review.by, approval.approve.by].filter((id): id is number => typeof id === "number");
   const names = new Map((ids.length ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids)) : []).map(row => [row.id, row.name ?? ""]));
   const projectName = project?.name ?? "";
+  // Q-49 (5): a work line tied to a PMC activity names it in the report's language (the English name in an English report, the Arabic one otherwise); a name
+  // missing in that language shows the other, marked — never an empty cell. The engineer's own description follows it.
+  const activityIds = Array.from(new Set(read.lines.flatMap(line => (line.lineType === "work" && line.pmcActivityDefinitionId ? [line.pmcActivityDefinitionId] : []))));
+  const definitions = new Map((activityIds.length ? await db.select({ id: pmcActivityDefinitions.id, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn }).from(pmcActivityDefinitions).where(and(mine(pmcActivityDefinitions as never), inArray(pmcActivityDefinitions.id, activityIds))) : []).map(row => [row.id, row]));
+  const workLabel = (line: Read["lines"][number]) => {
+    const definition = line.pmcActivityDefinitionId ? definitions.get(line.pmcActivityDefinitionId) : undefined;
+    const description = (line.description ?? "").trim();
+    if (!definition) return description;
+    const english = definition.nameEn?.trim();
+    const name = locale === "en" ? (english || `${definition.name} ${w.otherLanguage}`) : (definition.name?.trim() || `${english ?? ""} ${w.otherLanguage}`.trim());
+    return description && description !== definition.name && description !== english ? `${name} — ${description}` : name;
+  };
   const companies = totals.labour.byCompany.map(item => item.companyId);
   const labourOf = (companyId: string, category: string, shift: string) => read.labour.filter(row => row.companyId === companyId && row.category === category && row.shift === shift).reduce((sum, row) => sum + row.headcount, 0);
   const labourRows = companies.map(id => { const v = [labourOf(id, "direct", "day"), labourOf(id, "direct", "night"), labourOf(id, "indirect", "day"), labourOf(id, "indirect", "night")]; return [read.labour.find(row => row.companyId === id)!.companyName, ...v.map(n), n(v.reduce((a, b) => a + b, 0))]; });
@@ -63,7 +77,7 @@ export async function buildDailyReportDocument(db: Db, scope: { tenantId: string
     { title: `0 - ${w.s[0]}`, tables: [{ columns: [w.weather, w.temperature, w.wind, w.hours], rows: [[report.weather ?? "", n(report.temperatureC === null ? null : Number(report.temperatureC)), report.wind ?? "", n(report.workHours)]] }] },
     { title: `1 - ${w.s[1]}`, tables: [{ columns: [w.company, w.directDay, w.directNight, w.indirectDay, w.indirectNight, w.total], rows: labourRows, total: [w.total, ...[1, 2, 3, 4].map(c => n(labourRows.reduce((sum, row) => sum + Number(row[c]), 0))), n(totals.labour.total)] }] },
     { title: `2 - ${w.s[2]}`, tables: [{ columns: [w.type, w.model, w.plate, w.count, w.hoursCol], rows: read.equipment.map(row => [row.equipmentType, row.model ?? "", row.plateOrSize ?? "", n(row.count), n(row.hours)]), total: [w.total, "", "", n(totals.equipment.count), n(totals.equipment.hours)] }] },
-    { title: `3 - ${w.s[3]}`, tables: [{ columns: [w.work, w.planned, w.actual, w.variance], rows: read.lines.filter(line => line.lineType === "work").map(line => [line.description ?? "", n(line.plannedQuantity), n(line.actualQuantity), n(line.variance)]) }] },
+    { title: `3 - ${w.s[3]}`, tables: [{ columns: [w.work, w.planned, w.actual, w.variance], rows: read.lines.filter(line => line.lineType === "work").map(line => [workLabel(line), n(line.plannedQuantity), n(line.actualQuantity), n(line.variance)]) }] },
     { title: `4 - ${w.s[4]}`, tables: [{ columns: [w.kind, w.submitted, w.approved, w.rejected, w.pending], rows: (["wir", "rfi"] as const).map(kind => [kind.toUpperCase(), n(read.inspections[kind].submitted), n(read.inspections[kind].approved), n(read.inspections[kind].rejected), n(read.inspections[kind].pending)]) }] },
     { title: `5 - ${w.s[5]}`, tables: [{ columns: [w.material, w.quantity, w.unit, w.supplier], rows: read.materials.map(row => [row.material, n(row.quantity), row.unit, row.supplier ?? ""]) }] },
     { title: `6 - ${w.s[6]}`, tables: [{ columns: [w.kind, w.description, w.people, w.action], rows: read.hse.map(row => [w.hse[row.kind] ?? row.kind, row.description, n(row.peopleCount), row.actionTaken ?? ""]) }] },

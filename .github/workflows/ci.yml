@@ -25,9 +25,12 @@ on:
 permissions:
   contents: read
 
+# A pull request's older run is cancelled by its newer push (only the head counts). On main a run is never cancelled: the release
+# (migrate-production) starts only after CI on main FINISHED green, so cancelling it at each merge meant nothing was released while merges
+# came faster than CI (Q-52, 20-11). A newer main commit waits for the running one; GitHub keeps one waiting run, the latest.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   gate:

@@ -138,6 +138,22 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("session limi
         expect(await serverDb.isEligibleToSignIn("someone@mailbox.example.test")).toBe(true);
       } finally { if (prev === undefined) delete process.env.EMAIL_BLOCK_RESERVED_DOMAINS; else process.env.EMAIL_BLOCK_RESERVED_DOMAINS = prev; }
     });
+    it("Q-22: a password sign-in sends no mail, so in production an existing *.example.test account passes the reserved-domain gate; a code request still does not, and no account is still no", async () => {
+      close();
+      const { openIdForEmail } = await import("./_core/auth/emailCode");
+      const email = "readiness.lim@limits.example.test";
+      const prev = process.env.EMAIL_BLOCK_RESERVED_DOMAINS;
+      await owner.query("INSERT INTO users (openId, name, email, role, loginMethod) VALUES (?, 'x', ?, 'user', 'email')", [openIdForEmail(email), email]);
+      try {
+        process.env.EMAIL_BLOCK_RESERVED_DOMAINS = "true";
+        expect(await serverDb.isEligibleToSignIn(email, { sendsMail: false })).toBe(true);
+        expect(await serverDb.isEligibleToSignIn(email)).toBe(false); // the code path (mail) keeps the gate
+        expect(await serverDb.isEligibleToSignIn("nobody.lim@limits.example.test", { sendsMail: false })).toBe(false); // still invitation-only
+      } finally {
+        if (prev === undefined) delete process.env.EMAIL_BLOCK_RESERVED_DOMAINS; else process.env.EMAIL_BLOCK_RESERVED_DOMAINS = prev;
+        await owner.query("DELETE FROM users WHERE email = ?", [email]);
+      }
+    });
     it("with REGISTRATION=open the old behaviour returns: anyone may sign in and create a company (the owner's switch)", async () => {
       (ENV as { registrationOpen: boolean }).registrationOpen = true;
       expect(await serverDb.isEligibleToSignIn("anyone.lim@limits.example.test")).toBe(true);
