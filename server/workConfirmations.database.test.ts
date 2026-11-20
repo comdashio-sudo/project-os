@@ -35,7 +35,7 @@ async function clear() {
   await connection.query("DELETE FROM users WHERE openId LIKE 'q43w-%'");
 }
 const scope = () => ({ tenantId, projectId: P });
-type Line = { kind: "unit"; pmcUnitId: string; pmcActivityDefinitionId: string; percent: number } | { kind: "quantity"; boqItemId: string; quantity: number };
+type Line = ({ kind: "unit"; pmcUnitId: string; pmcActivityDefinitionId: string; percent: number } | { kind: "quantity"; boqItemId: string; quantity: number }) & { correctsLineId?: string; historical?: boolean };
 const unit = (u: number, a: number, percent: number): Line => ({ kind: "unit", pmcUnitId: U[u], pmcActivityDefinitionId: ACT[a], percent });
 const create = (key: Key, number: string, subcontractId: string, lines: Line[]) => callerFor(key).workConfirmations.create({ ...scope(), subcontractId, confirmationNumber: number, periodStart: "2026-11-01", periodEnd: "2026-11-15", lines });
 const move = (key: Key, confirmationId: string, nextStatus: "submitted" | "approved" | "rejected" | "cancelled", reason?: string) => callerFor(key).workConfirmations.transition({ ...scope(), confirmationId, nextStatus, reason });
@@ -125,5 +125,85 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-43: subcontractor work
     expect(await code(create("site", "WC-11", subOther, [unit(0, 1, 10)]))).toBe("PROJECT_OS_SUBCONTRACT_NOT_FOUND");
     expect(await code(list("siteOther"))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(list("ownerB"))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+  });
+
+  // Q-43 batch 3 (docs/proposals/subcontractor-progress.md §5.2–5.3): corrections are new lines naming an approved line; historical lines count against double claims.
+  const linesOf = async (number: string) => (await list()).find(item => item.number === number)!.lines;
+  const approve = async (id: string) => { await move("site", id, "submitted"); return move("finance", id, "approved"); };
+
+  it("CORRECTION POSITIVE: −50% on an approved 100% line is approved like any line; the original stays as it was, and 50% may then be claimed again", async () => {
+    const original = (await linesOf("WC-1")).find(line => line.percent === 100)!;
+    const correction = await create("site", "WC-C1", subA, [{ ...unit(1, 0, -50), correctsLineId: original.id }]);
+    expect((await approve(correction.id)).status).toBe("approved");
+    expect((await linesOf("WC-1")).find(line => line.id === original.id)!.percent).toBe(100); // never edited
+    expect((await linesOf("WC-C1"))[0]).toMatchObject({ percent: -50, correctsLineId: original.id, historical: false });
+    expect(await code(create("site", "WC-C2", subA, [unit(1, 0, 50)]))).toBe("no error"); // 100 − 50 + 50 = 100
+    expect(await code(create("site", "WC-C3", subA, [unit(1, 0, 1)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_DUPLICATE");
+    // a BOQ quantity is corrected the same way: 40 − 10 = 30 confirmed
+    const boqLine = (await linesOf("WC-1")).find(line => line.kind === "quantity")!;
+    expect(await code(create("site", "WC-C4", subA, [{ kind: "quantity", boqItemId: boqId, quantity: -10, correctsLineId: boqLine.id }]))).toBe("no error");
+  });
+
+  it("CORRECTION NEGATIVE: no negative line without a correction; never a draft, another subcontract's or another cell's line; never below zero — all refused with nothing written", async () => {
+    const wc1 = await linesOf("WC-1");
+    const half = wc1.find(line => line.percent === 50)!; // unit 0 × activity 0, 50% on subcontract A
+    const before = (await list()).length;
+    expect(await code(create("site", "WC-N1", subA, [unit(0, 0, -10)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_LINE_INVALID");
+    expect(await code(create("site", "WC-N2", subA, [{ ...unit(0, 0, -60), correctsLineId: half.id }]))).toBe("PROJECT_OS_WORK_CONFIRMATION_CORRECTION_BELOW_ZERO");
+    expect(await code(create("site", "WC-N3", subA, [{ ...unit(0, 0, -150), correctsLineId: half.id }]))).toBe("PROJECT_OS_WORK_CONFIRMATION_LINE_INVALID");
+    expect(await code(create("site", "WC-N4", subB, [{ ...unit(0, 0, -10), correctsLineId: half.id }]))).toBe("PROJECT_OS_WORK_CONFIRMATION_CORRECTION_INVALID"); // another subcontract
+    expect(await code(create("site", "WC-N5", subA, [{ ...unit(1, 0, -10), correctsLineId: half.id }]))).toBe("PROJECT_OS_WORK_CONFIRMATION_CORRECTION_INVALID"); // another cell
+    const draft = (await linesOf("WC-C2"))[0]; // not approved
+    expect(await code(create("site", "WC-N6", subA, [{ ...unit(1, 0, -10), correctsLineId: draft.id }]))).toBe("PROJECT_OS_WORK_CONFIRMATION_CORRECTION_INVALID");
+    const boqLine = wc1.find(line => line.kind === "quantity")!; // 40 confirmed, −10 pending in WC-C4: at most 30 more may be taken back
+    expect(await code(create("site", "WC-N7", subA, [{ kind: "quantity", boqItemId: boqId, quantity: -31, correctsLineId: boqLine.id }]))).toBe("PROJECT_OS_WORK_CONFIRMATION_CORRECTION_BELOW_ZERO");
+    expect((await list()).length).toBe(before);
+  });
+
+  it("HISTORICAL: work approved before the platform is entered and approved as historical; it then blocks a new claim of the same work, for this subcontract and across subcontracts", async () => {
+    const historical = await create("site", "WC-H1", subB, [{ ...unit(0, 1, 100), historical: true }]);
+    expect((await approve(historical.id)).status).toBe("approved");
+    expect((await linesOf("WC-H1"))[0]).toMatchObject({ historical: true, percent: 100 });
+    expect(await code(create("site", "WC-H2", subB, [unit(0, 1, 10)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_DUPLICATE");
+    expect(await code(create("site", "WC-H3", subA, [unit(0, 1, 10)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_OVER_COMPLETE");
+  });
+
+  // Q-43 batch 4: the preparation screen's pickers for the site engineer, who holds no money permission
+  it("OPTIONS POSITIVE: the site engineer reads this project's subcontracts, activities, units (with their block) and BOQ items — and no key anywhere names a rate, amount, price or value", async () => {
+    const options = await callerFor("site").workConfirmations.options(scope());
+    expect(options.subcontracts.map(item => item.code)).toEqual(["Q43-A", "Q43-B"]);
+    expect(options.subcontracts[0]).toMatchObject({ subcontractorName: "Synthetic Finishers A", title: "Synthetic finishes A" });
+    expect(options.activities.map(item => item.code).sort()).toEqual(["PAINT", "PLASTER"]);
+    expect(options.units.map(item => [item.blockCode, item.unitNumber])).toEqual([["B1", 1], ["B1", 2], ["B1", 3]]);
+    expect(options.boqItems).toEqual([expect.objectContaining({ code: "Q43-TILE", unitOfMeasure: "m2", quantity: 100 })]);
+    const keys: string[] = [];
+    const walk = (value: unknown) => { if (Array.isArray(value)) value.forEach(walk); else if (value && typeof value === "object") for (const [key, child] of Object.entries(value)) { keys.push(key); walk(child); } };
+    walk(options);
+    expect(keys.filter(key => /rate|amount|price|value|total|retention|advance/i.test(key))).toEqual([]);
+    expect(await callerFor("finance").workConfirmations.options(scope())).toEqual(options);
+  });
+
+  it("OPTIONS NEGATIVE: another project's engineer and another company read nothing; another project's subcontract is not listed here", async () => {
+    expect(await code(callerFor("siteOther").workConfirmations.options(scope()))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callerFor("ownerB").workConfirmations.options(scope()))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    expect((await callerFor("owner").workConfirmations.options({ tenantId, projectId: P2 })).subcontracts.map(item => item.code)).toEqual(["Q43-O"]);
+  });
+
+  // review of #449 (programmer C): a correction frees room under the caps only once it is approved; a pending one still counts toward the floor
+  it("CORRECTION PENDING: a draft −50 on an approved 100% frees no room (another subcontract's 50% is OVER_COMPLETE, the same one's DUPLICATE); cancelled, the cell stays whole; approved, the room opens", async () => {
+    const first = await create("site", "WC-P1", subA, [unit(1, 1, 100)]);
+    await approve(first.id);
+    const original = (await linesOf("WC-P1"))[0];
+    const pending = await create("site", "WC-P2", subA, [{ ...unit(1, 1, -50), correctsLineId: original.id }]);
+    expect(await code(create("site", "WC-P3", subB, [unit(1, 1, 50)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_OVER_COMPLETE");
+    expect(await code(create("site", "WC-P4", subA, [unit(1, 1, 50)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_DUPLICATE");
+    // a second pending correction of the same work is refused: the floor counts the first one already
+    expect(await code(create("site", "WC-P5", subA, [{ ...unit(1, 1, -60), correctsLineId: original.id }]))).toBe("PROJECT_OS_WORK_CONFIRMATION_CORRECTION_BELOW_ZERO");
+    expect((await list()).map(item => item.number).filter(number => ["WC-P3", "WC-P4", "WC-P5"].includes(number))).toEqual([]); // refused with nothing written
+    await move("site", pending.id, "cancelled");
+    expect(await code(create("site", "WC-P6", subB, [unit(1, 1, 1)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_OVER_COMPLETE");
+    const correction = await create("site", "WC-P7", subA, [{ ...unit(1, 1, -50), correctsLineId: original.id }]);
+    expect((await approve(correction.id)).status).toBe("approved");
+    expect(await code(create("site", "WC-P8", subB, [unit(1, 1, 50)]))).toBe("no error");
   });
 });

@@ -1,8 +1,9 @@
 // Q-10 (d): the planned labour histogram of a project — workers planned per month, optionally per trade. A pure reader: rows in, rows and refusals out.
 //   - Month: a real date or "YYYY-MM" (the 1st is stored). Trade: optional text (empty = all trades). Workers: a whole number from 0.
 //   - The same month and trade twice is refused. The histogram is the sum of workers per month.
-import { resolveColumns, type ColumnReport } from "./columnChoice";
+import { headerEvaluator, resolveColumns, type ColumnReport } from "./columnChoice";
 import { readSpreadsheetSafely, worksheetToRows } from "./excelWorkbook";
+import { chooseSheet } from "./importEngine/read";
 import { monthOf } from "./plannedCashFlow";
 
 export type LabourRow = { month: string; trade: string; workers: number };
@@ -20,7 +21,7 @@ export function labourHistogram(rows: LabourRow[]) {
 }
 
 const LABOUR_FIELDS = [{ key: "month", required: true, aliases: LABOUR_HEADERS.month }, { key: "trade", required: false, aliases: LABOUR_HEADERS.trade }, { key: "workers", required: true, aliases: LABOUR_HEADERS.workers }];
-export function analyzeLabourRows(input: Array<Record<string, unknown>>, headers: string[], choice?: Record<string, string>): LabourAnalysis {
+export function analyzeLabourRows(input: Array<Record<string, unknown>>, headers: string[], choice?: Record<string, string>, rowNumbers?: number[]): LabourAnalysis {
   const resolved = resolveColumns(LABOUR_FIELDS, headers, choice);
   const monthHeader = resolved.columns.month; const tradeHeader = resolved.columns.trade; const workersHeader = resolved.columns.workers;
   const empty = { rows: [], issues: [], histogram: [], peak: 0, columns: resolved.report };
@@ -29,7 +30,7 @@ export function analyzeLabourRows(input: Array<Record<string, unknown>>, headers
   if (input.length > MAX_LABOUR_ROWS) return { ...empty, fileError: "LABOUR_TOO_MANY_ROWS" };
   const rows: LabourRow[] = []; const issues: LabourIssue[] = []; const seen = new Set<string>();
   input.forEach((row, index) => {
-    const rowNumber = index + 2; const month = monthOf(row[monthHeader]); const trade = tradeHeader ? String(row[tradeHeader] ?? "").trim() : "";
+    const rowNumber = rowNumbers?.[index] ?? index + 2; const month = monthOf(row[monthHeader]); const trade = tradeHeader ? String(row[tradeHeader] ?? "").trim() : "";
     const raw = String(row[workersHeader] ?? "").trim().replace(/,/g, ""); const workers = Number(raw);
     if (!month) return void issues.push({ rowNumber, code: "LABOUR_MONTH_INVALID", value: String(row[monthHeader] ?? "") });
     if (raw === "" || !Number.isInteger(workers) || workers < 0 || workers > 1_000_000) return void issues.push({ rowNumber, code: "LABOUR_WORKERS_INVALID", value: raw });
@@ -45,10 +46,11 @@ export function analyzeLabourRows(input: Array<Record<string, unknown>>, headers
 export async function analyzeLabourFile(bytes: Uint8Array, format: "xlsx" | "csv", choice?: Record<string, string>): Promise<LabourAnalysis> {
   const read = await readSpreadsheetSafely(bytes, format);
   if (!read.ok) return { rows: [], issues: [], histogram: [], peak: 0, fileError: read.code };
-  const sheet = read.workbook.worksheets[0];
-  if (!sheet) return { rows: [], issues: [], histogram: [], peak: 0, fileError: "LABOUR_COLUMNS_MISSING" };
-  const { headers, rows } = worksheetToRows(sheet, { maxRows: MAX_LABOUR_ROWS + 1, maxColumns: 20 });
-  return analyzeLabourRows(rows, headers, choice);
+  // Q-50 (importEngine/read.ts): the sheet whose header names the required columns, and that header row (a title above the table is common); two such sheets are refused
+  const picked = chooseSheet(read.workbook, headerEvaluator(LABOUR_FIELDS), { maxRows: 0, maxColumns: 20 });
+  if (!picked.ok) return { rows: [], issues: [], histogram: [], peak: 0, fileError: picked.code === "IMPORT_EMPTY_WORKBOOK" ? "LABOUR_COLUMNS_MISSING" : picked.code, ...(picked.detail ? { fileErrorDetail: picked.detail } : {}) };
+  const { headers, rows, rowNumbers } = worksheetToRows(picked.sheet, { maxRows: MAX_LABOUR_ROWS + 1, maxColumns: 20 }, picked.candidate.row);
+  return analyzeLabourRows(rows, headers, choice, rowNumbers);
 }
 
 export function labourRefusal(analysis: LabourAnalysis): string | null {
