@@ -26,6 +26,8 @@ export const PAGE_ACCESS = {
   stalled: [["project.pmc.read"]],
   // meetings.list — listProjectMeetings (server/meetings.ts), Q-25
   meetings: [["project.read", "project.manage"]],
+  // pmo.projectRisks — listProjectRisks (server/projectRisks.ts), Q-27 (P-116)
+  risks: [["pmo.read"]],
   // siteReports.list — listSiteDailyReportsForTenant (server/siteReports.ts)
   dailyReport: [DAILY_REPORT_READERS],
   // reportPeriods.weekly / reportPeriods.monthly — getWeeklyReport, getMonthlyReport (server/siteReports.ts READ_PERMISSIONS)

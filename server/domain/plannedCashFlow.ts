@@ -3,17 +3,19 @@
 //   - Month: a real date or a "YYYY-MM" text; only the month counts (the 1st is stored).
 //   - Share: "5%", 5 (read as percent) or 0.05 (read as a fraction) — a file of fractions is recognised by its total (≈ 1), never row by row.
 //   - The total must be 100% within 0.01 percentage point; otherwise the save is refused and the difference is named.
+import { headerEvaluator, resolveColumns, type ColumnReport } from "./columnChoice";
 import { readSpreadsheetSafely, worksheetToRows } from "./excelWorkbook";
+import { chooseSheet } from "./importEngine/read";
 
 export type CashFlowMonth = { month: string; fraction: number; cumulative: number };
 export type CashFlowIssue = { rowNumber: number; code: "CASHFLOW_MONTH_INVALID" | "CASHFLOW_PERCENT_INVALID" | "CASHFLOW_MONTH_REPEATED"; value?: string };
-export type CashFlowAnalysis = { months: CashFlowMonth[]; issues: CashFlowIssue[]; totalPercent: number; fileError: string | null };
+/** `columns`: which column each field was read from (Q-31); `fileErrorDetail`: the field or column a refused column choice named. */
+export type CashFlowAnalysis = { months: CashFlowMonth[]; issues: CashFlowIssue[]; totalPercent: number; fileError: string | null; fileErrorDetail?: string; columns?: ColumnReport };
 
 export const CASHFLOW_HEADERS = { month: ["month", "الشهر", "مہینہ"], percent: ["percent", "planned %", "%", "النسبة", "النسبة المخططة", "فیصد"] } as const;
 export const MAX_CASHFLOW_MONTHS = 240;
 const TOLERANCE = 0.01; // percentage points
 
-const normalize = (value: string) => value.trim().toLowerCase();
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export function monthOf(value: unknown): string | null {
@@ -33,14 +35,17 @@ function shareOf(value: unknown): { amount: number; percentSign: boolean } | nul
 }
 
 /** The rows of a sheet (header row already read) to months. Exported for the unit tests; analyzeCashFlowFile is the file path. */
-export function analyzeCashFlowRows(rows: Array<Record<string, unknown>>, headers: string[]): CashFlowAnalysis {
-  const find = (aliases: readonly string[]) => headers.find(header => aliases.includes(normalize(header)));
-  const monthHeader = find(CASHFLOW_HEADERS.month); const percentHeader = find(CASHFLOW_HEADERS.percent);
-  if (!monthHeader || !percentHeader) return { months: [], issues: [], totalPercent: 0, fileError: "CASHFLOW_COLUMNS_MISSING" };
-  if (rows.length > MAX_CASHFLOW_MONTHS) return { months: [], issues: [], totalPercent: 0, fileError: "CASHFLOW_TOO_MANY_MONTHS" };
+const CASHFLOW_FIELDS = [{ key: "month", required: true, aliases: CASHFLOW_HEADERS.month }, { key: "percent", required: true, aliases: CASHFLOW_HEADERS.percent }];
+export function analyzeCashFlowRows(rows: Array<Record<string, unknown>>, headers: string[], choice?: Record<string, string>, rowNumbers?: number[]): CashFlowAnalysis {
+  const resolved = resolveColumns(CASHFLOW_FIELDS, headers, choice);
+  const monthHeader = resolved.columns.month; const percentHeader = resolved.columns.percent;
+  const none = { months: [], issues: [], totalPercent: 0, columns: resolved.report };
+  if (resolved.invalid) return { ...none, fileError: "IMPORT_MAPPING_INVALID", fileErrorDetail: resolved.invalid };
+  if (!monthHeader || !percentHeader) return { ...none, fileError: "CASHFLOW_COLUMNS_MISSING" };
+  if (rows.length > MAX_CASHFLOW_MONTHS) return { ...none, fileError: "CASHFLOW_TOO_MANY_MONTHS" };
   const issues: CashFlowIssue[] = []; const read: Array<{ month: string; amount: number; percentSign: boolean }> = []; const seen = new Set<string>();
   rows.forEach((row, index) => {
-    const rowNumber = index + 2; const month = monthOf(row[monthHeader]); const share = shareOf(row[percentHeader]);
+    const rowNumber = rowNumbers?.[index] ?? index + 2; const month = monthOf(row[monthHeader]); const share = shareOf(row[percentHeader]);
     if (!month) { issues.push({ rowNumber, code: "CASHFLOW_MONTH_INVALID", value: String(row[monthHeader] ?? "") }); return; }
     if (!share) { issues.push({ rowNumber, code: "CASHFLOW_PERCENT_INVALID", value: String(row[percentHeader] ?? "") }); return; }
     if (seen.has(month)) { issues.push({ rowNumber, code: "CASHFLOW_MONTH_REPEATED", value: month.slice(0, 7) }); return; }
@@ -53,16 +58,17 @@ export function analyzeCashFlowRows(rows: Array<Record<string, unknown>>, header
   const sorted = read.map(row => ({ month: row.month, fraction: row.percentSign || !fractions ? row.amount / 100 : row.amount })).sort((a, b) => a.month.localeCompare(b.month));
   let running = 0;
   const months = sorted.map(row => { running += row.fraction; return { month: row.month, fraction: row.fraction, cumulative: running }; });
-  return { months, issues, totalPercent: Math.round(running * 100 * 1e6) / 1e6, fileError: null };
+  return { months, issues, totalPercent: Math.round(running * 100 * 1e6) / 1e6, fileError: null, columns: resolved.report };
 }
 
-export async function analyzeCashFlowFile(bytes: Uint8Array, format: "xlsx" | "csv"): Promise<CashFlowAnalysis> {
+export async function analyzeCashFlowFile(bytes: Uint8Array, format: "xlsx" | "csv", choice?: Record<string, string>): Promise<CashFlowAnalysis> {
   const read = await readSpreadsheetSafely(bytes, format);
   if (!read.ok) return { months: [], issues: [], totalPercent: 0, fileError: read.code };
-  const sheet = read.workbook.worksheets[0];
-  if (!sheet) return { months: [], issues: [], totalPercent: 0, fileError: "CASHFLOW_COLUMNS_MISSING" };
-  const { headers, rows } = worksheetToRows(sheet, { maxRows: MAX_CASHFLOW_MONTHS + 1, maxColumns: 20 });
-  return analyzeCashFlowRows(rows, headers);
+  // Q-50 (importEngine/read.ts): the sheet whose header names the required columns, and that header row (a title above the table is common); two such sheets are refused
+  const picked = chooseSheet(read.workbook, headerEvaluator(CASHFLOW_FIELDS), { maxRows: 0, maxColumns: 20 });
+  if (!picked.ok) return { months: [], issues: [], totalPercent: 0, fileError: picked.code === "IMPORT_EMPTY_WORKBOOK" ? "CASHFLOW_COLUMNS_MISSING" : picked.code, ...(picked.detail ? { fileErrorDetail: picked.detail } : {}) };
+  const { headers, rows, rowNumbers } = worksheetToRows(picked.sheet, { maxRows: MAX_CASHFLOW_MONTHS + 1, maxColumns: 20 }, picked.candidate.row);
+  return analyzeCashFlowRows(rows, headers, choice, rowNumbers);
 }
 
 /** Why a save is refused, or null: a file error, any row issue, no months, or a total that is not 100%. */
