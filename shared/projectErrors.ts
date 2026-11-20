@@ -2581,6 +2581,61 @@ export const projectErrorMessages = {
     en: "The opportunity was not found in this company.",
     ur: "یہ موقع اس کمپنی میں نہیں ملا۔",
   },
+  PROJECT_OS_STRATEGY_GOAL_NOT_FOUND: {
+    ar: "الهدف غير موجود في هذه الشركة.",
+    en: "The goal was not found in this company.",
+    ur: "یہ ہدف اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_GOAL_CODE_EXISTS: {
+    ar: "رمز الهدف مستعمل في هذه الشركة.",
+    en: "This goal code is already used in this company.",
+    ur: "یہ ہدف کوڈ اس کمپنی میں پہلے سے استعمال ہے۔",
+  },
+  PROJECT_OS_STRATEGY_GOAL_RETIRED: {
+    ar: "الهدف متوقف؛ لا يُعدَّل.",
+    en: "The goal is retired; it is not edited.",
+    ur: "ہدف موقوف ہے؛ اس میں ترمیم نہیں ہوتی۔",
+  },
+  PROJECT_OS_STRATEGY_INITIATIVE_NOT_FOUND: {
+    ar: "المبادرة غير موجودة في هذه الشركة.",
+    en: "The initiative was not found in this company.",
+    ur: "یہ اقدام اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_INITIATIVE_CODE_EXISTS: {
+    ar: "رمز المبادرة مستعمل في هذه الشركة.",
+    en: "This initiative code is already used in this company.",
+    ur: "یہ اقدام کوڈ اس کمپنی میں پہلے سے استعمال ہے۔",
+  },
+  PROJECT_OS_STRATEGY_OWNER_NOT_MEMBER: {
+    ar: "مسؤول المبادرة ليس عضوًا نشطًا في هذه الشركة.",
+    en: "The initiative's owner is not an active member of this company.",
+    ur: "اقدام کا ذمہ دار اس کمپنی کا فعال رکن نہیں ہے۔",
+  },
+  PROJECT_OS_STRATEGY_VARIANCE_NOT_FOUND: {
+    ar: "الانحراف غير موجود في هذه الشركة.",
+    en: "The variance was not found in this company.",
+    ur: "یہ فرق اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_VARIANCE_DECIDED: {
+    ar: "حُسم قرار هذا الانحراف من قبل؛ القرار نهائي.",
+    en: "A decision on this variance was already taken; it is final.",
+    ur: "اس فرق پر فیصلہ پہلے ہو چکا ہے؛ یہ حتمی ہے۔",
+  },
+  PROJECT_OS_STRATEGY_NO_ACTUAL: {
+    ar: "لا فرص حُسمت (فوز أو خسارة) في هذه الفترة، فلا قيمة فعلية لها بعد.",
+    en: "No opportunity was won or lost in this period, so there is no actual value for it yet.",
+    ur: "اس مدت میں کوئی موقع جیتا یا ہارا نہیں گیا، اس لیے ابھی کوئی اصل قدر نہیں۔",
+  },
+  PROJECT_OS_STRATEGY_ACTUAL_SOURCE_INVALID: {
+    ar: "الفعلي من خط الفرص (نسبة الفوز) لافتراض بوحدة النسبة المئوية فقط؛ أدخل الفعلي يدويًا مع عدد العناصر.",
+    en: "The actual from the pipeline (the win rate) is only for a percent assumption; enter the actual by hand with how many items it rests on.",
+    ur: "پائپ لائن سے اصل (جیت کی شرح) صرف فیصد والے مفروضے کے لیے ہے؛ اصل قدر ہاتھ سے عناصر کی تعداد کے ساتھ درج کریں۔",
+  },
+  PROJECT_OS_STRATEGY_PERIOD_INVALID: {
+    ar: "الفترة غير صالحة: نهايتها قبل بدايتها أو بعد اليوم.",
+    en: "The period is not valid: it ends before it starts, or after today.",
+    ur: "مدت درست نہیں: یہ شروع ہونے سے پہلے یا آج کے بعد ختم ہوتی ہے۔",
+  },
   PROJECT_OS_STRATEGY_WINNER_ONLY_WHEN_LOST: {
     ar: "المنافس الفائز وقيمته تُذكر فقط حين تكون النتيجة «خسارة».",
     en: "The winning competitor and its value are given only when the outcome is «lost».",
