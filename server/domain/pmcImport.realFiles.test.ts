@@ -139,7 +139,7 @@ describe("review of #370 and the owner's decisions of 18-11 (Q-47)", () => {
     const parsed = await weights([["CSI", "Activity", "Weight"], ["03", "Concrete", 60], ["", "Total station survey", 40]]);
     expect(parsed.errors).toEqual([]);
     expect(parsed.rows.map(row => [row.cells.csi, row.cells.activityName])).toEqual([["03", "Concrete"], ["03", "Total station survey"]]);
-    expect(parsed.notes).toEqual({ skippedTotals: 0, filledDown: 1 });
+    expect(parsed.notes).toMatchObject({ skippedTotals: 0, filledDown: 1 });
   });
 
   it("NEGATIVE: an empty section with nothing above it is not invented — the row is kept and refused on its own line", async () => {
@@ -154,6 +154,8 @@ describe("review of #370 and the owner's decisions of 18-11 (Q-47)", () => {
     expect(parsed.notes).toMatchObject({ skippedTotals: 2, filledDown: 0 });
     // Q-50 5a: each skipped totals line is kept with the weight it carries, for the comparison with what was read
     expect(parsed.notes?.fileTotals).toEqual([{ row: 3, value: "100" }, { row: 4, value: "100" }]);
+    // Q-50 4c: the preview says which rows were read and which were taken for totals
+    expect(parsed.notes?.preview?.map(row => [row.row, row.class])).toEqual([[2, "data"], [3, "total"], [4, "total"]]);
   });
 
   it("Q-47: a weights total rounded for display (99.99–100.01) is accepted; 99.98 is still refused; the catalogue's own tolerance is unchanged", () => {

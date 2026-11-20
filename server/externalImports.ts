@@ -53,7 +53,7 @@ export async function authorizeExternalImport(input: ExternalScope & { moduleCod
 /** Q-50 batch 4 (adviser's decision 3): corrections in the preview are for the non-financial kinds first — the PMC files (villas, activities, weights, statuses,
  * requests, baseline). The operational ledgers (costs, orders, hours), the equipment list and the master plan are refused, never read with the edits dropped. */
 export function assertEditsAllowed(moduleCode: ExternalModule, edits: PmcImportEdits | undefined) {
-  if (edits && (edits.cells.length || edits.ignoreRows.length) && !pmcKindOf(moduleCode)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED" });
+  if (edits && (edits.cells.length || edits.ignoreRows.length || edits.readRows?.length) && !pmcKindOf(moduleCode)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED" });
 }
 
 /** Reads and checks the file; writes nothing. */
