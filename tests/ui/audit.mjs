@@ -151,6 +151,7 @@ async function auditPage(browser, route, vp, token) {
     if (measured.textLength < 30) note("blank-page", route, vp.name, `text length ${measured.textLength}`);
     if (vp.mobile && measured.overflow > 1) note("horizontal-scroll", route, vp.name, `overflow ${measured.overflow}px`);
     if (vp.mobile && measured.small > 0) note("small-touch-target", route, vp.name, { summary: `${measured.small} of ${measured.targets} controls under 44px`, sample: measured.smallSample });
+    if (measured.lang !== LANGUAGE) note("wrong-language", route, vp.name, `lang=${measured.lang}, audited ${LANGUAGE}`);
     if (measured.dir !== EXPECTED_DIR) note("not-rtl", route, vp.name, `dir=${measured.dir}, expected ${EXPECTED_DIR} in ${LANGUAGE}`);
     if (measured.easternDigits.length) note("eastern-digits", route, vp.name, measured.easternDigits.slice(0, 10));
     const unexpected = measured.latin.filter(word => !ALLOWED_ENGLISH.has(word));
@@ -174,6 +175,15 @@ async function auditPage(browser, route, vp, token) {
 mkdirSync(OUT_DIR, { recursive: true });
 const token = readFileSync(SESSION_FILE, "utf8").trim();
 const browser = await chromium.launch({ executablePath: CHROMIUM, args: ["--no-sandbox"] });
+// The language saved on the account wins over this browser's on sign-in (client/src/contexts/LanguageContext.tsx): set it to the audited language
+// first, or an English or Urdu run quietly audits the Arabic pages (it did, 20-11: every page of the en and ur runs had lang=ar).
+{
+  const setup = await browser.newContext();
+  await setup.addCookies([{ name: "app_session_id", value: token, url: BASE_URL }]);
+  const response = await setup.request.post(`${BASE_URL}/api/trpc/languagePreference.set`, { data: { json: { language: LANGUAGE } } });
+  if (!response.ok()) throw new Error(`could not set the audited account's language to ${LANGUAGE}: HTTP ${response.status()}`);
+  await setup.close();
+}
 try {
   for (const route of ROUTES) {
     for (const vp of VIEWPORTS) await auditPage(browser, route, vp, token);
@@ -191,7 +201,7 @@ for (const finding of findings) if (advisory.some(fragment => finding.route.incl
 // those pages are brought to 44px too. TOUCH_STRICT_ROUTES (comma-separated route fragments) replaces the list.
 const TOUCH_STRICT = String(process.env.TOUCH_STRICT_ROUTES ?? "/pmc,/controls,/site-update").split(",").map(item => item.trim()).filter(Boolean);
 for (const finding of findings) if (finding.kind === "small-touch-target" && TOUCH_STRICT.some(fragment => finding.route.includes(fragment))) finding.kind = "small-touch-target-strict";
-const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed", "small-touch-target-strict", "eastern-digits"].includes(f.kind));
+const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed", "small-touch-target-strict", "eastern-digits", "wrong-language"].includes(f.kind));
 const soft = findings.filter(f => !hard.includes(f));
 const report = { role: ROLE, language: LANGUAGE, routes: ROUTES.length, viewports: VIEWPORTS.map(v => v.name), pages, hard, soft, summary: { hard: hard.length, soft: soft.length } };
 writeFileSync(path.join(OUT_DIR, "audit.json"), JSON.stringify(report, null, 2));

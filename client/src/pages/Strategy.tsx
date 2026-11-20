@@ -8,6 +8,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { enumLabel } from "@/lib/labels";
 import { pickLanguage, type Language } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
+import { AssumptionActions, NewAssumption } from "./StrategyAssumptionActions";
 
 const TEXT = {
   ar: {
@@ -55,6 +56,7 @@ function Assumptions({ tenantId, t, language }: { tenantId: string; t: Text; lan
     <CardHeader className="pb-3"><CardTitle className="text-base">{t.assumptions}</CardTitle></CardHeader>
     <CardContent className="grid gap-2">
       <SourceNotice query={query} isArabic={language === "ar"} title={t.assumptions} />
+      <NewAssumption tenantId={tenantId} language={language} />
       {query.data && !query.data.length ? <Empty name="assumptions">{t.noAssumptions}</Empty> : null}
       {query.data?.map(item => <div key={item.id} data-strategy-assumption={item.code} className="grid gap-1 rounded-[var(--radius-md)] border border-border px-3 py-2">
         <div className="flex flex-wrap items-center gap-2 text-sm font-semibold"><bdi>{item.code}</bdi><span>· {item.name}</span><Chip>{enumLabel(item.status, language)}</Chip></div>
@@ -68,6 +70,7 @@ function Assumptions({ tenantId, t, language }: { tenantId: string; t: Text; lan
           {item.nextReviewAt ? <span>{t.nextReview}: <bdi>{formatDate(item.nextReviewAt, language)}</bdi></span> : null}
           {item.pendingChange ? <span className="text-warning-soft-foreground" data-strategy-pending>{t.pendingChange}</span> : null}
         </div>
+        <AssumptionActions tenantId={tenantId} item={item} language={language} />
       </div>)}
     </CardContent>
   </Card>;
@@ -151,7 +154,7 @@ function Variances({ tenantId, t, language }: { tenantId: string; t: Text; langu
 }
 
 /**
- * Q-21 (b), batch 1: «مركز التخطيط الاستراتيجي» — read-only, company-wide. Every section reads its own strategy.* procedure (strategy.read at company
+ * Q-21 (b), batch 1: «مركز التخطيط الاستراتيجي» — company-wide; batch 2 adds working the assumptions register (StrategyAssumptionActions.tsx). Every section reads its own strategy.* procedure (strategy.read at company
  * scope on the server; a viewer without it gets the server's refusal in each section's notice, never a figure). Nothing is computed here: the win rate,
  * the weighted value and each variance's difference come from the server as they are.
  */
