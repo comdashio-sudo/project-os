@@ -257,6 +257,7 @@ export default function ProjectControls() {
             ))}
             <WriteGate permission={PAGE_ACCESS.stalled[0]} projectId={projectId}><StalledUnitsLink tenantId={tenantId} projectId={projectId} /></WriteGate>
             <WriteGate permission={PAGE_ACCESS.meetings[0]} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="meetings" label={pickLanguage(language, PAGE_NAMES.meetings)} /></WriteGate>
+            <WriteGate permission={PAGE_ACCESS.risks[0]} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="risks" label={pickLanguage(language, PAGE_NAMES.risks)} /></WriteGate>
             <WriteGate permission={PAGE_ACCESS.schedule[0]} projectId={projectId}><ProjectPageLink tenantId={tenantId} projectId={projectId} path="schedule" label={pickLanguage(language, PAGE_NAMES.liveSchedule)} /></WriteGate>
             {/* Q-36 (step 3): PMC is its own page; the tab that showed it a second time inside this page is gone (its old address redirects, above) */}
             {canOpenPmc ? <ProjectPageLink tenantId={tenantId} projectId={projectId} path="pmc" label={pickLanguage(language, PAGE_NAMES.pmc)} /> : null}

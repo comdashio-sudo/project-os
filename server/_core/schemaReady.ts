@@ -86,7 +86,11 @@ export const REQUIRED_SCHEMA = [
   { migration: "0040_work_confirmations", kind: "table", table: "subcontract_work_confirmation_lines" },
   { migration: "0041_material_request_warehouse", kind: "column", table: "procurement_requisitions", column: "warehouse_id" },
   { migration: "0041_material_request_warehouse", kind: "column", table: "procurement_requisitions", column: "subcontract_id" },
-  { migration: "0043_employee_reports_to", kind: "column", table: "employees", column: "reports_to_employee_id" },
+  { migration: "0043_risk_register", kind: "column", table: "risks", column: "next_review_at" },
+  { migration: "0043_risk_register", kind: "column", table: "risks", column: "closed_at" },
+  { migration: "0043_risk_register", kind: "column", table: "risks", column: "closure_reason" },
+  { migration: "0043_risk_register", kind: "column", table: "risks", column: "issue_id" },
+  { migration: "0044_employee_reports_to", kind: "column", table: "employees", column: "reports_to_employee_id" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;

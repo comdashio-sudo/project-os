@@ -999,6 +999,21 @@ export const projectErrorMessages = {
     en: "The requested work-hours transition is not allowed from its current status.",
     ur: "درخواست کردہ کام کے گھنٹوں کی تبدیلی اپنی موجودہ حیثیت سے اجازت یافتہ نہیں ہے۔",
   },
+  PROJECT_OS_IMPORT_TEMPLATE_NOT_READY: {
+    ar: "لا يُحفظ القالب إلا بعد تحليل ناجح للملف بأعمدة مكتملة.",
+    en: "A template can be saved only after the file was analysed successfully with every required column.",
+    ur: "سانچہ صرف اس وقت محفوظ ہوتا ہے جب فائل کا تجزیہ تمام لازمی کالموں کے ساتھ کامیاب ہو جائے۔",
+  },
+  PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN: {
+    ar: "هذا الاسم مستعمل لقالب من نوع استيراد آخر في الشركة. اختر اسمًا آخر.",
+    en: "This name is already used by a template of another import type in this company. Choose another name.",
+    ur: "یہ نام اس کمپنی میں کسی دوسری درآمدی قسم کے سانچے کے لیے پہلے سے استعمال ہو رہا ہے۔ کوئی اور نام منتخب کریں۔",
+  },
+  PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND: {
+    ar: "القالب غير موجود في هذه الشركة.",
+    en: "The template does not exist in this company.",
+    ur: "یہ سانچہ اس کمپنی میں موجود نہیں ہے۔",
+  },
   PROJECT_OS_PERFORMANCE_EMPLOYEE_LINK_REQUIRED: {
     ar: "يلزم ربط حسابك ببطاقة موظف نشطة لعرض مؤشراتك الفردية.",
     en: "Your account must be linked to an active employee record to view individual indicators.",
@@ -1703,6 +1718,32 @@ export const projectErrorMessages = {
     ar: "رمز الخطر مستعمل في هذا المشروع. اختر رمزًا آخر.",
     en: "This risk code is already used in this project. Choose another code.",
     ur: "خطرے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
+  },
+  // Q-27 (P-115): the project risk register
+  PROJECT_OS_RISK_NOT_FOUND: {
+    ar: "الخطر غير موجود في هذا المشروع.",
+    en: "This risk does not exist in this project.",
+    ur: "یہ خطرہ اس پروجیکٹ میں موجود نہیں ہے۔",
+  },
+  PROJECT_OS_RISK_CLOSED: {
+    ar: "هذا الخطر مغلق ولا يُعدَّل. سجّل خطرًا جديدًا إن عاد.",
+    en: "This risk is closed and cannot be changed. Register a new risk if it returns.",
+    ur: "یہ خطرہ بند ہے اور اس میں تبدیلی نہیں ہو سکتی۔ اگر یہ دوبارہ سامنے آئے تو نیا خطرہ درج کریں۔",
+  },
+  PROJECT_OS_RISK_OWNER_INVALID: {
+    ar: "مالك الخطر يجب أن يكون عضوًا فعّالًا في الشركة نفسها.",
+    en: "The risk owner must be an active member of this company.",
+    ur: "خطرے کا مالک اسی کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
+  PROJECT_OS_RISK_ALREADY_CONVERTED: {
+    ar: "هذا الخطر تحوّل إلى قضية من قبل.",
+    en: "This risk has already been turned into an issue.",
+    ur: "یہ خطرہ پہلے ہی ایک مسئلے میں تبدیل ہو چکا ہے۔",
+  },
+  PROJECT_OS_ISSUE_CODE_EXISTS: {
+    ar: "رمز القضية مستعمل في هذا المشروع. اختر رمزًا آخر.",
+    en: "This issue code is already used in this project. Choose another code.",
+    ur: "مسئلے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
   },
   PROJECT_OS_BOQ_CODE_EXISTS: {
     ar: "رمز بند جدول الكميات مستعمل في هذا المشروع.",

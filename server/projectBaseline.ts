@@ -84,27 +84,29 @@ export async function saveProjectContract(input: Scope & { contractValue: number
 
 const CASHFLOW_MAX_BYTES = 1024 * 1024; // a month and a share per row: a real file is a few kilobytes
 const prefixed = (code: string) => `PROJECT_OS_${code}`;
-async function readCashFlow(fileBase64: string, format: "xlsx" | "csv"): Promise<CashFlowAnalysis> {
+// a reader's own IMPORT_* code (a broken workbook) is shown as «the file is invalid»; a file too large, or a column choice refused (Q-31), keeps its own message
+const fileCode = (code: string) => prefixed(code.startsWith("IMPORT_") && code !== "IMPORT_FILE_TOO_LARGE" && code !== "IMPORT_MAPPING_INVALID" ? "IMPORT_FILE_INVALID" : code);
+async function readCashFlow(fileBase64: string, format: "xlsx" | "csv", mapping?: Record<string, string>): Promise<CashFlowAnalysis> {
   const bytes = Buffer.from(fileBase64, "base64");
   if (!bytes.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   if (bytes.length > CASHFLOW_MAX_BYTES) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_TOO_LARGE" });
-  return analyzeCashFlowFile(bytes, format);
+  return analyzeCashFlowFile(bytes, format, mapping);
 }
 
 /** The check report before anything is stored: the months read, the refused rows with their reason and value, the total and whether it may be saved. Writes nothing. */
-export async function previewProjectCashFlow(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+export async function previewProjectCashFlow(input: Scope & { fileBase64: string; format: "xlsx" | "csv"; mapping?: Record<string, string> }) {
   await projectGate(input, WRITE);
-  const analysis = await readCashFlow(input.fileBase64, input.format);
+  const analysis = await readCashFlow(input.fileBase64, input.format, input.mapping);
   const refusal = cashFlowRefusal(analysis);
-  return { ...analysis, fileError: analysis.fileError ? prefixed(analysis.fileError === "IMPORT_FILE_TOO_LARGE" ? analysis.fileError : analysis.fileError.startsWith("IMPORT_") ? "IMPORT_FILE_INVALID" : analysis.fileError) : null, refusal: refusal ? prefixed(refusal.startsWith("IMPORT_") ? "IMPORT_FILE_INVALID" : refusal) : null };
+  return { ...analysis, fileError: analysis.fileError ? fileCode(analysis.fileError) : null, refusal: refusal ? fileCode(refusal) : null };
 }
 
 /** Store the planned months, replacing the project's previous plan: a month in the file is written (again), a month no longer in it is removed. Refused unless the total is 100%. */
-export async function saveProjectCashFlow(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+export async function saveProjectCashFlow(input: Scope & { fileBase64: string; format: "xlsx" | "csv"; mapping?: Record<string, string> }) {
   const db = await projectGate(input, WRITE);
-  const analysis = await readCashFlow(input.fileBase64, input.format);
+  const analysis = await readCashFlow(input.fileBase64, input.format, input.mapping);
   const refusal = cashFlowRefusal(analysis);
-  if (refusal) throw new TRPCError({ code: "BAD_REQUEST", message: prefixed(refusal.startsWith("IMPORT_") ? "IMPORT_FILE_INVALID" : refusal) });
+  if (refusal) throw new TRPCError({ code: "BAD_REQUEST", message: fileCode(refusal) });
   await writePlanMonthsAudited(db, input, analysis.months, "file");
   return getBaselineStatus(input);
 }
@@ -122,28 +124,27 @@ export async function cashFlowTemplate(input: Scope & { locale: "ar" | "en" | "u
 // the same authority as adding one BOQ item by hand (createBoqItemForTenant)
 const BOQ_WRITE = ["project.wbs.manage"] as const;
 const BOQ_MAX_BYTES = 3 * 1024 * 1024; // the request ceiling of a file sent inside a request (CLAUDE.md §5)
-const fileCode = (code: string) => prefixed(code.startsWith("IMPORT_") && code !== "IMPORT_FILE_TOO_LARGE" ? "IMPORT_FILE_INVALID" : code);
-async function readBoq(fileBase64: string, format: "xlsx" | "csv"): Promise<BoqAnalysis> {
+async function readBoq(fileBase64: string, format: "xlsx" | "csv", mapping?: Record<string, string>): Promise<BoqAnalysis> {
   const bytes = Buffer.from(fileBase64, "base64");
   if (!bytes.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   if (bytes.length > BOQ_MAX_BYTES) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_TOO_LARGE" });
-  return analyzeBoqFile(bytes, format);
+  return analyzeBoqFile(bytes, format, mapping);
 }
 
 /** The check report: the items read, the refused rows, the total, and how many codes are new and how many already exist (and would be updated). Writes nothing. */
-export async function previewProjectBoq(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+export async function previewProjectBoq(input: Scope & { fileBase64: string; format: "xlsx" | "csv"; mapping?: Record<string, string> }) {
   const db = await projectGate(input, BOQ_WRITE);
-  const analysis = await readBoq(input.fileBase64, input.format);
+  const analysis = await readBoq(input.fileBase64, input.format, input.mapping);
   const refusal = boqRefusal(analysis);
   const codes = analysis.items.map(item => item.code);
   const existing = codes.length ? (await db.select({ code: boqItems.code }).from(boqItems).where(and(mine(boqItems, input), inArray(boqItems.code, codes)))).length : 0;
-  return { count: analysis.items.length, items: analysis.items.slice(0, 20), issues: analysis.issues, totalAmount: analysis.totalAmount, newCount: analysis.items.length - existing, updateCount: existing, fileError: analysis.fileError ? fileCode(analysis.fileError) : null, refusal: refusal ? fileCode(refusal) : null };
+  return { count: analysis.items.length, items: analysis.items.slice(0, 20), issues: analysis.issues, totalAmount: analysis.totalAmount, newCount: analysis.items.length - existing, updateCount: existing, columns: analysis.columns, fileErrorDetail: analysis.fileErrorDetail, fileError: analysis.fileError ? fileCode(analysis.fileError) : null, refusal: refusal ? fileCode(refusal) : null };
 }
 
 /** Write the file's items: a new code is added, an existing code (same project) is updated in place. Nothing is deleted: an item no longer in the file stays (a certificate may cite it). */
-export async function saveProjectBoq(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+export async function saveProjectBoq(input: Scope & { fileBase64: string; format: "xlsx" | "csv"; mapping?: Record<string, string> }) {
   const db = await projectGate(input, BOQ_WRITE);
-  const analysis = await readBoq(input.fileBase64, input.format);
+  const analysis = await readBoq(input.fileBase64, input.format, input.mapping);
   const refusal = boqRefusal(analysis);
   if (refusal) throw new TRPCError({ code: "BAD_REQUEST", message: fileCode(refusal) });
   await db.transaction(async tx => {
@@ -170,25 +171,25 @@ export async function boqTemplate(input: Scope & { locale: "ar" | "en" | "ur" })
 
 // ------------------------------------------------------------------ Q-10 (d): the planned labour histogram
 
-async function readLabour(fileBase64: string, format: "xlsx" | "csv"): Promise<LabourAnalysis> {
+async function readLabour(fileBase64: string, format: "xlsx" | "csv", mapping?: Record<string, string>): Promise<LabourAnalysis> {
   const bytes = Buffer.from(fileBase64, "base64");
   if (!bytes.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   if (bytes.length > CASHFLOW_MAX_BYTES) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_TOO_LARGE" });
-  return analyzeLabourFile(bytes, format);
+  return analyzeLabourFile(bytes, format, mapping);
 }
 
 /** The check report: rows read, refused rows, the monthly histogram and its peak. Writes nothing. */
-export async function previewProjectLabour(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+export async function previewProjectLabour(input: Scope & { fileBase64: string; format: "xlsx" | "csv"; mapping?: Record<string, string> }) {
   await projectGate(input, WRITE);
-  const analysis = await readLabour(input.fileBase64, input.format);
+  const analysis = await readLabour(input.fileBase64, input.format, input.mapping);
   const refusal = labourRefusal(analysis);
-  return { count: analysis.rows.length, issues: analysis.issues, histogram: analysis.histogram, peak: analysis.peak, fileError: analysis.fileError ? fileCode(analysis.fileError) : null, refusal: refusal ? fileCode(refusal) : null };
+  return { count: analysis.rows.length, issues: analysis.issues, histogram: analysis.histogram, peak: analysis.peak, columns: analysis.columns, fileErrorDetail: analysis.fileErrorDetail, fileError: analysis.fileError ? fileCode(analysis.fileError) : null, refusal: refusal ? fileCode(refusal) : null };
 }
 
 /** Replace the project's planned labour with the file's rows: the plan is one file, so a row no longer in it goes. */
-export async function saveProjectLabour(input: Scope & { fileBase64: string; format: "xlsx" | "csv" }) {
+export async function saveProjectLabour(input: Scope & { fileBase64: string; format: "xlsx" | "csv"; mapping?: Record<string, string> }) {
   const db = await projectGate(input, WRITE);
-  const analysis = await readLabour(input.fileBase64, input.format);
+  const analysis = await readLabour(input.fileBase64, input.format, input.mapping);
   const refusal = labourRefusal(analysis);
   if (refusal) throw new TRPCError({ code: "BAD_REQUEST", message: fileCode(refusal) });
   await writePlannedLabourAudited(db, input, analysis.rows, analysis.peak, "file");

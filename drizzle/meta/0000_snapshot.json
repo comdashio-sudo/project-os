@@ -1,5 +1,5 @@
 {
-  "id": "a8a16727-ca6e-416d-89a0-85d699d6adf6",
+  "id": "56733052-e793-41f6-99b2-8928fd6590da",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -24116,6 +24116,30 @@
           "notNull": true,
           "default": "'open'"
         },
+        "next_review_at": {
+          "name": "next_review_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closure_reason": {
+          "name": "closure_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issue_id": {
+          "name": "issue_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -24214,6 +24238,19 @@
           "tableTo": "memberships",
           "columnsFrom": [
             "owner_membership_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "risks_issue_id_issues_id_fk": {
+          "name": "risks_issue_id_issues_id_fk",
+          "tableFrom": "risks",
+          "tableTo": "issues",
+          "columnsFrom": [
+            "issue_id"
           ],
           "columnsTo": [
             "id"

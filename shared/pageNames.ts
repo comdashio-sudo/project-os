@@ -22,6 +22,7 @@ export const PAGE_NAMES = {
   monthlyReport: { ar: "التقرير الشهري", en: "Monthly report", ur: "ماہانہ رپورٹ" },
   myPerformance: { ar: "مؤشراتي", en: "My indicators", ur: "میرے اشاریے" },
   meetings: { ar: "اجتماعات المشروع", en: "Project meetings", ur: "پروجیکٹ میٹنگز" },
+  risks: { ar: "مخاطر المشروع", en: "Project risks", ur: "پروجیکٹ کے خطرات" },
   site: { ar: "الموقع والتنفيذ", en: "Site and execution", ur: "سائٹ اور عمل درآمد" },
   reports: { ar: "التقارير", en: "Reports", ur: "رپورٹس" },
   imports: { ar: "الاستيراد", en: "Import", ur: "درآمد" },
@@ -38,7 +39,7 @@ export type PageNameKey = keyof typeof PAGE_NAMES;
 export const PROJECT_SUBPAGE_NAMES: Record<string, PageNameKey> = {
   controls: "board", baseline: "baseline", team: "team", pmc: "pmc", stalled: "stalled", profitability: "profitability", commercial: "commercial",
   quality: "quality", submittals: "submittals", "site-consultant": "siteConsultant", guide: "guide", "weekly-report": "weeklyReport",
-  "monthly-report": "monthlyReport", "my-performance": "myPerformance", meetings: "meetings", schedule: "liveSchedule", site: "site", reports: "reports", import: "imports",
+  "monthly-report": "monthlyReport", "my-performance": "myPerformance", meetings: "meetings", risks: "risks", schedule: "liveSchedule", site: "site", reports: "reports", import: "imports",
 };
 
 /** Names a page no longer goes by (Arabic), and the page they belonged to. The client test fails if any of them is shown again. */

@@ -16,6 +16,7 @@ import {
   unique,
   uniqueIndex,
   varchar,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -1960,6 +1961,11 @@ export const risks = pgTable(
     ownerMembershipId: varchar("owner_membership_id", { length: 36 }).references(() => memberships.id),
     dueAt: timestamp("due_at", { withTimezone: true }),
     status: risksStatusEnum("status").default("open").notNull(),
+    // Q-27 (P-115, 0043): when the risk is next reviewed (a site date), how it was closed, and the issue it became when it happened
+    nextReviewAt: date("next_review_at", { mode: "string" }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closureReason: text("closure_reason"),
+    issueId: varchar("issue_id", { length: 36 }).references((): AnyPgColumn => issues.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
