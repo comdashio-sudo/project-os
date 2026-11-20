@@ -1,5 +1,5 @@
 import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
-import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation } from "./workConfirmations";
+import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions } from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
@@ -59,6 +59,7 @@ import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, get
 import { getPmcProjectSummaryForTenant } from "./db";
 import { getPmcImportStatus } from "./pmcImportStatus";
 import { analyzeSmartUpload, confirmSmartImport, createSmartUpload, getImportSourceLink, listImportProfiles } from "./smartImport";
+import { closeWorkPermit, getSafetyRegister, issueWorkPermit, recordSafetyIncident, updateSafetyIncident } from "./safety";
 import { closeProjectRisk, convertRiskToIssue, listProjectRisks, projectRiskHistory, updateProjectRisk } from "./projectRisks";
 // Q-27 (P-115): what a risk update may change. Text fields take null to clear; scores are 1–5; the review date is a calendar day; "closed" goes through closeRisk.
 const riskText = (max: number) => z.string().trim().max(max).transform(value => value || null).nullable();
@@ -77,7 +78,7 @@ import { claimSupportTicket, createKnowledgeArticleForTenant, createSupportTicke
 import { reportDashboardSectionIssueForTenant } from "./db";
 import { getEmailNotificationPreferences, setEmailNotificationPreference, adjustPayrollAllocationForTenant, allocatePayrollEntryByHoursForTenant, allocateApprovedPayrollCostForTenant, archiveEmployeeForTenant, createEmployeeAttendanceForTenant, createEmployeeForTenant, createEmployeeTimeEntryForTenant, createEmploymentContractForTenant, createPayrollRunForTenant, getEmployeeAttendanceForTenant, getEmployeeIdentityForTenant, getEmployeeTimeEntriesForTenant, getEmployeesForTenant, getEmploymentContractsForTenant, getPayrollAllocationOptionsForTenant, getPayrollAllocationProjectsForTenant, getPayrollCapabilitiesForTenant, getPayrollRunDetailsForTenant, getPayrollRunsForTenant, getSalaryStructureForTenant, saveSalaryStructureForTenant, transitionEmployeeAttendanceForTenant, transitionEmployeeTimeEntryForTenant, transitionPayrollRunForTenant } from "./db";
 import { createEmployeeAssignmentForTenant, getEmployeeAssignmentOptionsForTenant, getEmployeeAssignmentsForTenant } from "./db";
-import { createEmployeePerformanceExclusionForTenant, createEmployeePerformanceObjectionForTenant, getEmployeePerformanceForTenant, getOwnPerformanceAvailabilityForTenant, transitionEmployeePerformanceObjectionForTenant } from "./db";
+import { createEmployeePerformanceExclusionForTenant, createEmployeePerformanceObjectionForTenant, getEmployeePerformanceForTenant, getOwnPerformanceAvailabilityForTenant, listDirectReportsForTenant, setEmployeeManagerForTenant, transitionEmployeePerformanceObjectionForTenant } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { calculateEvm } from "./domain/evm";
 import { addDesignRevision, approveDesignDrawing, cancelDesignDrawing, createDesignSubmittal, createDesignTransmittal, getDesignDashboard, listDesignComments, listDesignDrawings, listDesignRevisions, listDesignSubmittals, listDesignTransmittals, raiseDesignComment, registerDesignDrawing, transitionDesignComment, transitionDesignSubmittal, transitionDesignTransmittal } from "./designService";
@@ -615,6 +616,14 @@ export const appRouter = router({
     convertRiskToIssue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid(), issueCode: z.string().trim().min(1).max(80), priority: z.enum(["low", "medium", "high", "critical"]), dueAt: z.date().optional() })).mutation(({ ctx, input }) => convertRiskToIssue({ userId: ctx.user.id, ...input })),
     riskHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), riskId: z.string().uuid() })).query(({ ctx, input }) => projectRiskHistory({ userId: ctx.user.id, ...input })),
   }),
+  // Q-28 (P-117): the safety register — incidents, permits to work, LTIFR and TRIR (server/safety.ts); read with project.read, written with project.hse.manage
+  safety: router({
+    register: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })).query(({ ctx, input }) => getSafetyRegister({ userId: ctx.user.id, ...input })),
+    recordIncident: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), incidentNumber: z.string().trim().min(1).max(60), occurredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), kind: z.enum(["near_miss", "first_aid", "medical_treatment", "restricted_work", "lost_time", "fatality", "property_damage", "environmental"]), title: z.string().trim().min(2).max(255), description: z.string().trim().min(2).max(4000), location: z.string().trim().max(160).optional(), peopleInvolved: z.number().int().min(0).max(10000).optional(), lostDays: z.number().int().min(0).max(10000).optional(), rootCause: z.string().trim().max(4000).optional(), correctiveAction: z.string().trim().max(4000).optional() })).mutation(({ ctx, input }) => recordSafetyIncident({ userId: ctx.user.id, ...input })),
+    updateIncident: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), incidentId: z.string().uuid(), status: z.enum(["investigating", "closed"]).optional(), lostDays: z.number().int().min(0).max(10000).optional(), rootCause: z.string().trim().max(4000).nullable().optional(), correctiveAction: z.string().trim().max(4000).nullable().optional() })).mutation(({ ctx, input }) => updateSafetyIncident({ userId: ctx.user.id, ...input })),
+    issuePermit: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), permitNumber: z.string().trim().min(1).max(60), permitType: z.enum(["hot_work", "work_at_height", "confined_space", "excavation", "electrical", "lifting", "other"]), description: z.string().trim().min(2).max(4000), location: z.string().trim().max(160).optional(), responsibleParty: z.string().trim().max(160).optional(), validFrom: z.date(), validTo: z.date() })).mutation(({ ctx, input }) => issueWorkPermit({ userId: ctx.user.id, ...input })),
+    closePermit: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), permitId: z.string().uuid(), outcome: z.enum(["closed", "cancelled"]), note: z.string().trim().min(3).max(500) })).mutation(({ ctx, input }) => closeWorkPermit({ userId: ctx.user.id, ...input })),
+  }),
   // Q-25 (P-113): project meetings — the minutes, item by item, and the actions they raise (server/meetings.ts)
   meetings: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProjectMeetings({ userId: ctx.user.id, ...input })),
@@ -827,6 +836,7 @@ export const appRouter = router({
     // Q-52: may this account read its own indicators here (linked employee record + read_own)? Asked before get, so «not linked» is not a refused request
     availability: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getOwnPerformanceAvailabilityForTenant({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), employeeId: z.string().uuid().optional() })).query(({ ctx, input }) => getEmployeePerformanceForTenant({ userId: ctx.user.id, ...input })),
+    directReports: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listDirectReportsForTenant({ userId: ctx.user.id, ...input })),
     exclude: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), employeeId: z.string().uuid(), sourceType: z.enum(["activity", "action", "rfi", "ncr", "quality_inspection", "field_report", "material_request"]), sourceId: z.string().uuid(), reason: z.string().trim().min(10).max(1000) })).mutation(({ ctx, input }) => createEmployeePerformanceExclusionForTenant({ userId: ctx.user.id, ...input })),
     objections: router({
       create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), statement: z.string().trim().min(20).max(8000) })).mutation(({ ctx, input }) => createEmployeePerformanceObjectionForTenant({ userId: ctx.user.id, ...input })),
@@ -843,6 +853,7 @@ export const appRouter = router({
     identity: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid() })).query(({ ctx, input }) => getEmployeeIdentityForTenant({ userId: ctx.user.id, ...input })),
     create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeNumber: z.string().trim().min(1).max(80), fullName: z.string().trim().min(2).max(255), jobTitle: z.string().trim().min(2).max(160), department: z.string().trim().min(2).max(160), hireDate: z.date(), nationality: z.string().trim().max(120).optional(), identityDocumentType: z.string().trim().max(80).optional(), identityReference: z.string().trim().max(512).optional(), linkedUserId: z.number().int().positive().optional(), retentionPolicy: z.enum(["standard", "extended", "legal_hold"]).default("standard") })).mutation(({ ctx, input }) => createEmployeeForTenant({ userId: ctx.user.id, ...input })),
     archive: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid() })).mutation(({ ctx, input }) => archiveEmployeeForTenant({ userId: ctx.user.id, ...input })),
+    setManager: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid(), reportsToEmployeeId: z.string().uuid().nullable() })).mutation(({ ctx, input }) => setEmployeeManagerForTenant({ userId: ctx.user.id, ...input })),
     contracts: router({
       list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid() })).query(({ ctx, input }) => getEmploymentContractsForTenant({ userId: ctx.user.id, ...input })),
       create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), employeeId: z.string().uuid(), contractType: z.enum(["permanent", "fixed_term", "temporary", "consulting"]), startDate: z.date(), endDate: z.date().optional(), probationEndDate: z.date().optional(), renewalOfContractId: z.string().uuid().optional(), retentionPolicy: z.enum(["standard", "extended", "legal_hold"]).default("standard") }).refine(value => !value.endDate || value.endDate >= value.startDate, { message: "PROJECT_OS_EMPLOYMENT_CONTRACT_DATES_INVALID", path: ["endDate"] }).refine(value => !value.probationEndDate || value.probationEndDate >= value.startDate, { message: "PROJECT_OS_EMPLOYMENT_CONTRACT_DATES_INVALID", path: ["probationEndDate"] })).mutation(({ ctx, input }) => createEmploymentContractForTenant({ userId: ctx.user.id, ...input })),
@@ -873,12 +884,14 @@ export const appRouter = router({
   // Q-43 (P2-06): proof of a subcontractor's work without prices (server/workConfirmations.ts).
   workConfirmations: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid().optional() })).query(({ ctx, input }) => listWorkConfirmations({ userId: ctx.user.id, ...input })),
+    // batch 4: the pickers of the preparation screen — no rate, amount or contract value
+    options: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => workConfirmationOptions({ userId: ctx.user.id, ...input })),
     create: protectedProcedure.input(z.object({
       tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid(), confirmationNumber: z.string().trim().min(1).max(60),
       periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().trim().max(500).nullish(),
       lines: z.array(z.discriminatedUnion("kind", [
-        z.object({ kind: z.literal("unit"), pmcUnitId: z.string().uuid(), pmcActivityDefinitionId: z.string().uuid(), percent: z.number().finite(), note: z.string().trim().max(300).nullish() }),
-        z.object({ kind: z.literal("quantity"), boqItemId: z.string().uuid(), quantity: z.number().finite(), note: z.string().trim().max(300).nullish() }),
+        z.object({ kind: z.literal("unit"), pmcUnitId: z.string().uuid(), pmcActivityDefinitionId: z.string().uuid(), percent: z.number().finite(), note: z.string().trim().max(300).nullish(), correctsLineId: z.string().uuid().nullish(), historical: z.boolean().optional() }),
+        z.object({ kind: z.literal("quantity"), boqItemId: z.string().uuid(), quantity: z.number().finite(), note: z.string().trim().max(300).nullish(), correctsLineId: z.string().uuid().nullish(), historical: z.boolean().optional() }),
       ])).min(1).max(500),
     })).mutation(({ ctx, input }) => createWorkConfirmation({ userId: ctx.user.id, ...input })),
     transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), confirmationId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "cancelled"]), reason: z.string().trim().max(500).nullish() })).mutation(({ ctx, input }) => transitionWorkConfirmation({ userId: ctx.user.id, ...input })),

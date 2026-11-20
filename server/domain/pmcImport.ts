@@ -368,6 +368,9 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
       // a totals line: every filled label of the row (section, sub-item, activity) is total words — skipped, and COUNTED in the report (never silent)
       const labels = [cells.csi, cells.sub, cells.activityName].map(value => pmcHeaderKey(value)).filter(Boolean);
       if (labels.length > 0 && labels.every(label => TOTAL_LINE.test(label))) { notes.skippedTotals += 1; return; }
+      // I50 (the owner's real file): the totals word may sit in a column no field reads («م», merged with the division cell) while every mapped label is
+      // empty and the weight column holds the rounded sum (0.99999). No label and no activity name, and a cell of the row that is total words: a totals line
+      if (labels.length === 0 && Object.values(row).some(value => TOTAL_LINE.test(pmcHeaderKey(value)))) { notes.skippedTotals += 1; return; }
       // Q-47 (owner decision 18-11): a section written once above its activities — the empty section cells below it take it, counted and shown in the preview
       const csi = String(cells.csi ?? "").trim();
       if (csi) lastCsi = csi;
