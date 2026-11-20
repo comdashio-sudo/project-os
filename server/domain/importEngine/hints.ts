@@ -25,6 +25,8 @@ export function closeness(header: string, alias: string): number {
   return shared / Math.max(x.size, y.size);
 }
 
+const scoreOf = (field: { aliases: readonly string[] }, header: string) => Math.max(0, ...field.aliases.map(alias => closeness(header, alias)));
+
 export function columnHints(
   fields: ReadonlyArray<{ key: string; aliases: readonly string[] }>,
   headers: readonly string[],
@@ -39,8 +41,10 @@ export function columnHints(
     let best: ColumnSuggestion | null = null;
     for (const candidate of headers) {
       if (!candidate || taken.has(candidate)) continue;
-      const score = Math.max(0, ...field.aliases.map(alias => closeness(candidate, alias)));
-      if (score >= SUGGEST_AT && (!best || score > best.confidence)) best = { header: candidate, confidence: Math.round(score * 100) / 100 };
+      const score = scoreOf(field, candidate);
+      // a header at least as close to ANOTHER field's names is that field's, not this one's: «UOM code» is the unit of measure, not the item code
+      const elsewhere = Math.max(0, ...fields.filter(other => other.key !== field.key).map(other => scoreOf(other, candidate)));
+      if (score >= SUGGEST_AT && score > elsewhere && (!best || score > best.confidence)) best = { header: candidate, confidence: Math.round(score * 100) / 100 };
     }
     out[field.key] = { source: null, suggestion: best };
   }

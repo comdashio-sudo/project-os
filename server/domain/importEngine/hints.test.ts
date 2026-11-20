@@ -34,4 +34,12 @@ describe("columnHints (Q-50 batch 3b)", () => {
     expect(taken.blockCode.suggestion).toBeNull();
     expect(SUGGEST_AT).toBe(0.5);
   });
+
+  it("NEGATIVE (found on the real database test): a header as close to another field's names is not offered — «UOM code» is the unit of measure, not the item code", () => {
+    const boq = [{ key: "code", aliases: ["code", "item code"] }, { key: "unitOfMeasure", aliases: ["unit", "uom"] }];
+    const hints = columnHints(boq, ["Ref", "UOM code"], { code: null, unitOfMeasure: null }, new Set());
+    expect(hints.code.suggestion).toBeNull();
+    expect(hints.unitOfMeasure.suggestion).toBeNull(); // a tie: 0.8 for both, so neither claims it
+    expect(columnHints(boq, ["Item code no"], { code: null, unitOfMeasure: null }, new Set()).code.suggestion).toEqual({ header: "Item code no", confidence: 0.8 });
+  });
 });
