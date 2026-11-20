@@ -273,5 +273,14 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
     expect(await n("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action = 'data_import_rolled_back'", [T, record.id])).toBe(1);
     expect(await n("SELECT COUNT(*) AS n FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND source = 'p6_rollback'", [T, PB])).toBe(1);
     await expect(manager.dataImports.rollback({ tenantId: T, projectId: PB, importId: record.id })).rejects.toThrow("PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED");
-  }, 60_000);
+    // the baseline (review of #497): the undone import's snapshot is no longer it, the p6_rollback snapshot is not it, and the NEXT import of B becomes it
+    expect(await n("SELECT COUNT(*) AS n FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND isBaseline = true", [T, PB])).toBe(0);
+    expect(await n("SELECT COUNT(*) AS n FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND importId = ?", [T, PB, record.id])).toBeGreaterThanOrEqual(2); // kept as a record
+    const target = await manager.smartImport.createUpload({ tenantId: T, projectId: PB, fileName: "b2.xer" });
+    expect((await fetch(target.uploadUrl, { method: "PUT", headers: target.headers, body: Buffer.from(buildP6Xer({ nameSuffix: " (B2)" }).bytes) })).ok).toBe(true);
+    const plan = (await manager.smartImport.analyze({ tenantId: T, projectId: PB, uploadKey: target.uploadKey, fileName: "b2.xer" })).p6Plan!;
+    await manager.smartImport.confirm({ tenantId: T, projectId: PB, uploadKey: target.uploadKey, fileName: "b2.xer", kind: "xer", forced: {} as never, approvedHash: plan.fileHash });
+    const [next] = await one<{ id: string }>("SELECT id FROM data_imports WHERE tenantId = ? AND projectId = ? AND moduleCode = 'p6' AND status = 'completed'", [T, PB]);
+    expect(await n("SELECT COUNT(*) AS n FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND importId = ? AND isBaseline = true", [T, PB, next.id])).toBe(1);
+  }, 120_000);
 });

@@ -5,7 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { activities, activityCodeAssignments, activityCodeTypes, activityCodeValues, activityRelationships, activityResourceAssignments, auditLogs, budgetLines, contracts, dataImportErrors, dataImportRowResults, dataImportSources, dataImports, materialMasters, projectResources, scheduleCalendars, wbsItems } from "../drizzle/schema";
+import { activities, activityCodeAssignments, activityCodeTypes, activityCodeValues, activityRelationships, activityResourceAssignments, auditLogs, budgetLines, contracts, dataImportErrors, dataImportRowResults, dataImportSources, dataImports, materialMasters, projectResources, scheduleCalendars, scheduleSnapshots, wbsItems } from "../drizzle/schema";
 import { isForeignKeyViolation } from "./_core/database";
 import { logError } from "./_core/logger";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb, getTenantAccessSnapshot, importPermissionFor } from "./db";
@@ -153,6 +153,10 @@ async function rollbackP6Import(db: NonNullable<Awaited<ReturnType<typeof getDb>
       if (marked.length !== 1) throw fail("PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED", "CONFLICT");
       await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_rolled_back", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: "p6", deleted }) });
       await captureScheduleSnapshot(tx as unknown as Parameters<typeof captureScheduleSnapshot>[0], { tenantId: input.tenantId, projectId: input.projectId, importId: record.id, source: "p6_rollback", dataDate: null, userId: input.userId });
+      // the undone import's snapshot stops being the baseline (review of #497), so the next import becomes it. AFTER the p6_rollback snapshot: taken without a
+      // baseline, that empty snapshot would itself become the baseline. The undone snapshot stays as a record.
+      await tx.update(scheduleSnapshots).set({ isBaseline: false })
+        .where(and(eq(scheduleSnapshots.tenantId, input.tenantId), eq(scheduleSnapshots.projectId, input.projectId), eq(scheduleSnapshots.importId, record.id), eq(scheduleSnapshots.isBaseline, true)));
     });
   } catch (error) {
     if (isForeignKeyViolation(error)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_IN_USE", "CONFLICT"); // the whole transaction is undone: something now depends on a row this import created
