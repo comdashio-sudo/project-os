@@ -1,0 +1,125 @@
+[
+ {
+  "name": "site",
+  "width": 390,
+  "h1": "الموقع والتنفيذ",
+  "text": 324,
+  "hScroll": false,
+  "eastern": false,
+  "empty": false,
+  "demoWords": 0,
+  "pptx": null,
+  "errors": []
+ },
+ {
+  "name": "site",
+  "width": 1280,
+  "h1": "الموقع والتنفيذ",
+  "text": 689,
+  "hScroll": false,
+  "eastern": false,
+  "empty": false,
+  "demoWords": 4,
+  "pptx": null,
+  "errors": []
+ },
+ {
+  "name": "daily",
+  "width": 390,
+  "h1": "التقرير اليومي",
+  "text": 4689,
+  "hScroll": false,
+  "eastern": false,
+  "empty": true,
+  "demoWords": 6,
+  "pptx": null,
+  "errors": []
+ },
+ {
+  "name": "daily",
+  "width": 1280,
+  "h1": "التقرير اليومي",
+  "text": 4689,
+  "hScroll": false,
+  "eastern": false,
+  "empty": true,
+  "demoWords": 6,
+  "pptx": null,
+  "errors": []
+ },
+ {
+  "name": "weekly",
+  "width": 390,
+  "h1": "التقرير الأسبوعي",
+  "text": 1251,
+  "hScroll": false,
+  "eastern": false,
+  "empty": false,
+  "demoWords": 0,
+  "pptx": null,
+  "errors": []
+ },
+ {
+  "name": "weekly",
+  "width": 1280,
+  "h1": "التقرير الأسبوعي",
+  "text": 1616,
+  "hScroll": false,
+  "eastern": false,
+  "empty": false,
+  "demoWords": 4,
+  "pptx": {
+   "name": "weekly-report-2026-11-14.pptx",
+   "slides": 9
+  },
+  "errors": []
+ },
+ {
+  "name": "monthly",
+  "width": 390,
+  "h1": "التقرير الشهري",
+  "text": 554,
+  "hScroll": false,
+  "eastern": false,
+  "empty": false,
+  "demoWords": 0,
+  "pptx": null,
+  "errors": []
+ },
+ {
+  "name": "monthly",
+  "width": 1280,
+  "h1": "التقرير الشهري",
+  "text": 919,
+  "hScroll": false,
+  "eastern": false,
+  "empty": false,
+  "demoWords": 4,
+  "pptx": null,
+  "errors": []
+ },
+ {
+  "name": "reports",
+  "width": 390,
+  "h1": "التقارير",
+  "text": 371,
+  "hScroll": false,
+  "eastern": false,
+  "empty": false,
+  "demoWords": 0,
+  "pptx": null,
+  "errors": []
+ },
+ {
+  "name": "reports",
+  "width": 1280,
+  "h1": "التقارير",
+  "text": 736,
+  "hScroll": false,
+  "eastern": false,
+  "empty": false,
+  "demoWords": 4,
+  "pptx": null,
+  "errors": []
+ }
+]
