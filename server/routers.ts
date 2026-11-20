@@ -2,6 +2,7 @@ import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, sa
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions } from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
+import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
@@ -597,6 +598,10 @@ export const appRouter = router({
     runConnection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), connectionId: z.string().uuid(), direction: z.enum(["in", "out", "both"]) })).mutation(({ ctx, input }) => runConnectionForManager({ userId: ctx.user.id, ...input })),
   }),
   // The four levels a role works at (work order 12, item 2): each answers over exactly the projects the caller's own assignment covers.
+  // Q-53 (adviser 20-11): «التشغيل» — a row per project the caller reads (project.read at its scope), from existing records only (server/operationsOverview.ts)
+  operations: router({
+    overview: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getOperationsOverview({ userId: ctx.user.id, ...input })),
+  }),
   scopes: router({
     company: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getCompanyLevel({ userId: ctx.user.id, ...input })),
     portfolio: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getPortfolioLevel({ userId: ctx.user.id, ...input })),

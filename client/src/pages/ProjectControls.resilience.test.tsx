@@ -47,6 +47,7 @@ vi.mock("@/components/MasterPlanDrawing", () => ({ MasterPlanDrawing: () => null
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), mutateAsync: async (input: unknown) => { state.saved.push(input); return {}; }, isPending: false, error: null, data: null });
   return { trpc: {
+    siteReports: { list: { useQuery: () => ({ data: [] }) }, get: { useQuery: () => ({ data: undefined }) } }, // Q-54: the labour card beside the hero
     pmc: { stalledUnits: { useQuery: () => ({ data: { threshold: 3, longDays: 14, counts: { stalled: 2, long: 1, active: 4 }, rows: [] }, isError: false, error: null }) } },
     reportPeriods: { monthly: { useQuery: () => ({ isLoading: false, error: null, data: undefined }) } },
     projects: {
@@ -102,7 +103,8 @@ describe("ProjectControls section resilience", () => {
   it("Q-18: while a main read (the schedule) is on its way, the page shows its grey shape once instead of a half page that jumps when it lands", () => {
     state.scheduleLoading = true;
     const { container } = render(<ProjectControls />);
-    expect(container.querySelector('[data-skeleton="content"]')).toBeTruthy();
+    expect(container.querySelector('[data-skeleton="board"]')).toBeTruthy(); // Q-54: the board's own shape (dark hero, four cards, a list)
+    expect(screen.getByRole("status").getAttribute("aria-label")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Project delivery board" })).toBeNull();
   });
 

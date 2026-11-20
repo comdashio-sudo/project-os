@@ -2,6 +2,7 @@ import { indicatorBasisLine } from "@/lib/indicatorBasis";
 import { PAGE_NAMES } from "@shared/pageNames";
 import { PageHeader, PageMain } from "@/components/pageFrame";
 import { ProjectBoardHero } from "@/components/ProjectBoardHero";
+import { ProjectBoardKpis } from "@/components/ProjectBoardKpis";
 import { MetricCard, formatDate, formatNumber } from "@/components/ds";
 import { UPLOAD_ANY_FILE_FALLBACK_GROUP, uploadAnyFileHref } from "@/lib/uploadAnyFile";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ import { Activity, ArrowLeft, Banknote, FileUp, CalendarDays, Calculator, CheckC
 import React, { useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { ProjectStart } from "@/components/ProjectStart";
-import { ContentSkeleton } from "@/components/ShellSkeleton";
+import { BoardSkeleton } from "@/components/ShellSkeleton";
 import { ProjectUploadContext, SectionActions } from "@/components/SectionActions";
 import { anyImportPermission } from "@shared/importPermissions";
 import { enumLabel } from "@/lib/labels";
@@ -155,7 +156,7 @@ export default function ProjectControls() {
 
   // Q-18: the page's first two reads decide its header and whether the «start your project» card is there; drawing the page before them made everything
   // below jump when they landed (layout shift 0.30). Until they answer, the page's grey shape; then the page once.
-  if ((scheduleQuery.isLoading && !scheduleQuery.error) || (financialsQuery.isLoading && !financialsQuery.error)) return <PageMain className="min-w-0"><ContentSkeleton /></PageMain>;
+  if ((scheduleQuery.isLoading && !scheduleQuery.error) || (financialsQuery.isLoading && !financialsQuery.error)) return <PageMain className="min-w-0"><BoardSkeleton /></PageMain>;
   if (scheduleQuery.error && financialsQuery.error && performanceQuery.error) return <PageMain className="p-2 text-destructive">{getLocalizedProjectError(scheduleQuery.error, isArabic)}</PageMain>;
 
   const fallbackData = { project: { code: projectId, name: t.title }, wbs: [], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null };
@@ -240,6 +241,7 @@ export default function ProjectControls() {
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_performance" state={performanceQuery.error ? "error" : performanceQuery.data && (!latestEvm || !latestHealth) ? "partial" : null} />
         {/* Q-19 (3): the date, the day of the programme and the dark hero card of weighted progress against the plan head the board */}
         <ProjectBoardHero tenantId={tenantId} projectId={projectId} starts={data.activities.map(activity => activity.plannedStartAt)} />
+        <ProjectBoardKpis tenantId={tenantId} projectId={projectId} />
         <section className="flex flex-col gap-4 rounded-[var(--radius-card,var(--radius))] border border-border bg-card p-5 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1 basis-64">

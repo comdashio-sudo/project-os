@@ -8,14 +8,15 @@ import React, { useMemo, useState } from "react";
 // file again with that choice. The two screens' wrappers keep their names and contracts: PmcColumnMapping (a stored file analysed again by the background job)
 // and ColumnChoice (a file checked inside the request). One column for two fields is not offered; «no column» is sent as an empty header (it clears what the
 // reader found — review of #371); the columns no field takes are ignored, since the person has just seen the whole list.
-export type ColumnReport = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null }>; overridden: boolean };
+// Q-50 batch 3b: the server says where each column came from (`source`) and, for a field it did not find, the closest free header (`suggestion`), never applied
+export type ColumnReport = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null; source?: "name" | "chosen" | null; suggestion?: { header: string; confidence: number } | null }>; overridden: boolean };
 export type ColumnMappingFlow = "reanalyze" | "check";
 const NONE = "__none";
 
 const shared = {
-  ar: { title: "أعمدة الملف", required: "مطلوب", optional: "اختياري", none: "— لا عمود —", twice: "عمود واحد لحقلين: اختر عمودًا لكل حقل", chosen: "الأعمدة مختارة يدويًا", missing: "ناقص" },
-  en: { title: "File columns", required: "Required", optional: "Optional", none: "— No column —", twice: "One column for two fields: pick a column for each field", chosen: "Columns chosen by hand", missing: "Missing" },
-  ur: { title: "فائل کے کالم", required: "لازمی", optional: "اختیاری", none: "— کوئی کالم نہیں —", twice: "دو فیلڈز کے لیے ایک کالم: ہر فیلڈ کے لیے الگ کالم چنیں", chosen: "کالم ہاتھ سے چنے گئے", missing: "موجود نہیں" },
+  ar: { title: "أعمدة الملف", required: "مطلوب", optional: "اختياري", none: "— لا عمود —", twice: "عمود واحد لحقلين: اختر عمودًا لكل حقل", chosen: "الأعمدة مختارة يدويًا", missing: "ناقص" , byName: "عُرف من اسمه", byHand: "اخترته", useSuggestion: (header: string, percent: number) => `استعمل «${header}» (تطابق ${percent}%)` },
+  en: { title: "File columns", required: "Required", optional: "Optional", none: "— No column —", twice: "One column for two fields: pick a column for each field", chosen: "Columns chosen by hand", missing: "Missing" , byName: "Recognised by its name", byHand: "Chosen by you", useSuggestion: (header: string, percent: number) => `Use «${header}» (${percent}% match)` },
+  ur: { title: "فائل کے کالم", required: "لازمی", optional: "اختیاری", none: "— کوئی کالم نہیں —", twice: "دو فیلڈز کے لیے ایک کالم: ہر فیلڈ کے لیے الگ کالم چنیں", chosen: "کالم ہاتھ سے چنے گئے", missing: "موجود نہیں" , byName: "نام سے پہچانا گیا", byHand: "آپ نے چنا", useSuggestion: (header: string, percent: number) => `«${header}» استعمال کریں (${percent}% مطابقت)` },
 };
 // what the button does, and what the hint promises, differ by flow: a stored file is analysed again (and saved only once the new report is confirmed);
 // a file checked inside the request is checked again (and saved only when the person saves)
@@ -63,8 +64,14 @@ export function ColumnMapping({ columns, language, flow, fieldLabel, pending, er
               <span className="font-medium">{fieldLabel(field.key)}</span>
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{field.required ? t.required : t.optional}</span>
               {field.required && choice[field.key] === NONE && <span className="text-xs text-destructive">{t.missing}</span>}
+              {choice[field.key] === found[field.key] && field.source === "name" && <span className="text-xs text-muted-foreground" data-source="name">{t.byName}</span>}
+              {choice[field.key] === found[field.key] && field.source === "chosen" && <span className="text-xs text-muted-foreground" data-source="chosen">{t.byHand}</span>}
             </span>
-            <Select className="w-full sm:w-64" aria-label={fieldLabel(field.key)} value={choice[field.key]} options={options} onValueChange={value => setChoice(current => ({ ...current, [field.key]: value }))} />
+            {/* a suggestion only fills the choice: nothing is read again until the person presses the button below */}
+            {!field.header && field.suggestion && choice[field.key] === NONE && columns.headers.includes(field.suggestion.header) && (
+              <Button type="button" variant="outline" className="min-h-[44px]" onClick={() => setChoice(current => ({ ...current, [field.key]: field.suggestion!.header }))}>{t.useSuggestion(field.suggestion.header, Math.round(field.suggestion.confidence * 100))}</Button>
+            )}
+            <Select className="w-full min-h-11 sm:w-64 md:min-h-11" aria-label={fieldLabel(field.key)} value={choice[field.key]} options={options} onValueChange={value => setChoice(current => ({ ...current, [field.key]: value }))} />
           </li>
         ))}
       </ul>
