@@ -1,3 +1,4 @@
+import { useCan, usePermissionsLoading } from "@/lib/permissions";
 import { Select, formatNumber } from "@/components/ds";
 import { riyalLabel } from "@/lib/profitabilityView";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ const text = {
   ar: {
     title: "الإدخال الميداني", back: "العودة إلى لوحة المشروع", notAllowed: "دورك لا يتيح تسجيل التقدم ولا صرف المواد من هذه الشاشة.", progress: "تسجيل تقدم", issue: "صرف مادة", loading: "جارٍ التحميل…", retry: "إعادة المحاولة",
     pickItem: "اختر بند العمل", nowAt: "التقدم الآن", never: "لم يُسجَّل", save: "حفظ", saving: "جارٍ الحفظ…", saved: "تم الحفظ", another: "تسجيل آخر", noWbs: "لا بنود عمل في هذا المشروع بعد.", plus5: "+5", minus5: "−5",
-    issueToUnit: "صرف إلى وحدة ونشاط (بحث أو QR)", pickMaterial: "اختر المادة", quantity: "الكمية", unitCost: "سعر الوحدة", warehouse: "المستودع", workItem: "بند العمل", change: "تغيير", onHand: "الرصيد", total: "الإجمالي", noMaterials: "لا مواد في الكتالوج بعد.", noWarehouses: "لا مستودع فعّال في هذا المشروع.", issued: "صُرفت", to: "إلى",
+    issueToUnit: "صرف إلى وحدة ونشاط (بحث أو QR)", workConfirmation: "إثبات أعمال مقاول", pickMaterial: "اختر المادة", quantity: "الكمية", unitCost: "سعر الوحدة", warehouse: "المستودع", workItem: "بند العمل", change: "تغيير", onHand: "الرصيد", total: "الإجمالي", noMaterials: "لا مواد في الكتالوج بعد.", noWarehouses: "لا مستودع فعّال في هذا المشروع.", issued: "صُرفت", to: "إلى",
     team: "ساعات الفريق", workDate: "يوم العمل", teamEmpty: "لا إسناد يغطي هذا اليوم.", attendanceMissing: "الحضور غير معتمد بعد", entered: "مُدخَلة", hours: "ساعات", saveTeam: "حفظ ساعات الفريق", teamSaved: "حُفظت ساعات", rows: "صفوف", rowErrors: "لم يُحفظ شيء. صحّح الصفوف التالية:",
     queuedSaved: "حُفظ على هذا الهاتف وسيُرسل عند عودة الاتصال", queueNotSaved: "تعذّر الحفظ على الهاتف (مساحة التخزين ممتلئة أو محظورة). أعد الإرسال حين يعود الاتصال.", offline: "لا اتصال", online: "متصل", pending: "بانتظار الإرسال", sendNow: "أرسل الآن", sending: "جارٍ الإرسال…", failedItems: "طلبات رفضها الخادم", discard: "حذف", retryItem: "إعادة", cachedNotice: "لا اتصال: هذه آخر بيانات محفوظة على الهاتف.",
     averageCost: "متوسط التكلفة", usesAverage: "يُصرف بمتوسط تكلفة المخزون", directToSite: "توريد مباشر للموقع (لا يدخل المستودع، وتُحمَّل التكلفة الآن)", intoWarehouse: "يدخل المستودع، وتُحمَّل التكلفة عند الصرف", noWarehouseToReceive: "لا مستودع نشط لاستلام المادة فيه. سجّله توريدًا مباشرًا للموقع أو أضف مستودعًا.",
@@ -33,7 +34,7 @@ const text = {
   en: {
     title: "Field entry", back: "Back to project board", notAllowed: "Your role does not allow logging progress or issuing material from this screen.", progress: "Log progress", issue: "Issue material", loading: "Loading…", retry: "Retry",
     pickItem: "Pick the work item", nowAt: "Now at", never: "not recorded", save: "Save", saving: "Saving…", saved: "Saved", another: "Record another", noWbs: "This project has no work items yet.", plus5: "+5", minus5: "−5",
-    issueToUnit: "Issue to a unit's activity (search or QR)", pickMaterial: "Pick the material", quantity: "Quantity", unitCost: "Unit cost", warehouse: "Warehouse", workItem: "Work item", change: "Change", onHand: "On hand", total: "Total", noMaterials: "No materials in the catalogue yet.", noWarehouses: "This project has no active warehouse.", issued: "Issued", to: "to",
+    issueToUnit: "Issue to a unit's activity (search or QR)", workConfirmation: "Subcontractor work confirmation", pickMaterial: "Pick the material", quantity: "Quantity", unitCost: "Unit cost", warehouse: "Warehouse", workItem: "Work item", change: "Change", onHand: "On hand", total: "Total", noMaterials: "No materials in the catalogue yet.", noWarehouses: "This project has no active warehouse.", issued: "Issued", to: "to",
     team: "Team hours", workDate: "Work day", teamEmpty: "No assignment covers this day.", attendanceMissing: "Attendance not approved yet", entered: "Entered", hours: "hours", saveTeam: "Save team hours", teamSaved: "Hours saved", rows: "rows", rowErrors: "Nothing was saved. Fix these rows:",
     queuedSaved: "Saved on this phone, will be sent when the connection returns", queueNotSaved: "Could not keep it on this phone (storage full or blocked). Send again when you are online.", offline: "Offline", online: "Online", pending: "waiting to send", sendNow: "Send now", sending: "Sending…", failedItems: "Requests the server refused", discard: "Discard", retryItem: "Retry", cachedNotice: "Offline: this is the last data saved on the phone.",
     averageCost: "Average cost", usesAverage: "Issued at the stock's average cost", directToSite: "Direct delivery to site (no warehouse, cost charged now)", intoWarehouse: "Goes into the warehouse; cost is charged when it is issued", noWarehouseToReceive: "There is no active warehouse to receive into. Record it as a direct delivery to site or add a warehouse.",
@@ -41,7 +42,7 @@ const text = {
    checkingIdentity: "Checking who you are", offlineOff: "Saving offline is off until it is back; try again before you save an entry." }, ur: {
     title: "فیلڈ اندراج", back: "پروجیکٹ بورڈ پر واپس", notAllowed: "آپ کا کردار اس اسکرین سے پیش رفت درج کرنے یا مادّہ اجرا کرنے کی اجازت نہیں دیتا۔", progress: "پیش رفت درج کریں", issue: "مادّہ اجرا کریں", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش کریں",
     pickItem: "کام کی آئٹم منتخب کریں", nowAt: "اب تک", never: "درج نہیں ہوئی", save: "محفوظ کریں", saving: "محفوظ کیا جا رہا ہے…", saved: "محفوظ ہو گیا", another: "ایک اور درج کریں", noWbs: "اس پروجیکٹ میں ابھی کوئی کام کی آئٹم نہیں ہے۔", plus5: "+5", minus5: "−5",
-    issueToUnit: "یونٹ کی سرگرمی پر اجرا (تلاش یا QR)", pickMaterial: "مادّہ منتخب کریں", quantity: "مقدار", unitCost: "فی یونٹ لاگت", warehouse: "گودام", workItem: "کام کی آئٹم", change: "تبدیل کریں", onHand: "دستیاب", total: "کل", noMaterials: "کیٹلاگ میں ابھی کوئی مادّہ نہیں ہے۔", noWarehouses: "اس پروجیکٹ میں کوئی فعال گودام نہیں ہے۔", issued: "اجرا ہوا", to: "کو",
+    issueToUnit: "یونٹ کی سرگرمی پر اجرا (تلاش یا QR)", workConfirmation: "ذیلی ٹھیکیدار کے کام کی تصدیق", pickMaterial: "مادّہ منتخب کریں", quantity: "مقدار", unitCost: "فی یونٹ لاگت", warehouse: "گودام", workItem: "کام کی آئٹم", change: "تبدیل کریں", onHand: "دستیاب", total: "کل", noMaterials: "کیٹلاگ میں ابھی کوئی مادّہ نہیں ہے۔", noWarehouses: "اس پروجیکٹ میں کوئی فعال گودام نہیں ہے۔", issued: "اجرا ہوا", to: "کو",
     team: "ٹیم کے گھنٹے", workDate: "کام کا دن", teamEmpty: "اس دن کے لیے کوئی تفویض نہیں۔", attendanceMissing: "حاضری ابھی منظور نہیں ہوئی", entered: "درج شدہ", hours: "گھنٹے", saveTeam: "ٹیم کے گھنٹے محفوظ کریں", teamSaved: "گھنٹے محفوظ ہو گئے", rows: "قطاریں", rowErrors: "کچھ محفوظ نہیں ہوا۔ یہ قطاریں درست کریں:",
     queuedSaved: "اس فون پر محفوظ ہو گیا، کنکشن واپس آنے پر بھیجا جائے گا", queueNotSaved: "اسے فون پر محفوظ نہیں رکھا جا سکا (اسٹوریج بھری ہے یا بند ہے)۔ آن لائن ہونے پر دوبارہ بھیجیں۔", offline: "آف لائن", online: "آن لائن", pending: "بھیجے جانے کا منتظر", sendNow: "ابھی بھیجیں", sending: "بھیجا جا رہا ہے…", failedItems: "سرور کی طرف سے مسترد درخواستیں", discard: "حذف کریں", retryItem: "دوبارہ", cachedNotice: "آف لائن: یہ فون پر محفوظ آخری ڈیٹا ہے۔",
     averageCost: "اوسط لاگت", usesAverage: "مادّہ اسٹاک کی اوسط لاگت پر اجرا ہوتا ہے", directToSite: "براہِ راست سائٹ پر سپلائی (گودام میں نہیں جاتا، لاگت ابھی منتقل ہوتی ہے)", intoWarehouse: "گودام میں جاتا ہے؛ اجرا کے وقت لاگت منتقل ہوتی ہے", noWarehouseToReceive: "وصولی کے لیے کوئی فعال گودام نہیں ہے۔ اسے براہِ راست سائٹ پر سپلائی کے طور پر درج کریں یا گودام شامل کریں۔",
@@ -351,6 +352,8 @@ export default function FieldEntry() {
   const tabs = (["progress", "issue", ...(can.receive ? ["receive"] : []), ...(can.team ? ["team"] : [])] as Array<"progress" | "issue" | "receive" | "team">);
   const tab = chosen && can[chosen] ? chosen : can.progress ? "progress" : can.issue ? "issue" : can.receive ? "receive" : can.team ? "team" : "progress";
   const nothingAllowed = Boolean(data) && !can.progress && !can.issue && !can.receive && !can.team;
+  const permissionsLoadingForWork = usePermissionsLoading();
+  const canConfirmWork = useCan("project.subcontract.progress.record", projectId) && !permissionsLoadingForWork;
   return (
     // Q-36 (step 5): the field screens' one frame (FieldShell) — the language switch, the way back (drawn only for whoever can open the board), the title, the ways between the field screens
     <FieldShell title={t.title} backHref={`/projects/${tenantId}/${projectId}/controls`} backLabel={t.back} tenantId={tenantId} projectId={projectId} current="entry">
@@ -371,6 +374,8 @@ export default function FieldEntry() {
             : tab === "receive"
               ? <ReceiptEntry tenantId={tenantId} projectId={projectId} context={data} t={t} isArabic={isArabic} keepOffline={queue.keep} onSaved={() => context.refetch()} />
               : <TeamHoursEntry tenantId={tenantId} projectId={projectId} personId={me.data?.id ?? null} t={t} isArabic={isArabic} language={language} keepOffline={queue.keep} online={queue.online} />)}
+        {/* Q-43 batch 4: the subcontractor work confirmation, for whoever may record one (no price on that screen) */}
+        {canConfirmWork && <Link href={`/m/${tenantId}/${projectId}/work-confirmation`} className={`${tap} inline-flex w-full items-center justify-center rounded-xl border border-primary text-base font-semibold text-primary`}>{t.workConfirmation}</Link>}
     </FieldShell>
   );
 }

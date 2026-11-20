@@ -1,6 +1,7 @@
 import { PmcColumnMapping, type PmcImportColumns } from "@/components/PmcColumnMapping";
 import { ActivityNameToggle, hasEnglishNames, useActivityNameLanguage, type ActivityNameLanguage } from "@/lib/activityNames";
 import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
+import { ImportTemplatesList } from "@/components/ImportTemplates";
 import { SiteWorkbookImport } from "@/components/SiteWorkbookImport";
 import { PageMain, PageHeader } from "@/components/pageFrame";
 import { SectionErrorBoundary } from "@/components/SectionResilience";
@@ -332,7 +333,9 @@ function ImportPanel({ tenantId, projectId, t, isArabic }: { tenantId: string; p
         {/* Q-35: the kinds with what the saved imports say about each, and the chosen template explained */}
         <PmcImportKindList kind={kind} onChange={setKind} labels={t.importKinds} statuses={importStatus.data} statusFailed={Boolean(importStatus.error)} language={language} />
         <PmcImportTemplateGuide kind={kind} language={language} />
-        <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={`pmc.${kind}`} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} showErrors={false} renderReport={renderReport} />
+        <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={`pmc.${kind}`} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={t.confirm} showErrors={false} renderReport={renderReport} templates />
+        {/* Q-50 batch 2b: the company's saved PMC column templates */}
+        <ImportTemplatesList tenantId={tenantId} projectId={projectId} kinds={Object.keys(t.importKinds).map(code => `pmc.${code}`)} kindLabel={code => (t.importKinds as Record<string, string>)[code.replace(/^pmc\./, "")]} language={language} />
       </div></WriteGate>
       {/* D-59: the site's old workbook — what the site-update screen and the S-curve stand on; their empty states link here (?tab=import) */}
       <WriteGate permission={"project.pmc.manage"} projectId={projectId}><SiteWorkbookImport tenantId={tenantId} projectId={projectId} /></WriteGate>
