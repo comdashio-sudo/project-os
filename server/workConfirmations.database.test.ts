@@ -25,7 +25,7 @@ async function clear() {
   for (const slug of [SLUG, SLUG_B]) {
     const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [slug]);
     for (const { id } of companies) {
-      for (const table of ["audit_logs", "subcontract_work_confirmation_lines", "subcontract_work_confirmations", "subcontract_contracts", "boq_items", "pmc_qc_receipts", "pmc_unit_activity_progress", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
+      for (const table of ["audit_logs", "subcontract_activity_boq_links", "subcontract_work_confirmation_lines", "subcontract_work_confirmations", "subcontract_contracts", "boq_items", "pmc_qc_receipts", "pmc_unit_activity_progress", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
       await connection.query("DELETE FROM membership_roles WHERE membershipId IN (SELECT id FROM memberships WHERE tenantId = ?)", [id]);
       await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId = ?)", [id]);
       for (const table of ["role_template_removals", "roles", "memberships", "tenant_entitlements", "tenant_licenses", "subscriptions", "projects"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
@@ -287,5 +287,32 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-43: subcontractor work
     expect(unlinked[0].n).toBe(0);
     // and the good one alone is pulled
     expect(await pull([good.id])).toBe("no error");
+  });
+
+  it("PULL UNIT (batch 6, G45 option (b)): a unit line is priced through the subcontract's link of its activity to a BOQ item — percent × the item's quantity in one villa, the rate from BOQ; no link, no price", async () => {
+    const owner = callerFor("owner"); const finance = callerFor("finance");
+    await owner.subcontracts.create({ ...scope(), code: "Q43-U", title: "Synthetic painters", subcontractorName: "Synthetic Painters", contractValue: 90000 });
+    const subU = (await owner.subcontracts.list(scope())).find(item => item.code === "Q43-U")!.id;
+    const { id: paint } = await owner.boq.create({ ...scope(), code: "Q43-PAINT", description: "Synthetic wall paint", unitOfMeasure: "m2", quantity: 4000, unitRate: 25 });
+    const villa = "43aa0000-0000-4000-8000-0000000000ae";
+    await connection.query("INSERT INTO pmc_units (id, tenantId, projectId, blockId, unitNumber, modelCode, saleStatus, unitWeight) VALUES (?, ?, ?, 'q43-b', 98, 'MDL-A', 'available', 1)", [villa, tenantId, P]);
+    const confirmation = await create("site", "WC-QU1", subU, [{ kind: "unit", pmcUnitId: villa, pmcActivityDefinitionId: ACT[0], percent: 25 }, { kind: "quantity", boqItemId: paint, quantity: 10 }]);
+    await approve(confirmation.id);
+    const pull = (number: string) => code(finance.subcontracts.createCertificate({ ...scope(), subcontractId: subU, certificateNumber: number, periodStart: new Date("2026-11-01"), periodEnd: new Date("2026-11-15"), lines: [], confirmationIds: [confirmation.id] }));
+    // NEGATIVE: no link for the activity — refused, nothing written
+    expect(await pull("Q43-CU0")).toBe("PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED");
+    // NEGATIVE: the site engineer sets no links (no commitment.manage); an activity twice or a zero quantity is refused
+    expect(await code(callerFor("site").workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subU, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }] }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subU, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }, { pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 41 }] }))).toBe("PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
+    expect(await code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subU, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 0 }] }))).toBe("PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
+    expect(await code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subOther, links: [] }))).toBe("PROJECT_OS_SUBCONTRACT_NOT_FOUND");
+    // POSITIVE: 40 m2 of paint in one villa; 25% of one villa = 10 m2, plus the 10 m2 measured — 20 m2 × 25 = 500, the rate from BOQ
+    await finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subU, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }] });
+    expect(await finance.workConfirmations.activityBoqLinks({ ...scope(), subcontractId: subU })).toMatchObject([{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }]);
+    expect(await pull("Q43-CU1")).toBe("no error");
+    const [certificate] = await owner.subcontracts.listCertificates({ ...scope(), subcontractId: subU });
+    expect(certificate.lines.map(line => [line.boqItemId, Number(line.currentQuantity), Number(line.unitRate), Number(line.currentAmount)])).toEqual([[paint, 20, 25, 500]]);
+    const [[audit]] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'project.subcontract_activity_boq_links_set' AND entityId = ?", [tenantId, subU]);
+    expect(JSON.parse(audit.metadata)).toMatchObject({ before: [], after: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }] });
   });
 });

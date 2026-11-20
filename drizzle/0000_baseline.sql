@@ -2682,6 +2682,20 @@ CREATE TABLE "strategy_variances" (
 	CONSTRAINT "strategy_variances_decision_shape" CHECK (("strategy_variances"."decision" IS NULL AND "strategy_variances"."initiative_id" IS NULL AND "strategy_variances"."decided_by_user_id" IS NULL) OR ("strategy_variances"."decision" = 'adjust_assumption' AND "strategy_variances"."initiative_id" IS NULL AND "strategy_variances"."decided_by_user_id" IS NOT NULL) OR ("strategy_variances"."decision" = 'initiative' AND "strategy_variances"."initiative_id" IS NOT NULL AND "strategy_variances"."decided_by_user_id" IS NOT NULL))
 );
 --> statement-breakpoint
+CREATE TABLE "subcontract_activity_boq_links" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"subcontract_id" varchar(36) NOT NULL,
+	"pmc_activity_definition_id" varchar(36) NOT NULL,
+	"boq_item_id" varchar(36) NOT NULL,
+	"quantity_per_unit" numeric(18, 3) NOT NULL,
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "subcontract_activity_boq_links_quantity_positive" CHECK ("subcontract_activity_boq_links"."quantity_per_unit" > 0)
+);
+--> statement-breakpoint
 CREATE TABLE "subcontract_certificate_lines" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"certificate_id" varchar(36) NOT NULL,
@@ -3702,6 +3716,12 @@ ALTER TABLE "strategy_variances" ADD CONSTRAINT "strategy_variances_decided_by_u
 ALTER TABLE "strategy_variances" ADD CONSTRAINT "strategy_variances_recorded_by_user_id_users_id_fk" FOREIGN KEY ("recorded_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "strategy_variances" ADD CONSTRAINT "strategy_variances_assumption_fk" FOREIGN KEY ("assumption_id","tenant_id") REFERENCES "public"."strategy_assumptions"("id","tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "strategy_variances" ADD CONSTRAINT "strategy_variances_initiative_fk" FOREIGN KEY ("initiative_id","tenant_id") REFERENCES "public"."strategy_initiatives"("id","tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "subcontract_activity_boq_links_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "subcontract_activity_boq_links_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "subcontract_activity_boq_links_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "activity_boq_links_subcontract_fk" FOREIGN KEY ("subcontract_id") REFERENCES "public"."subcontract_contracts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "activity_boq_links_activity_fk" FOREIGN KEY ("pmc_activity_definition_id") REFERENCES "public"."pmc_activity_definitions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subcontract_activity_boq_links" ADD CONSTRAINT "activity_boq_links_boq_fk" FOREIGN KEY ("boq_item_id") REFERENCES "public"."boq_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_cert_fk" FOREIGN KEY ("certificate_id") REFERENCES "public"."subcontract_certificates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificate_lines" ADD CONSTRAINT "subline_boq_fk" FOREIGN KEY ("boq_item_id") REFERENCES "public"."boq_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "subcontract_certificates" ADD CONSTRAINT "subcert_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -4121,6 +4141,8 @@ CREATE UNIQUE INDEX "strategy_opportunities_tenant_code_unique" ON "strategy_opp
 CREATE INDEX "strategy_opportunities_tenant_status_idx" ON "strategy_opportunities" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE INDEX "strategy_swot_items_tenant_kind_idx" ON "strategy_swot_items" USING btree ("tenant_id","kind");--> statement-breakpoint
 CREATE INDEX "strategy_variances_tenant_assumption_idx" ON "strategy_variances" USING btree ("tenant_id","assumption_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "subcontract_activity_boq_links_unique" ON "subcontract_activity_boq_links" USING btree ("subcontract_id","pmc_activity_definition_id");--> statement-breakpoint
+CREATE INDEX "subcontract_activity_boq_links_tenant_project_idx" ON "subcontract_activity_boq_links" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_line_unique" ON "subcontract_certificate_lines" USING btree ("certificate_id","boq_item_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_project_number_unique" ON "subcontract_certificates" USING btree ("project_id","certificate_number");--> statement-breakpoint
 CREATE INDEX "subcert_tenant_project_idx" ON "subcontract_certificates" USING btree ("tenant_id","project_id");--> statement-breakpoint

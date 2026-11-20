@@ -2162,9 +2162,14 @@ export const projectErrorMessages = {
     ur: "تاریخی کام (پلیٹ فارم سے پہلے منظور شدہ) والی تصدیق بل میں شامل نہیں کی جا سکتی۔",
   },
   PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED: {
-    ar: "أسطر الوحدات (فيلا × نشاط × نسبة) لا سعر لها في جدول الكميات بعد؛ اسحب إثباتات الكميات فقط، وأضف الوحدات يدويًا ببند الكميات.",
-    en: "Unit lines (villa × activity × percent) have no BOQ rate yet; pull quantity confirmations only, and add the units by hand against their BOQ item.",
-    ur: "یونٹ لائنوں (ولا × سرگرمی × فیصد) کا ابھی BOQ ریٹ نہیں؛ صرف مقدار والی تصدیقات شامل کریں اور یونٹس کو ان کے BOQ آئٹم کے ساتھ ہاتھ سے شامل کریں۔",
+    ar: "نشاط في أسطر الوحدات (فيلا × نشاط × نسبة) غير مربوط ببند جدول كميات في هذا العقد؛ اربطه ببنده وكميته للفيلا الواحدة، أو أضف الوحدات يدويًا ببندها.",
+    en: "An activity in the unit lines (villa × activity × percent) is not linked to a BOQ item in this subcontract; link it to its item and the quantity per villa, or add the units by hand against their item.",
+    ur: "یونٹ لائنوں (ولا × سرگرمی × فیصد) کی ایک سرگرمی اس ذیلی معاہدے میں کسی BOQ آئٹم سے منسلک نہیں؛ اسے اس کے آئٹم اور فی ولا مقدار سے منسلک کریں، یا یونٹس ہاتھ سے ان کے آئٹم پر شامل کریں۔",
+  },
+  PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID: {
+    ar: "ربط الأنشطة ببنود جدول الكميات غير صالح: نشاط مكرر، أو كمية غير موجبة، أو نشاط أو بند ليس من هذا المشروع.",
+    en: "The activity-to-BOQ links are not valid: an activity twice, a quantity that is not positive, or an activity or item not of this project.",
+    ur: "سرگرمیوں کا BOQ آئٹمز سے ربط درست نہیں: ایک سرگرمی دو بار، غیر مثبت مقدار، یا ایسی سرگرمی یا آئٹم جو اس منصوبے کا نہیں۔",
   },
   PROJECT_OS_WORK_CONFIRMATION_NOTHING_TO_PULL: {
     ar: "لا أسطر في المستخلص: أضف بندًا أو اسحب إثباتًا بكمية غير صفرية.",
