@@ -151,7 +151,9 @@ describe("review of #370 and the owner's decisions of 18-11 (Q-47)", () => {
   it("a real totals line (every filled label is total words) is skipped and COUNTED, never silent", async () => {
     const parsed = await weights([["CSI", "Activity", "Weight"], ["03", "Concrete", 100], ["الإجمالي", "", 100], ["", "Grand total", 100]]);
     expect(parsed.rows.map(row => row.cells.activityName)).toEqual(["Concrete"]);
-    expect(parsed.notes).toEqual({ skippedTotals: 2, filledDown: 0 });
+    expect(parsed.notes).toMatchObject({ skippedTotals: 2, filledDown: 0 });
+    // Q-50 5a: each skipped totals line is kept with the weight it carries, for the comparison with what was read
+    expect(parsed.notes?.fileTotals).toEqual([{ row: 3, value: "100" }, { row: 4, value: "100" }]);
   });
 
   it("Q-47: a weights total rounded for display (99.99–100.01) is accepted; 99.98 is still refused; the catalogue's own tolerance is unchanged", () => {
@@ -190,3 +192,25 @@ describe("review of #371: «no column» and the columns no field takes", () => {
     expect(codes(await parsePmcImportFile({ kind: "locations", format: "xlsx", bytes: book, mappingOverride: { __others__: "yes" } }))).toEqual(["IMPORT_MAPPING_INVALID"]);
   });
 });
+
+describe("the file's own totals line against what was read (Q-50 batch 5a)", () => {
+  it("POSITIVE: a totals line equal to the sum read matches — in percent and in fractions of 1 (the owner's 0.99999 rounding included)", async () => {
+    const percent = await weights([["CSI", "Activity", "Weight"], ["03", "Concrete", 60], ["03", "Slabs", 40], ["الإجمالي", "", 100]]);
+    expect(weightsToCatalogRows(percent.rows, ["A"], percent.notes?.fileTotals).totalChecks).toEqual([{ row: 4, fileValue: 100, readSum: 100, status: "matches" }]);
+    const fractions = await weights([["CSI", "Activity", "Weight"], ["03", "Concrete", 0.6], ["03", "Slabs", 0.4], ["Grand total", "", 0.99999]]);
+    expect(weightsToCatalogRows(fractions.rows, ["A"], fractions.notes?.fileTotals).totalChecks).toEqual([{ row: 4, fileValue: 0.99999, readSum: 1, status: "matches" }]);
+  });
+
+  it("NEGATIVE: a totals line that is not the sum read is said (a row not read, or a total typed by hand); a text total or a file of two models is not compared", async () => {
+    const short = await weights([["CSI", "Activity", "Weight"], ["03", "Concrete", 60], ["03", "Slabs", 30], ["الإجمالي", "", 100]]);
+    expect(weightsToCatalogRows(short.rows, ["A"], short.notes?.fileTotals).totalChecks).toEqual([{ row: 4, fileValue: 100, readSum: 90, status: "differs" }]);
+    const text = await weights([["CSI", "Activity", "Weight"], ["03", "Concrete", 60], ["03", "Slabs", 40], ["الإجمالي", "", "see sheet 2"]]);
+    expect(weightsToCatalogRows(text.rows, ["A"], text.notes?.fileTotals).totalChecks[0]?.status).toBe("not_comparable");
+    const twoModels = await weights([["Model", "CSI", "Activity", "Weight"], ["A", "03", "Concrete", 100], ["B", "03", "Concrete", 100], ["", "الإجمالي", "", 200]]);
+    expect(weightsToCatalogRows(twoModels.rows, ["A", "B"], twoModels.notes?.fileTotals).totalChecks[0]?.status).toBe("not_comparable");
+    // no totals line: nothing to compare
+    const none = await weights([["CSI", "Activity", "Weight"], ["03", "Concrete", 60], ["03", "Slabs", 40]]);
+    expect(weightsToCatalogRows(none.rows, ["A"], none.notes?.fileTotals).totalChecks).toEqual([]);
+  });
+});
+
