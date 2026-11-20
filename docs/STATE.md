@@ -3151,6 +3151,7 @@
 | تعيين أعمدة جديد (`reanalyze`) قراءة جديدة: يُسقط التصحيحات السابقة، فيعود الخطأ ظاهرًا | `PROVEN` | الاختبار نفسه |
 | السالب: من لا يملك `project.pmc.manage` يُرفض؛ المخطط الرئيسي والدفاتر التشغيلية (التكاليف والطلبات والساعات) والمعدات ← `PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED` (القرار 3: المالي لاحقًا) | `PROVEN` | الاختبار نفسه |
 | الرسائل ع/En/أردو (`PROJECT_OS_IMPORT_EDITS_INVALID`، `PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED`، `IMPORT_EDIT_INVALID`) | `SOURCE_VERIFIED` | `shared/projectErrors.ts`، `client/src/lib/pmcImportMessages.ts` |
+| الفحوص | `PROVEN` | `pnpm check` ناجح؛ `pnpm test` 4313/0 (بعد إدراج `requestImportCorrection` في استثناءات Gate 6 بسببه: التدقيق في مهمة التحليل)؛ `coverage:trpc` ناجح؛ `externalImports.database.test.ts` 12/12 (+2) |
 | الشاشة: «صحّح» و«اترك هذا الصف» عند كل صف مرفوض في تقرير PMC، وعمود تصنيف السطر | `OPEN` | الدفعة 4ب (واجهة) |
 
 ### Q-50 الدفعة 3أ: مكوّن تعيين الأعمدة الموحّد (2026-11-20، المبرمج ب، واجهة فقط، بقرار المستشار I52 (1))
