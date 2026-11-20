@@ -4170,3 +4170,53 @@ export const strategyAssumptionChanges = pgTable(
     index("strategy_assumption_changes_tenant_assumption_idx").on(table.tenantId, table.assumptionId, table.createdAt),
   ],
 );
+
+// Q-21 (a), batch 3: competitors and SWOT. A competitor is what the company knows about another contractor — sector, region, the projects it does, its
+// size (documented or estimated), and where the information came from and when. A SWOT point is a strength, weakness, opportunity or threat with the
+// evidence behind it; it may name the competitor it is about and the assumption it bears on. Nothing is deleted: a point no longer held is archived.
+export const strategySwotKindEnum = pgEnum("strategy_swot_kind", ["strength", "weakness", "opportunity", "threat"]);
+export const strategyCompetitors = pgTable(
+  "strategy_competitors",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    name: varchar("name", { length: 200 }).notNull(),
+    sector: varchar("sector", { length: 120 }),
+    region: varchar("region", { length: 120 }),
+    projectTypes: varchar("project_types", { length: 300 }),
+    sizeValue: numeric("size_value", { precision: 18, scale: 2 }),
+    sizeEvidence: strategyAssumptionEvidenceEnum("size_evidence").default("estimate").notNull(),
+    sourceNote: varchar("source_note", { length: 500 }),
+    sourceUrl: varchar("source_url", { length: 500 }),
+    collectedAt: date("collected_at", { mode: "string" }).notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_competitors_tenant_name_unique").on(table.tenantId, table.name),
+    unique("strategy_competitors_id_tenant_unique").on(table.id, table.tenantId),
+  ],
+);
+export const strategySwotItems = pgTable(
+  "strategy_swot_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    kind: strategySwotKindEnum("kind").notNull(),
+    statement: varchar("statement", { length: 500 }).notNull(),
+    evidence: varchar("evidence", { length: 500 }).notNull(),
+    competitorId: varchar("competitor_id", { length: 36 }),
+    assumptionId: varchar("assumption_id", { length: 36 }),
+    archived: boolean("archived").default(false).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "strategy_swot_items_competitor_fk", columns: [table.competitorId, table.tenantId], foreignColumns: [strategyCompetitors.id, strategyCompetitors.tenantId] }),
+    foreignKey({ name: "strategy_swot_items_assumption_fk", columns: [table.assumptionId, table.tenantId], foreignColumns: [strategyAssumptions.id, strategyAssumptions.tenantId] }),
+    index("strategy_swot_items_tenant_kind_idx").on(table.tenantId, table.kind),
+  ],
+);
