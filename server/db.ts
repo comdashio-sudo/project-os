@@ -188,11 +188,12 @@ export async function upsertUser(user: InsertUser): Promise<void> {
  * Sign-in is by invitation only (owner's decision 2026-10-25, docs/TASLEEM_AUDIT.md 1.11). An address may sign in when it is the platform owner's (OWNER_EMAIL), already has an account, or
  * has a pending, unexpired invitation from a company. Everyone else gets no code and no session. The check spans companies (an invitation belongs to one), so it reads in the system view.
  */
-export async function isEligibleToSignIn(rawEmail: string): Promise<boolean> {
+export async function isEligibleToSignIn(rawEmail: string, options: { sendsMail?: boolean } = {}): Promise<boolean> {
   const email = rawEmail.trim().toLowerCase();
   if (ENV.ownerEmail && email === ENV.ownerEmail) return true;
-  // A code to a reserved domain (.test, example.com…) is never delivered and bounces, so in production it is not sent at all.
-  if (mailGateConfigFromEnv().blockReservedDomains && isReservedMailDomain(email)) return false;
+  // A code to a reserved domain (.test, example.com…) is never delivered and bounces, so in production it is not sent at all. A password sign-in sends no
+  // mail (Q-22: the synthetic readiness account on production is *.example.test), so it skips only this gate — the account or invitation is still required.
+  if ((options.sendsMail ?? true) && mailGateConfigFromEnv().blockReservedDomains && isReservedMailDomain(email)) return false;
   if (ENV.registrationOpen) return true;
   return withSystemContext("invite-only sign-in: does this address have an account or a pending invitation", async () => {
     const db = await getDb(); if (!db) return false;
