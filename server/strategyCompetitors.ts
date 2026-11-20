@@ -8,6 +8,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { auditLogs, strategyAssumptions, strategyCompetitors, strategySwotItems } from "../drizzle/schema";
 import { assertTenantAccess } from "./domain/authorization";
 import { getDb, getTenantAccessSnapshot } from "./db";
+import { violates } from "./projectProfile";
 
 type Caller = { userId: number; tenantId: string };
 type Competitor = typeof strategyCompetitors.$inferSelect;
@@ -34,6 +35,9 @@ async function authorized(input: Caller, permission: "strategy.read" | "strategy
 type Db = Awaited<ReturnType<typeof authorized>>;
 const audit = (db: Pick<Db, "insert">, input: Caller, action: string, entityType: string, entityId: string, metadata: Record<string, unknown>) =>
   db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action, entityType, entityId, metadata: JSON.stringify(metadata) });
+// two saves of the same name at the same moment both pass assertNameFree; the unique (tenant, name) index lets one win and the other gets the same
+// translated refusal, not a raw 23505 (the sibling of #496)
+const nameTaken = (error: unknown): never => { if (violates(error, "strategy_competitors_tenant_name_unique")) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_COMPETITOR_EXISTS"); throw error; };
 
 /** The competitor's fields as stored: a source (link or note) is required, a link is https, and the date gathered is not in the future. */
 function competitorValues(input: CompetitorFields) {
@@ -78,7 +82,7 @@ export async function createStrategyCompetitor(input: Caller & CompetitorFields)
   await db.transaction(async tx => {
     await tx.insert(strategyCompetitors).values({ id, tenantId: input.tenantId, ...values, createdByUserId: input.userId });
     await audit(tx, input, "strategy_competitor.created", "strategy_competitor", id, { name: values.name });
-  });
+  }).catch(nameTaken);
   return { id };
 }
 
@@ -90,7 +94,7 @@ export async function updateStrategyCompetitor(input: Caller & { competitorId: s
   await db.transaction(async tx => {
     await tx.update(strategyCompetitors).set({ ...values, archived: input.archived ?? row.archived }).where(and(eq(strategyCompetitors.id, row.id), eq(strategyCompetitors.tenantId, input.tenantId)));
     await audit(tx, input, input.archived && !row.archived ? "strategy_competitor.archived" : "strategy_competitor.updated", "strategy_competitor", row.id, { name: values.name });
-  });
+  }).catch(nameTaken);
   return { id: row.id };
 }
 
