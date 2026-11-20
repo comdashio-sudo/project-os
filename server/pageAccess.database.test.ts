@@ -32,6 +32,7 @@ const READS: Record<PageKey, Array<(c: ReturnType<typeof callerFor>) => Promise<
   pmc: [c => c.pmc.inspections({ tenantId, projectId: P })],
   stalled: [c => c.pmc.stalledUnits({ tenantId, projectId: P })],
   meetings: [c => c.meetings.list({ tenantId, projectId: P })],
+  risks: [c => c.pmo.projectRisks({ tenantId, projectId: P })],
   dailyReport: [c => c.siteReports.list({ tenantId, projectId: P })],
   weeklyReport: [c => c.reportPeriods.weekly({ tenantId, projectId: P, weekStart: "2026-11-15" })],
   monthlyReport: [c => c.reportPeriods.monthly({ tenantId, projectId: P, month: "2026-11" })],
