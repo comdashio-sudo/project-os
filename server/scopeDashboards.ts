@@ -129,7 +129,7 @@ async function kpisFor(db: Db, tenantId: string, projectIds: string[], now: Date
 }
 
 /** Materials whose on-hand quantity (all the project's warehouses) is under their reorder level. */
-async function materialsBelowReorder(db: Db, tenantId: string, projectIds: string[]) {
+export async function materialsBelowReorder(db: Db, tenantId: string, projectIds: string[]) {
   const out = new Map<string, number>();
   if (!projectIds.length) return out;
   const rows = await db.select({ projectId: projectMaterialOverrides.projectId, n: sql<number>`count(*)::int` }).from(projectMaterialOverrides)
