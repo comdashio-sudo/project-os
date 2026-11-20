@@ -127,6 +127,8 @@ const APPEND_ONLY_TRIGGERS: Record<string, string[]> = {
   project_meetings: ["project_meetings_issue_only", "project_meetings_no_truncate"],
   project_meeting_items: ["project_meeting_items_append_only", "project_meeting_items_no_truncate"],
   project_meeting_attendees: ["project_meeting_attendees_append_only", "project_meeting_attendees_no_truncate"],
+  // Q-21: a strategy assumption's change history is append-only the same way as the audit trail
+  strategy_assumption_changes: ["strategy_assumption_changes_refuse_update", "strategy_assumption_changes_refuse_delete", "strategy_assumption_changes_refuse_truncate"],
 };
 
 export class Connection {

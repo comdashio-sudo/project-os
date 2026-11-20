@@ -46,6 +46,11 @@ export const operationalPermissionCatalog = [
   // Q-17 (205-4): recording the consultant's reply to a submittal is a contractual record of its own, so it can go to a consultant coordinator without
   // handing over the whole project (project.manage no longer answers it). The project manager and the planning engineer carry it.
   { code: "project.consultant.respond", name: "Record the consultant's reply to a submittal", productCode: "PROJECT" as const },
+  // Q-21 (a): the strategy centre, company-wide only (server/strategyAssumptions.ts asks for a company-scope assignment)
+  { code: "strategy.read", name: "View the strategy centre", productCode: "EXECUTIVE" as const },
+  { code: "strategy.manage", name: "Enter strategy assumptions and change requests", productCode: "EXECUTIVE" as const },
+  { code: "strategy.approve", name: "Approve strategy assumptions and their changes", productCode: "EXECUTIVE" as const },
+
   // Q-43 (P2-06): record a subcontractor's completed work (units × activities, or BOQ quantities) without prices, for the commitments manager to approve
   { code: "project.subcontract.progress.record", name: "Record subcontractor work confirmations (no prices)", productCode: "PROJECT" as const },
   // Tenders before award (work order 5): packages and invitations, bids, levelling, award.
@@ -124,7 +129,7 @@ export const operationalRoleDefinitions = [
   },
   // ---- the templates of work order 5 (item 3). They carry project.read themselves: a person given one of them can open the project.
   // The executive and the PMO lead are company-level views of one product each; they open no project.
-  { code: "EXECUTIVE", name: "Executive", productCode: "EXECUTIVE", permissions: ["executive.read"] },
+  { code: "EXECUTIVE", name: "Executive", productCode: "EXECUTIVE", permissions: ["executive.read", "strategy.read"] },
   { code: "PMO_LEAD", name: "PMO Lead", productCode: "PMO", permissions: ["pmo.read", "pmo.write"] },
   // Q-39 (adviser 18-11): the management viewer reads the projects and the PMO view and nothing else — no money (205-1 keeps it behind project.cashflow.read),
   // no pay, no write, no approval. Whoever needs the money is given EXECUTIVE on top, explicitly. It holds codes of two products: the role is installed
