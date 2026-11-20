@@ -2,6 +2,9 @@ import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { ledgerHeaders } from "@shared/ledgerImportColumns";
 import { readLedgerTable } from "../../ledgerImports";
+import { analyzeBoqFile } from "../boqFile";
+import { analyzeCashFlowFile } from "../plannedCashFlow";
+import { analyzeLabourFile } from "../plannedLabour";
 import { chooseSheet, findHeaderRow, HEADER_SEARCH_ROWS, type TableRows } from "./read";
 
 // Q-50 batch 1 (docs/proposals/universal-import.md, layer 1): the shared reader. Synthetic workbooks only.
@@ -69,5 +72,31 @@ describe("ledger imports read through the shared reader (Q-50 batch 1)", () => {
   it("NEGATIVE: two sheets that both hold the cost ledger are refused as ambiguous (was: a second sheet of any kind was refused)", async () => {
     const workbook = book(w => { w.addWorksheet("Costs A").addRow(ledgerHeaders("costs", "en")); w.addWorksheet("Costs B").addRow(ledgerHeaders("costs", "en")); });
     expect((await readLedgerTable("costs", "xlsx", await save(workbook))).errors).toEqual([{ rowNumber: 0, code: "IMPORT_SHEET_AMBIGUOUS", field: "Costs A | Costs B" }]);
+  });
+});
+
+describe("baseline files read through the shared reader (Q-50 batch 1b)", () => {
+  const save = async (workbook: ExcelJS.Workbook) => new Uint8Array(await workbook.xlsx.writeBuffer());
+  it("POSITIVE: a BOQ under a title row, beside a notes sheet, with a blank row inside, is read with its true sheet row numbers", async () => {
+    const workbook = book(w => {
+      w.addWorksheet("Notes").addRow(["Synthetic notes"]);
+      const s = w.addWorksheet("BOQ"); s.addRow(["Synthetic project — bill of quantities"]); s.addRow(["Item No.", "Description", "Unit", "Quantity", "Rate"]);
+      s.addRow(["A-1", "Synthetic tiles", "m2", 10, 5]); s.addRow([]); s.addRow(["A-2", "Synthetic paint", "m2", 4, 2]);
+    });
+    const analysis = await analyzeBoqFile(await save(workbook), "xlsx");
+    expect(analysis.fileError).toBeNull();
+    expect(analysis.items.map(item => [item.code, item.rowNumber])).toEqual([["A-1", 3], ["A-2", 5]]);
+  });
+  it("NEGATIVE: two sheets that both hold the BOQ are refused as ambiguous, naming both", async () => {
+    const workbook = book(w => { for (const name of ["BOQ A", "BOQ B"]) w.addWorksheet(name).addRow(["Item No.", "Description", "Unit", "Quantity", "Rate"]); });
+    expect(await analyzeBoqFile(await save(workbook), "xlsx")).toMatchObject({ fileError: "IMPORT_SHEET_AMBIGUOUS", fileErrorDetail: "BOQ A | BOQ B" });
+  });
+  it("the planned cash flow and the labour plan find their header under a title too; a workbook of hidden sheets only reads as missing its columns", async () => {
+    const cash = book(w => { const s = w.addWorksheet("Cash"); s.addRow(["Synthetic plan"]); s.addRow(["Month", "Percent"]); s.addRow(["2026-01", 60]); s.addRow(["2026-02", 40]); });
+    const cashAnalysis = await analyzeCashFlowFile(await save(cash), "xlsx");
+    expect(cashAnalysis.fileError).toBeNull();
+    expect(cashAnalysis.months.length).toBe(2);
+    const hidden = book(w => { const s = w.addWorksheet("Hidden"); s.state = "hidden"; s.addRow(["Month", "Workers"]); });
+    expect((await analyzeLabourFile(await save(hidden), "xlsx")).fileError).toBe("LABOUR_COLUMNS_MISSING");
   });
 });

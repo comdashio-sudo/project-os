@@ -1703,6 +1703,32 @@ export const projectErrorMessages = {
     en: "This risk code is already used in this project. Choose another code.",
     ur: "خطرے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
   },
+  // Q-27 (P-115): the project risk register
+  PROJECT_OS_RISK_NOT_FOUND: {
+    ar: "الخطر غير موجود في هذا المشروع.",
+    en: "This risk does not exist in this project.",
+    ur: "یہ خطرہ اس پروجیکٹ میں موجود نہیں ہے۔",
+  },
+  PROJECT_OS_RISK_CLOSED: {
+    ar: "هذا الخطر مغلق ولا يُعدَّل. سجّل خطرًا جديدًا إن عاد.",
+    en: "This risk is closed and cannot be changed. Register a new risk if it returns.",
+    ur: "یہ خطرہ بند ہے اور اس میں تبدیلی نہیں ہو سکتی۔ اگر یہ دوبارہ سامنے آئے تو نیا خطرہ درج کریں۔",
+  },
+  PROJECT_OS_RISK_OWNER_INVALID: {
+    ar: "مالك الخطر يجب أن يكون عضوًا فعّالًا في الشركة نفسها.",
+    en: "The risk owner must be an active member of this company.",
+    ur: "خطرے کا مالک اسی کمپنی کا فعال رکن ہونا چاہیے۔",
+  },
+  PROJECT_OS_RISK_ALREADY_CONVERTED: {
+    ar: "هذا الخطر تحوّل إلى قضية من قبل.",
+    en: "This risk has already been turned into an issue.",
+    ur: "یہ خطرہ پہلے ہی ایک مسئلے میں تبدیل ہو چکا ہے۔",
+  },
+  PROJECT_OS_ISSUE_CODE_EXISTS: {
+    ar: "رمز القضية مستعمل في هذا المشروع. اختر رمزًا آخر.",
+    en: "This issue code is already used in this project. Choose another code.",
+    ur: "مسئلے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
+  },
   PROJECT_OS_BOQ_CODE_EXISTS: {
     ar: "رمز بند جدول الكميات مستعمل في هذا المشروع.",
     en: "This BOQ item code is already used in this project.",
@@ -2087,6 +2113,11 @@ export const projectErrorMessages = {
     ar: "صيغة الملف غير مدعومة.",
     en: "The file format is not supported.",
     ur: "فائل کا فارمیٹ معاون نہیں ہے۔",
+  },
+  PROJECT_OS_IMPORT_SHEET_AMBIGUOUS: {
+    ar: "أكثر من ورقة في الملف فيها أعمدة هذا الملف: احذف الورقة الزائدة أو أبقِ الجدول في ورقة واحدة.",
+    en: "More than one sheet in the file holds this file's columns: remove the extra sheet or keep the table on one sheet.",
+    ur: "فائل کی ایک سے زیادہ شیٹس میں اس فائل کے کالم ہیں: زائد شیٹ حذف کریں یا جدول ایک ہی شیٹ پر رکھیں۔",
   },
   PROJECT_OS_IMPORT_MAPPING_INVALID: {
     ar: "ربط الأعمدة غير صالح.",
@@ -2772,6 +2803,16 @@ export const projectErrorMessages = {
     ar: "بند الكميات غير موجود في هذا المشروع.",
     en: "The BOQ item was not found in this project.",
     ur: "یہ BOQ آئٹم اس پروجیکٹ میں نہیں ملا۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_CORRECTION_INVALID: {
+    ar: "التصحيح يجب أن يشير إلى سطر معتمد من إثبات المقاول نفسه، للوحدة والنشاط أو بند الكميات نفسه.",
+    en: "A correction must refer to an approved line of the same subcontract, for the same unit and activity or the same BOQ item.",
+    ur: "تصحیح کو اسی ذیلی معاہدے کی کسی منظور شدہ سطر کا حوالہ دینا چاہیے، اسی یونٹ اور سرگرمی یا اسی BOQ آئٹم کے لیے۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_CORRECTION_BELOW_ZERO: {
+    ar: "التصحيح يتجاوز ما أُثبت لهذا المقاول: لا يمكن أن يقل المجموع عن صفر.",
+    en: "The correction takes back more than was confirmed for this subcontract: the total cannot go below zero.",
+    ur: "یہ تصحیح اس ذیلی معاہدے کے لیے تصدیق شدہ مقدار سے زیادہ واپس لیتی ہے: مجموعہ صفر سے کم نہیں ہو سکتا۔",
   },
   PROJECT_OS_WORK_CONFIRMATION_DUPLICATE: {
     ar: "هذه الوحدة وهذا النشاط مُثبَتان لهذا المقاول بما يتجاوز 100% مع إثبات سابق غير ملغى. راجع الإثباتات السابقة، أو صحّح بإثبات تصحيح.",
