@@ -8,7 +8,7 @@ describe("resolveColumns (Q-31)", () => {
   it("without a choice: the aliases decide, and the report says which column each field takes (null when none)", () => {
     const result = resolveColumns(fields, ["الشهر", "Crew", "Men"]);
     expect(result.columns).toEqual({ month: "الشهر", trade: undefined, workers: undefined });
-    expect(result.report).toEqual({ headers: ["الشهر", "Crew", "Men"], overridden: false, fields: [{ key: "month", required: true, header: "الشهر" }, { key: "trade", required: false, header: null }, { key: "workers", required: true, header: null }] });
+    expect(result.report).toEqual({ headers: ["الشهر", "Crew", "Men"], overridden: false, fields: [{ key: "month", required: true, header: "الشهر", source: "name", suggestion: null }, { key: "trade", required: false, header: null, source: null, suggestion: null }, { key: "workers", required: true, header: null, source: null, suggestion: null }] });
     expect(result.invalid).toBeUndefined();
   });
 
