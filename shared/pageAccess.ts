@@ -24,8 +24,9 @@ export const PAGE_ACCESS = {
   team: [["project.manage", "project.team.invite"]],
   pmc: [["project.pmc.read"]],
   stalled: [["project.pmc.read"]],
-  // meetings.list — listProjectMeetings (server/meetings.ts), Q-25
-  meetings: [["project.read", "project.manage"]],
+  // meetings.list — listProjectMeetings (server/meetings.ts), Q-25: a reader of the project, or whoever records its minutes (assertDecisionRecorder:
+  // pmo.write on the project, tenant.manage for the company) — who writes the minutes reads them (batch 2)
+  meetings: [["project.read", "project.manage", "pmo.write", "tenant.manage"]],
   // pmo.projectRisks — listProjectRisks (server/projectRisks.ts), Q-27 (P-116)
   risks: [["pmo.read"]],
   // safety.register — getSafetyRegister (server/safety.ts), Q-28 (P-118)
