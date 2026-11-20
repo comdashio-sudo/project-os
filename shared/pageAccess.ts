@@ -28,6 +28,8 @@ export const PAGE_ACCESS = {
   meetings: [["project.read", "project.manage"]],
   // pmo.projectRisks — listProjectRisks (server/projectRisks.ts), Q-27 (P-116)
   risks: [["pmo.read"]],
+  // safety.register — getSafetyRegister (server/safety.ts), Q-28 (P-118)
+  safety: [["project.read", "project.hse.manage"]],
   // siteReports.list — listSiteDailyReportsForTenant (server/siteReports.ts)
   dailyReport: [DAILY_REPORT_READERS],
   // reportPeriods.weekly / reportPeriods.monthly — getWeeklyReport, getMonthlyReport (server/siteReports.ts READ_PERMISSIONS)

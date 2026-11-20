@@ -2661,17 +2661,74 @@ export async function getOwnPerformanceAvailabilityForTenant(input: { userId: nu
   const [own] = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.tenantId, input.tenantId), eq(employees.linkedUserId, input.userId), eq(employees.employmentStatus, "active"))).limit(1);
   let canRead = true;
   try { assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.performance.read_own", scope: { type: "project", id: input.projectId } }); } catch { canRead = false; }
-  return { linked: Boolean(own), canRead };
+  // Q-17 (205-5, G-147): whether the page may ask for the direct-reports list (listDirectReportsForTenant refuses without project.performance.manage).
+  let canManage = true;
+  try { assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.performance.manage", scope: { type: "project", id: input.projectId } }); } catch { canManage = false; }
+  return { linked: Boolean(own), canRead, canManage };
 }
 
 function performanceRecord(input: PerformanceSourceRecord) { return input; }
 
-// Owner decision (2026-10-23): each person sees only their own indicators, whatever their role. The server enforces it: any other employee id
-// is refused before that employee's records are read. Managers keep their write path (performance.exclude) through loadEmployeePerformance.
+// Owner decision (2026-10-23): each person sees their own indicators, whatever their role. Q-17 (205-5, G-147, executive decision under the owner's
+// delegation of 2026-11-13) adds one door: a performance manager on the project also sees the people who report to them DIRECTLY (the employee's
+// reportsToEmployeeId is the caller's own active employee record) and are assigned on the project. Any other employee id is refused before that
+// employee's records are read. Managers keep their write path (performance.exclude) through loadEmployeePerformance.
 export async function getEmployeePerformanceForTenant(input: { userId: number; tenantId: string; projectId: string; employeeId?: string; now?: Date }) {
   const access = await assertPerformanceAccess({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId });
-  if (input.employeeId !== undefined && input.employeeId !== access.employee.id) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERFORMANCE_SELF_ONLY" });
-  return loadEmployeePerformance(input, access);
+  if (input.employeeId === undefined || input.employeeId === access.employee.id) return loadEmployeePerformance(input, access);
+  await assertDirectReport({ tenantId: input.tenantId, managerEmployeeId: access.employee.id, employeeId: input.employeeId });
+  return loadEmployeePerformance(input, await assertPerformanceAccess(input));
+}
+
+async function assertDirectReport(input: { tenantId: string; managerEmployeeId: string; employeeId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  const [report] = await db.select({ id: employees.id }).from(employees)
+    .where(and(eq(employees.id, input.employeeId), eq(employees.tenantId, input.tenantId), eq(employees.reportsToEmployeeId, input.managerEmployeeId))).limit(1);
+  if (!report) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERFORMANCE_SELF_ONLY" });
+}
+
+/** Q-17 (205-5, G-147): the caller's direct reports who are assigned on the project, for the performance manager's picker. */
+export async function listDirectReportsForTenant(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPerformanceManager(input);
+  const [own] = await db.select({ id: employees.id }).from(employees)
+    .where(and(eq(employees.tenantId, input.tenantId), eq(employees.linkedUserId, input.userId), eq(employees.employmentStatus, "active"))).limit(1);
+  if (!own) return [];
+  const assigned = db.select({ employeeId: employeeAssignments.employeeId }).from(employeeAssignments)
+    .where(and(eq(employeeAssignments.tenantId, input.tenantId), eq(employeeAssignments.projectId, input.projectId), inArray(employeeAssignments.status, ["planned", "active"])));
+  return db.select({ id: employees.id, employeeNumber: employees.employeeNumber, fullName: employees.fullName, jobTitle: employees.jobTitle }).from(employees)
+    .where(and(eq(employees.tenantId, input.tenantId), eq(employees.reportsToEmployeeId, own.id), eq(employees.employmentStatus, "active"), inArray(employees.id, assigned)))
+    .orderBy(employees.employeeNumber);
+}
+
+/** Q-17 (205-5, G-147): set or clear an employee's direct manager. HR only; same company, active, not self, and no loop up the chain. */
+export async function setEmployeeManagerForTenant(input: { userId: number; tenantId: string; employeeId: string; reportsToEmployeeId: string | null }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertHrRecordAccess({ ...input, permission: "project.hr.manage" });
+  const [employee] = await db.select({ id: employees.id, reportsToEmployeeId: employees.reportsToEmployeeId }).from(employees)
+    .where(and(eq(employees.id, input.employeeId), eq(employees.tenantId, input.tenantId))).limit(1);
+  if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_EMPLOYEE_NOT_FOUND" });
+  const next = input.reportsToEmployeeId;
+  if (next !== null) {
+    if (next === employee.id) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EMPLOYEE_MANAGER_SELF" });
+    const [manager] = await db.select({ id: employees.id }).from(employees)
+      .where(and(eq(employees.id, next), eq(employees.tenantId, input.tenantId), eq(employees.employmentStatus, "active"))).limit(1);
+    if (!manager) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EMPLOYEE_MANAGER_INVALID" });
+    // walk up from the new manager: reaching this employee means the line would loop
+    let cursor: string | null = next;
+    for (let step = 0; cursor !== null && step < 100; step += 1) {
+      if (cursor === employee.id) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EMPLOYEE_MANAGER_LOOP" });
+      const [above] = await db.select({ reportsTo: employees.reportsToEmployeeId }).from(employees)
+        .where(and(eq(employees.id, cursor), eq(employees.tenantId, input.tenantId))).limit(1);
+      cursor = above?.reportsTo ?? null;
+    }
+    if (cursor !== null) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EMPLOYEE_MANAGER_LOOP" });
+  }
+  await db.transaction(async tx => {
+    await tx.update(employees).set({ reportsToEmployeeId: next }).where(and(eq(employees.id, employee.id), eq(employees.tenantId, input.tenantId)));
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "hr.employee_manager_set", entityType: "employee", entityId: employee.id, metadata: JSON.stringify({ previousManagerEmployeeId: employee.reportsToEmployeeId, managerEmployeeId: next }) });
+  });
+  return { id: employee.id, reportsToEmployeeId: next };
 }
 
 async function loadEmployeePerformance(input: { tenantId: string; projectId: string; now?: Date }, access: PerformanceAccess) {
@@ -2740,7 +2797,7 @@ export async function transitionEmployeePerformanceObjectionForTenant(input: { u
 export async function getEmployeesForTenant(input: { userId: number; tenantId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   await assertHrRecordAccess({ ...input, permission: "project.hr.manage" });
-  return db.select({ id: employees.id, employeeNumber: employees.employeeNumber, fullName: employees.fullName, jobTitle: employees.jobTitle, department: employees.department, hireDate: employees.hireDate, employmentStatus: employees.employmentStatus, nationality: employees.nationality, linkedUserId: employees.linkedUserId, retentionPolicy: employees.retentionPolicy, archivedAt: employees.archivedAt, createdAt: employees.createdAt }).from(employees).where(eq(employees.tenantId, input.tenantId)).orderBy(desc(employees.createdAt));
+  return db.select({ id: employees.id, employeeNumber: employees.employeeNumber, fullName: employees.fullName, jobTitle: employees.jobTitle, department: employees.department, hireDate: employees.hireDate, employmentStatus: employees.employmentStatus, nationality: employees.nationality, linkedUserId: employees.linkedUserId, reportsToEmployeeId: employees.reportsToEmployeeId, retentionPolicy: employees.retentionPolicy, archivedAt: employees.archivedAt, createdAt: employees.createdAt }).from(employees).where(eq(employees.tenantId, input.tenantId)).orderBy(desc(employees.createdAt));
 }
 
 export async function getEmployeeIdentityForTenant(input: { userId: number; tenantId: string; employeeId: string }) {
