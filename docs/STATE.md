@@ -3214,7 +3214,8 @@
 | السالب: من لا يملك `project.pmc.manage` يُرفض؛ المخطط الرئيسي والدفاتر التشغيلية (التكاليف والطلبات والساعات) والمعدات ← `PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED` (القرار 3: المالي لاحقًا) | `PROVEN` | الاختبار نفسه |
 | الرسائل ع/En/أردو (`PROJECT_OS_IMPORT_EDITS_INVALID`، `PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED`، `IMPORT_EDIT_INVALID`) | `SOURCE_VERIFIED` | `shared/projectErrors.ts`، `client/src/lib/pmcImportMessages.ts` |
 | الفحوص | `PROVEN` | `pnpm check` ناجح؛ `pnpm test` 4313/0 (بعد إدراج `requestImportCorrection` في استثناءات Gate 6 بسببه: التدقيق في مهمة التحليل)؛ `coverage:trpc` ناجح؛ `externalImports.database.test.ts` 12/12 (+2) |
-| الشاشة: «صحّح» و«اترك هذا الصف» عند كل صف مرفوض في تقرير PMC، وعمود تصنيف السطر | `OPEN` | الدفعة 4ب (واجهة) |
+| الدفعة 4ب (فوق 4أ): لوحة «صحّح هنا بدل Excel» في تقرير PMC (`client/src/components/PmcRowCorrections.tsx`): لكل صف مرفوض (حتى 20) أسبابه، واختيار الحقل (افتراضيًا حقل الخطأ) والقيمة الصحيحة، و«اترك هذا الصف»؛ وقائمة «تصحيحات هذا التحليل» بالقيمة في الملف والقيمة المقروءة مع «تراجع» لكل واحد، وتنبيه أن اختيار أعمدة أخرى يُسقطها؛ ويُرسل المجموع كاملًا. رفض الخادم يظهر بلغة الشخص | `PROVEN` | `PmcRowCorrections.test.tsx` 4/4؛ لقطات `docs/screenshots/q-50-cell-corrections/` (ع 390/1280 قبل وبعد، En 1280، أردو 390): بلا تمرير أفقي، كل الأزرار والحقول ≥44px، أرقام غربية |
+| عمود تصنيف السطر لكل سطر (بيانات / عنوان / إجمالي / ملاحظة) | `OPEN` | الدفعة 4ج |
 
 ### Q-50 الدفعة 3أ: مكوّن تعيين الأعمدة الموحّد (2026-11-20، المبرمج ب، واجهة فقط، بقرار المستشار I52 (1))
 
