@@ -131,8 +131,16 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-21 (a) batch 6: goals,
     expect((await callerFor("exec").strategy.initiatives({ tenantId })).find(item => item.id === initiativeId)!.status).toBe("in_progress");
   });
 
+  it("two saves of the same code at the same moment: one is kept, the other gets the translated refusal — not a raw database error (review of #495)", async () => {
+    const entrant = callerFor("entrant");
+    const pair = async (save: () => Promise<unknown>) => (await Promise.all([code(save()), code(save())])).sort();
+    expect(await pair(() => entrant.strategy.createGoal({ tenantId, ...goal, code: "G-RACE" }))).toEqual(["PROJECT_OS_STRATEGY_GOAL_CODE_EXISTS", "no error"]);
+    expect(await pair(() => entrant.strategy.createInitiative({ tenantId, code: "I-RACE", name: "Synthetic: a race" }))).toEqual(["PROJECT_OS_STRATEGY_INITIATIVE_CODE_EXISTS", "no error"]);
+    expect(await pair(() => entrant.strategy.createOpportunity({ tenantId, code: "T-RACE", name: "Synthetic tender race", estimatedValue: 1, probabilityPercent: 10 }))).toEqual(["PROJECT_OS_STRATEGY_OPPORTUNITY_CODE_EXISTS", "no error"]);
+  });
+
   it("(h) ISOLATION: the executive reads and writes nothing; the site engineer and another company see nothing", async () => {
-    expect((await callerFor("exec").strategy.initiatives({ tenantId })).map(item => item.code)).toEqual(["I-BID"]);
+    expect((await callerFor("exec").strategy.initiatives({ tenantId })).map(item => item.code)).toEqual(["I-BID", "I-RACE"]);
     expect(await code(callerFor("exec").strategy.createGoal({ tenantId, ...goal, code: "G-X" }))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callerFor("exec").strategy.recordVariance({ tenantId, assumptionId: winRateId, periodStart: "2026-07-01", periodEnd: "2026-09-30", actual: { source: "pipeline" } }))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callerFor("site").strategy.variances({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");
