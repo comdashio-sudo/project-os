@@ -2146,6 +2146,36 @@ export const projectErrorMessages = {
     en: "More than one sheet in the file holds this file's columns: remove the extra sheet or keep the table on one sheet.",
     ur: "فائل کی ایک سے زیادہ شیٹس میں اس فائل کے کالم ہیں: زائد شیٹ حذف کریں یا جدول ایک ہی شیٹ پر رکھیں۔",
   },
+  PROJECT_OS_WORK_CONFIRMATION_NOT_APPROVED: {
+    ar: "لا يُسحب إلى المستخلص إلا إثبات أعمال معتمد.",
+    en: "Only an approved work confirmation can be pulled into a certificate.",
+    ur: "صرف منظور شدہ کام کی تصدیق ہی بل میں شامل کی جا سکتی ہے۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_ALREADY_PULLED: {
+    ar: "هذا الإثبات سُحب إلى مستخلص من قبل؛ لا يُسحب مرتين.",
+    en: "This confirmation is already in a certificate; it cannot be pulled twice.",
+    ur: "یہ تصدیق پہلے ہی ایک بل میں شامل ہے؛ اسے دو بار شامل نہیں کیا جا سکتا۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_HISTORICAL: {
+    ar: "إثبات فيه أعمال تاريخية (اعتُمدت قبل المنصة) لا يُسحب إلى مستخلص.",
+    en: "A confirmation with historical work (approved before the platform) cannot be pulled into a certificate.",
+    ur: "تاریخی کام (پلیٹ فارم سے پہلے منظور شدہ) والی تصدیق بل میں شامل نہیں کی جا سکتی۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED: {
+    ar: "أسطر الوحدات (فيلا × نشاط × نسبة) لا سعر لها في جدول الكميات بعد؛ اسحب إثباتات الكميات فقط، وأضف الوحدات يدويًا ببند الكميات.",
+    en: "Unit lines (villa × activity × percent) have no BOQ rate yet; pull quantity confirmations only, and add the units by hand against their BOQ item.",
+    ur: "یونٹ لائنوں (ولا × سرگرمی × فیصد) کا ابھی BOQ ریٹ نہیں؛ صرف مقدار والی تصدیقات شامل کریں اور یونٹس کو ان کے BOQ آئٹم کے ساتھ ہاتھ سے شامل کریں۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_NOTHING_TO_PULL: {
+    ar: "لا أسطر في المستخلص: أضف بندًا أو اسحب إثباتًا بكمية غير صفرية.",
+    en: "The certificate has no lines: add an item or pull a confirmation with a non-zero quantity.",
+    ur: "بل میں کوئی لائن نہیں: کوئی آئٹم شامل کریں یا غیر صفر مقدار والی تصدیق شامل کریں۔",
+  },
+  PROJECT_OS_CERTIFICATE_LINE_TWICE: {
+    ar: "البند نفسه مكتوب يدويًا ومسحوب من إثبات؛ اختر أحدهما حتى لا تُطالب بالكمية مرتين.",
+    en: "The same item is typed by hand and pulled from a confirmation; keep one so the quantity is not claimed twice.",
+    ur: "ایک ہی آئٹم ہاتھ سے بھی لکھا گیا اور تصدیق سے بھی آیا؛ ایک رکھیں تاکہ مقدار دو بار نہ مانگی جائے۔",
+  },
   PROJECT_OS_IMPORT_EDITS_INVALID: {
     ar: "التصحيحات غير صالحة: الخلية نفسها أو الصف نفسه مكرر.",
     en: "The corrections are not valid: the same cell or the same row appears twice.",
