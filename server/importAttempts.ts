@@ -3,16 +3,16 @@
 //   rollback  an import that was confirmed: delete exactly the rows THAT import created, in one transaction, with the audit row. Never rows it only updated (their previous values were not kept),
 //             never rows something else now depends on (the foreign key refuses, the whole rollback is undone and says so).
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { activities, auditLogs, budgetLines, contracts, dataImportErrors, dataImportRowResults, dataImportSources, dataImports, materialMasters, wbsItems } from "../drizzle/schema";
+import { activities, activityCodeAssignments, activityCodeTypes, activityCodeValues, activityRelationships, activityResourceAssignments, auditLogs, budgetLines, contracts, dataImportErrors, dataImportRowResults, dataImportSources, dataImports, materialMasters, projectResources, scheduleCalendars, wbsItems } from "../drizzle/schema";
 import { isForeignKeyViolation } from "./_core/database";
 import { logError } from "./_core/logger";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb, getTenantAccessSnapshot, importPermissionFor } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { attemptState, canDiscardAttempt, canRollbackAttempt, canRollbackModule } from "../shared/importAttempts";
 import { storageDelete } from "./storage";
-import { rollbackScheduleUpdate } from "./scheduleSnapshots";
+import { captureScheduleSnapshot, rollbackScheduleUpdate } from "./scheduleSnapshots";
 
 export { ROLLBACK_MODULES } from "../shared/importAttempts";
 const ROLLBACK_PERMISSION = "project.manage";
@@ -60,6 +60,7 @@ export async function rollbackImport(input: Scope) {
   if (!canRollbackAttempt(state)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED");
   if (!canRollbackModule(record.moduleCode)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED");
   if (record.moduleCode === "p6update") return rollbackActivityUpdate(db, input, record);
+  if (record.moduleCode === "p6") return rollbackP6Import(db, input, record);
   const results = await db.select({ action: dataImportRowResults.action, rowKey: dataImportRowResults.rowKey, entityId: dataImportRowResults.entityId }).from(dataImportRowResults).where(eq(dataImportRowResults.importId, record.id));
   if (results.some(row => row.action === "updated")) throw fail("PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES", "CONFLICT");
   const created = results.filter(row => row.action === "created" && row.entityId);
@@ -109,4 +110,53 @@ async function rollbackActivityUpdate(db: NonNullable<Awaited<ReturnType<typeof 
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_rolled_back", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: "p6update", restored: { activities: restored } }) });
   });
   return { id: record.id, rolledBack: true as const, deleted: {} as Record<string, number>, restored: { activities: restored } };
+}
+
+/**
+ * Q-23 (the rest; adviser's question I25, option 1 — the smaller, safer one): an XER import is undone only when it CREATED everything it wrote (no row of
+ * any of its nine tables was updated) and it is the project's latest schedule import still standing. Exactly the rows it created are deleted — the list
+ * it kept of them (p6.created, recorded since this change; an older import has none and is refused) — children before parents, in one transaction, with
+ * the audit row and a «p6_rollback» snapshot. A row something now depends on (a daily report, a progress line, a certificate) stops the whole undo.
+ */
+const P6_DELETE_ORDER = ["codeAssignments", "relationships", "assignments", "codeValues", "codeTypes", "activities", "resources", "calendars", "wbs"] as const;
+async function rollbackP6Import(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: Scope, record: { id: string; status: string; summaryJson: string | null }) {
+  const summary = (() => { try { return JSON.parse(record.summaryJson ?? "{}") as { p6?: { counts?: Record<string, { update?: number }>; created?: Partial<Record<(typeof P6_DELETE_ORDER)[number], string[]>> } }; } catch { return {}; } })();
+  const created = summary.p6?.created;
+  if (!created) throw fail("PROJECT_OS_IMPORT_ROLLBACK_INCOMPLETE_RECORD", "CONFLICT"); // imported before the list of created rows was kept
+  if (Object.values(summary.p6?.counts ?? {}).some(count => Number(count.update ?? 0) > 0)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES", "CONFLICT");
+  const now = new Date();
+  const deleted: Record<string, number> = {};
+  try {
+    await db.transaction(async tx => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`schedule-snapshot:${input.projectId}`}))`);
+      // compared in the database: created_at holds microseconds, a JavaScript date only milliseconds (the import itself would read as «later»)
+      const later = await tx.select({ id: dataImports.id }).from(dataImports).where(and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, "completed"),
+        inArray(dataImports.moduleCode, ["p6", "p6update", "schedule"]), ne(dataImports.id, record.id),
+        gt(dataImports.createdAt, sql`(SELECT created_at FROM data_imports WHERE id = ${record.id} AND tenant_id = ${input.tenantId})`))).limit(1);
+      if (later.length) throw fail("PROJECT_OS_SCHEDULE_ROLLBACK_NOT_LATEST", "CONFLICT");
+      const scope = { tenantId: input.tenantId, projectId: input.projectId };
+      const tables = { codeAssignments: activityCodeAssignments, relationships: activityRelationships, assignments: activityResourceAssignments, codeValues: activityCodeValues, codeTypes: activityCodeTypes,
+        activities, resources: projectResources, calendars: scheduleCalendars, wbs: wbsItems } as const;
+      for (const name of P6_DELETE_ORDER) {
+        const ids = created[name] ?? [];
+        const table = tables[name] as typeof activities; // every one of the nine has id, tenant_id and project_id
+        let count = 0;
+        for (let from = 0; from < ids.length; from += 500) {
+          count += (await tx.delete(table).where(and(inArray(table.id, ids.slice(from, from + 500)), eq(table.tenantId, scope.tenantId), eq(table.projectId, scope.projectId))).returning({ id: table.id })).length;
+        }
+        if (count !== ids.length) throw fail("PROJECT_OS_IMPORT_ROLLBACK_INCOMPLETE_RECORD", "CONFLICT"); // a created row is already gone: the list no longer describes the data
+        deleted[name] = count;
+      }
+      const previous = (() => { try { return JSON.parse(record.summaryJson ?? "{}") as Record<string, unknown>; } catch { return {}; } })();
+      const marked = await tx.update(dataImports).set({ status: "cancelled", summaryJson: JSON.stringify({ ...previous, rolledBack: { at: now.toISOString(), byUserId: input.userId, deleted } }) })
+        .where(and(eq(dataImports.id, record.id), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.status, "completed"))).returning({ id: dataImports.id });
+      if (marked.length !== 1) throw fail("PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED", "CONFLICT");
+      await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "data_import_rolled_back", entityType: "data_import", entityId: record.id, metadata: JSON.stringify({ projectId: input.projectId, moduleCode: "p6", deleted }) });
+      await captureScheduleSnapshot(tx as unknown as Parameters<typeof captureScheduleSnapshot>[0], { tenantId: input.tenantId, projectId: input.projectId, importId: record.id, source: "p6_rollback", dataDate: null, userId: input.userId });
+    });
+  } catch (error) {
+    if (isForeignKeyViolation(error)) throw fail("PROJECT_OS_IMPORT_ROLLBACK_IN_USE", "CONFLICT"); // the whole transaction is undone: something now depends on a row this import created
+    throw error;
+  }
+  return { id: record.id, rolledBack: true as const, deleted };
 }

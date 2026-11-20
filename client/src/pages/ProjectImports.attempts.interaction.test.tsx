@@ -68,14 +68,14 @@ describe("the import log shows what each attempt is and what can be done with it
     expect(ledger.queryByRole("button", { name: "Replace with a newer version" })).toBeNull();
   });
 
-  // D-4 (#153): a full Primavera schedule (p6) is written «completed», but the server refuses its rollback (PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED) —
-  // so the log offers neither button for it, while a «schedule» import still gets both. Its progress update (p6update) is undone since G-208 (below).
-  it.each(["p6"])("offers neither «Roll back» nor «Replace» on a completed %s import (the server refuses its rollback)", moduleCode => {
+  // Q-23: a full Primavera schedule (p6) can be rolled back (the server undoes it only when it created everything and is the latest, and says why otherwise);
+  // «Replace» is not offered — an .xer goes through the smart import box, not this screen's uploader.
+  it.each(["p6"])("offers «Roll back» but not «Replace» on a completed %s import", moduleCode => {
     state.mock.list = [row("00000000-0000-4000-8000-0000000000a6", "schedule.xer", "completed", 0, moduleCode)];
     render(<ProjectImports tenantId="tenant-1" projectId="project-1" />);
     const imported = within(screen.getByTestId("import-attempt-imported"));
     expect(imported.getByText("Imported")).toBeTruthy();
-    expect(imported.queryByRole("button", { name: "Roll back this import" })).toBeNull();
+    expect(imported.getByRole("button", { name: "Roll back this import" })).toBeTruthy();
     expect(imported.queryByRole("button", { name: "Replace with a newer version" })).toBeNull();
   });
 
