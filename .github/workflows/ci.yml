@@ -175,6 +175,15 @@ jobs:
           BASE_URL: http://127.0.0.1:3200
           SESSION_FILE: ${{ runner.temp }}/ui-session
           OUT_DIR: ${{ runner.temp }}/ui-screenshots
+      # Q-54 (4): the side menu must open, scroll and close on a phone and fold on a desktop, with no overlap and no page error: a broken menu fails the run.
+      - name: Side menu check (390px touch and 1280px, ${{ matrix.label }})
+        run: node --import tsx scripts/e2e-mobile-menu.mjs
+        env:
+          MENU_LANGS: ${{ matrix.language }}
+          BASE_URL: http://127.0.0.1:3200
+          SHOTS_DIR: ${{ runner.temp }}/ui-screenshots
+          # reads the demo company and its first member across companies, which the restricted application role may not do: it connects as the container's owner
+          DATABASE_URL: postgres://postgres:ci-throwaway-postgres@127.0.0.1:5432/project_os_integration_test # secret-scan:allow container-local throw-away value
       # Work order 20, item 14 (audit 6.7): an automatic accessibility check (axe-core, WCAG 2.x A/AA and best practice) over every screen at desktop and phone width, in Arabic.
       # axe-core is MPL-2.0 (file-level copyleft, no restriction on commercial use) and is used here unmodified as a test tool installed outside the repository; it never ships.
       # A CRITICAL violation fails the run; serious ones are listed. An automatic check finds roughly a third of real problems: a pass is "none axe can detect", not "accessible".
