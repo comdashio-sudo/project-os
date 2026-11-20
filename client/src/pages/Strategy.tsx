@@ -38,10 +38,13 @@ const TEXT = {
 type Text = (typeof TEXT)["ar"];
 type Unit = "percent" | "sar" | "months" | "days" | "count";
 
-/** A value in its unit, in Western digits and isolated left-to-right inside the Arabic line. */
+/** A value in its unit: the number in Western digits isolated left-to-right, the unit word after it in the line's own direction (so Arabic reads «75 يوم»). */
 function Value({ value, unit, t }: { value: number; unit: Unit; t: Text }) {
-  const text = unit === "percent" ? `${formatNumber(value, 2)}%` : unit === "sar" ? `${formatAmount(value)} ${t.sar}` : unit === "count" ? formatNumber(value, 2) : `${formatNumber(value, 2)} ${t[unit]}`;
-  return <bdi dir="ltr">{text}</bdi>;
+  const number = Number.isInteger(value) ? formatNumber(value) : formatNumber(value, 2);
+  if (unit === "percent") return <bdi dir="ltr">{formatNumber(value, 2)}%</bdi>;
+  if (unit === "sar") return <><bdi dir="ltr">{formatAmount(value)}</bdi> {t.sar}</>;
+  if (unit === "count") return <bdi dir="ltr">{number}</bdi>;
+  return <><bdi dir="ltr">{number}</bdi> {t[unit]}</>;
 }
 const Chip = ({ children }: { children: React.ReactNode }) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">{children}</span>;
 const Empty = ({ children, name }: { children: React.ReactNode; name: string }) => <p className="text-sm text-muted-foreground" data-strategy-empty={name}>{children}</p>;
@@ -78,8 +81,8 @@ function Pipeline({ tenantId, t, language }: { tenantId: string; t: Text; langua
     <CardContent className="grid gap-2">
       <SourceNotice query={query} isArabic={language === "ar"} title={t.pipeline} />
       {data ? <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <div className="grid gap-0.5 rounded-[var(--radius-md)] border border-border px-3 py-2"><span className="text-xs text-muted-foreground">{t.inPlay}</span><span className="text-base font-semibold"><bdi dir="ltr">{formatNumber(data.inPlay.count)}</bdi> · <bdi dir="ltr">{formatAmount(data.inPlay.value)} {t.sar}</bdi></span></div>
-        <div className="grid gap-0.5 rounded-[var(--radius-md)] border border-border px-3 py-2"><span className="text-xs text-muted-foreground">{t.weighted}</span><span className="text-base font-semibold"><bdi dir="ltr">{formatAmount(data.inPlay.weighted)} {t.sar}</bdi></span></div>
+        <div className="grid gap-0.5 rounded-[var(--radius-md)] border border-border px-3 py-2"><span className="text-xs text-muted-foreground">{t.inPlay}</span><span className="text-base font-semibold"><bdi dir="ltr">{formatNumber(data.inPlay.count)}</bdi> · <bdi dir="ltr">{formatAmount(data.inPlay.value)}</bdi> {t.sar}</span></div>
+        <div className="grid gap-0.5 rounded-[var(--radius-md)] border border-border px-3 py-2"><span className="text-xs text-muted-foreground">{t.weighted}</span><span className="text-base font-semibold"><bdi dir="ltr">{formatAmount(data.inPlay.weighted)}</bdi> {t.sar}</span></div>
         <div className="grid gap-0.5 rounded-[var(--radius-md)] border border-border px-3 py-2" data-strategy-win-rate><span className="text-xs text-muted-foreground">{t.winRate}</span>
           {data.winRate.byCount === null ? <span className="text-sm text-muted-foreground">{t.noWinRate}</span>
             : <span className="text-base font-semibold"><bdi dir="ltr">{formatNumber(data.winRate.byCount, 2)}%</bdi> <span className="text-xs font-normal text-muted-foreground">(<bdi dir="ltr">{formatNumber(data.winRate.won)}/{formatNumber(data.winRate.decided)}</bdi> {t.decided})</span></span>}
