@@ -90,13 +90,14 @@ export default function PmcProgressUpdate() {
   const reason = (issue: Issue) => issue.code === "SITE_TOO_MANY_VILLAS" ? c.tooMany(issue.detail) : (t.issues[issue.code] ?? (() => issue.code))(issue.villa, issue.detail);
 
   return (
-    <FieldShell title={c.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={c.back} tenantId={tenantId} projectId={projectId} current="progress">
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-4 pb-24">
+    <FieldShell title={c.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={c.back} tenantId={tenantId} projectId={projectId} current="progress" header={<>
       {/* Q-54: the dark band and three steps of the reference «تحديث الإنجاز 390»; the steps fill as the form is filled, nothing is hidden */}
-      <div data-progress-steps className="rounded-[18px] bg-hero p-4 text-hero-foreground">
+      <div data-progress-steps className="mt-2">
         <p className="text-sm text-hero-foreground/75">{c.summary}</p>
         <ol aria-label={c.stepsLabel} className="mt-3 grid grid-cols-3 gap-2">{c.steps.map((label, index) => { const done = stepsDone > index; const current = stepsDone === index; return <li key={label} aria-current={current ? "step" : undefined} className="flex flex-col gap-1.5"><span className={`h-1 rounded-full ${done || current ? "bg-sidebar-mark" : "bg-hero-foreground/20"}`} /><span className={`text-xs ${current ? "font-bold text-hero-foreground" : "text-hero-foreground/75"}`}>{label}</span></li>; })}</ol>
       </div>
+      </>}>
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-4 pb-24">
       <OfflineQueuePanel identityError={me.error} items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} reason={item => offlineReasons(item.error, t.issues, language)} language={language} />
       <WriteGate permission="project.pmc.update" projectId={projectId} reason={{ ar: wo22Text.ar.noUpdatePermission, en: wo22Text.en.noUpdatePermission, ur: wo22Text.ur.noUpdatePermission }}>
         <Card>
