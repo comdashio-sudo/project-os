@@ -48,7 +48,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a project of 1,200 units
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('rowlim-role', ?, 'ROWLIM','Row limits','PROJECT')", [T]);
     await connection.query("INSERT INTO permissions (id, code, name, productCode) VALUES ('rowlim-perm-read','project.read','project.read','PROJECT') ON DUPLICATE KEY UPDATE name = VALUES(name)");
     await connection.query("INSERT IGNORE INTO role_permissions (roleId, permissionId) SELECT 'rowlim-role', id FROM permissions WHERE code = 'project.read'");
-    await grantOperationalPermissions(connection, "rowlim-role", ["project.pmc.read", "project.cashflow.read", "project.wbs.manage", "project.budget.manage", "project.cost.enter", "project.progress.manage", "project.evm.manage"]);
+    await grantOperationalPermissions(connection, "rowlim-role", ["project.pmc.read", "project.cashflow.read", "project.profit.read", "project.wbs.manage", "project.budget.manage", "project.cost.enter", "project.progress.manage", "project.evm.manage"]);
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('rowlim-m', ?, ?, 'active')", [T, userId]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('rowlim-mr','rowlim-m','rowlim-role','company')");
 
