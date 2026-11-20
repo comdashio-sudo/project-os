@@ -877,8 +877,8 @@ export const appRouter = router({
       tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid(), confirmationNumber: z.string().trim().min(1).max(60),
       periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().trim().max(500).nullish(),
       lines: z.array(z.discriminatedUnion("kind", [
-        z.object({ kind: z.literal("unit"), pmcUnitId: z.string().uuid(), pmcActivityDefinitionId: z.string().uuid(), percent: z.number().finite(), note: z.string().trim().max(300).nullish() }),
-        z.object({ kind: z.literal("quantity"), boqItemId: z.string().uuid(), quantity: z.number().finite(), note: z.string().trim().max(300).nullish() }),
+        z.object({ kind: z.literal("unit"), pmcUnitId: z.string().uuid(), pmcActivityDefinitionId: z.string().uuid(), percent: z.number().finite(), note: z.string().trim().max(300).nullish(), correctsLineId: z.string().uuid().nullish(), historical: z.boolean().optional() }),
+        z.object({ kind: z.literal("quantity"), boqItemId: z.string().uuid(), quantity: z.number().finite(), note: z.string().trim().max(300).nullish(), correctsLineId: z.string().uuid().nullish(), historical: z.boolean().optional() }),
       ])).min(1).max(500),
     })).mutation(({ ctx, input }) => createWorkConfirmation({ userId: ctx.user.id, ...input })),
     transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), confirmationId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "cancelled"]), reason: z.string().trim().max(500).nullish() })).mutation(({ ctx, input }) => transitionWorkConfirmation({ userId: ctx.user.id, ...input })),

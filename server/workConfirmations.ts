@@ -5,7 +5,10 @@
 // Double claims are refused inside one transaction that locks the project row, so two sends cannot both pass: a unit × activity is never confirmed past
 // 100% for one subcontract (DUPLICATE, naming the earlier confirmation) nor past 100% across subcontracts (OVER_COMPLETE); a BOQ item is never confirmed past
 // its BOQ quantity across subcontracts (OVER_BOQ). Draft, sent and approved confirmations count; cancelled and rejected ones do not.
-// Corrections (negative lines), historical lines and pulling into a certificate come in later batches; this one refuses a negative line.
+// Batch 3: a CORRECTION is a new line naming the approved line it corrects (corrects_line_id) — the same subcontract and the same unit × activity or BOQ item —
+// with a negative or positive figure; the original line is never edited, and the subcontract's total for that cell may not go below zero. A HISTORICAL line
+// records work approved before the platform: it is approved like any line and counts against double claims, so the same work is not claimed again (and it is
+// never pulled into a certificate: the pulling batch reads the flag). A negative figure without corrects_line_id is still refused. Pulling comes later.
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { auditLogs, boqItems, pmcActivityDefinitions, pmcUnits, subcontractContracts, subcontractWorkConfirmationLines, subcontractWorkConfirmations } from "../drizzle/schema";
@@ -18,7 +21,8 @@ const READ = [RECORD, APPROVE, "project.read"] as const;
 const COUNTED = ["draft", "submitted", "approved"] as const;
 
 type Scope = { userId: number; tenantId: string; projectId: string };
-export type ConfirmationLine = { kind: "unit"; pmcUnitId: string; pmcActivityDefinitionId: string; percent: number; note?: string | null } | { kind: "quantity"; boqItemId: string; quantity: number; note?: string | null };
+type LineExtras = { note?: string | null; correctsLineId?: string | null; historical?: boolean };
+export type ConfirmationLine = ({ kind: "unit"; pmcUnitId: string; pmcActivityDefinitionId: string; percent: number } | { kind: "quantity"; boqItemId: string; quantity: number }) & LineExtras;
 const fail = (code: "FORBIDDEN" | "NOT_FOUND" | "CONFLICT" | "BAD_REQUEST", message: string) => new TRPCError({ code, message });
 
 async function authorized(input: Scope, permission: string | readonly string[]) {
@@ -34,13 +38,37 @@ type Db = Awaited<ReturnType<typeof authorized>>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 const own = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 
+/**
+ * Each correction names an APPROVED line of this project and of the same subcontract, for the same unit × activity or BOQ item; anything else (a draft or a
+ * rejected line, another subcontract's line, another cell, a line of another company) is refused whole as CORRECTION_INVALID.
+ */
+async function assertCorrections(db: Db | Tx, input: Scope & { subcontractId: string; lines: ConfirmationLine[] }) {
+  const corrections = input.lines.filter(line => line.correctsLineId);
+  if (!corrections.length) return;
+  const ids = Array.from(new Set(corrections.map(line => line.correctsLineId!)));
+  const targets = await db.select({ id: subcontractWorkConfirmationLines.id, kind: subcontractWorkConfirmationLines.kind, unitId: subcontractWorkConfirmationLines.pmcUnitId, activityId: subcontractWorkConfirmationLines.pmcActivityDefinitionId, boqItemId: subcontractWorkConfirmationLines.boqItemId, subcontractId: subcontractWorkConfirmations.subcontractId, status: subcontractWorkConfirmations.status })
+    .from(subcontractWorkConfirmationLines)
+    .innerJoin(subcontractWorkConfirmations, and(eq(subcontractWorkConfirmations.id, subcontractWorkConfirmationLines.confirmationId), eq(subcontractWorkConfirmations.tenantId, subcontractWorkConfirmationLines.tenantId)))
+    .where(and(own(subcontractWorkConfirmationLines, input), inArray(subcontractWorkConfirmationLines.id, ids)));
+  const byId = new Map(targets.map(target => [target.id, target]));
+  for (const line of corrections) {
+    const target = byId.get(line.correctsLineId!);
+    const sameCell = target && target.kind === line.kind && (line.kind === "unit" ? target.unitId === line.pmcUnitId && target.activityId === line.pmcActivityDefinitionId : target.boqItemId === line.boqItemId);
+    if (!target || target.status !== "approved" || target.subcontractId !== input.subcontractId || !sameCell) throw fail("BAD_REQUEST", "PROJECT_OS_WORK_CONFIRMATION_CORRECTION_INVALID");
+  }
+}
+
 /** Every unit, activity, BOQ item and the subcontract named must be this project's; a line's figure must be in range. */
 async function assertReferences(db: Db | Tx, input: Scope & { subcontractId: string; lines: ConfirmationLine[] }) {
   if (!input.lines.length) throw fail("BAD_REQUEST", "PROJECT_OS_WORK_CONFIRMATION_LINES_REQUIRED");
   const [contract] = await db.select({ id: subcontractContracts.id }).from(subcontractContracts).where(and(eq(subcontractContracts.id, input.subcontractId), own(subcontractContracts, input))).limit(1);
   if (!contract) throw fail("NOT_FOUND", "PROJECT_OS_SUBCONTRACT_NOT_FOUND");
   const units = input.lines.flatMap(line => (line.kind === "unit" ? [line] : [])); const quantities = input.lines.flatMap(line => (line.kind === "quantity" ? [line] : []));
-  if (units.some(line => !(line.percent > 0 && line.percent <= 100)) || quantities.some(line => !(line.quantity > 0 && Number.isFinite(line.quantity)))) throw fail("BAD_REQUEST", "PROJECT_OS_WORK_CONFIRMATION_LINE_INVALID");
+  // a plain line claims work (above zero); a correction may take work back (below zero) but is never zero, and never beyond 100% either way
+  const plainUnit = (line: { percent: number; correctsLineId?: string | null }) => (line.correctsLineId ? line.percent !== 0 && line.percent >= -100 && line.percent <= 100 : line.percent > 0 && line.percent <= 100);
+  const plainQuantity = (line: { quantity: number; correctsLineId?: string | null }) => Number.isFinite(line.quantity) && (line.correctsLineId ? line.quantity !== 0 : line.quantity > 0);
+  if (units.some(line => !plainUnit(line)) || quantities.some(line => !plainQuantity(line))) throw fail("BAD_REQUEST", "PROJECT_OS_WORK_CONFIRMATION_LINE_INVALID");
+  await assertCorrections(db, input);
   const unitIds = Array.from(new Set(units.map(line => line.pmcUnitId))); const activityIds = Array.from(new Set(units.map(line => line.pmcActivityDefinitionId))); const boqIds = Array.from(new Set(quantities.map(line => line.boqItemId)));
   if (unitIds.length && (await db.select({ id: pmcUnits.id }).from(pmcUnits).where(and(own(pmcUnits, input), inArray(pmcUnits.id, unitIds)))).length !== unitIds.length) throw fail("NOT_FOUND", "PROJECT_OS_PMC_UNIT_NOT_FOUND");
   if (activityIds.length && (await db.select({ id: pmcActivityDefinitions.id }).from(pmcActivityDefinitions).where(and(own(pmcActivityDefinitions, input), inArray(pmcActivityDefinitions.id, activityIds)))).length !== activityIds.length) throw fail("NOT_FOUND", "PROJECT_OS_PMC_ACTIVITY_NOT_FOUND");
@@ -52,24 +80,36 @@ async function assertCaps(tx: Tx, input: Scope & { subcontractId: string; lines:
   await tx.execute(sql`SELECT id FROM projects WHERE id = ${input.projectId} AND tenant_id = ${input.tenantId} FOR UPDATE`);
   const counted = and(own(subcontractWorkConfirmations, input), inArray(subcontractWorkConfirmations.status, [...COUNTED]), input.excludeConfirmationId ? ne(subcontractWorkConfirmations.id, input.excludeConfirmationId) : undefined);
   const existing = await tx.select({
-    subcontractId: subcontractWorkConfirmations.subcontractId, kind: subcontractWorkConfirmationLines.kind,
+    subcontractId: subcontractWorkConfirmations.subcontractId, status: subcontractWorkConfirmations.status, kind: subcontractWorkConfirmationLines.kind,
     unitId: subcontractWorkConfirmationLines.pmcUnitId, activityId: subcontractWorkConfirmationLines.pmcActivityDefinitionId, percent: subcontractWorkConfirmationLines.percent,
     boqItemId: subcontractWorkConfirmationLines.boqItemId, quantity: subcontractWorkConfirmationLines.quantity,
   }).from(subcontractWorkConfirmationLines)
     .innerJoin(subcontractWorkConfirmations, and(eq(subcontractWorkConfirmations.id, subcontractWorkConfirmationLines.confirmationId), eq(subcontractWorkConfirmations.tenantId, subcontractWorkConfirmationLines.tenantId)))
     .where(counted);
-  const mine = new Map<string, { total: number }>(); const all = new Map<string, number>(); const boq = new Map<string, number>();
-  const add = (subcontractId: string, line: { kind: string; unitId?: string | null; activityId?: string | null; percent?: number; boqItemId?: string | null; quantity?: number }) => {
+  // Two sums per cell and BOQ item (review of #449). The CAPS (DUPLICATE, OVER_COMPLETE, OVER_BOQ) count a negative correction only once it is APPROVED:
+  // a correction still in draft or sent may be cancelled or rejected, and if it had freed room a new claim would pass and leave the cell over 100% after
+  // it went. The FLOOR (BELOW_ZERO) counts every correction, pending ones too, so the same work is not taken back twice. A positive line counts in both.
+  const mine = new Map<string, number>(); const mineFloor = new Map<string, number>(); const all = new Map<string, number>(); const boq = new Map<string, number>(); const mineBoqFloor = new Map<string, number>();
+  const bump = (map: Map<string, number>, key: string, value: number) => map.set(key, (map.get(key) ?? 0) + value);
+  const add = (subcontractId: string, approved: boolean, line: { kind: string; unitId?: string | null; activityId?: string | null; percent?: number; boqItemId?: string | null; quantity?: number }) => {
+    const ours = subcontractId === input.subcontractId;
     if (line.kind === "unit") {
-      const cell = `${line.unitId}|${line.activityId}`;
-      all.set(cell, (all.get(cell) ?? 0) + (line.percent ?? 0));
-      if (subcontractId === input.subcontractId) mine.set(cell, { total: (mine.get(cell)?.total ?? 0) + (line.percent ?? 0) });
-    } else if (line.boqItemId) boq.set(line.boqItemId, (boq.get(line.boqItemId) ?? 0) + (line.quantity ?? 0));
+      const cell = `${line.unitId}|${line.activityId}`; const value = line.percent ?? 0; const toCap = value >= 0 || approved;
+      if (toCap) bump(all, cell, value);
+      if (ours) { bump(mineFloor, cell, value); if (toCap) bump(mine, cell, value); }
+    } else if (line.boqItemId) {
+      const value = line.quantity ?? 0; const toCap = value >= 0 || approved;
+      if (toCap) bump(boq, line.boqItemId, value);
+      if (ours) bump(mineBoqFloor, line.boqItemId, value);
+    }
   };
-  for (const row of existing) add(row.subcontractId, { kind: row.kind, unitId: row.unitId, activityId: row.activityId, percent: Number(row.percent ?? 0), boqItemId: row.boqItemId, quantity: Number(row.quantity ?? 0) });
-  for (const line of input.lines) add(input.subcontractId, line.kind === "unit" ? { kind: "unit", unitId: line.pmcUnitId, activityId: line.pmcActivityDefinitionId, percent: line.percent } : { kind: "quantity", boqItemId: line.boqItemId, quantity: line.quantity });
+  for (const row of existing) add(row.subcontractId, row.status === "approved", { kind: row.kind, unitId: row.unitId, activityId: row.activityId, percent: Number(row.percent ?? 0), boqItemId: row.boqItemId, quantity: Number(row.quantity ?? 0) });
+  // the lines being written or moved are not approved yet: their negative figures free no room under the caps
+  for (const line of input.lines) add(input.subcontractId, false, line.kind === "unit" ? { kind: "unit", unitId: line.pmcUnitId, activityId: line.pmcActivityDefinitionId, percent: line.percent } : { kind: "quantity", boqItemId: line.boqItemId, quantity: line.quantity });
   const over = (value: number, cap: number) => value > cap + 1e-9;
-  for (const entry of Array.from(mine.values())) if (over(entry.total, 100)) throw fail("CONFLICT", "PROJECT_OS_WORK_CONFIRMATION_DUPLICATE");
+  for (const total of Array.from(mine.values())) if (over(total, 100)) throw fail("CONFLICT", "PROJECT_OS_WORK_CONFIRMATION_DUPLICATE");
+  // a correction takes back at most what this subcontract has: its total for a cell or a BOQ item, with every pending correction, never goes below zero
+  if (Array.from(mineFloor.values()).some(total => total < -1e-9) || Array.from(mineBoqFloor.values()).some(total => total < -1e-9)) throw fail("CONFLICT", "PROJECT_OS_WORK_CONFIRMATION_CORRECTION_BELOW_ZERO");
   for (const [, total] of Array.from(all)) if (over(total, 100)) throw fail("CONFLICT", "PROJECT_OS_WORK_CONFIRMATION_OVER_COMPLETE");
   if (boq.size) {
     const caps = await tx.select({ id: boqItems.id, quantity: boqItems.quantity }).from(boqItems).where(and(own(boqItems, input), inArray(boqItems.id, Array.from(boq.keys()))));
@@ -78,7 +118,7 @@ async function assertCaps(tx: Tx, input: Scope & { subcontractId: string; lines:
 }
 
 const lineRows = (input: Scope, confirmationId: string, lines: ConfirmationLine[]) => lines.map(line => ({
-  id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, confirmationId, kind: line.kind, note: line.note?.trim() || null,
+  id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, confirmationId, kind: line.kind, note: line.note?.trim() || null, correctsLineId: line.correctsLineId ?? null, historical: line.historical === true,
   ...(line.kind === "unit" ? { pmcUnitId: line.pmcUnitId, pmcActivityDefinitionId: line.pmcActivityDefinitionId, percent: line.percent.toFixed(3) } : { boqItemId: line.boqItemId, quantity: line.quantity.toFixed(3) }),
 }));
 const audit = (tx: Tx, input: Scope, action: string, id: string, metadata: Record<string, unknown>) =>
@@ -106,7 +146,7 @@ async function loadConfirmation(tx: Tx, input: Scope & { confirmationId: string 
   const [row] = await tx.select().from(subcontractWorkConfirmations).where(and(eq(subcontractWorkConfirmations.id, input.confirmationId), own(subcontractWorkConfirmations, input))).limit(1);
   if (!row) throw fail("NOT_FOUND", "PROJECT_OS_WORK_CONFIRMATION_NOT_FOUND");
   const lines = await tx.select().from(subcontractWorkConfirmationLines).where(and(eq(subcontractWorkConfirmationLines.confirmationId, row.id), own(subcontractWorkConfirmationLines, input)));
-  const asInput = lines.map((line): ConfirmationLine => (line.kind === "unit" ? { kind: "unit", pmcUnitId: line.pmcUnitId!, pmcActivityDefinitionId: line.pmcActivityDefinitionId!, percent: Number(line.percent) } : { kind: "quantity", boqItemId: line.boqItemId!, quantity: Number(line.quantity) }));
+  const asInput = lines.map((line): ConfirmationLine => ({ ...(line.kind === "unit" ? { kind: "unit" as const, pmcUnitId: line.pmcUnitId!, pmcActivityDefinitionId: line.pmcActivityDefinitionId!, percent: Number(line.percent) } : { kind: "quantity" as const, boqItemId: line.boqItemId!, quantity: Number(line.quantity) }), correctsLineId: line.correctsLineId, historical: line.historical }));
   return { row, lines: asInput };
 }
 
@@ -149,7 +189,7 @@ export async function listWorkConfirmations(input: Scope & { subcontractId?: str
   if (!headers.length) return [];
   const lines = await db.select({
     id: subcontractWorkConfirmationLines.id, confirmationId: subcontractWorkConfirmationLines.confirmationId, kind: subcontractWorkConfirmationLines.kind, percent: subcontractWorkConfirmationLines.percent,
-    quantity: subcontractWorkConfirmationLines.quantity, note: subcontractWorkConfirmationLines.note, unitNumber: pmcUnits.unitNumber, activityCode: pmcActivityDefinitions.code, activityName: pmcActivityDefinitions.name,
+    quantity: subcontractWorkConfirmationLines.quantity, note: subcontractWorkConfirmationLines.note, correctsLineId: subcontractWorkConfirmationLines.correctsLineId, historical: subcontractWorkConfirmationLines.historical, unitNumber: pmcUnits.unitNumber, activityCode: pmcActivityDefinitions.code, activityName: pmcActivityDefinitions.name,
     boqCode: boqItems.code, unitOfMeasure: boqItems.unitOfMeasure,
   }).from(subcontractWorkConfirmationLines)
     .leftJoin(pmcUnits, and(eq(pmcUnits.id, subcontractWorkConfirmationLines.pmcUnitId), eq(pmcUnits.tenantId, subcontractWorkConfirmationLines.tenantId)))

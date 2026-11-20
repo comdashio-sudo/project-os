@@ -2804,6 +2804,16 @@ export const projectErrorMessages = {
     en: "The BOQ item was not found in this project.",
     ur: "یہ BOQ آئٹم اس پروجیکٹ میں نہیں ملا۔",
   },
+  PROJECT_OS_WORK_CONFIRMATION_CORRECTION_INVALID: {
+    ar: "التصحيح يجب أن يشير إلى سطر معتمد من إثبات المقاول نفسه، للوحدة والنشاط أو بند الكميات نفسه.",
+    en: "A correction must refer to an approved line of the same subcontract, for the same unit and activity or the same BOQ item.",
+    ur: "تصحیح کو اسی ذیلی معاہدے کی کسی منظور شدہ سطر کا حوالہ دینا چاہیے، اسی یونٹ اور سرگرمی یا اسی BOQ آئٹم کے لیے۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_CORRECTION_BELOW_ZERO: {
+    ar: "التصحيح يتجاوز ما أُثبت لهذا المقاول: لا يمكن أن يقل المجموع عن صفر.",
+    en: "The correction takes back more than was confirmed for this subcontract: the total cannot go below zero.",
+    ur: "یہ تصحیح اس ذیلی معاہدے کے لیے تصدیق شدہ مقدار سے زیادہ واپس لیتی ہے: مجموعہ صفر سے کم نہیں ہو سکتا۔",
+  },
   PROJECT_OS_WORK_CONFIRMATION_DUPLICATE: {
     ar: "هذه الوحدة وهذا النشاط مُثبَتان لهذا المقاول بما يتجاوز 100% مع إثبات سابق غير ملغى. راجع الإثباتات السابقة، أو صحّح بإثبات تصحيح.",
     en: "This unit and activity would be confirmed for this subcontractor past 100% together with an earlier confirmation that is not cancelled. Check the earlier confirmations, or correct with a correction line.",
