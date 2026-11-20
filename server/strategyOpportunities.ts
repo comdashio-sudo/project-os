@@ -9,6 +9,7 @@ import { auditLogs, strategyCompetitors, strategyOpportunities } from "../drizzl
 import { assertTenantAccess } from "./domain/authorization";
 import { summarizePipeline } from "./domain/strategyPipeline";
 import { getDb, getTenantAccessSnapshot } from "./db";
+import { violates } from "./projectProfile";
 
 type Caller = { userId: number; tenantId: string };
 type Row = typeof strategyOpportunities.$inferSelect;
@@ -48,6 +49,9 @@ const shape = (row: Row) => ({
 const audit = (db: Pick<Db, "insert">, input: Caller, action: string, id: string, metadata: Record<string, unknown>) =>
   db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action, entityType: "strategy_opportunity", entityId: id, metadata: JSON.stringify(metadata) });
 
+// two saves of the same code at once: the unique (tenant, code) index lets one win, the other gets the translated refusal, not a raw 23505 (review of #495)
+const codeTaken = (error: unknown): never => { if (violates(error, "strategy_opportunities_tenant_code_unique")) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_OPPORTUNITY_CODE_EXISTS"); throw error; };
+
 async function loadOpportunity(db: Db, input: Caller & { opportunityId: string }) {
   const [row] = await db.select().from(strategyOpportunities).where(and(eq(strategyOpportunities.id, input.opportunityId), eq(strategyOpportunities.tenantId, input.tenantId))).limit(1);
   if (!row) throw fail("NOT_FOUND", "PROJECT_OS_STRATEGY_OPPORTUNITY_NOT_FOUND");
@@ -70,7 +74,7 @@ export async function createStrategyOpportunity(input: Caller & OpportunityField
   await db.transaction(async tx => {
     await tx.insert(strategyOpportunities).values({ id, tenantId: input.tenantId, ...fields, createdByUserId: input.userId });
     await audit(tx, input, "strategy_opportunity.created", id, { code: fields.code, value: input.estimatedValue, probability: input.probabilityPercent });
-  });
+  }).catch(codeTaken);
   return { id };
 }
 
@@ -87,7 +91,7 @@ export async function updateStrategyOpportunity(input: Caller & { opportunityId:
     const changed = await tx.update(strategyOpportunities).set(fields).where(and(eq(strategyOpportunities.id, row.id), eq(strategyOpportunities.tenantId, input.tenantId), eq(strategyOpportunities.status, row.status))).returning({ id: strategyOpportunities.id });
     if (changed.length !== 1) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_OPPORTUNITY_DECIDED");
     await audit(tx, input, "strategy_opportunity.updated", row.id, { from: { value: Number(row.estimatedValue), probability: Number(row.probabilityPercent), status: row.status }, to: { value: input.estimatedValue, probability: input.probabilityPercent, status: fields.status } });
-  });
+  }).catch(codeTaken);
   return { id: row.id };
 }
 

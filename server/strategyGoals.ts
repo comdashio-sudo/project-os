@@ -14,6 +14,7 @@ import { auditLogs, memberships, strategyAssumptions, strategyGoals, strategyIni
 import { assertTenantAccess } from "./domain/authorization";
 import { difference, winRateInPeriod } from "./domain/strategyVariance";
 import { getDb, getTenantAccessSnapshot } from "./db";
+import { violates } from "./projectProfile";
 
 type Caller = { userId: number; tenantId: string };
 type Values = { conservative: number; base: number; optimistic: number };
@@ -39,6 +40,9 @@ async function authorized(input: Caller, permission: "strategy.read" | "strategy
 type Db = Awaited<ReturnType<typeof authorized>>;
 const audit = (db: Pick<Db, "insert">, input: Caller, entityType: string, action: string, id: string, metadata: Record<string, unknown>) =>
   db.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action, entityType, entityId: id, metadata: JSON.stringify(metadata) });
+// two saves of the same code at the same moment both pass the read above; the unique (tenant, code) index lets one win and the other gets the same
+// translated refusal, not a raw 23505 (review of #495)
+const codeTaken = (index: string, message: string) => (error: unknown): never => { if (violates(error, index)) throw fail("CONFLICT", message); throw error; };
 const inTenant = (db: Db, table: typeof strategyAssumptions | typeof strategyGoals | typeof strategyInitiatives, id: string, tenantId: string) =>
   db.select({ id: table.id }).from(table).where(and(eq(table.id, id), eq(table.tenantId, tenantId))).limit(1).then(rows => rows.length === 1);
 
@@ -67,7 +71,7 @@ export async function createStrategyGoal(input: Caller & GoalFields) {
   await db.transaction(async tx => {
     await tx.insert(strategyGoals).values({ id, tenantId: input.tenantId, ...fields, createdByUserId: input.userId });
     await audit(tx, input, "strategy_goal", "strategy_goal.created", id, { code: fields.code, target: input.targetValue });
-  });
+  }).catch(codeTaken("strategy_goals_tenant_code_unique", "PROJECT_OS_STRATEGY_GOAL_CODE_EXISTS"));
   return { id };
 }
 
@@ -84,7 +88,7 @@ export async function updateStrategyGoal(input: Caller & { goalId: string } & Go
     const changed = await tx.update(strategyGoals).set(fields).where(and(eq(strategyGoals.id, row.id), eq(strategyGoals.tenantId, input.tenantId), eq(strategyGoals.status, row.status))).returning({ id: strategyGoals.id });
     if (changed.length !== 1) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_GOAL_RETIRED");
     await audit(tx, input, "strategy_goal", "strategy_goal.updated", row.id, { from: { target: Number(row.targetValue), status: row.status }, to: { target: input.targetValue, status: fields.status } });
-  });
+  }).catch(codeTaken("strategy_goals_tenant_code_unique", "PROJECT_OS_STRATEGY_GOAL_CODE_EXISTS"));
   return { id: row.id };
 }
 
@@ -116,7 +120,7 @@ export async function createStrategyInitiative(input: Caller & InitiativeFields)
   await db.transaction(async tx => {
     await tx.insert(strategyInitiatives).values({ id, tenantId: input.tenantId, ...fields, createdByUserId: input.userId });
     await audit(tx, input, "strategy_initiative", "strategy_initiative.created", id, { code: fields.code, goalId: fields.goalId });
-  });
+  }).catch(codeTaken("strategy_initiatives_tenant_code_unique", "PROJECT_OS_STRATEGY_INITIATIVE_CODE_EXISTS"));
   return { id };
 }
 
@@ -130,7 +134,7 @@ export async function updateStrategyInitiative(input: Caller & { initiativeId: s
   await db.transaction(async tx => {
     await tx.update(strategyInitiatives).set(fields).where(and(eq(strategyInitiatives.id, row.id), eq(strategyInitiatives.tenantId, input.tenantId)));
     await audit(tx, input, "strategy_initiative", "strategy_initiative.updated", row.id, { from: { status: row.status, dueAt: row.dueAt }, to: { status: fields.status, dueAt: fields.dueAt } });
-  });
+  }).catch(codeTaken("strategy_initiatives_tenant_code_unique", "PROJECT_OS_STRATEGY_INITIATIVE_CODE_EXISTS"));
   return { id: row.id };
 }
 
