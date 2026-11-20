@@ -267,6 +267,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC and master-plan impo
     await pollUntilDone(pmc, registered.id);
     await pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [{ row: 3, field: "unitNumber", value: "73002" }], ignoreRows: [] } });
     expect((await pollUntilDone(pmc, registered.id)).view.status).toBe("validated");
+    // Q-50 4c: the preview classes every row read; a row cannot be both left out and read as data
+    const classed = await pmc.dataImports.progress({ ...scope, importId: registered.id });
+    expect((classed.external!.report as { pmc: { details: { preview: Array<{ row: number; class: string }> } } }).pmc.details.preview.map(row => [row.row, row.class])).toEqual([[2, "data"], [3, "data"]]);
+    await expect(pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [], ignoreRows: [3], readRows: [3] } })).rejects.toThrow("PROJECT_OS_IMPORT_EDITS_INVALID");
     // a new column choice is a new reading: the correction is dropped and the typo is an error again
     await pmc.dataImports.reanalyze({ ...scope, importId: registered.id, mappingOverride: { blockCode: "Block Code", unitNumber: "Unit Number", modelCode: "Model Code" } });
     const remapped = await pollUntilDone(pmc, registered.id);
