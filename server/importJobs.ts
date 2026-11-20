@@ -152,8 +152,8 @@ async function analyseExternal(db: Db, job: JobIdentity, record: { moduleCode: E
     await insertChunked(tx, dataImportErrors, analysis.errors.map(error => ({ id: randomUUID(), importId: job.importId, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: error.field ?? null, value: error.detail ? error.detail.slice(0, 200) : null })));
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_uploaded", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, totalRows: analysis.totalRows, errorCount: analysis.errors.length }) });
     // Q-50 batch 4: every correction the analysis used — row, field, the file's column, the file's value and the value used — in the same transaction as the verdict
-    const details = (analysis.report.pmc as { details?: { edits?: unknown[]; ignoredRows?: number[] } } | undefined)?.details;
-    if (details?.edits?.length || details?.ignoredRows?.length) await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_cells_corrected", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, edits: details.edits ?? [], ignoredRows: details.ignoredRows ?? [] }) });
+    const details = (analysis.report.pmc as { details?: { edits?: unknown[]; ignoredRows?: number[]; readRows?: number[] } } | undefined)?.details;
+    if (details?.edits?.length || details?.ignoredRows?.length || details?.readRows?.length) await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_cells_corrected", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, edits: details.edits ?? [], ignoredRows: details.ignoredRows ?? [], readRows: details.readRows ?? [] }) });
   });
 }
 
@@ -341,7 +341,7 @@ export async function requestImportCorrection(input: { userId: number; tenantId:
   await authorizeExternalImport({ ...input, moduleCode: record.moduleCode as ExternalModule });
   if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
   const summary = parseJson<Record<string, unknown>>(record.summaryJson, {});
-  const edits = input.edits.cells.length || input.edits.ignoreRows.length ? input.edits : undefined;
+  const edits = input.edits.cells.length || input.edits.ignoreRows.length || input.edits.readRows?.length ? input.edits : undefined;
   const taken = await db.update(dataImports)
     .set({ status: "analyzing", summaryJson: JSON.stringify({ ...summary, edits }), progressPercent: 5, progressStage: "queued", failureReason: null, attempts: 0, heartbeatAt: null, startedAt: null, completedAt: null })
     .where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), inArray(dataImports.status, ["uploaded", "validated"])))
