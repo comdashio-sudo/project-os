@@ -73,11 +73,16 @@ export function ProjectBoardHero({ tenantId, projectId, starts }: { tenantId: st
             <p className="text-sm opacity-80">{t.title}</p>
             {report.isLoading ? <p className="text-sm">{t.loading}</p> : report.error ? <p className="text-sm">{t.failed}</p> : latest ? (
               <>
-                <p className="text-4xl font-bold" data-hero-actual><bdi dir="ltr">{formatPercent(latest.actual, 1)}</bdi></p>
+                <p className="text-5xl font-bold leading-none tracking-tight md:text-6xl" data-hero-actual><bdi dir="ltr">{formatPercent(latest.actual, 1)}</bdi></p>
                 <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm opacity-90">
                   <span>{t.planned}: <bdi dir="ltr" data-hero-planned>{latest.planned === null ? "—" : formatPercent(latest.planned, 1)}</bdi></span>
                   {deviation !== null ? <span>{t.deviation}: <bdi dir="ltr">{`${deviation > 0 ? "+" : ""}${formatNumber(Math.round(deviation * 10) / 10, 1)}`}</bdi> · {state}</span> : null}
                 </p>
+                {/* Q-54: the reference's bar — the actual in turquoise (a touch on dark), the plan a white line across it */}
+                <div className="relative mt-2 h-3 w-full max-w-md overflow-hidden rounded-full bg-hero-foreground/15" role="img" aria-label={`${t.actual} ${formatPercent(latest.actual, 1)}${latest.planned === null ? "" : ` · ${t.planned} ${formatPercent(latest.planned, 1)}`}`} data-hero-bar>
+                  <div className="absolute inset-y-0 start-0 rounded-full bg-sidebar-mark" style={{ width: `${Math.max(0, Math.min(100, latest.actual))}%` }} />
+                  {latest.planned !== null ? <div aria-hidden="true" className="absolute inset-y-0 w-0.5 bg-hero-foreground" style={{ insetInlineStart: `${Math.max(0, Math.min(100, latest.planned))}%` }} /> : null}
+                </div>
                 {curve?.plannedSource ? null : <p className="text-xs opacity-80">{t.noPlan}</p>}
               </>
             ) : <p className="max-w-md text-sm opacity-90">{t.noData}</p>}
