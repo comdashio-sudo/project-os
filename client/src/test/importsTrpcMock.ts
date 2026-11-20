@@ -9,6 +9,8 @@ export type ImportsMockState = {
   discard?: ReturnType<typeof vi.fn>; rollback?: ReturnType<typeof vi.fn>;
   /** The differences preview of an export → re-import file; absent in a test that does not exercise it, which then sees a module without a preview. */
   diff?: unknown; template?: ReturnType<typeof vi.fn>;
+  /** Q-50 2b: the company's column templates; absent in a test that does not exercise them (an empty list). */
+  templates?: unknown[]; saveTemplate?: ReturnType<typeof vi.fn>; deleteTemplate?: ReturnType<typeof vi.fn>;
 };
 
 export function importsTrpc(state: ImportsMockState) {
@@ -17,7 +19,9 @@ export function importsTrpc(state: ImportsMockState) {
     mutateAsync: async (input: unknown) => { const result = await run()(input); options?.onSuccess?.(result); return result; },
     isPending: false, error: null, data: null, reset: vi.fn(),
   });
+  const invalidate = { invalidate: vi.fn() };
   return {
+    useUtils: () => ({ dataImports: { progress: invalidate, diff: invalidate, templates: invalidate } }),
     dataImports: {
       list: { useQuery: () => ({ data: state.list, refetch: vi.fn() }) },
       detail: { useQuery: () => ({ data: state.detail, refetch: vi.fn(), error: null }) },
@@ -29,6 +33,9 @@ export function importsTrpc(state: ImportsMockState) {
       discard: { useMutation: mutation(() => state.discard ?? vi.fn()) },
       rollback: { useMutation: mutation(() => state.rollback ?? vi.fn()) },
       template: { useMutation: mutation(() => state.template ?? vi.fn()) },
+      templates: { useQuery: () => ({ data: state.templates ?? [], error: null }) },
+      saveTemplate: { useMutation: mutation(() => state.saveTemplate ?? vi.fn()) },
+      deleteTemplate: { useMutation: mutation(() => state.deleteTemplate ?? vi.fn()) },
       diff: { useQuery: (_input: unknown, options?: { enabled?: boolean }) => ({ data: options?.enabled === false ? undefined : state.diff, isLoading: false, error: null, refetch: vi.fn() }) },
     },
   };

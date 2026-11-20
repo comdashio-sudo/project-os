@@ -5,7 +5,7 @@
 //                      its own confirmation step, its progress screen and its audit trail are all still in force. This module adds no way around any of them.
 // Profiles: after a correction, the column map is saved under the source's name and applied to the next file with the same headers.
 import { createHash, randomUUID } from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { auditLogs, dataImportRowResults, dataImportSources, dataImports, importSourceProfiles } from "../drizzle/schema";
 import { buildSpreadsheet } from "./domain/excelWorkbook";
@@ -58,13 +58,23 @@ const signatureOf = (headers: string[]) => Array.from(new Set(headers.map(normal
 const overlap = (a: string[], b: string[]) => { if (!a.length || !b.length) return 0; const set = new Set(b); return a.filter(item => set.has(item)).length / Math.max(a.length, b.length); };
 
 type ProfileRow = { id: string; name: string; kind: string; headerSignature: string; columnMapJson: string; timesUsed: number };
+// import_source_profiles also holds the column-mapping templates of Q-50 (kind = the job importer's module, map = field → header): the smart reader reads
+// only its own profiles (its table kinds and the unit matrix, map = header → field), never one of those (review of #446)
+const SMART_PROFILE_KINDS = [...Object.keys(KINDS), "unitMatrix"];
+const smartProfiles = (tenantId: string) => and(eq(importSourceProfiles.tenantId, tenantId), inArray(importSourceProfiles.kind, SMART_PROFILE_KINDS));
+/** A profile name is the company's across every kind (one unique index): a name another kind already uses is refused before anything is written. */
+async function assertProfileName(db: Awaited<ReturnType<typeof database>>, tenantId: string, name: string | undefined, kind: string) {
+  if (!name) return;
+  const [taken] = await db.select({ kind: importSourceProfiles.kind }).from(importSourceProfiles).where(and(eq(importSourceProfiles.tenantId, tenantId), eq(importSourceProfiles.name, name))).limit(1);
+  if (taken && taken.kind !== kind) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN" });
+}
 type ColumnMap = Record<string, string | null>; // normalised header -> field key (null: ignored)
 
 /** The saved profile of this company whose headers overlap enough with the file's: the same source, sent again. */
 async function findProfile(tenantId: string, headers: string[]): Promise<{ profile: ProfileRow; map: ColumnMap } | null> {
   const db = await database();
   const profiles = await db.select({ id: importSourceProfiles.id, name: importSourceProfiles.name, kind: importSourceProfiles.kind, headerSignature: importSourceProfiles.headerSignature, columnMapJson: importSourceProfiles.columnMapJson, timesUsed: importSourceProfiles.timesUsed })
-    .from(importSourceProfiles).where(eq(importSourceProfiles.tenantId, tenantId));
+    .from(importSourceProfiles).where(smartProfiles(tenantId));
   const mine = signatureOf(headers);
   let best: { profile: ProfileRow; score: number } | null = null;
   for (const profile of profiles) { const score = overlap(mine, JSON.parse(profile.headerSignature) as string[]); if (score >= PROFILE_MATCH && (!best || score > best.score)) best = { profile, score }; }
@@ -137,6 +147,7 @@ export type SmartConfirmation = { importId: string; status: string; module: stri
 export async function confirmSmartImport(input: Identity & { uploadKey: string; fileName: string; kind: KindCode; sheet?: string; forced: Record<number, string | null>; approvedHash?: string; profileName?: string; profileId?: string | null; duplicateMode?: "create_only" | "update_existing" | "upsert" | "skip_duplicates" | "fail_on_duplicate" }): Promise<SmartConfirmation> {
   const db = await database();
   const bytes = await takeSmartUpload(input);
+  await assertProfileName(db, input.tenantId, input.profileName, input.kind === "unitMatrix" ? "unitMatrix" : input.kind);
   const format = detectFormat(bytes, input.fileName);
   if (input.kind === "scheduleUpdate") {
     if (format !== "xlsx" && format !== "xls") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SMART_IMPORT_FORMAT_UNSUPPORTED" });
@@ -153,8 +164,10 @@ export async function confirmSmartImport(input: Identity & { uploadKey: string; 
         if (input.profileName) {
           const signature = JSON.stringify(signatureOf(plan.activityNames));
           const [row] = await tx.insert(importSourceProfiles).values({ id: randomUUID(), tenantId: input.tenantId, name: input.profileName, kind: "unitMatrix", headerSignature: signature, columnMapJson: JSON.stringify({ unitMatrix: true, activities: plan.activityNames.length }), timesUsed: 1, createdByUserId: input.userId })
-            .onConflictDoUpdate({ target: [importSourceProfiles.tenantId, importSourceProfiles.name], set: { kind: "unitMatrix", headerSignature: signature, timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` } }).returning({ id: importSourceProfiles.id });
+            .onConflictDoUpdate({ target: [importSourceProfiles.tenantId, importSourceProfiles.name], set: { headerSignature: signature, timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }, setWhere: eq(importSourceProfiles.kind, "unitMatrix") }).returning({ id: importSourceProfiles.id });
+          if (!row) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN" });
           profileId = row.id;
+        // a usage counter and a best-effort source link: zero rows (the profile deleted meanwhile) changes nothing that matters, the import is already committed
         } else if (profileId) await tx.update(importSourceProfiles).set({ timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }).where(and(eq(importSourceProfiles.id, profileId), eq(importSourceProfiles.tenantId, input.tenantId)));
         if (profileId) await tx.update(dataImportSources).set({ profileId }).where(and(eq(dataImportSources.importId, importId), eq(dataImportSources.tenantId, input.tenantId)));
       });
@@ -208,10 +221,13 @@ export async function confirmSmartImport(input: Identity & { uploadKey: string; 
       if (input.profileName && Object.keys(mapping).length) {
         const signature = JSON.stringify(signatureOf(headers));
         const [row] = await tx.insert(importSourceProfiles).values({ id: randomUUID(), tenantId: input.tenantId, name: input.profileName, kind: input.kind, headerSignature: signature, columnMapJson: JSON.stringify(mapping), timesUsed: 1, createdByUserId: input.userId })
-          .onConflictDoUpdate({ target: [importSourceProfiles.tenantId, importSourceProfiles.name], set: { kind: input.kind, headerSignature: signature, columnMapJson: JSON.stringify(mapping), timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` } })
+          .onConflictDoUpdate({ target: [importSourceProfiles.tenantId, importSourceProfiles.name], set: { headerSignature: signature, columnMapJson: JSON.stringify(mapping), timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }, setWhere: eq(importSourceProfiles.kind, input.kind) })
           .returning({ id: importSourceProfiles.id });
+        // the name was free of other kinds when checked above; one taken since (a race) is refused, never taken over
+        if (!row) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN" });
         profileId = row.id;
       } else if (profileId) {
+        // a usage counter on the profile the analysis returned: zero rows (deleted meanwhile) changes nothing that matters
         await tx.update(importSourceProfiles).set({ timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }).where(and(eq(importSourceProfiles.id, profileId), eq(importSourceProfiles.tenantId, input.tenantId)));
       }
       await tx.insert(dataImportSources).values({ importId: registered.id, tenantId: input.tenantId, projectId: input.projectId, sourceKey: input.uploadKey, sourceName: input.fileName, detectedKind: input.kind, sheetName, mappingJson: JSON.stringify(mapping), profileId, mergedCellsFilled: mergedFilled });
@@ -225,7 +241,7 @@ export async function listImportProfiles(input: { userId: number; tenantId: stri
   await authorizeNewImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "any" });
   const db = await database();
   return db.select({ id: importSourceProfiles.id, name: importSourceProfiles.name, kind: importSourceProfiles.kind, timesUsed: importSourceProfiles.timesUsed, updatedAt: importSourceProfiles.updatedAt }).from(importSourceProfiles)
-    .where(eq(importSourceProfiles.tenantId, input.tenantId)).orderBy(desc(importSourceProfiles.updatedAt)).limit(200);
+    .where(smartProfiles(input.tenantId)).orderBy(desc(importSourceProfiles.updatedAt)).limit(200);
 }
 
 /** From an item card: the original file an item came from (a short-lived signed link). `entityId` is the id the import wrote; `importId` names the import directly. */
