@@ -1,0 +1,87 @@
+name: Readiness journey
+
+# Q-22 (adviser's decision I24): the readiness journey on production — one manual button (Actions ← Readiness journey ← Run workflow), no secret from the owner.
+# With the two database secrets the launch button already uses it makes its own invented company «شركة اختبار الجاهزية (مختلقة)» and one invented person
+# (readiness.journey@readiness.example.test), gives that person a one-run password at Supabase Auth, signs in over HTTP and walks the site as a person would:
+# a project, its villas and activities imported (direct upload, background analysis, confirm), one villa's progress and QC, the platform's own read-back
+# compared with what was entered, screenshots at 390 and 1280. At the end the password is taken away. Nothing outside its own company is read or written.
+#   run      the journey (scripts/readiness/journey.mjs); the checks and the screenshots in the run's summary and artifact
+#   disable  only takes the invented person's password away
+# Secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD (the launch button's). Variable (optional): PRODUCTION_URL.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "run (الرحلة) أو disable (سحب كلمة مرور الحساب المختلق فقط)"
+        type: choice
+        options: [run, disable]
+        default: run
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readiness-journey
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    name: readiness journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PLAYWRIGHT_VERSION: 1.56.1
+      READINESS_BASE_URL: ${{ vars.PRODUCTION_URL || 'https://dashio-lovat.vercel.app' }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: State file path
+        run: echo "BOOTSTRAP_STATE=$RUNNER_TEMP/bootstrap-state.json" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Connection to the one intended project (guarded; changes nothing)
+        run: node --import tsx scripts/bootstrap/run.ts database
+      - name: Throw-away signing value (the script loads the server code, which asks for one; no session is minted here)
+        run: |
+          value="$(openssl rand -hex 32)"
+          echo "::add-mask::$value"
+          echo "JWT_SECRET=$value" >> "$GITHUB_ENV"
+      - name: Playwright and Chromium (pinned version, outside the project)
+        if: ${{ inputs.action == 'run' }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/playwright" --no-save --no-audit --no-fund "playwright@$PLAYWRIGHT_VERSION"
+          "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium
+          echo "PLAYWRIGHT_MODULE_DIR=$RUNNER_TEMP/playwright/node_modules/" >> "$GITHUB_ENV"
+          echo "PLAYWRIGHT_CHROMIUM=$(node -p "require('$RUNNER_TEMP/playwright/node_modules/playwright').chromium.executablePath()")" >> "$GITHUB_ENV"
+      - name: Readiness — ${{ inputs.action }}
+        env:
+          OUT_DIR: ${{ runner.temp }}/readiness-out
+        run: |
+          set -o pipefail
+          node --import tsx scripts/readiness/journey.mjs "${{ inputs.action }}" | tee "$RUNNER_TEMP/readiness.out"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## رحلة الجاهزية على الإنتاج — ${{ inputs.action }}"
+            echo
+            echo '```'
+            sed -e 's#postgres://[^[:space:]"]*#[redacted-url]#g' "$RUNNER_TEMP/readiness.out" 2>/dev/null | tail -n 40
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Take the password away even if the journey failed halfway
+        if: always()
+        run: node --import tsx scripts/readiness/journey.mjs disable
+      - name: Upload the screenshots and readiness.json (kept 14 days)
+        if: ${{ always() && inputs.action == 'run' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: readiness-journey
+          path: ${{ runner.temp }}/readiness-out
+          retention-days: 14
