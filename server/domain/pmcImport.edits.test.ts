@@ -1,7 +1,7 @@
 import type ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { ownerOriginalWeights } from "../testing/ownerWeightsFixtures";
-import { parsePmcImportFile, weightsToCatalogRows, type PmcImportEdits } from "./pmcImport";
+import { parsePmcImportFile, PMC_PREVIEW_ROWS, weightsToCatalogRows, type PmcImportEdits } from "./pmcImport";
 
 // Q-50 batch 4: a person corrects a cell (or leaves a row out) in the preview instead of going back to Excel. The owner-shaped synthetic file
 // (server/testing/ownerWeightsFixtures.ts) with a #REF! in the weight of its first activity (row 4) is the case the owner met.
@@ -50,5 +50,28 @@ describe("cell corrections in the preview (Q-50 batch 4)", () => {
     const plain = await parse(await broken());
     const empty = await parse(await broken(), { cells: [], ignoreRows: [] });
     expect(empty).toEqual(plain);
+  });
+});
+
+describe("row classes in the preview (Q-50 batch 4c)", () => {
+  it("POSITIVE: every row read is classed — data, the totals line, a row left out — with the cells of its mapped fields", async () => {
+    const parsed = await parse(await ownerOriginalWeights(), { cells: [], ignoreRows: [9] });
+    expect(parsed.notes?.preview?.map(row => [row.row, row.class])).toEqual([[4, "data"], [5, "data"], [6, "data"], [7, "data"], [8, "data"], [9, "leftOut"], [10, "total"]]);
+    expect(parsed.notes?.preview?.[0].cells).toMatchObject({ activityName: "صب القواعد", activityCode: "WIR.3.1.1", weight: "0.25" });
+  });
+
+  it("POSITIVE: a row the reader took for totals is read as data when the person says so, and the report lists it", async () => {
+    const parsed = await parse(await ownerOriginalWeights(), { cells: [{ row: 10, field: "activityName", value: "تسليم مختلق" }, { row: 10, field: "activityCode", value: "WIR.9.9.9" }, { row: 10, field: "csi", value: "09 91 00 دهانات مختلقة" }], ignoreRows: [], readRows: [10] });
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.notes?.skippedTotals).toBe(0);
+    expect(parsed.notes?.readRows).toEqual([10]);
+    expect(parsed.rows.map(row => row.rowNumber)).toContain(10);
+  });
+
+  it("NEGATIVE: «read as data» for a row the table does not have is refused with that row; the preview stops at its limit", async () => {
+    const refused = await parse(await ownerOriginalWeights(), { cells: [], ignoreRows: [], readRows: [50] });
+    expect(refused.errors).toEqual([{ rowNumber: 50, code: "IMPORT_EDIT_INVALID" }]);
+    const plain = await parse(await ownerOriginalWeights());
+    expect(plain.notes?.preview?.length).toBeLessThanOrEqual(PMC_PREVIEW_ROWS);
   });
 });

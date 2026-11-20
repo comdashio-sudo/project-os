@@ -174,10 +174,15 @@ export type PmcImportColumns = { headers: string[]; fields: Array<{ key: string;
 /** Q-48: a column the file has and no field reads, shown in the preview with a few of its values so a person sees it was seen and left aside. */
 export type PmcIgnoredColumn = { header: string; samples: string[] };
 /** Q-50 batch 4: what a person corrected in the preview — a cell of a row (by the field it is read for) or a row left out — never written to the stored file. */
-export type PmcImportEdits = { cells: Array<{ row: number; field: string; value: string }>; ignoreRows: number[] };
+export type PmcImportEdits = { cells: Array<{ row: number; field: string; value: string }>; ignoreRows: number[]; /** Q-50 4c: rows the reader took for a totals line, read as data by the person's choice */ readRows?: number[] };
+/** Q-50 4c: how the reader classed a row of the table — read as data, skipped as a totals line, or left out by the person — with the cells of its mapped fields. */
+export type PmcRowClass = "data" | "total" | "leftOut";
+export type PmcPreviewRow = { row: number; class: PmcRowClass; cells: Record<string, string> };
+/** The rows the report shows with their class; a person classifies the rest in the file. */
+export const PMC_PREVIEW_ROWS = 30;
 /** An applied cell correction, with the value the file holds, for the report and the audit trail. */
 export type PmcAppliedEdit = { row: number; field: string; header: string; from: string; to: string };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; outlineHeadings?: number } };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; readRows?: number[]; preview?: PmcPreviewRow[]; outlineHeadings?: number } };
 /** Q-50 batch 5a: a totals line the reader skipped, with the weight it carries in the file (compared with the sum read, never used as data). */
 export type PmcFileTotal = { row: number; value: string };
 /** The comparison of the file's own totals line with what was read, in the file's units (fractions or percent). */
@@ -375,10 +380,12 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   // Q-50 batch 4: the person's corrections, applied to the rows as read (the stored file is untouched). A correction of a row the table does not have, or of a
   // field no column is read for, is refused with the row — never dropped silently
   const ignored = new Set<number>();
+  const forced = new Set<number>();
   if (input.edits) {
     const indexOf = new Map(rowNumbers.map((rowNumber, index) => [rowNumber, index] as const));
     const refused: PmcImportError[] = [];
     for (const row of input.edits.ignoreRows) { if (indexOf.has(row)) ignored.add(row); else refused.push({ rowNumber: row, code: "IMPORT_EDIT_INVALID" }); }
+    for (const row of input.edits.readRows ?? []) { if (indexOf.has(row) && !ignored.has(row)) forced.add(row); else refused.push({ rowNumber: row, code: "IMPORT_EDIT_INVALID" }); }
     const applied: PmcAppliedEdit[] = [];
     for (const edit of input.edits.cells) {
       const index = indexOf.get(edit.row);
@@ -391,28 +398,37 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
     if (refused.length) return { headers, rows: [], errors: refused, columns };
     if (applied.length) notes.edits = applied;
     if (ignored.size) notes.ignoredRows = Array.from(ignored).sort((a, b) => a - b);
+    if (forced.size) notes.readRows = Array.from(forced).sort((a, b) => a - b);
   }
+  // Q-50 4c: the class of each row as read, for the first rows of the table (the preview the person classifies)
+  const preview: PmcPreviewRow[] = [];
+  const classify = (index: number, rowClass: PmcRowClass) => {
+    if (preview.length >= PMC_PREVIEW_ROWS) return;
+    preview.push({ row: rowNumbers[index], class: rowClass, cells: Object.fromEntries(fields.filter(field => mapping.has(field.key)).map(field => [field.key, String(rows[index][mapping.get(field.key)!] ?? "").trim()])) });
+  };
   // Q-48: a section merged over its rows and left with no name is empty on purpose — those rows do not take the section above them
   const csiColumn = mapping.has("csi") ? headers.indexOf(mapping.get("csi")!) + 1 : 0;
   const blankByMerge = emptyVerticalMergeCover(sheet);
   let lastCsi = "";
   rows.forEach((row, index) => {
-    if (ignored.has(rowNumbers[index])) return;
+    if (ignored.has(rowNumbers[index])) { classify(index, "leftOut"); return; }
     const cells = Object.fromEntries(fields.map(field => [field.key, mapping.has(field.key) ? row[mapping.get(field.key)!] : undefined]));
     if (input.kind === "weights") {
       // a totals line: every filled label of the row (section, sub-item, activity) is total words — skipped, and COUNTED in the report (never silent)
       const labels = [cells.csi, cells.sub, cells.activityName].map(value => pmcHeaderKey(value)).filter(Boolean);
       const keepTotal = () => { notes.skippedTotals += 1; (notes.fileTotals ??= []).push({ row: rowNumbers[index], value: String(cells.weight ?? "").trim() }); };
-      if (labels.length > 0 && labels.every(label => TOTAL_LINE.test(label))) { keepTotal(); return; }
+      const readAsData = forced.has(rowNumbers[index]);
+      if (!readAsData && labels.length > 0 && labels.every(label => TOTAL_LINE.test(label))) { keepTotal(); classify(index, "total"); return; }
       // I50 (the owner's real file): the totals word may sit in a column no field reads («م», merged with the division cell) while every mapped label is
       // empty and the weight column holds the rounded sum (0.99999). No label and no activity name, and a cell of the row that is total words: a totals line
-      if (labels.length === 0 && Object.values(row).some(value => TOTAL_LINE.test(pmcHeaderKey(value)))) { keepTotal(); return; }
+      if (!readAsData && labels.length === 0 && Object.values(row).some(value => TOTAL_LINE.test(pmcHeaderKey(value)))) { keepTotal(); classify(index, "total"); return; }
       // Q-47 (owner decision 18-11): a section written once above its activities — the empty section cells below it take it, counted and shown in the preview
       const csi = String(cells.csi ?? "").trim();
       if (csi) lastCsi = csi;
       else if (csiColumn && blankByMerge(rowNumbers[index], csiColumn)) lastCsi = "";
       else if (lastCsi && String(cells.activityName ?? "").trim()) { cells.csi = lastCsi; notes.filledDown += 1; }
     }
+    classify(index, "data");
     out.push({ rowNumber: rowNumbers[index], cells });
   });
   // Q-50 batch 5b: the group and the stage from the numbered headings, when the file has no section column
@@ -420,6 +436,7 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
     const outline = applyOutline(out, cells => cells.outline);
     if (outline.headings) notes.outlineHeadings = outline.headings;
   }
+  if (preview.length) notes.preview = preview;
   return { headers, errors, rows: out, columns, notes };
 }
 
