@@ -42,7 +42,7 @@
 
 | البند | الحالة | الدليل |
 |---|---|---|
-| السبب: `ci.yml` بـ`cancel-in-progress: true` لكل فرع، فكل دمج إلى main يلغي CI الجاري على الدمج قبله، وsير الإطلاق `migrate-production` لا يبدأ إلا بعد CI أخضر **مكتمل** على main؛ فحين تتوالى الدمجات أسرع من CI لا يُطلَق شيء (مثال: CI على `c7c2307` أُلغي بدفع `b5249f0`) | `SOURCE_VERIFIED` | `.github/workflows/ci.yml` و`migrate-production.yml` (شرط `workflow_run.conclusion == 'success'`) |
+| السبب: `ci.yml` بـ`cancel-in-progress: true` لكل فرع، فكل دمج إلى main يلغي CI الجاري على الدمج قبله، وسير الإطلاق `migrate-production` لا يبدأ إلا بعد CI أخضر **مكتمل** على main؛ فحين تتوالى الدمجات أسرع من CI لا يُطلَق شيء (مثال: CI على `c7c2307` أُلغي بدفع `b5249f0`) | `SOURCE_VERIFIED` | `.github/workflows/ci.yml` و`migrate-production.yml` (شرط `workflow_run.conclusion == 'success'`) |
 | الإصلاح: `cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}` — طلبات الدمج تُلغى بالأحدث كما كانت، وعلى main يكتمل التشغيل الجاري، والأحدث ينتظر (GitHub يبقي تشغيلًا منتظرًا واحدًا، الأحدث)، فآخر main يكتمل ويُطلَق دائمًا دون تشغيل CI لكل دمج (دقائق Actions مقنّنة) | `WRITTEN` | يثبت بأول دمجين متتاليين على main بعده |
 
 ### Q-22 (1): الدخول بكلمة المرور لا يمر ببوابة النطاقات المحجوزة للبريد (2026-11-20، المبرمج ب، بلا ترحيلة)
