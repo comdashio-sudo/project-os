@@ -2114,6 +2114,11 @@ export const projectErrorMessages = {
     en: "The file format is not supported.",
     ur: "فائل کا فارمیٹ معاون نہیں ہے۔",
   },
+  PROJECT_OS_IMPORT_SHEET_AMBIGUOUS: {
+    ar: "أكثر من ورقة في الملف فيها أعمدة هذا الملف: احذف الورقة الزائدة أو أبقِ الجدول في ورقة واحدة.",
+    en: "More than one sheet in the file holds this file's columns: remove the extra sheet or keep the table on one sheet.",
+    ur: "فائل کی ایک سے زیادہ شیٹس میں اس فائل کے کالم ہیں: زائد شیٹ حذف کریں یا جدول ایک ہی شیٹ پر رکھیں۔",
+  },
   PROJECT_OS_IMPORT_MAPPING_INVALID: {
     ar: "ربط الأعمدة غير صالح.",
     en: "The column mapping is invalid.",

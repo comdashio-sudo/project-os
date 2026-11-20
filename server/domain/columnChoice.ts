@@ -12,6 +12,18 @@ export type ColumnResolution = { columns: Record<string, string | undefined>; re
 export const IGNORE_OTHER_COLUMNS = "__others__";
 const normalize = (value: string) => value.trim().toLowerCase();
 
+/**
+ * Q-50 (importEngine/read.ts): how well a candidate header row names these fields, scored exactly as resolveColumns matches them — how many fields it
+ * names, and whether every required one is named. The shared reader uses it to find the header row under a title and the table's sheet among others.
+ */
+export function headerEvaluator(fields: readonly ColumnField[]) {
+  return ({ baseHeaders }: { baseHeaders: string[] }) => {
+    const names = new Set(baseHeaders.filter(Boolean).map(normalize));
+    const named = fields.filter(field => field.aliases.some(alias => names.has(alias)));
+    return { found: named.length, complete: fields.every(field => !field.required || named.includes(field)) };
+  };
+}
+
 export function resolveColumns(fields: readonly ColumnField[], fileHeaders: string[], choice?: Record<string, string>): ColumnResolution {
   const headers = fileHeaders.filter(Boolean);
   const columns: Record<string, string | undefined> = {};
