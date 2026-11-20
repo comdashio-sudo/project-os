@@ -93,11 +93,13 @@ export const REQUIRED_SCHEMA = [
   { migration: "0044_safety_register", kind: "table", table: "safety_incidents" },
   { migration: "0044_safety_register", kind: "table", table: "work_permits" },
   { migration: "0045_employee_reports_to", kind: "column", table: "employees", column: "reports_to_employee_id" },
-  { migration: "0046_strategy_assumptions", kind: "table", table: "strategy_assumptions" },
-  { migration: "0046_strategy_assumptions", kind: "table", table: "strategy_assumption_changes" },
-  { migration: "0047_strategy_market", kind: "column", table: "strategy_assumptions", column: "evidence" },
-  { migration: "0048_strategy_competitors_swot", kind: "table", table: "strategy_competitors" },
-  { migration: "0048_strategy_competitors_swot", kind: "table", table: "strategy_swot_items" },
+  // 0046 adds a catalogue row only (Q-53): ready when the permission exists; the code that checks it would otherwise refuse every profitability read
+  { migration: "0046_profit_read_permission", kind: "permission", table: "permissions", column: "project.profit.read" },
+  { migration: "0047_strategy_assumptions", kind: "table", table: "strategy_assumptions" },
+  { migration: "0047_strategy_assumptions", kind: "table", table: "strategy_assumption_changes" },
+  { migration: "0048_strategy_market", kind: "column", table: "strategy_assumptions", column: "evidence" },
+  { migration: "0049_strategy_competitors_swot", kind: "table", table: "strategy_competitors" },
+  { migration: "0049_strategy_competitors_swot", kind: "table", table: "strategy_swot_items" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
@@ -132,6 +134,8 @@ export async function schemaReadiness(now = Date.now()): Promise<SchemaReadiness
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${item.table} AND indexname = ${item.column} AND indexdef LIKE '%confirmed%importing%completed%') AS present`)).rows[0]?.present
         : item.kind === "trigger"
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = ${`public.${item.table}`}::regclass AND tgname = ${item.column} AND NOT tgisinternal) AS present`)).rows[0]?.present
+        : item.kind === "permission"
+        ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM permissions WHERE code = ${item.column}) AS present`)).rows[0]?.present
         : item.kind === "immutable-column-locked"
         ? (await db.execute(sql`SELECT (current_user <> 'project_os_app') OR NOT has_column_privilege(current_user, ${`public.${item.table}`}, ${item.column}, 'UPDATE') AS present`)).rows[0]?.present
         : (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${item.table} AND column_name = ${item.column}) AS present`)).rows[0]?.present;

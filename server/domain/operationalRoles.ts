@@ -4,6 +4,9 @@ export const operationalPermissionCatalog = [
   { code: "project.budget.manage", name: "Manage project budgets", productCode: "PROJECT" as const },
   { code: "project.cost.enter", name: "Enter actual costs", productCode: "PROJECT" as const },
   { code: "project.cashflow.read", name: "View project cash flow", productCode: "PROJECT" as const },
+  // Q-53 (adviser 20-11): a project's profitability (the report, its history, the expected profit) is its own power, so cash flow and cost can be read without it.
+  // Migration 0046 gave it to every role that held project.cashflow.read, so no one lost the profitability they saw.
+  { code: "project.profit.read", name: "View project profitability", productCode: "PROJECT" as const },
   { code: "project.commitment.manage", name: "Manage commitments", productCode: "PROJECT" as const },
   { code: "project.invoice.match", name: "Match supplier invoices", productCode: "PROJECT" as const },
   { code: "project.payroll.run", name: "Run payroll", productCode: "PROJECT" as const },
@@ -81,7 +84,7 @@ export type OperationalRoleDefinition = { code: string; name: string; productCod
 export const operationalRoleDefinitions = [
   { code: "WAREHOUSE_CUSTODIAN", name: "Warehouse Custodian", permissions: ["project.inventory.manage", "project.performance.read_own"] },
   { code: "PROCUREMENT_OFFICER", name: "Procurement Officer", permissions: ["project.procurement.manage", "project.performance.read_own"] },
-  { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own", "project.settings.labour"] },
+  { code: "FINANCE_MANAGER", name: "Finance Manager", permissions: ["project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.profit.read", "project.commitment.manage", "project.invoice.match", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own", "project.settings.labour"] },
   { code: "ACCOUNTANT", name: "Accountant", permissions: ["project.cost.enter", "project.invoice.match", "project.payroll.run", "project.performance.read_own"] },
   { code: "HR_MANAGER", name: "HR Manager", permissions: ["project.hr.manage", "project.hr.sensitive.read", "project.payroll.structure", "project.payroll.sensitive.read", "project.attendance.manage", "project.performance.manage", "project.performance.read_own"] },
   // Q-12 (d): the planning engineer sets projects up (project.create, held at company scope): creates one, writes its profile and companies, and invites its team, the project manager included
@@ -107,6 +110,7 @@ export const operationalRoleDefinitions = [
       "project.budget.manage",
       "project.cost.enter",
       "project.cashflow.read",
+      "project.profit.read",
       "project.commitment.manage",
       "project.wbs.manage",
       "project.schedule.manage",
@@ -131,8 +135,13 @@ export const operationalRoleDefinitions = [
   // no pay, no write, no approval. Whoever needs the money is given EXECUTIVE on top, explicitly. It holds codes of two products: the role is installed
   // as PROJECT (assigning it needs PROJECT), and pmo.read takes effect only where the company holds PMO (assertTenantAccess checks the product's entitlement).
   { code: "MANAGEMENT_VIEWER", name: "Management Viewer", permissions: ["project.read", "pmo.read"] },
+  // Q-53 (adviser 20-11): the operations manager follows every project of the company: its progress (project.read, project.pmc.read, pmo.read) and its cost,
+  // budget and cash flow (project.cashflow.read), but not its profitability (project.profit.read), the company's margins (executive.read) or anyone's pay;
+  // enters no field data and approves no record by permission — what it decides is the decisions and escalations whose owner it is named (transitionDecision).
+  // Installed as PROJECT like the management viewer; pmo.read counts only where the company holds PMO.
+  { code: "OPERATIONS_MANAGER", name: "Operations Manager", permissions: ["project.read", "project.pmc.read", "pmo.read", "project.cashflow.read", "project.performance.read_own"] },
   // Controls the money without moving it: budgets, actual cost, cash flow, earned value and the levelling of tender bids. Holds neither commitments nor invoice matching.
-  { code: "COST_CONTROLLER", name: "Cost Controller", permissions: ["project.read", "project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.evm.manage", "project.tender.level", "project.performance.read_own"] },
+  { code: "COST_CONTROLLER", name: "Cost Controller", permissions: ["project.read", "project.pmc.read", "project.budget.manage", "project.cost.enter", "project.cashflow.read", "project.profit.read", "project.evm.manage", "project.tender.level", "project.performance.read_own"] },
   // Keeps the work moving between teams and the consultant: site records, material requests, and the approval side of design (closing comments, recording consultant replies).
   { code: "PROJECT_COORDINATOR", name: "Project Coordinator", permissions: ["project.read", "project.pmc.read", "project.pmc.update", "project.rfi.manage", "project.field.manage", "project.material.request", "project.design.approve", "project.performance.read_own"] },
   // The two design coordinators issue and chase drawings in their own disciplines only; neither approves what they issue.

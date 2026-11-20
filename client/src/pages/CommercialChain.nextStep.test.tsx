@@ -13,7 +13,7 @@ vi.mock("@/lib/permissions", async importOriginal => ({ ...(await importOriginal
 vi.mock("@/lib/trpc", () => {
   const mutation = { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) };
   const list = (rows: () => unknown[]) => ({ useQuery: () => ({ data: rows(), isLoading: false, error: null }) });
-  return { trpc: {
+  return { trpc: { workConfirmations: { list: { useQuery: () => ({ data: [], isLoading: false, error: null }) }, transition: { useMutation: () => ({ mutate: () => undefined, reset: () => undefined, isPending: false, error: null }) } },
     useUtils: () => ({ boq: { list: { invalidate: vi.fn() } }, subcontracts: { list: { invalidate: vi.fn() }, listCertificates: { invalidate: vi.fn() } }, projectInvoices: { list: { invalidate: vi.fn() } } }),
     boq: { list: list(() => state.boq), create: mutation },
     procurement: { register: { useQuery: () => ({ data: { suppliers: [] } }) } },
