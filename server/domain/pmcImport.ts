@@ -3,8 +3,8 @@
 // (2) check the rows against what the project already holds and produce a plan
 // (what would be created, updated, left alone) plus every rejected row with its
 // reason. The service executes a plan only when it has no errors.
-import { columnHints, type ColumnSuggestion, type FieldSource } from "./importEngine/hints";
 import { applyOutline } from "./importEngine/outline";
+import { columnHints, type ColumnSuggestion, type FieldSource } from "./importEngine/hints";
 import type ExcelJS from "exceljs";
 import { cellText, emptyVerticalMergeCover, readSpreadsheetSafely, worksheetToRows } from "./excelWorkbook";
 import { chooseSheet, type HeaderEvaluation, type TableRows } from "./importEngine/read";
@@ -177,7 +177,11 @@ export type PmcIgnoredColumn = { header: string; samples: string[] };
 export type PmcImportEdits = { cells: Array<{ row: number; field: string; value: string }>; ignoreRows: number[] };
 /** An applied cell correction, with the value the file holds, for the report and the audit trail. */
 export type PmcAppliedEdit = { row: number; field: string; header: string; from: string; to: string };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; outlineHeadings?: number } };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; outlineHeadings?: number } };
+/** Q-50 batch 5a: a totals line the reader skipped, with the weight it carries in the file (compared with the sum read, never used as data). */
+export type PmcFileTotal = { row: number; value: string };
+/** The comparison of the file's own totals line with what was read, in the file's units (fractions or percent). */
+export type PmcTotalCheck = { row: number; fileValue: number | null; readSum: number; status: "matches" | "differs" | "not_comparable" };
 
 /**
  * Q-31 (P0-01): how a header is compared with a field's spellings. Arabic letter variants, diacritics and tatweel, Eastern digits, punctuation and
@@ -398,10 +402,11 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
     if (input.kind === "weights") {
       // a totals line: every filled label of the row (section, sub-item, activity) is total words — skipped, and COUNTED in the report (never silent)
       const labels = [cells.csi, cells.sub, cells.activityName].map(value => pmcHeaderKey(value)).filter(Boolean);
-      if (labels.length > 0 && labels.every(label => TOTAL_LINE.test(label))) { notes.skippedTotals += 1; return; }
+      const keepTotal = () => { notes.skippedTotals += 1; (notes.fileTotals ??= []).push({ row: rowNumbers[index], value: String(cells.weight ?? "").trim() }); };
+      if (labels.length > 0 && labels.every(label => TOTAL_LINE.test(label))) { keepTotal(); return; }
       // I50 (the owner's real file): the totals word may sit in a column no field reads («م», merged with the division cell) while every mapped label is
       // empty and the weight column holds the rounded sum (0.99999). No label and no activity name, and a cell of the row that is total words: a totals line
-      if (labels.length === 0 && Object.values(row).some(value => TOTAL_LINE.test(pmcHeaderKey(value)))) { notes.skippedTotals += 1; return; }
+      if (labels.length === 0 && Object.values(row).some(value => TOTAL_LINE.test(pmcHeaderKey(value)))) { keepTotal(); return; }
       // Q-47 (owner decision 18-11): a section written once above its activities — the empty section cells below it take it, counted and shown in the preview
       const csi = String(cells.csi ?? "").trim();
       if (csi) lastCsi = csi;
@@ -833,7 +838,7 @@ export { defKey as pmcDefinitionKey };
 // ---- weights (Q-3): the owner's table translated into catalogue rows
 
 export const DEFAULT_ZONE_CODE = "Z1";
-export type WeightsTranslation = { rows: ParsedRow[]; errors: PmcImportError[]; ignoredZeroWeight: number; scaledFromFractions: boolean };
+export type WeightsTranslation = { rows: ParsedRow[]; errors: PmcImportError[]; ignoredZeroWeight: number; scaledFromFractions: boolean; totalChecks: PmcTotalCheck[] };
 // Q-31: Arabic-Indic digits, «٪» and «%», «٫», and a decimal comma («2,5» is two and a half, not 25) are read as people write them (parseNumber).
 const weightNumber = (value: unknown): number | undefined => {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
@@ -854,7 +859,7 @@ export function weightActivityCode(name: string): string {
  * a table without a model column applies to every model the project's villas use, so the villa list comes first.
  */
 const FORMULA_ERROR = /^#(?:REF!|VALUE!|DIV\/0!|N\/A|NAME\?|NUM!|NULL!|SPILL!|CALC!|GETTING_DATA)/i;
-export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[]): WeightsTranslation {
+export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[], fileTotals: PmcFileTotal[] = []): WeightsTranslation {
   const errors: PmcImportError[] = [];
   const kept: Array<{ rowNumber: number; csi: string; sub: string; code: string; name: string; nameEn: string; weight: number; modelCode: string }> = [];
   let ignoredZeroWeight = 0;
@@ -884,5 +889,15 @@ export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[])
       out.push({ rowNumber: row.rowNumber, cells: { modelCode, groupCode: row.csi.slice(0, 80), groupName: row.csi, stageCode: `${row.csi} / ${stage}`.slice(0, 80), stageName: stage, activityCode: row.code.slice(0, 80), activityName: row.name, activityNameEn: row.nameEn, weightPercent } });
     }
   }
-  return { rows: out, errors, ignoredZeroWeight, scaledFromFractions };
+  // Q-50 batch 5a: the file's own totals line against the sum of what was read, in the file's units. A difference is said (a row the reader did not take,
+  // or a total typed by hand), never fixed here; with more than one model in the file one total cannot be compared with them all
+  const modelsInFile = new Set(kept.map(row => row.modelCode).filter(Boolean));
+  const tolerance = scaledFromFractions || (kept.length > 0 && kept.every(row => row.weight <= 1)) ? 0.0001 * Math.max(1, kept.length) : 0.01;
+  const totalChecks: PmcTotalCheck[] = fileTotals.map(line => {
+    const fileValue = weightNumber(line.value);
+    if (fileValue === undefined || fileValue === null || Number.isNaN(fileValue)) return { row: line.row, fileValue: null, readSum: round4(total), status: "not_comparable" as const };
+    if (modelsInFile.size > 1) return { row: line.row, fileValue, readSum: round4(total), status: "not_comparable" as const };
+    return { row: line.row, fileValue, readSum: round4(total), status: Math.abs(fileValue - total) <= tolerance ? "matches" as const : "differs" as const };
+  });
+  return { rows: out, errors, ignoredZeroWeight, scaledFromFractions, totalChecks };
 }
