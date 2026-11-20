@@ -46,13 +46,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("cash flow, committed cos
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status, contractValue) VALUES (?, ?, 'CD-A', 'Cash project', 'villas', 'SAR', 'active', 20000)", [P, T]);
     await connection.query("INSERT INTO subscriptions (id, tenantId, packageCode, status, startsAt) VALUES ('cfd-sub', ?, 'ALL-IN-ONE', 'active', NOW())", [T]);
     await connection.query("INSERT INTO tenant_entitlements (id, tenantId, subscriptionId, productCode, active, startsAt) VALUES ('cfd-ent', ?, 'cfd-sub', 'PROJECT', true, NOW())", [T]);
-    const codes = ["project.read", "project.cashflow.read", "project.invoice.match", "project.commitment.manage", "project.cost.enter", "project.procurement.manage", "project.inventory.manage"];
+    const codes = ["project.read", "project.cashflow.read", "project.profit.read", "project.invoice.match", "project.commitment.manage", "project.cost.enter", "project.procurement.manage", "project.inventory.manage"];
     for (const code of codes) await connection.query("INSERT IGNORE INTO permissions (id, code, name, productCode) VALUES (UUID(), ?, ?, 'PROJECT')", [code, code]);
     await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES ('cfd-r-cfo', ?, 'CFD_CFO','CFO','PROJECT'), ('cfd-r-ops', ?, 'CFD_OPS','Ops','PROJECT'), ('cfd-r-reader', ?, 'CFD_READER','Reader','PROJECT'), ('cfd-r-plain', ?, 'CFD_PLAIN','Plain','PROJECT')", [T, T, T, T]);
     const grant = (role: string, list: string[]) => connection.query(`INSERT INTO role_permissions (roleId, permissionId) SELECT ?, id FROM permissions WHERE code IN (${list.map(() => "?").join(",")})`, [role, ...list]);
-    await grant("cfd-r-cfo", ["project.read", "project.cashflow.read", "project.invoice.match", "project.commitment.manage", "project.cost.enter"]);
+    await grant("cfd-r-cfo", ["project.read", "project.cashflow.read", "project.profit.read", "project.invoice.match", "project.commitment.manage", "project.cost.enter"]);
     await grant("cfd-r-ops", ["project.read", "project.procurement.manage", "project.inventory.manage"]); // fixture only: the API would refuse to put these two together
-    await grant("cfd-r-reader", ["project.read", "project.cashflow.read"]);
+    await grant("cfd-r-reader", ["project.read", "project.cashflow.read", "project.profit.read"]); // Q-53: a cash-flow reader carries project.profit.read since migration 0046
     await grant("cfd-r-plain", ["project.read"]);
     await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES ('cfd-m-cfo', ?, ?, 'active'),('cfd-m-ops', ?, ?, 'active'),('cfd-m-reader', ?, ?, 'active'),('cfd-m-plain', ?, ?, 'active')", [T, users.cfo, T, users.ops, T, users.reader, T, users.plain]);
     await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES ('cfd-mr-cfo','cfd-m-cfo','cfd-r-cfo','company'),('cfd-mr-ops','cfd-m-ops','cfd-r-ops','company'),('cfd-mr-reader','cfd-m-reader','cfd-r-reader','company'),('cfd-mr-plain','cfd-m-plain','cfd-r-plain','company')");
