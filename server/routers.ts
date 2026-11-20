@@ -1,6 +1,6 @@
 import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions } from "./workConfirmations";
-import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
+import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, exportProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES, MINUTES_EXPORT_FORMATS } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
@@ -714,6 +714,8 @@ export const appRouter = router({
     addItem: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid(), topic: z.string().trim().min(1).max(255), discussion: z.string().trim().max(5000).optional(), decision: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => addProjectMeetingItem({ userId: ctx.user.id, ...input })),
     addAction: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid(), title: z.string().trim().min(2).max(255), ownerMembershipId: z.string().uuid(), dueAt: z.date().optional(), priority: z.enum(["low", "medium", "high", "critical"]).default("medium") })).mutation(({ ctx, input }) => addProjectMeetingAction({ userId: ctx.user.id, ...input })),
     issue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid() })).mutation(({ ctx, input }) => issueProjectMeeting({ userId: ctx.user.id, ...input })),
+    // Q-25 batch 2: the minutes as Word or PDF, for whoever reads them
+    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid(), format: z.enum(MINUTES_EXPORT_FORMATS), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportProjectMeeting({ userId: ctx.user.id, ...input })),
   }),
   executive: router({
     createDecision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), problem: z.string().trim().min(2).max(5000), options: z.string().trim().min(2).max(5000), recommendation: z.string().trim().max(5000).optional(), decisionOwnerMembershipId: z.string().uuid().optional(), costImpact: z.number().finite().optional(), scheduleImpactDays: z.number().int().min(-3650).max(3650).optional(), riskImpact: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => createDecision({ userId: ctx.user.id, ...input })),
