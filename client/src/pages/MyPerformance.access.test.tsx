@@ -20,6 +20,7 @@ vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "tenant-1", projectId: 
 vi.mock("@/lib/trpc", () => ({ trpc: { performance: {
   availability: { useQuery: (_input: unknown, options: unknown) => { state.availabilityOptions = options; return state.availability; } },
   get: { useQuery: (_input: unknown, options: unknown) => { state.options = options; return state.query; } },
+  directReports: { useQuery: () => ({ data: undefined, error: { message: "PROJECT_OS_PERMISSION_DENIED" } }) },
   objections: { create: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) } },
 } } }));
 

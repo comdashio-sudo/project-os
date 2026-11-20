@@ -43,6 +43,8 @@
     "0040_work_confirmations.sql": "be8b6429ac2bc07fb06447185027f123807814ca1f5d27615c1a0c0ea8f93547",
     "0041_material_request_warehouse.sql": "96a972d71c4e23faab2ad04b0b5e6eab834cb923b7f047333d1ed88940540521",
     "0042_pmc_english_names.sql": "c14079bc75af6bbc9b1f81fff4878469232f2b0c8921b6a28dd4924617ccf7cd",
-    "0043_risk_register.sql": "6eb7ea5cc9ec3403440afe723a874a8cbf0ad514edd3b657184f83952fe14570"
+    "0043_risk_register.sql": "6eb7ea5cc9ec3403440afe723a874a8cbf0ad514edd3b657184f83952fe14570",
+    "0044_safety_register.sql": "58da77310a11b7e71aafc7e8a8a155295976e9074f6ef00c7ffae6286458fc24",
+    "0045_employee_reports_to.sql": "d8bd6fb9aa05edb7ce2f95defdc8bccb438ca896ce320b9dfcd8016aec347b0b"
   }
 }

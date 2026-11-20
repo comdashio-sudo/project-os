@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", () => undefined], Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
+const permissionState = vi.hoisted(() => ({ canConfirmWork: true }));
+vi.mock("@/lib/permissions", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/permissions")>()), useCan: (permission: string | readonly string[]) => (permission === "project.subcontract.progress.record" ? permissionState.canConfirmWork : true), usePermissionsLoading: () => false }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   auth: { me: { useQuery: () => ({ data: state.me }) } },
@@ -156,6 +158,18 @@ const sheet = {
   ],
 };
 const withTeam = { ...context, can: { ...context.can, logTeamHours: true } };
+
+describe("FieldEntry: the way to the subcontractor work confirmation (Q-43 batch 4)", () => {
+  afterEach(() => { permissionState.canConfirmWork = true; });
+  it("is offered to whoever may record one, and not to anyone else", () => {
+    load();
+    expect(screen.getByRole("link", { name: "Subcontractor work confirmation" }).getAttribute("href")).toBe("/m/t/p/work-confirmation");
+    cleanup();
+    permissionState.canConfirmWork = false;
+    load();
+    expect(screen.queryByRole("link", { name: "Subcontractor work confirmation" })).toBeNull();
+  });
+});
 
 describe("FieldEntry: requests that survive a lost connection (G-033)", () => {
   afterEach(() => setOnline(true));

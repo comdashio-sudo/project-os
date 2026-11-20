@@ -107,6 +107,8 @@ CREATE TYPE "public"."rfis_status" AS ENUM('draft', 'submitted', 'under_review',
 CREATE TYPE "public"."risks_status" AS ENUM('open', 'mitigating', 'accepted', 'closed');--> statement-breakpoint
 CREATE TYPE "public"."role_template_removal_status" AS ENUM('pending', 'approved', 'declined');--> statement-breakpoint
 CREATE TYPE "public"."roles_product_code" AS ENUM('EXECUTIVE', 'PMO', 'PROJECT');--> statement-breakpoint
+CREATE TYPE "public"."safety_incident_kind" AS ENUM('near_miss', 'first_aid', 'medical_treatment', 'restricted_work', 'lost_time', 'fatality', 'property_damage', 'environmental');--> statement-breakpoint
+CREATE TYPE "public"."safety_incident_status" AS ENUM('open', 'investigating', 'closed');--> statement-breakpoint
 CREATE TYPE "public"."salary_structures_eos_accrual_mode" AS ENUM('computed', 'manual');--> statement-breakpoint
 CREATE TYPE "public"."scheduled_jobs_purpose" AS ENUM('license_lifecycle');--> statement-breakpoint
 CREATE TYPE "public"."site_daily_report_lines_line_type" AS ENUM('labour', 'equipment', 'work');--> statement-breakpoint
@@ -133,6 +135,8 @@ CREATE TYPE "public"."warehouse_inventory_transactions_transaction_type" AS ENUM
 CREATE TYPE "public"."webhook_deliveries_status" AS ENUM('pending', 'delivered', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."work_confirmation_line_kind" AS ENUM('unit', 'quantity');--> statement-breakpoint
 CREATE TYPE "public"."work_confirmation_status" AS ENUM('draft', 'submitted', 'approved', 'rejected', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."work_permit_status" AS ENUM('active', 'closed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."work_permit_type" AS ENUM('hot_work', 'work_at_height', 'confined_space', 'excavation', 'electrical', 'lifting', 'other');--> statement-breakpoint
 CREATE TABLE "actions" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -790,6 +794,7 @@ CREATE TABLE "employees" (
 	"identity_document_type" varchar(80),
 	"identity_reference" varchar(512),
 	"linked_user_id" integer,
+	"reports_to_employee_id" varchar(36),
 	"retention_policy" "employees_retention_policy" DEFAULT 'standard' NOT NULL,
 	"archived_at" timestamp with time zone,
 	"created_by_user_id" integer NOT NULL,
@@ -2185,6 +2190,28 @@ CREATE TABLE "roles" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "safety_incidents" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"incident_number" varchar(60) NOT NULL,
+	"occurred_on" date NOT NULL,
+	"kind" "safety_incident_kind" NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"description" text NOT NULL,
+	"location" varchar(160),
+	"people_involved" integer DEFAULT 0 NOT NULL,
+	"lost_days" integer DEFAULT 0 NOT NULL,
+	"root_cause" text,
+	"corrective_action" text,
+	"status" "safety_incident_status" DEFAULT 'open' NOT NULL,
+	"reported_by_user_id" integer NOT NULL,
+	"closed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "safety_incidents_counts_check" CHECK ("safety_incidents"."people_involved" >= 0 AND "safety_incidents"."lost_days" >= 0 AND ("safety_incidents"."lost_days" = 0 OR "safety_incidents"."kind" IN ('lost_time', 'fatality')))
+);
+--> statement-breakpoint
 CREATE TABLE "salary_structures" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -2929,6 +2956,26 @@ CREATE TABLE "weekly_reports" (
 	CONSTRAINT "weekly_reports_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id")
 );
 --> statement-breakpoint
+CREATE TABLE "work_permits" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"permit_number" varchar(60) NOT NULL,
+	"permit_type" "work_permit_type" NOT NULL,
+	"description" text NOT NULL,
+	"location" varchar(160),
+	"responsible_party" varchar(160),
+	"valid_from" timestamp with time zone NOT NULL,
+	"valid_to" timestamp with time zone NOT NULL,
+	"status" "work_permit_status" DEFAULT 'active' NOT NULL,
+	"issued_by_user_id" integer NOT NULL,
+	"closed_at" timestamp with time zone,
+	"close_note" varchar(500),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "work_permits_window_check" CHECK ("work_permits"."valid_to" > "work_permits"."valid_from")
+);
+--> statement-breakpoint
 ALTER TABLE "actions" ADD CONSTRAINT "actions_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "actions" ADD CONSTRAINT "actions_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "actions" ADD CONSTRAINT "actions_owner_membership_id_memberships_id_fk" FOREIGN KEY ("owner_membership_id") REFERENCES "public"."memberships"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3068,6 +3115,7 @@ ALTER TABLE "employee_time_entries" ADD CONSTRAINT "employee_time_entries_review
 ALTER TABLE "employees" ADD CONSTRAINT "employees_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employees" ADD CONSTRAINT "employees_linked_user_id_users_id_fk" FOREIGN KEY ("linked_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employees" ADD CONSTRAINT "employees_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "employees" ADD CONSTRAINT "employees_reports_to_employee_id_employees_id_fk" FOREIGN KEY ("reports_to_employee_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employment_contracts" ADD CONSTRAINT "employment_contracts_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employment_contracts" ADD CONSTRAINT "employment_contracts_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employment_contracts" ADD CONSTRAINT "employment_contracts_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3387,6 +3435,9 @@ ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_role
 ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_permission_id_permissions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permissions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "role_template_removals" ADD CONSTRAINT "role_template_removals_decided_by_user_id_users_id_fk" FOREIGN KEY ("decided_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "roles" ADD CONSTRAINT "roles_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "safety_incidents" ADD CONSTRAINT "safety_incidents_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "safety_incidents" ADD CONSTRAINT "safety_incidents_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "safety_incidents" ADD CONSTRAINT "safety_incidents_reported_by_user_id_users_id_fk" FOREIGN KEY ("reported_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "salary_structures" ADD CONSTRAINT "salary_structures_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3547,6 +3598,9 @@ ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_tenant_id_companies_
 ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "weekly_reports" ADD CONSTRAINT "weekly_reports_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "work_permits" ADD CONSTRAINT "work_permits_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "work_permits" ADD CONSTRAINT "work_permits_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "work_permits" ADD CONSTRAINT "work_permits_issued_by_user_id_users_id_fk" FOREIGN KEY ("issued_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "actions_tenant_project_due_idx" ON "actions" USING btree ("tenant_id","project_id","due_at");--> statement-breakpoint
 CREATE INDEX "actions_meeting_idx" ON "actions" USING btree ("tenant_id","meeting_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "activities_project_code_unique" ON "activities" USING btree ("project_id","code");--> statement-breakpoint
@@ -3627,6 +3681,7 @@ CREATE INDEX "employee_time_entries_tenant_project_idx" ON "employee_time_entrie
 CREATE UNIQUE INDEX "employees_tenant_number_unique" ON "employees" USING btree ("tenant_id","employee_number");--> statement-breakpoint
 CREATE UNIQUE INDEX "employees_tenant_user_unique" ON "employees" USING btree ("tenant_id","linked_user_id");--> statement-breakpoint
 CREATE INDEX "employees_tenant_status_idx" ON "employees" USING btree ("tenant_id","employment_status");--> statement-breakpoint
+CREATE INDEX "employees_tenant_reports_to_idx" ON "employees" USING btree ("tenant_id","reports_to_employee_id");--> statement-breakpoint
 CREATE INDEX "employment_contracts_tenant_employee_idx" ON "employment_contracts" USING btree ("tenant_id","employee_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "evm_snapshots_project_period_unique" ON "evm_snapshots" USING btree ("project_id","period_at");--> statement-breakpoint
 CREATE INDEX "evm_snapshots_tenant_project_idx" ON "evm_snapshots" USING btree ("tenant_id","project_id");--> statement-breakpoint
@@ -3818,6 +3873,8 @@ CREATE INDEX "risks_tenant_project_status_idx" ON "risks" USING btree ("tenant_i
 CREATE UNIQUE INDEX "role_template_removals_role_permission_uq" ON "role_template_removals" USING btree ("role_id","permission_id");--> statement-breakpoint
 CREATE INDEX "role_template_removals_tenant_status_idx" ON "role_template_removals" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "roles_tenant_code_unique" ON "roles" USING btree ("tenant_id","code");--> statement-breakpoint
+CREATE UNIQUE INDEX "safety_incidents_project_number_unique" ON "safety_incidents" USING btree ("project_id","incident_number");--> statement-breakpoint
+CREATE INDEX "safety_incidents_tenant_project_date_idx" ON "safety_incidents" USING btree ("tenant_id","project_id","occurred_on");--> statement-breakpoint
 CREATE UNIQUE INDEX "salary_structures_tenant_employee_unique" ON "salary_structures" USING btree ("tenant_id","employee_id");--> statement-breakpoint
 CREATE INDEX "salary_structures_tenant_active_idx" ON "salary_structures" USING btree ("tenant_id","active");--> statement-breakpoint
 CREATE UNIQUE INDEX "schedule_calendars_project_external_unique" ON "schedule_calendars" USING btree ("project_id","external_id");--> statement-breakpoint
@@ -3901,7 +3958,9 @@ CREATE INDEX "webhook_deliveries_tenant_idx" ON "webhook_deliveries" USING btree
 CREATE INDEX "webhook_endpoints_tenant_idx" ON "webhook_endpoints" USING btree ("tenant_id","active");--> statement-breakpoint
 CREATE UNIQUE INDEX "weekly_report_photos_report_photo_unique" ON "weekly_report_photos" USING btree ("weekly_report_id","photo_id");--> statement-breakpoint
 CREATE INDEX "weekly_report_photos_report_idx" ON "weekly_report_photos" USING btree ("weekly_report_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "weekly_reports_project_week_unique" ON "weekly_reports" USING btree ("project_id","week_start");
+CREATE UNIQUE INDEX "weekly_reports_project_week_unique" ON "weekly_reports" USING btree ("project_id","week_start");--> statement-breakpoint
+CREATE UNIQUE INDEX "work_permits_project_number_unique" ON "work_permits" USING btree ("project_id","permit_number");--> statement-breakpoint
+CREATE INDEX "work_permits_tenant_project_status_idx" ON "work_permits" USING btree ("tenant_id","project_id","status");
 --> statement-breakpoint
 -- PROJECT OS baseline, hand-written part (appended to the generated tables by scripts/build-baseline.mjs; do not apply on its own).
 --

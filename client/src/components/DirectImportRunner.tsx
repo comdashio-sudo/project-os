@@ -1,6 +1,7 @@
 import { useOptionalLanguage } from "@/contexts/optionalLanguage";
 import { resolveLanguage } from "@/lib/language";
 import { ImportDiffPreview } from "@/components/ImportDiffPreview";
+import { SaveTemplateForm, SuggestedTemplateCard } from "@/components/ImportTemplates";
 import { Button } from "@/components/ui/button";
 import { FileButton, FileDropzone } from "@/components/ds";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -36,6 +37,8 @@ type Props = {
   onCompleted?: (view: DirectImportView) => void;
   /** D-84 (b): the design system's drop area instead of the browser's own file input (which spills past a narrow card); a screen opts in, the others keep their input. */
   dropzone?: boolean;
+  /** Q-50 batch 2b: offers the company template the server suggests for this file, and saving a mapping that analysed cleanly as one. For kinds whose columns a person maps (PMC, the ledgers). */
+  templates?: boolean;
 };
 
 const text = {
@@ -68,7 +71,7 @@ const text = {
  * The file travels browser → Storage by a signed URL (no request body carries it, so the host's 4.5 MB ceiling does not apply, up to 50 MB), then a background job
  * analyses it and, after confirmation, writes it; this component shows that progress. It is the PMC and master-plan screens' counterpart of the general importer's screen.
  */
-export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, withDiff = false, fieldLabel, errorLabel, showErrors = true, renderReport, onCompleted, dropzone = false }: Props) {
+export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, withDiff = false, fieldLabel, errorLabel, showErrors = true, renderReport, onCompleted, dropzone = false, templates = false }: Props) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   const t = text[lang];
   const [file, setFile] = useState<File | null>(null);
@@ -147,11 +150,13 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
       {view && (view.status === "uploaded" || view.status === "validated") && <div className="space-y-3">
         <p className="text-sm">{t.rows}: {view.totalRows}</p>
         {showErrors && errors.length > 0 && <div role="alert" className="rounded-xl border border-destructive/30 bg-danger-soft p-3 text-sm text-danger-soft-foreground"><p className="font-semibold">{t.errors}: {view.analysis?.errorsTotal}</p><ul className="mt-1 space-y-1">{errors.map((error, index) => <li key={`${error.code}-${error.rowNumber}-${index}`}>{error.rowNumber ? `${t.row} ${error.rowNumber} · ` : ""}{errorLabel?.(error.code) ?? error.code}{error.field ? ` (${fieldLabel?.(error.field) ?? error.field})` : ""}</li>)}</ul>{(view.analysis?.errorsTotal ?? 0) > (view.analysis?.errorsListed ?? 0) && <p className="mt-1">{t.moreErrors}</p>}</div>}
+        {templates && view.suggestedTemplate && <SuggestedTemplateCard key={`${view.id}:${view.suggestedTemplate.id}`} tenantId={tenantId} projectId={projectId} importId={view.id} template={view.suggestedTemplate} currentMapping={view.analysis?.mapping} language={lang} />}
         {renderReport?.(view)}
         {withDiff && diffReady && <ImportDiffPreview diff={diffReady} isArabic={isArabic} fieldLabel={fieldLabel} />}
         {withDiff && diff.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(diff.error, lang)}</p>}
         {view.status === "validated" && view.external && !view.external.canConfirm && <p className="text-sm text-muted-foreground">{t.nothingToConfirm}</p>}
         {view.status === "validated" && view.external?.canConfirm && !autoConfirm && <Button type="button" className="min-h-[44px]" disabled={confirm.isPending || (withDiff && !diffReady)} onClick={() => confirm.mutate({ tenantId, projectId, importId: view.id, approvedDiffHash: withDiff ? diffReady?.diffHash : undefined })}>{confirmLabel}</Button>}
+        {templates && view.status === "validated" && <SaveTemplateForm key={view.id} tenantId={tenantId} projectId={projectId} importId={view.id} language={lang} />}
       </div>}
       {view?.status === "completed" && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{t.done}: {t.created} {view.createdRows} · {t.updated} {view.updatedRows} · {t.skipped} {view.skippedRows}</p>}
       {confirm.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(confirm.error, lang)}</p>}
