@@ -80,29 +80,36 @@ async function assertCaps(tx: Tx, input: Scope & { subcontractId: string; lines:
   await tx.execute(sql`SELECT id FROM projects WHERE id = ${input.projectId} AND tenant_id = ${input.tenantId} FOR UPDATE`);
   const counted = and(own(subcontractWorkConfirmations, input), inArray(subcontractWorkConfirmations.status, [...COUNTED]), input.excludeConfirmationId ? ne(subcontractWorkConfirmations.id, input.excludeConfirmationId) : undefined);
   const existing = await tx.select({
-    subcontractId: subcontractWorkConfirmations.subcontractId, kind: subcontractWorkConfirmationLines.kind,
+    subcontractId: subcontractWorkConfirmations.subcontractId, status: subcontractWorkConfirmations.status, kind: subcontractWorkConfirmationLines.kind,
     unitId: subcontractWorkConfirmationLines.pmcUnitId, activityId: subcontractWorkConfirmationLines.pmcActivityDefinitionId, percent: subcontractWorkConfirmationLines.percent,
     boqItemId: subcontractWorkConfirmationLines.boqItemId, quantity: subcontractWorkConfirmationLines.quantity,
   }).from(subcontractWorkConfirmationLines)
     .innerJoin(subcontractWorkConfirmations, and(eq(subcontractWorkConfirmations.id, subcontractWorkConfirmationLines.confirmationId), eq(subcontractWorkConfirmations.tenantId, subcontractWorkConfirmationLines.tenantId)))
     .where(counted);
-  const mine = new Map<string, { total: number }>(); const all = new Map<string, number>(); const boq = new Map<string, number>(); const mineBoq = new Map<string, number>();
-  const add = (subcontractId: string, line: { kind: string; unitId?: string | null; activityId?: string | null; percent?: number; boqItemId?: string | null; quantity?: number }) => {
+  // Two sums per cell and BOQ item (review of #449). The CAPS (DUPLICATE, OVER_COMPLETE, OVER_BOQ) count a negative correction only once it is APPROVED:
+  // a correction still in draft or sent may be cancelled or rejected, and if it had freed room a new claim would pass and leave the cell over 100% after
+  // it went. The FLOOR (BELOW_ZERO) counts every correction, pending ones too, so the same work is not taken back twice. A positive line counts in both.
+  const mine = new Map<string, number>(); const mineFloor = new Map<string, number>(); const all = new Map<string, number>(); const boq = new Map<string, number>(); const mineBoqFloor = new Map<string, number>();
+  const bump = (map: Map<string, number>, key: string, value: number) => map.set(key, (map.get(key) ?? 0) + value);
+  const add = (subcontractId: string, approved: boolean, line: { kind: string; unitId?: string | null; activityId?: string | null; percent?: number; boqItemId?: string | null; quantity?: number }) => {
+    const ours = subcontractId === input.subcontractId;
     if (line.kind === "unit") {
-      const cell = `${line.unitId}|${line.activityId}`;
-      all.set(cell, (all.get(cell) ?? 0) + (line.percent ?? 0));
-      if (subcontractId === input.subcontractId) mine.set(cell, { total: (mine.get(cell)?.total ?? 0) + (line.percent ?? 0) });
+      const cell = `${line.unitId}|${line.activityId}`; const value = line.percent ?? 0; const toCap = value >= 0 || approved;
+      if (toCap) bump(all, cell, value);
+      if (ours) { bump(mineFloor, cell, value); if (toCap) bump(mine, cell, value); }
     } else if (line.boqItemId) {
-      boq.set(line.boqItemId, (boq.get(line.boqItemId) ?? 0) + (line.quantity ?? 0));
-      if (subcontractId === input.subcontractId) mineBoq.set(line.boqItemId, (mineBoq.get(line.boqItemId) ?? 0) + (line.quantity ?? 0));
+      const value = line.quantity ?? 0; const toCap = value >= 0 || approved;
+      if (toCap) bump(boq, line.boqItemId, value);
+      if (ours) bump(mineBoqFloor, line.boqItemId, value);
     }
   };
-  for (const row of existing) add(row.subcontractId, { kind: row.kind, unitId: row.unitId, activityId: row.activityId, percent: Number(row.percent ?? 0), boqItemId: row.boqItemId, quantity: Number(row.quantity ?? 0) });
-  for (const line of input.lines) add(input.subcontractId, line.kind === "unit" ? { kind: "unit", unitId: line.pmcUnitId, activityId: line.pmcActivityDefinitionId, percent: line.percent } : { kind: "quantity", boqItemId: line.boqItemId, quantity: line.quantity });
+  for (const row of existing) add(row.subcontractId, row.status === "approved", { kind: row.kind, unitId: row.unitId, activityId: row.activityId, percent: Number(row.percent ?? 0), boqItemId: row.boqItemId, quantity: Number(row.quantity ?? 0) });
+  // the lines being written or moved are not approved yet: their negative figures free no room under the caps
+  for (const line of input.lines) add(input.subcontractId, false, line.kind === "unit" ? { kind: "unit", unitId: line.pmcUnitId, activityId: line.pmcActivityDefinitionId, percent: line.percent } : { kind: "quantity", boqItemId: line.boqItemId, quantity: line.quantity });
   const over = (value: number, cap: number) => value > cap + 1e-9;
-  for (const entry of Array.from(mine.values())) if (over(entry.total, 100)) throw fail("CONFLICT", "PROJECT_OS_WORK_CONFIRMATION_DUPLICATE");
-  // a correction takes back at most what this subcontract has: its total for a cell or a BOQ item never goes below zero
-  if (Array.from(mine.values()).some(entry => entry.total < -1e-9) || Array.from(mineBoq.values()).some(total => total < -1e-9)) throw fail("CONFLICT", "PROJECT_OS_WORK_CONFIRMATION_CORRECTION_BELOW_ZERO");
+  for (const total of Array.from(mine.values())) if (over(total, 100)) throw fail("CONFLICT", "PROJECT_OS_WORK_CONFIRMATION_DUPLICATE");
+  // a correction takes back at most what this subcontract has: its total for a cell or a BOQ item, with every pending correction, never goes below zero
+  if (Array.from(mineFloor.values()).some(total => total < -1e-9) || Array.from(mineBoqFloor.values()).some(total => total < -1e-9)) throw fail("CONFLICT", "PROJECT_OS_WORK_CONFIRMATION_CORRECTION_BELOW_ZERO");
   for (const [, total] of Array.from(all)) if (over(total, 100)) throw fail("CONFLICT", "PROJECT_OS_WORK_CONFIRMATION_OVER_COMPLETE");
   if (boq.size) {
     const caps = await tx.select({ id: boqItems.id, quantity: boqItems.quantity }).from(boqItems).where(and(own(boqItems, input), inArray(boqItems.id, Array.from(boq.keys()))));

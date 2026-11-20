@@ -187,5 +187,22 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-43: subcontractor work
     expect(await code(callerFor("siteOther").workConfirmations.options(scope()))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callerFor("ownerB").workConfirmations.options(scope()))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
     expect((await callerFor("owner").workConfirmations.options({ tenantId, projectId: P2 })).subcontracts.map(item => item.code)).toEqual(["Q43-O"]);
+
+  // review of #449 (programmer C): a correction frees room under the caps only once it is approved; a pending one still counts toward the floor
+  it("CORRECTION PENDING: a draft −50 on an approved 100% frees no room (another subcontract's 50% is OVER_COMPLETE, the same one's DUPLICATE); cancelled, the cell stays whole; approved, the room opens", async () => {
+    const first = await create("site", "WC-P1", subA, [unit(1, 1, 100)]);
+    await approve(first.id);
+    const original = (await linesOf("WC-P1"))[0];
+    const pending = await create("site", "WC-P2", subA, [{ ...unit(1, 1, -50), correctsLineId: original.id }]);
+    expect(await code(create("site", "WC-P3", subB, [unit(1, 1, 50)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_OVER_COMPLETE");
+    expect(await code(create("site", "WC-P4", subA, [unit(1, 1, 50)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_DUPLICATE");
+    // a second pending correction of the same work is refused: the floor counts the first one already
+    expect(await code(create("site", "WC-P5", subA, [{ ...unit(1, 1, -60), correctsLineId: original.id }]))).toBe("PROJECT_OS_WORK_CONFIRMATION_CORRECTION_BELOW_ZERO");
+    expect((await list()).map(item => item.number).filter(number => ["WC-P3", "WC-P4", "WC-P5"].includes(number))).toEqual([]); // refused with nothing written
+    await move("site", pending.id, "cancelled");
+    expect(await code(create("site", "WC-P6", subB, [unit(1, 1, 1)]))).toBe("PROJECT_OS_WORK_CONFIRMATION_OVER_COMPLETE");
+    const correction = await create("site", "WC-P7", subA, [{ ...unit(1, 1, -50), correctsLineId: original.id }]);
+    expect((await approve(correction.id)).status).toBe("approved");
+    expect(await code(create("site", "WC-P8", subB, [unit(1, 1, 50)]))).toBe("no error");
   });
 });
