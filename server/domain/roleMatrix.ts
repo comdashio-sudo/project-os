@@ -105,8 +105,11 @@ export const matrixColumns: readonly MatrixColumn[] = [
     { tier: "approve", sources: [s(TENDER, "awardTender", "project.tender.award")] },
   ] },
   { id: "profit", title: "الربح", kind: "data", actions: [
-    { tier: "see", sources: [s(DB, "getProjectProfitabilityForTenant", "project.cashflow.read"), s(DB, "getPortfolioProfitabilityForTenant", "executive.read")] },
-  ], note: "الربحية قراءة فقط؛ لا تُحرَّر ولا تُعتمد." },
+    { tier: "see", sources: [
+      s(DB, "getProjectProfitabilityForTenant", "project.profit.read"), s(DB, "getProfitabilityHistoryForTenant", "project.profit.read"), s(DB, "getPortfolioProfitabilityForTenant", "executive.read"),
+      s(DB, "projectProfitVisible", "project.profit.read"),
+    ] },
+  ], note: "الربحية قراءة فقط؛ لا تُحرَّر ولا تُعتمد. Q-53: project.profit.read وحدها تفتح تقرير الربحية وتاريخه، فقارئ التدفق النقدي والتكلفة (مدير العمليات) لا يراها؛ والربح المتوقع في لوحات المستويات لقارئ الربحية وحده (projectProfitVisible)، ولم يعد يصل لمن يحمل صلاحية كتابة مال فقط (إدخال التكلفة أو EVM) دون التقرير." },
   { id: "costs", title: "التكاليف والميزانية", kind: "data", actions: [
     { tier: "see", sources: [s(DB, "projectMoneyVisible", "project.cashflow.read", "project.budget.manage", "project.cost.enter", "project.evm.manage"), s(DB, "getProjectCashFlowForTenant", "project.cashflow.read"), s(SITE, "pmcEarnedValue", "project.budget.manage")] },
     { tier: "edit", sources: [s(DB, "createBudgetLine", "project.budget.manage"), s(DB, "createCostEntry", "project.cost.enter")] },
@@ -175,6 +178,7 @@ export const roleNamesAr = {
   EXECUTIVE: "المستوى التنفيذي",
   PMO_LEAD: "مسؤول مكتب إدارة المشاريع (PMO)",
   MANAGEMENT_VIEWER: "مشاهد الإدارة",
+  OPERATIONS_MANAGER: "مدير العمليات",
   COST_CONTROLLER: "مراقب التكلفة (كوست كنترول)",
   PROJECT_COORDINATOR: "منسق المشروع",
   DESIGN_COORDINATOR_ARCHITECTURAL: "منسق التصميم المعماري",
