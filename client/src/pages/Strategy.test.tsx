@@ -18,6 +18,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: { strategy: {
 
 // the register's actions are tested on their own (StrategyAssumptionActions.test.tsx)
 vi.mock("./StrategyAssumptionActions", () => ({ NewAssumption: () => null, AssumptionActions: () => null }));
+vi.mock("./StrategyGoalActions", () => ({ NewGoal: () => null, NewInitiative: () => null, RecordVariance: () => null, DecideVariance: () => null }));
 
 import Strategy from "./Strategy";
 
