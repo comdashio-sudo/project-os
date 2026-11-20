@@ -16,6 +16,14 @@ describe("closeness", () => {
     expect(closeness("block ref", "block code")).toBe(0.5);
     expect(closeness("Notes", "model")).toBe(0);
   });
+
+  it("NEGATIVE (review of #458): letters inside a word are not a match — «ID» is not «width», «A» is not «area» — and a one-letter header is close to nothing", () => {
+    expect(closeness("ID", "width")).toBe(0);
+    expect(closeness("A", "area")).toBe(0);
+    expect(closeness("B", "b")).toBe(0);
+    expect(closeness("Unit", "unit number")).toBe(0.8); // a whole word of the longer still counts
+    expect(columnHints([{ key: "width", aliases: ["width"] }, { key: "code", aliases: ["item code"] }], ["ID", "Description"], { width: null, code: null }, new Set()).width.suggestion).toBeNull();
+  });
 });
 
 describe("columnHints (Q-50 batch 3b)", () => {
