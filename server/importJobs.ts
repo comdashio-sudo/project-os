@@ -19,6 +19,7 @@ import { logError } from "./_core/logger";
 import { assertFileNotAlreadyImported, assertImportAccess, assertProjectWithinTenant, getTenantAccessSnapshot, previewDataImportDiff, recordApprovedDiffHash, authorizeNewImport, addOpeningBalanceReferenceErrors, confirmAndImportData, getDataImportDetailForTenant, getDb, importPermissionFor, isDuplicateEntryError, reanalyzeDataImport } from "./db";
 import { analysisWarnings, analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
 import { analyzeExternalImport, applyExternalImport, authorizeExternalImport, isExternalModule, pmcKindOf, type ExternalContext, type ExternalModule } from "./externalImports";
+import type { PmcImportEdits } from "./domain/pmcImport";
 import { DIFF_PAGE_SIZE, summariseDiff } from "./domain/importCycle";
 import { auditEmployeeRecordsRead, isLedgerModule, ledgerPlanHash, planLedgerImport } from "./ledgerImports";
 import { assertTenantAccess } from "./domain/authorization";
@@ -61,6 +62,8 @@ async function authorizeUpload(input: { userId: number; tenantId: string; projec
 
 const parseJson = <T,>(text: string | null | undefined, fallback: T): T => { try { return text ? JSON.parse(text) as T : fallback; } catch { return fallback; } };
 const contextOf = (summaryJson: string | null | undefined) => parseJson<{ context?: ExternalContext }>(summaryJson, {}).context;
+/** Q-50 batch 4: the corrections a person made in the preview, kept with the import (never in the stored file) so the analysis they read and the write use them. */
+const editsOf = (summaryJson: string | null | undefined) => parseJson<{ edits?: PmcImportEdits }>(summaryJson, {}).edits;
 
 /** Step 1: the URL the browser uploads to. Nothing is recorded yet: an abandoned upload is only an object the sweep removes. */
 export async function createImportUpload(input: { userId: number; tenantId: string; projectId: string; moduleCode: ImportModuleCode | ExternalModule; fileName: string; sourceFormat: Format; context?: ExternalContext }) {
@@ -137,17 +140,20 @@ async function failJob(db: Db, job: JobIdentity, reason: string, stage: string |
 /** Analysis of a PMC / master-plan file: the importer's own verdict is kept on the import (its counts in `summaryJson.report`), its errors in the same table the general importer uses. */
 async function analyseExternal(db: Db, job: JobIdentity, record: { moduleCode: ExternalModule; sourceFormat: Format; fileHash: string; summaryJson: string | null; mappingJson: string | null }, bytes: Buffer, progress: typeof touch) {
   await progress(db, job.importId, "validating", 45);
-  const analysis = await analyzeExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes, mappingOverride: storedMapping(record.mappingJson) });
+  const analysis = await analyzeExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes, mappingOverride: storedMapping(record.mappingJson), edits: editsOf(record.summaryJson) });
   await progress(db, job.importId, "writing", 80);
   await db.transaction(async tx => {
     await tx.delete(dataImportErrors).where(eq(dataImportErrors.importId, job.importId));
     const verdict = await tx.update(dataImports).set({
       status: analysis.errors.length ? "uploaded" : "validated", totalRows: analysis.totalRows, validRows: analysis.validRows, invalidRows: analysis.totalRows - analysis.validRows,
-      summaryJson: JSON.stringify({ context: contextOf(record.summaryJson), report: analysis.report, canConfirm: analysis.canConfirm }), progressPercent: 100, progressStage: null, failureReason: null, heartbeatAt: null,
+      summaryJson: JSON.stringify({ context: contextOf(record.summaryJson), edits: editsOf(record.summaryJson), report: analysis.report, canConfirm: analysis.canConfirm }), progressPercent: 100, progressStage: null, failureReason: null, heartbeatAt: null,
     }).where(and(eq(dataImports.id, job.importId), eq(dataImports.status, "analyzing"))).returning({ id: dataImports.id });
     if (!verdict.length) return;
     await insertChunked(tx, dataImportErrors, analysis.errors.map(error => ({ id: randomUUID(), importId: job.importId, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: error.field ?? null, value: error.detail ? error.detail.slice(0, 200) : null })));
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_uploaded", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, totalRows: analysis.totalRows, errorCount: analysis.errors.length }) });
+    // Q-50 batch 4: every correction the analysis used — row, field, the file's column, the file's value and the value used — in the same transaction as the verdict
+    const details = (analysis.report.pmc as { details?: { edits?: unknown[]; ignoredRows?: number[]; readRows?: number[] } } | undefined)?.details;
+    if (details?.edits?.length || details?.ignoredRows?.length || details?.readRows?.length) await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_cells_corrected", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, edits: details.edits ?? [], ignoredRows: details.ignoredRows ?? [], readRows: details.readRows ?? [] }) });
   });
 }
 
@@ -163,7 +169,7 @@ async function confirmExternal(db: Db, job: JobIdentity, onStage: (stage: string
   const bytes = await storageRead(record.fileKey);
   if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   await onStage("writing", 40);
-  const { results, ...counts } = await applyExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes, fileHash: record.fileHash, importId: job.importId, approvedDiffHash: parseJson<{ approvedDiffHash?: string }>(record.summaryJson, {}).approvedDiffHash, context: contextOf(record.summaryJson), mappingOverride: storedMapping(record.mappingJson) });
+  const { results, ...counts } = await applyExternalImport({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, moduleCode: record.moduleCode, format: record.sourceFormat as "xlsx" | "csv", bytes, fileHash: record.fileHash, importId: job.importId, approvedDiffHash: parseJson<{ approvedDiffHash?: string }>(record.summaryJson, {}).approvedDiffHash, context: contextOf(record.summaryJson), mappingOverride: storedMapping(record.mappingJson), edits: editsOf(record.summaryJson) });
   await db.transaction(async tx => {
     const done = await tx.update(dataImports).set({ status: "completed", ...counts, progressPercent: 100, progressStage: null, failureReason: null, heartbeatAt: null, completedAt: sql`now()` })
       .where(and(eq(dataImports.id, job.importId), eq(dataImports.status, "importing"))).returning({ id: dataImports.id });
@@ -303,7 +309,8 @@ export async function requestImportReanalysis(input: { userId: number; tenantId:
   if (!external && record.status !== "failed" && record.totalRows <= IMPORT_SYNC_MAX_ROWS) return reanalyzeDataImport(input);
   try {
     const taken = await db.update(dataImports)
-      .set({ status: "analyzing", mappingJson: JSON.stringify(input.mappingOverride), progressPercent: 5, progressStage: "queued", failureReason: null, attempts: 0, heartbeatAt: null, startedAt: null, completedAt: null })
+      // other columns are another reading of the file: the corrections made on the previous one are dropped (the screen says so before the person applies)
+      .set({ status: "analyzing", mappingJson: JSON.stringify(input.mappingOverride), ...(external ? { summaryJson: withoutEdits(record.summaryJson) } : {}), progressPercent: 5, progressStage: "queued", failureReason: null, attempts: 0, heartbeatAt: null, startedAt: null, completedAt: null })
       .where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), inArray(dataImports.status, ["uploaded", "validated", "failed"])))
       .returning({ id: dataImports.id });
     if (!taken.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
@@ -313,6 +320,34 @@ export async function requestImportReanalysis(input: { userId: number; tenantId:
     throw error;
   }
   void runAfterResponse(`import.reanalyze:${input.importId}`, () => runImportAnalysis(input));
+  return { id: input.importId, status: "analyzing" as const };
+}
+
+/** The stored summary without the preview's corrections (a new column choice is a new reading). */
+const withoutEdits = (summaryJson: string | null) => {
+  const summary = parseJson<Record<string, unknown>>(summaryJson, {});
+  if (!("edits" in summary)) return summaryJson;
+  const { edits: _dropped, ...rest } = summary;
+  return JSON.stringify(rest);
+};
+
+/** Q-50 batch 4 (docs/proposals/universal-import.md §4): a correction in the preview of a PMC file — a cell of a row, by the field it is read for, or a row left
+ * out. The stored file is untouched; the corrections replace the previous ones (the screen sends them all), the file is analysed again in the background, and
+ * nothing is written before the person confirms the new report. The operational ledgers, the equipment list and the master plan are refused (decision 3). */
+export async function requestImportCorrection(input: { userId: number; tenantId: string; projectId: string; importId: string; edits: PmcImportEdits }) {
+  const { db } = await importAccess(input);
+  const record = await readRecord(db, input);
+  if (!isExternalModule(record.moduleCode) || !pmcKindOf(record.moduleCode as ExternalModule)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED" });
+  await authorizeExternalImport({ ...input, moduleCode: record.moduleCode as ExternalModule });
+  if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
+  const summary = parseJson<Record<string, unknown>>(record.summaryJson, {});
+  const edits = input.edits.cells.length || input.edits.ignoreRows.length || input.edits.readRows?.length ? input.edits : undefined;
+  const taken = await db.update(dataImports)
+    .set({ status: "analyzing", summaryJson: JSON.stringify({ ...summary, edits }), progressPercent: 5, progressStage: "queued", failureReason: null, attempts: 0, heartbeatAt: null, startedAt: null, completedAt: null })
+    .where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), inArray(dataImports.status, ["uploaded", "validated"])))
+    .returning({ id: dataImports.id });
+  if (!taken.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
+  void runAfterResponse(`import.correct:${input.importId}`, () => runImportAnalysis(input));
   return { id: input.importId, status: "analyzing" as const };
 }
 

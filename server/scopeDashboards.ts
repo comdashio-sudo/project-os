@@ -15,7 +15,7 @@ import {
   qualityInspections,
   warehouseInventoryTransactions,
 } from "../drizzle/schema";
-import { getDb, getTenantAccessSnapshot, inventoryMoneyVisible, projectMoneyVisible } from "./db";
+import { getDb, getTenantAccessSnapshot, inventoryMoneyVisible, projectMoneyVisible, projectProfitVisible } from "./db";
 import { logError } from "./_core/logger";
 import { calculateProjectProgress } from "./domain/pmc";
 import { buildProfitabilityReport } from "./domain/profitabilityReport";
@@ -66,8 +66,9 @@ async function countBy(db: Db, ids: string[], run: (ids: string[]) => Promise<Ar
   return out;
 }
 
-/** `seesMoney` decides per project whether its amounts (EVM, expected profit, stock value) are returned (Q-39 review on #385, 205-1). */
-async function kpisFor(db: Db, tenantId: string, projectIds: string[], now: Date, seesMoney: (projectId: string) => boolean): Promise<ProjectKpis[]> {
+/** `seesMoney` decides per project whether its amounts (EVM, stock value) are returned (Q-39 review on #385, 205-1); `seesProfit` whether its expected profit is (Q-53). */
+type Visibility = { seesMoney: (projectId: string) => boolean; seesProfit: (projectId: string) => boolean };
+async function kpisFor(db: Db, tenantId: string, projectIds: string[], now: Date, { seesMoney, seesProfit }: Visibility): Promise<ProjectKpis[]> {
   if (!projectIds.length) return [];
   const rows = await db.select({ id: projects.id, code: projects.code, name: projects.name, currency: projects.currency }).from(projects).where(and(eq(projects.tenantId, tenantId), inArray(projects.id, projectIds)));
 
@@ -114,6 +115,8 @@ async function kpisFor(db: Db, tenantId: string, projectIds: string[], now: Date
     // Q-39 review (#385): the levels opened with pmo.read or project.read carry no amounts for whoever may not see this project's money (205-1)
     const money = seesMoney(project.id);
     if (!money) { expectedProfit = unavailable("MONEY_HIDDEN"); evm = unavailable("MONEY_HIDDEN"); }
+    // Q-53: cash flow and cost without profitability (the operations manager) — the EVM stays, the expected profit does not
+    else if (!seesProfit(project.id)) expectedProfit = unavailable("MONEY_HIDDEN");
     return {
       projectId: project.id, code: project.code, name: project.name, currency: project.currency,
       expectedProfit, evm, progress,
@@ -126,7 +129,7 @@ async function kpisFor(db: Db, tenantId: string, projectIds: string[], now: Date
 }
 
 /** Materials whose on-hand quantity (all the project's warehouses) is under their reorder level. */
-async function materialsBelowReorder(db: Db, tenantId: string, projectIds: string[]) {
+export async function materialsBelowReorder(db: Db, tenantId: string, projectIds: string[]) {
   const out = new Map<string, number>();
   if (!projectIds.length) return out;
   const rows = await db.select({ projectId: projectMaterialOverrides.projectId, n: sql<number>`count(*)::int` }).from(projectMaterialOverrides)
@@ -163,7 +166,7 @@ export async function getCompanyLevel(input: { userId: number; tenantId: string;
   if (!db) throw new Error("Database connection is not available");
   const access = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "EXECUTIVE", permissions: ["executive.read"], requireCompanyScope: true });
   // the board level is executive.read at company scope, which reads the company's money by design (ROLE_MATRIX «الربح»)
-  const items = sortByCode(await kpisFor(db, input.tenantId, Array.from(access.projectIds), input.now ?? new Date(), () => true));
+  const items = sortByCode(await kpisFor(db, input.tenantId, Array.from(access.projectIds), input.now ?? new Date(), { seesMoney: () => true, seesProfit: () => true }));
   return { level: "company" as const, readOnly: true as const, totals: totalsOf(items), projects: items };
 }
 
@@ -173,7 +176,7 @@ export async function getPortfolioLevel(input: { userId: number; tenantId: strin
   if (!db) throw new Error("Database connection is not available");
   const access = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "PMO", permissions: ["pmo.read"] });
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  const items = sortByCode(await kpisFor(db, input.tenantId, Array.from(access.projectIds), input.now ?? new Date(), projectId => Boolean(snapshot && projectMoneyVisible(snapshot, projectId))));
+  const items = sortByCode(await kpisFor(db, input.tenantId, Array.from(access.projectIds), input.now ?? new Date(), { seesMoney: projectId => Boolean(snapshot && projectMoneyVisible(snapshot, projectId)), seesProfit: projectId => Boolean(snapshot && projectProfitVisible(snapshot, projectId)) }));
   return { level: "portfolio" as const, totals: totalsOf(items), projects: items };
 }
 
@@ -184,7 +187,7 @@ export async function getProjectLevel(input: { userId: number; tenantId: string;
   const access = await resolveScopedAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permissions: ["project.read", "project.manage"] });
   assertProjectInScope(access, input.projectId);
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  const [item] = await kpisFor(db, input.tenantId, [input.projectId], input.now ?? new Date(), projectId => Boolean(snapshot && projectMoneyVisible(snapshot, projectId)));
+  const [item] = await kpisFor(db, input.tenantId, [input.projectId], input.now ?? new Date(), { seesMoney: projectId => Boolean(snapshot && projectMoneyVisible(snapshot, projectId)), seesProfit: projectId => Boolean(snapshot && projectProfitVisible(snapshot, projectId)) });
   if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PROJECT_NOT_FOUND" });
   return { level: "project" as const, project: item, totals: totalsOf([item]) };
 }

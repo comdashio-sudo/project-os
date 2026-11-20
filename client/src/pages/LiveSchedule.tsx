@@ -12,6 +12,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { PAGE_NAMES } from "@shared/pageNames";
+import { ScheduleCompare } from "@/components/ScheduleCompare";
 
 type Filter = "all" | "critical" | "late" | "lookAhead" | "open";
 const text = {
@@ -119,6 +120,8 @@ export default function LiveSchedule() {
             )}
           </CardBody>
         </Card>
+        {/* Q-23: two updates compared (schedule.compare) */}
+        <ScheduleCompare key={data.snapshots.map(snapshot => snapshot.id).join(",")} tenantId={tenantId} projectId={projectId} snapshots={data.snapshots} sourceLabel={source => t.source[source as keyof typeof t.source] ?? source} />
       </>}
     </PageMain>
   );

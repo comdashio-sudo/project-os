@@ -37,4 +37,24 @@ describe("ColumnMapping (Q-50 batch 3a)", () => {
     expect((screen.getByRole("button", { name: "ان کالموں کے ساتھ دوبارہ تجزیہ کریں" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getAllByRole("alert").map(node => node.textContent)).toContain("refused in words");
   });
+
+  it("Q-50 3b POSITIVE: the source of each column is said, and a suggestion fills the choice only — nothing is sent until the button", () => {
+    const onApply = vi.fn();
+    const hinted = { headers: ["Plot Block", "Amount"], fields: [{ key: "code", required: true, header: null, source: null, suggestion: { header: "Plot Block", confidence: 0.8 } }, { key: "amount", required: true, header: "Amount", source: "name" as const, suggestion: null }], overridden: false };
+    render(<ColumnMapping columns={hinted} language="en" flow="check" fieldLabel={label} pending={false} testId="t" onApply={onApply} />);
+    expect(screen.getByText("Recognised by its name")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Use «Plot Block» (80% match)" }));
+    expect(onApply).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Code") as HTMLSelectElement).value).toBe("Plot Block");
+    expect(screen.queryByRole("button", { name: /Use «Plot Block»/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Check again with these columns" }));
+    expect(onApply).toHaveBeenCalledWith({ code: "Plot Block", amount: "Amount", __others__: "ignore" });
+  });
+
+  it("Q-50 3b NEGATIVE: no suggestion is offered for a field already read, nor one naming a header the file does not list; a chosen column says so", () => {
+    const odd = { headers: ["Amount"], fields: [{ key: "code", required: true, header: null, source: null, suggestion: { header: "Gone", confidence: 0.9 } }, { key: "amount", required: true, header: "Amount", source: "chosen" as const, suggestion: { header: "Amount", confidence: 1 } }], overridden: true };
+    render(<ColumnMapping columns={odd} language="ar" flow="reanalyze" fieldLabel={label} pending={false} testId="t" onApply={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /استعمل/ })).toBeNull();
+    expect(screen.getByText("اخترته")).toBeTruthy();
+  });
 });

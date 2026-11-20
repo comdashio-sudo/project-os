@@ -2,9 +2,11 @@ import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, sa
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions } from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
+import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
+import { createStrategyAssumption, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
 import { getMonthlyReport } from "./monthlyReport";
@@ -69,7 +71,7 @@ const riskPatchSchema = z.object({
   residualProbability: riskScale.nullable(), residualSeverity: riskScale.nullable(), response: riskText(4000), mitigation: riskText(4000), trigger: riskText(2000),
   ownerMembershipId: z.string().uuid().nullable(), nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), status: z.enum(["open", "mitigating", "accepted"]),
 }).partial().strict();
-import { createImportUpload, deleteImportTemplate, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis, saveImportTemplate } from "./importJobs";
+import { createImportUpload, deleteImportTemplate, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportCorrection, requestImportReanalysis, saveImportTemplate } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
@@ -133,6 +135,18 @@ const smartForcedSchema = z.record(z.string().regex(/^\d{1,3}$/), z.string().max
 const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, context: z.RefinementCtx) => {
   if (value.moduleCode === "schedule" && value.sourceFormat !== "xlsx" && value.sourceFormat !== "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_SCHEDULE_FORMAT_INVALID" });
   if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" });
+};
+
+const strategyValues = z.object({ conservative: z.number().finite(), base: z.number().finite(), optimistic: z.number().finite() });
+const strategyAssumptionFields = {
+  name: z.string().trim().min(2).max(200),
+  unit: z.enum(["percent", "sar", "months", "days", "count"]),
+  sourceType: z.enum(["internal", "external", "management"]),
+  sourceNote: z.string().trim().max(500).nullish(),
+  confidence: z.enum(["high", "medium", "low"]),
+  reviewFrequency: z.enum(["monthly", "quarterly", "annual", "event"]),
+  nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  values: strategyValues,
 };
 
 // Q-31 (P0-02): a person's choice of columns for a baseline file sent inside the request (field key → the header as the file writes it; "" = no column)
@@ -284,6 +298,12 @@ export const appRouter = router({
     saveTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), name: z.string().trim().min(2).max(160) })).mutation(({ ctx, input }) => saveImportTemplate({ userId: ctx.user.id, ...input })),
     deleteTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), templateId: z.string().uuid() })).mutation(({ ctx, input }) => deleteImportTemplate({ userId: ctx.user.id, ...input })),
     reanalyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), mappingOverride: z.record(z.string().min(1).max(64), z.string().max(128)) }).refine(value => Object.keys(value.mappingOverride).length <= 12, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" })).mutation(({ ctx, input }) => requestImportReanalysis({ userId: ctx.user.id, ...input })),
+    // Q-50 batch 4: corrections in the preview of a PMC file (a cell by row and field, or a row left out); the full set each time, analysed again in the background
+    correct: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), edits: z.object({
+      cells: z.array(z.object({ row: z.number().int().min(1).max(1_048_576), field: z.string().min(1).max(64), value: z.string().max(500) })).max(200),
+      ignoreRows: z.array(z.number().int().min(1).max(1_048_576)).max(500),
+      readRows: z.array(z.number().int().min(1).max(1_048_576)).max(500).optional(),
+    }).refine(value => new Set(value.cells.map(cell => `${cell.row}:${cell.field}`)).size === value.cells.length && new Set(value.ignoreRows).size === value.ignoreRows.length && new Set(value.readRows ?? []).size === (value.readRows ?? []).length && !(value.readRows ?? []).some(row => value.ignoreRows.includes(row)), { message: "PROJECT_OS_IMPORT_EDITS_INVALID" }) })).mutation(({ ctx, input }) => requestImportCorrection({ userId: ctx.user.id, ...input })),
     confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), approvedDiffHash: z.string().regex(/^[0-9a-f]{64}$/).optional() })).mutation(({ ctx, input }) => requestImportConfirmation({ userId: ctx.user.id, ...input })),
     // Export → edit → re-import: what the file would change, row by row, before anything is written.
     diff: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), kind: z.enum(["new", "modified", "conflict", "all"]).optional(), offset: z.number().int().min(0).max(10_000_000).optional() })).query(({ ctx, input }) => previewImportDiff({ userId: ctx.user.id, ...input })),
@@ -592,6 +612,10 @@ export const appRouter = router({
     runConnection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), connectionId: z.string().uuid(), direction: z.enum(["in", "out", "both"]) })).mutation(({ ctx, input }) => runConnectionForManager({ userId: ctx.user.id, ...input })),
   }),
   // The four levels a role works at (work order 12, item 2): each answers over exactly the projects the caller's own assignment covers.
+  // Q-53 (adviser 20-11): «التشغيل» — a row per project the caller reads (project.read at its scope), from existing records only (server/operationsOverview.ts)
+  operations: router({
+    overview: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getOperationsOverview({ userId: ctx.user.id, ...input })),
+  }),
   scopes: router({
     company: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getCompanyLevel({ userId: ctx.user.id, ...input })),
     portfolio: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getPortfolioLevel({ userId: ctx.user.id, ...input })),
@@ -895,6 +919,18 @@ export const appRouter = router({
       ])).min(1).max(500),
     })).mutation(({ ctx, input }) => createWorkConfirmation({ userId: ctx.user.id, ...input })),
     transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), confirmationId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "cancelled"]), reason: z.string().trim().max(500).nullish() })).mutation(({ ctx, input }) => transitionWorkConfirmation({ userId: ctx.user.id, ...input })),
+  }),
+  // Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (server/strategyAssumptions.ts).
+  strategy: router({
+    assumptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listStrategyAssumptions({ userId: ctx.user.id, ...input })),
+    assumptionChanges: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid() })).query(({ ctx, input }) => getStrategyAssumptionChanges({ userId: ctx.user.id, ...input })),
+    createAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(2).max(60).regex(/^[A-Za-z0-9_.-]+$/), ...strategyAssumptionFields })).mutation(({ ctx, input }) => createStrategyAssumption({ userId: ctx.user.id, ...input })),
+    updateDraft: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), ...strategyAssumptionFields })).mutation(({ ctx, input }) => updateStrategyAssumptionDraft({ userId: ctx.user.id, ...input })),
+    submitAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid() })).mutation(({ ctx, input }) => submitStrategyAssumption({ userId: ctx.user.id, ...input })),
+    decideAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "return"]), reason: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => decideStrategyAssumption({ userId: ctx.user.id, ...input })),
+    requestChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), values: strategyValues, reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => requestStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
+    decideChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "reject"]) })).mutation(({ ctx, input }) => decideStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
+    retireAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => retireStrategyAssumption({ userId: ctx.user.id, ...input })),
   }),
   // G-104 (D-32 part 2): the stocktake document — open, count, approve (server/stocktakes.ts).
   stocktakes: router({
