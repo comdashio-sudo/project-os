@@ -6,6 +6,7 @@ import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
+import { createStrategyCompetitor, createStrategySwot, listStrategyCompetitors, listStrategySwot, updateStrategyCompetitor, updateStrategySwot } from "./strategyCompetitors";
 import { createStrategyAssumption, getStrategyAssumptionRisks, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
@@ -137,6 +138,24 @@ const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, c
   if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" });
 };
 
+const strategyCompetitorFields = {
+  name: z.string().trim().min(2).max(200),
+  sector: z.string().trim().max(120).nullish(),
+  region: z.string().trim().max(120).nullish(),
+  projectTypes: z.string().trim().max(300).nullish(),
+  sizeValue: z.number().finite().nonnegative().nullish(),
+  sizeEvidence: z.enum(["confirmed", "estimate", "analysis"]).optional(),
+  sourceNote: z.string().trim().max(500).nullish(),
+  sourceUrl: z.string().trim().max(500).nullish(),
+  collectedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+};
+const strategySwotFields = {
+  kind: z.enum(["strength", "weakness", "opportunity", "threat"]),
+  statement: z.string().trim().max(500),
+  evidence: z.string().trim().max(500),
+  competitorId: z.string().uuid().nullish(),
+  assumptionId: z.string().uuid().nullish(),
+};
 const strategyValues = z.object({ conservative: z.number().finite(), base: z.number().finite(), optimistic: z.number().finite() });
 const strategyAssumptionFields = {
   name: z.string().trim().min(2).max(200),
@@ -936,6 +955,13 @@ export const appRouter = router({
     decideAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "return"]), reason: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => decideStrategyAssumption({ userId: ctx.user.id, ...input })),
     requestChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), values: strategyValues, reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => requestStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
     decideChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "reject"]) })).mutation(({ ctx, input }) => decideStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
+    // Q-21 (a), batch 3: competitors and SWOT (server/strategyCompetitors.ts)
+    competitors: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), includeArchived: z.boolean().optional() })).query(({ ctx, input }) => listStrategyCompetitors({ userId: ctx.user.id, ...input })),
+    createCompetitor: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyCompetitorFields })).mutation(({ ctx, input }) => createStrategyCompetitor({ userId: ctx.user.id, ...input })),
+    updateCompetitor: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), competitorId: z.string().uuid(), archived: z.boolean().optional(), ...strategyCompetitorFields })).mutation(({ ctx, input }) => updateStrategyCompetitor({ userId: ctx.user.id, ...input })),
+    swot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), includeArchived: z.boolean().optional(), competitorId: z.string().uuid().optional() })).query(({ ctx, input }) => listStrategySwot({ userId: ctx.user.id, ...input })),
+    createSwot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategySwotFields })).mutation(({ ctx, input }) => createStrategySwot({ userId: ctx.user.id, ...input })),
+    updateSwot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), swotId: z.string().uuid(), archived: z.boolean().optional(), ...strategySwotFields })).mutation(({ ctx, input }) => updateStrategySwot({ userId: ctx.user.id, ...input })),
     retireAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => retireStrategyAssumption({ userId: ctx.user.id, ...input })),
   }),
   // G-104 (D-32 part 2): the stocktake document — open, count, approve (server/stocktakes.ts).
