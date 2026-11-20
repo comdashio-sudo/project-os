@@ -4,6 +4,7 @@
 // (what would be created, updated, left alone) plus every rejected row with its
 // reason. The service executes a plan only when it has no errors.
 import { columnHints, type ColumnSuggestion, type FieldSource } from "./importEngine/hints";
+import { applyOutline } from "./importEngine/outline";
 import type ExcelJS from "exceljs";
 import { cellText, emptyVerticalMergeCover, readSpreadsheetSafely, worksheetToRows } from "./excelWorkbook";
 import { chooseSheet, type HeaderEvaluation, type TableRows } from "./importEngine/read";
@@ -103,6 +104,9 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
     { key: "modelCode", required: false, aliases: ["model", "model code", "النموذج", "رمز النموذج"] },
     // Q-49: the owner's «Activity Title» is the activity's English name
     { key: "activityNameEn", required: false, aliases: ENGLISH_NAME_ALIASES },
+    // Q-50 batch 5b: the row's place in a numbered hierarchy («1 / 1.2 / 1.2.3», «WIR.2.1.1»). Read only when the file has no section column: the
+    // headings then give each activity its group and stage (importEngine/outline.ts)
+    { key: "outline", required: false, aliases: ["no", "item no", "item number", "ref", "ref no", "wbs", "wbs code", "outline", "الترقيم", "رقم البند", "التسلسل الهرمي"] },
   ],
   baselineDates: [
     { key: "modelCode", required: true, aliases: ["model", "model code", "النموذج", "رمز النموذج", "الطراز"] },
@@ -173,7 +177,7 @@ export type PmcIgnoredColumn = { header: string; samples: string[] };
 export type PmcImportEdits = { cells: Array<{ row: number; field: string; value: string }>; ignoreRows: number[] };
 /** An applied cell correction, with the value the file holds, for the report and the audit trail. */
 export type PmcAppliedEdit = { row: number; field: string; header: string; from: string; to: string };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[] } };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; outlineHeadings?: number } };
 
 /**
  * Q-31 (P0-01): how a header is compared with a field's spellings. Arabic letter variants, diacritics and tatweel, Eastern digits, punctuation and
@@ -213,6 +217,8 @@ function fieldsForFile(kind: PmcImportKind, headerKeys: Set<string>, distinctVal
     move("النشاط", "activityName", "sub");
   }
   if (has("بند csi") && has("القسم")) drop("csi", "القسم");
+  // Q-50 batch 5b: no section column but a numbering column — the section is read from the numbered headings, so it is not a column the file must have
+  if (!field("csi").aliases.some(has) && field("outline").aliases.some(has)) field("csi").required = false;
   return out;
 }
 
@@ -404,6 +410,11 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
     }
     out.push({ rowNumber: rowNumbers[index], cells });
   });
+  // Q-50 batch 5b: the group and the stage from the numbered headings, when the file has no section column
+  if (input.kind === "weights" && !mapping.has("csi") && mapping.has("outline")) {
+    const outline = applyOutline(out, cells => cells.outline);
+    if (outline.headings) notes.outlineHeadings = outline.headings;
+  }
   return { headers, errors, rows: out, columns, notes };
 }
 
