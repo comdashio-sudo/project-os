@@ -1,0 +1,37 @@
+import { describe, expect, it } from "vitest";
+import { closeness, columnHints, SUGGEST_AT } from "./hints";
+
+// Q-50 batch 3b: where each column came from, and a suggestion for a field not found — never applied. Synthetic headers only.
+const fields = [
+  { key: "unitNumber", aliases: ["unit number", "unit no", "رقم الوحدة"] },
+  { key: "blockCode", aliases: ["block code", "block"] },
+  { key: "modelCode", aliases: ["model", "model code"] },
+];
+
+describe("closeness", () => {
+  it("the same words are 1, one inside the other 0.8, otherwise the share of words in common", () => {
+    expect(closeness(" Unit_No ", "unit no")).toBe(1);
+    expect(closeness("Unit No.", "unit no")).toBe(1);
+    expect(closeness("Villa unit number", "unit number")).toBe(0.8);
+    expect(closeness("block ref", "block code")).toBe(0.5);
+    expect(closeness("Notes", "model")).toBe(0);
+  });
+});
+
+describe("columnHints (Q-50 batch 3b)", () => {
+  it("POSITIVE: a field found by its name is sure, one the person picked says so, and a missing one gets the closest free header", () => {
+    const hints = columnHints(fields, ["Unit Number", "Block ref", "Kind"], { unitNumber: "Unit Number", blockCode: null, modelCode: "Kind" }, new Set(["modelCode"]));
+    expect(hints.unitNumber).toEqual({ source: "name", suggestion: null });
+    expect(hints.modelCode).toEqual({ source: "chosen", suggestion: null });
+    expect(hints.blockCode).toEqual({ source: null, suggestion: { header: "Block ref", confidence: 0.8 } }); // "block" is inside it
+  });
+
+  it("NEGATIVE: nothing close enough is not suggested; a header another field already reads is never suggested again", () => {
+    const far = columnHints(fields, ["Notes", "Colour"], { unitNumber: null, blockCode: null, modelCode: null }, new Set());
+    expect(far.unitNumber.suggestion).toBeNull();
+    expect(far.blockCode.suggestion).toBeNull();
+    const taken = columnHints(fields, ["Block code"], { unitNumber: null, blockCode: null, modelCode: "Block code" }, new Set(["modelCode"]));
+    expect(taken.blockCode.suggestion).toBeNull();
+    expect(SUGGEST_AT).toBe(0.5);
+  });
+});
