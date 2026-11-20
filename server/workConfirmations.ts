@@ -11,7 +11,7 @@
 // never pulled into a certificate: the pulling batch reads the flag). A negative figure without corrects_line_id is still refused. Pulling comes later.
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
-import { auditLogs, boqItems, pmcActivityDefinitions, pmcUnits, subcontractContracts, subcontractWorkConfirmationLines, subcontractWorkConfirmations } from "../drizzle/schema";
+import { auditLogs, boqItems, pmcActivityDefinitions, pmcBlocks, pmcUnits, subcontractContracts, subcontractWorkConfirmationLines, subcontractWorkConfirmations } from "../drizzle/schema";
 import { assertTenantAccess } from "./domain/authorization";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 
@@ -201,4 +201,24 @@ export async function listWorkConfirmations(input: Scope & { subcontractId?: str
     ...header,
     lines: lines.filter(line => line.confirmationId === header.id).map(({ confirmationId: _confirmation, percent, quantity, ...line }) => ({ ...line, percent: percent === null ? null : Number(percent), quantity: quantity === null ? null : Number(quantity) })),
   }));
+}
+
+/**
+ * Batch 4 (the preparation screen): what a person who prepares or approves a confirmation picks from — the project's subcontracts (code, subcontractor, title,
+ * status), its PMC activities and units, and its BOQ items (code, description, unit of measure, quantity). NO rate, amount or contract value: the screen is
+ * for the site engineer, who holds no money permission, and the subcontract list the commercial screens use carries the contract value.
+ */
+export async function workConfirmationOptions(input: Scope) {
+  const db = await authorized(input, [RECORD, APPROVE]);
+  const [subcontracts, activities, units, items] = await Promise.all([
+    db.select({ id: subcontractContracts.id, code: subcontractContracts.code, title: subcontractContracts.title, subcontractorName: subcontractContracts.subcontractorName, status: subcontractContracts.status })
+      .from(subcontractContracts).where(own(subcontractContracts, input)).orderBy(asc(subcontractContracts.code)),
+    db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn })
+      .from(pmcActivityDefinitions).where(own(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.modelCode), asc(pmcActivityDefinitions.code)),
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, blockCode: pmcBlocks.code })
+      .from(pmcUnits).leftJoin(pmcBlocks, and(eq(pmcBlocks.id, pmcUnits.blockId), eq(pmcBlocks.tenantId, pmcUnits.tenantId))).where(own(pmcUnits, input)).orderBy(asc(pmcBlocks.code), asc(pmcUnits.unitNumber)),
+    db.select({ id: boqItems.id, code: boqItems.code, description: boqItems.description, unitOfMeasure: boqItems.unitOfMeasure, quantity: boqItems.quantity })
+      .from(boqItems).where(own(boqItems, input)).orderBy(asc(boqItems.code)),
+  ]);
+  return { subcontracts, activities, units, boqItems: items.map(item => ({ ...item, quantity: Number(item.quantity) })) };
 }
