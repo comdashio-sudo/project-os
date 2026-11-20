@@ -83,6 +83,20 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-21 (a): the register o
     expect((await byCode("collectionDays")).status).toBe("pending");
   });
 
+  it("SEPARATION (review of #397): whoever corrected a draft's values does not approve it — the entrant sends it, the editor is refused, someone else approves", async () => {
+    const { id } = await callerFor("entrant").strategy.createAssumption({ tenantId, code: "probeEdit", ...fields(20, { name: "Synthetic probe" }) });
+    await callerFor("owner").strategy.updateDraft({ tenantId, assumptionId: id, ...fields(99, { name: "Synthetic probe" }) });
+    await callerFor("entrant").strategy.submitAssumption({ tenantId, assumptionId: id });
+    expect(await code(callerFor("owner").strategy.decideAssumption({ tenantId, assumptionId: id, decision: "approve" }))).toBe("PROJECT_OS_STRATEGY_SELF_APPROVAL");
+    expect((await byCode("probeEdit")).status).toBe("pending");
+    // returning it stays open to the editor; once sent again, the editor still may not approve the values they wrote
+    expect((await callerFor("owner").strategy.decideAssumption({ tenantId, assumptionId: id, decision: "return" })).status).toBe("draft");
+    await callerFor("entrant").strategy.submitAssumption({ tenantId, assumptionId: id });
+    expect(await code(callerFor("owner").strategy.decideAssumption({ tenantId, assumptionId: id, decision: "approve" }))).toBe("PROJECT_OS_STRATEGY_SELF_APPROVAL");
+    // POSITIVE: an approver who neither entered, corrected nor sent it approves it
+    expect((await callerFor("approver").strategy.decideAssumption({ tenantId, assumptionId: id, decision: "approve" })).status).toBe("approved");
+  });
+
   it("NEGATIVE (a): an approved assumption is not edited directly — refused, nothing written; a read-only executive writes nothing", async () => {
     expect(await code(callerFor("entrant").strategy.updateDraft({ tenantId, assumptionId: winId, ...fields(40) }))).toBe("PROJECT_OS_STRATEGY_ASSUMPTION_APPROVED_LOCKED");
     expect(await code(callerFor("exec").strategy.createAssumption({ tenantId, code: "execTry", ...fields(1) }))).toBe("PROJECT_OS_PERMISSION_DENIED");

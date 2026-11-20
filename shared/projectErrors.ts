@@ -2146,6 +2146,16 @@ export const projectErrorMessages = {
     en: "More than one sheet in the file holds this file's columns: remove the extra sheet or keep the table on one sheet.",
     ur: "فائل کی ایک سے زیادہ شیٹس میں اس فائل کے کالم ہیں: زائد شیٹ حذف کریں یا جدول ایک ہی شیٹ پر رکھیں۔",
   },
+  PROJECT_OS_IMPORT_EDITS_INVALID: {
+    ar: "التصحيحات غير صالحة: الخلية نفسها أو الصف نفسه مكرر.",
+    en: "The corrections are not valid: the same cell or the same row appears twice.",
+    ur: "درستیاں درست نہیں: ایک ہی خانہ یا ایک ہی قطار دو بار ہے۔",
+  },
+  PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED: {
+    ar: "تصحيح الخلايا في المعاينة متاح لملفات PMC (الفلل والأنشطة والأوزان والحالات والطلبات وخط الأساس) فقط؛ صحّح هذا الملف في Excel ثم ارفعه.",
+    en: "Correcting cells in the preview is available for PMC files only (villas, activities, weights, statuses, requests, baseline); correct this file in Excel and upload it again.",
+    ur: "پیش نظارہ میں خانوں کی درستی صرف PMC فائلوں (ولاز، سرگرمیاں، اوزان، حالتیں، درخواستیں، بیس لائن) کے لیے ہے؛ اس فائل کو Excel میں درست کر کے دوبارہ اپ لوڈ کریں۔",
+  },
   PROJECT_OS_IMPORT_MAPPING_INVALID: {
     ar: "ربط الأعمدة غير صالح.",
     en: "The column mapping is invalid.",

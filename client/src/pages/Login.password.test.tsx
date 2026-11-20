@@ -62,7 +62,7 @@ describe("sign-in with a password (D-83)", () => {
     type(/^E-mail address/, "engineer@example.test"); type(/^Password/, "wrong-one");
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(describedError(/^Password/)).toBe("The e-mail address or the password is wrong."));
-    expect(document.activeElement).toBe(screen.getByLabelText(/^Password/));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(/^Password/))); // the focus follows the error's render; under a loaded runner it lands a tick later (main CI, cc4154a)
     expect(state.assign).not.toHaveBeenCalled();
   });
 

@@ -29,7 +29,7 @@ export type AuthRoutesDependencies = {
   google: { config: GoogleConfig; keys: JWTVerifyGetKey; fetchImpl?: typeof fetch } | null;
   secret: string;
   /** Sign-in is by invitation only: an address that is not the owner's, has no account and no pending invitation gets no code and no session (db.ts isEligibleToSignIn). */
-  isEligible: (email: string) => Promise<boolean>;
+  isEligible: (email: string, options?: { sendsMail?: boolean }) => Promise<boolean>;
   upsertUser: (user: { openId: string; email: string; name?: string | null; loginMethod: string; lastSignedIn: Date }) => Promise<void>;
   createSessionToken: (openId: string, options: { name: string; expiresInMs: number }) => Promise<string>;
   now?: () => number;
@@ -100,7 +100,7 @@ export function registerAuthRoutes(app: Express, dependencies: AuthRoutesDepende
     try {
       const { email } = await dependencies.emailCodes.signInWithPassword(req.body?.email, req.body?.password);
       // a password set straight at the identity provider for an address nobody invited opens nothing here: the same answer as a wrong password
-      if (!(await dependencies.isEligible(email))) throw new EmailCodeError("CREDENTIALS_INVALID");
+      if (!(await dependencies.isEligible(email, { sendsMail: false }))) throw new EmailCodeError("CREDENTIALS_INVALID");
       await startSession(req, res, email, "password");
       return res.status(200).json({ ok: true });
     } catch (error) { return refuse(res, error, "PROJECT_OS_AUTH_FAILED", "auth.password_sign_in_failed"); }
