@@ -14,6 +14,7 @@ const operationalRoleNames = {
   EXECUTIVE: { ar: "المستوى التنفيذي", en: "Executive", ur: "ایگزیکٹو" },
   PMO_LEAD: { ar: "مسؤول مكتب إدارة المشاريع (PMO)", en: "PMO Lead", ur: "PMO لیڈ" },
   MANAGEMENT_VIEWER: { ar: "مشاهد الإدارة", en: "Management Viewer", ur: "انتظامیہ ناظر" },
+  OPERATIONS_MANAGER: { ar: "مدير العمليات", en: "Operations Manager", ur: "آپریشنز مینیجر" },
   COST_CONTROLLER: { ar: "مراقب التكلفة (كوست كنترول)", en: "Cost Controller", ur: "لاگت کنٹرولر" },
   PROJECT_COORDINATOR: { ar: "منسق المشروع", en: "Project Coordinator", ur: "پروجیکٹ کوآرڈینیٹر" },
   DESIGN_COORDINATOR_ARCHITECTURAL: { ar: "منسق التصميم المعماري", en: "Design Coordinator (Architectural)", ur: "ڈیزائن کوآرڈینیٹر (تعمیراتی)" },
@@ -73,6 +74,10 @@ export const operationalRoleProfiles = {
   MANAGEMENT_VIEWER: {
     ar: { purpose: "متابعة سير المشاريع دون تدخل", focus: "سجل المشاريع وصفحاتها ولوحة مكتب إدارة المشاريع", boundary: "للاطلاع فقط؛ لا يرى المال ولا الرواتب، ولا يكتب ولا يعتمد" },
     en: { purpose: "Follow the projects without acting on them", focus: "The project register and pages, and the PMO dashboard", boundary: "Read-only; sees no money or pay, writes and approves nothing" }, ur: { purpose: "مداخلت کے بغیر منصوبوں کی پیش رفت دیکھیں", focus: "منصوبوں کا رجسٹر اور صفحات، اور PMO ڈیش بورڈ", boundary: "صرف پڑھنے کے لیے؛ رقم یا تنخواہ نہیں دیکھتا، نہ لکھتا ہے نہ منظوری دیتا ہے" },
+  },
+  OPERATIONS_MANAGER: {
+    ar: { purpose: "متابعة تشغيل كل المشاريع واتخاذ ما يُحال إليه", focus: "تقدم المشاريع والمتأخر والجودة والسلامة والمواد والتكلفة والميزانية والتدفق النقدي، والقرارات والتصعيدات الموجّهة إليه", boundary: "لا يرى ربحية المشروع ولا هوامش الشركة ولا الرواتب، ولا يُدخل بيانات ميدانية" },
+    en: { purpose: "Follow the operation of every project and decide what is referred to them", focus: "Project progress, delays, quality, safety, materials, cost, budget and cash flow, and the decisions and escalations addressed to them", boundary: "Sees no project profitability, company margins or pay, and enters no field data" }, ur: { purpose: "تمام منصوبوں کے عمل کی نگرانی اور ان کے حوالے کیے گئے امور کا فیصلہ", focus: "منصوبوں کی پیش رفت، تاخیر، معیار، حفاظت، مواد، لاگت، بجٹ اور نقد بہاؤ، اور ان کے نام فیصلے اور اضافے", boundary: "منصوبے کا منافع، کمپنی کے مارجن یا تنخواہیں نہیں دیکھتا، اور فیلڈ ڈیٹا درج نہیں کرتا" },
   },
   COST_CONTROLLER: {
     ar: { purpose: "ضبط التكلفة دون تحريك المال", focus: "الميزانية والتكلفة الفعلية والتدفق النقدي وEVM وتسوية عروض المناقصات", boundary: "لا يحمل الالتزامات ولا مطابقة الفواتير ولا إدخال العروض" },

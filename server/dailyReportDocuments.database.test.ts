@@ -25,7 +25,7 @@ const at = () => ({ tenantId, projectId: A }), fetchBytes = async (url: string) 
 async function clear() {
   const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug IN (?, ?)", [SLUG, `${SLUG}-other`]);
   for (const { id } of companies) {
-    for (const table of ["site_daily_report_materials", "site_daily_report_hse", "site_daily_report_obstacles", "site_daily_report_tomorrow", "site_daily_report_labour", "site_daily_report_equipment", "site_daily_report_lines", "site_daily_reports",
+    for (const table of ["site_daily_report_materials", "site_daily_report_hse", "site_daily_report_obstacles", "site_daily_report_tomorrow", "site_daily_report_labour", "site_daily_report_equipment", "site_daily_report_lines", "site_daily_reports", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups",
       "project_report_counters", "project_equipment", "project_labour_roles", "project_companies", "project_profiles", "audit_logs", "membership_invitations"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]);
     await connection.query("DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", [id]); await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [id]);
     for (const table of ["roles", "memberships", "tenant_entitlements", "subscriptions", "projects"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]);
@@ -115,5 +115,26 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report as PDF 
     expect(await code(callers.otherOwner.siteReports.export({ ...at(), reportId, format: "pdf", locale: "ar" }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
     expect(await code(callers.engineer.siteReports.export({ ...at(), reportId: "ab000000-0000-4000-8000-0000000000ff", format: "docx", locale: "ar" }))).toBe("PROJECT_OS_SITE_REPORT_NOT_FOUND");
     expect(Number((await connection.query<{ n: number }[]>("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'site_report.exported'", [tenantId]))[0][0].n)).toBe(2);
+  });
+  it("Q-49 (5): a work line tied to a PMC activity names it in the report's language — English in an English report, Arabic in an Arabic one; a missing name shows the other, marked", async () => {
+    await connection.query("INSERT INTO pmc_activity_groups (id, tenantId, projectId, code, name) VALUES ('dd-g', ?, ?, 'G1', 'تشطيبات')", [tenantId, A]);
+    await connection.query("INSERT INTO pmc_activity_stages (id, tenantId, projectId, groupId, code, name) VALUES ('dd-s', ?, ?, 'dd-g', 'S1', 'لياسة')", [tenantId, A]);
+    await connection.query("INSERT INTO pmc_activity_definitions (id, tenantId, projectId, groupId, stageId, modelCode, code, name, nameEn, weightPercent) VALUES ('ab000000-0000-4000-8000-0000000000a1', ?, ?, 'dd-g', 'dd-s', 'M1', 'PLS', 'لياسة داخلية', 'Internal plaster', 50), ('ab000000-0000-4000-8000-0000000000a2', ?, ?, 'dd-g', 'dd-s', 'M1', 'PNT', 'دهان داخلي', NULL, 50)", [tenantId, A, tenantId, A]);
+    const named = (await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-06", workHours: 8,
+      lines: [{ lineType: "work", pmcActivityDefinitionId: "ab000000-0000-4000-8000-0000000000a1", description: "الدور الأرضي", plannedQuantity: 10, actualQuantity: 8 }, { lineType: "work", pmcActivityDefinitionId: "ab000000-0000-4000-8000-0000000000a2", description: "دهان داخلي", plannedQuantity: 5, actualQuantity: 5 }] })).id;
+    const word = async (locale: "ar" | "en") => {
+      const exported = await callers.engineer.siteReports.export({ ...at(), reportId: named, format: "docx", locale });
+      const zip = await JSZip.loadAsync(await fetchBytes(exported.url));
+      return (await zip.file("word/document.xml")!.async("string")).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    };
+    const english = await word("en");
+    expect(english).toContain("Internal plaster — الدور الأرضي");
+    expect(english).toContain("دهان داخلي (in Arabic)");
+    expect(english).not.toContain("دهان داخلي (in Arabic) —"); // a description equal to the name is not repeated
+    expect(english).not.toContain("لياسة داخلية");
+    const arabic = await word("ar");
+    expect(arabic).toContain("لياسة داخلية — الدور الأرضي");
+    expect(arabic).toContain("دهان داخلي");
+    expect(arabic).not.toContain("Internal plaster");
   });
 });

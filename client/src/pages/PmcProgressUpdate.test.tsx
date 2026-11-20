@@ -41,6 +41,19 @@ describe("PmcProgressUpdate (Q-4)", () => {
     expect(h.mutate).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "t", projectId: "p", activityCode: "FOOT", villas: ["1", "3"], status: "COMPLETE" }));
   });
 
+  it("Q-54: the three steps of the reference follow the form (item, then villas, then status) without hiding any field", () => {
+    render(<PmcProgressUpdate />);
+    const current = () => screen.getByRole("list", { name: "Update steps" }).querySelector('[aria-current="step"]')?.textContent;
+    expect(current()).toBe("Item");
+    expect(screen.getByLabelText(/^Villa numbers/)).toBeTruthy();
+    fireEvent.change(screen.getByRole("combobox", { name: "Activity" }), { target: { value: "FOOT" } });
+    expect(current()).toBe("Villas");
+    fireEvent.change(screen.getByLabelText(/^Villa numbers/), { target: { value: "4" } });
+    expect(current()).toBe("Status");
+    fireEvent.change(screen.getByLabelText(/^Villa numbers/), { target: { value: " " } });
+    expect(current()).toBe("Villas");
+  });
+
   it("a refusal lists each wrong villa in the page's language", () => {
     render(<PmcProgressUpdate />);
     act(() => { h.options.onError?.({ data: { issues: [{ code: "SITE_VILLA_UNKNOWN", villa: "999" }, { code: "SITE_DATE_IN_FUTURE", detail: "2099-01-01" }] } }); });

@@ -21,6 +21,7 @@ import { isTestDatabaseUrl } from "./testing/testDatabase";
 
 // D-82 (a) on the test database: the real routes, the real guess-limit table (auth_code_attempts), the real session table and the real tRPC gate over HTTP, with
 // GoTrue's password check played by the in-memory stand-in (no Docker here; server/auth.gotrue.live.test.ts is the real one). Synthetic addresses only.
+const eligibilityAsked: boolean[] = [];
 describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("password sign-in on a real database (D-82)", () => {
   const stamp = randomUUID().slice(0, 8);
   const address = (name: string) => `${name}-${stamp}@pw.example.test`;
@@ -36,7 +37,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("password sig
     registerAuthRoutes(app, {
       emailCodes: createEmailCodeService({ provider: fake.provider, attempts: createDbAttemptLimiter() }),
       google: null, secret: ENV.cookieSecret,
-      isEligible: async email => !email.startsWith("stranger-"),
+      isEligible: async (email, options) => { eligibilityAsked.push(options?.sendsMail ?? true); return !email.startsWith("stranger-"); },
       upsertUser: user => upsertUser(user),
       createSessionToken: (openId, options) => sdk.issueSession(openId, options),
     });
@@ -63,6 +64,8 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("password sig
     expect((await tenantsWith(cookieOf(response))).status).toBe(200);
     const [row] = await (await getDb())!.select({ loginMethod: users.loginMethod }).from(users).where(eq(users.openId, openIdForEmail(email)));
     expect(row.loginMethod).toBe("password");
+    // Q-22: the password route asks the eligibility check without the mail gate (no mail is sent on this path)
+    expect(eligibilityAsked.at(-1)).toBe(false);
   });
 
   it("NEGATIVE: five wrong passwords lock the address in the shared table; the sixth, correct, is refused with no cookie", async () => {

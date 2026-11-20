@@ -190,11 +190,12 @@ export async function upsertUser(user: InsertUser): Promise<void> {
  * Sign-in is by invitation only (owner's decision 2026-10-25, docs/TASLEEM_AUDIT.md 1.11). An address may sign in when it is the platform owner's (OWNER_EMAIL), already has an account, or
  * has a pending, unexpired invitation from a company. Everyone else gets no code and no session. The check spans companies (an invitation belongs to one), so it reads in the system view.
  */
-export async function isEligibleToSignIn(rawEmail: string): Promise<boolean> {
+export async function isEligibleToSignIn(rawEmail: string, options: { sendsMail?: boolean } = {}): Promise<boolean> {
   const email = rawEmail.trim().toLowerCase();
   if (ENV.ownerEmail && email === ENV.ownerEmail) return true;
-  // A code to a reserved domain (.test, example.com…) is never delivered and bounces, so in production it is not sent at all.
-  if (mailGateConfigFromEnv().blockReservedDomains && isReservedMailDomain(email)) return false;
+  // A code to a reserved domain (.test, example.com…) is never delivered and bounces, so in production it is not sent at all. A password sign-in sends no
+  // mail (Q-22: the synthetic readiness account on production is *.example.test), so it skips only this gate — the account or invitation is still required.
+  if ((options.sendsMail ?? true) && mailGateConfigFromEnv().blockReservedDomains && isReservedMailDomain(email)) return false;
   if (ENV.registrationOpen) return true;
   return withSystemContext("invite-only sign-in: does this address have an account or a pending invitation", async () => {
     const db = await getDb(); if (!db) return false;
@@ -1387,6 +1388,12 @@ export const BOQ_MONEY_READERS = ["project.cashflow.read", "project.wbs.manage"]
 /** Q-17 (205-1): the three questions «may this person see this project's money» (the role matrix reads each one as the «see» of its column). */
 export function projectMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
   return holdsPermission(snapshot, PROJECT_MONEY_READERS, { type: "project", id: projectId });
+}
+/** Q-53: who sees a project's expected profit where it rides along a wider read (the levels dashboards): the holders of project.profit.read, the same people as
+ *  the profitability report. A reader of cash flow and cost (the operations manager) does not, nor a holder of a money-writing power alone (the accountant's
+ *  cost entry, the planner's earned value), who before Q-53 saw the expected profit there but never the report. */
+export function projectProfitVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
+  return holdsPermission(snapshot, "project.profit.read", { type: "project", id: projectId });
 }
 /** Q-45 (b): who sees the value of a project's purchase orders — whoever sees its money (205-1), and whoever manages its procurement. */
 export function purchaseOrderMoneyVisible(snapshot: Pick<TenantAccessSnapshot, "grants">, projectId: string) {
@@ -3730,7 +3737,8 @@ export async function getProjectProfitabilityForTenant(input: { userId: number; 
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.cashflow.read", scope: { type: "project", id: input.projectId } });
+  // Q-53: profitability is its own power (project.profit.read), so a reader of cash flow and cost (the operations manager) does not see it
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.profit.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const rows = await loadProfitabilityRows(db, { tenantId: input.tenantId, projectId: input.projectId });
   return buildProfitabilityReport(reportInputFor(rows, input.now ?? new Date(), input.eacMethod ?? DEFAULT_EAC_METHOD));
@@ -3797,7 +3805,7 @@ export async function getProfitabilityHistoryForTenant(input: { userId: number; 
   if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.cashflow.read", scope: { type: "project", id: input.projectId } });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.profit.read", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const rows = await db.select({ periodAt: evmSnapshots.periodAt, fpac: evmSnapshots.fpac, adjustedContractValue: evmSnapshots.adjustedContractValue }).from(evmSnapshots).where(and(eq(evmSnapshots.tenantId, input.tenantId), eq(evmSnapshots.projectId, input.projectId), sql`${evmSnapshots.fpac} IS NOT NULL`)).orderBy(desc(evmSnapshots.periodAt)).limit(24);
   return rows.reverse().map(row => ({ periodAt: row.periodAt, fpac: Number(row.fpac), adjustedContractValue: Number(row.adjustedContractValue) }));

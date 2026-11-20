@@ -6,6 +6,7 @@ import type { Language } from "./language";
 
 const STATUS_AR: Record<string, string> = {
   counting: "قيد العدّ", // D-32: a stocktake being counted
+  retired: "متوقف", // Q-21: a strategy assumption no longer used
   // generic states
   active: "نشط", inactive: "غير نشط", suspended: "موقوف", archived: "مؤرشف", invited: "مدعو", revoked: "مسحوب", ended: "منتهٍ", terminated: "مُنهى",
   draft: "مسودة", submitted: "مُرسل", under_review: "قيد المراجعة", for_review: "للمراجعة", reviewed: "تمت مراجعته", review: "مراجعة", approved: "معتمد", rejected: "مرفوض",
@@ -40,6 +41,7 @@ const STATUS_AR: Record<string, string> = {
 // Urdu labels. Every key of the Arabic map has an Urdu label too (labels.test.tsx checks it), so Urdu never falls back to an English code.
 const STATUS_UR: Record<string, string> = {
   counting: "گنتی جاری ہے", // D-32: a stocktake being counted
+  retired: "موقوف", // Q-21: a strategy assumption no longer used
   "delivered": "فراہم کیا گیا", "running": "جاری", "ok": "ٹھیک", "partial": "جزوی",
   "active": "فعال", "inactive": "غیر فعال", "suspended": "معطل", "archived": "محفوظ شدہ",
   "invited": "مدعو", "revoked": "منسوخ", "ended": "ختم شدہ", "terminated": "ختم کیا گیا",
@@ -82,11 +84,11 @@ const STATUS_UR: Record<string, string> = {
 };
 const PERMISSION_UR: Record<string, string> = {
   "executive.read": "سینئر انتظامیہ کا ڈیش بورڈ", "pmo.read": "پی ایم او ڈیش بورڈ دیکھیں (2)", "pmo.write": "پی ایم او ڈیش بورڈ میں ترمیم", "project.read": "پروجیکٹ دیکھیں (3)",
-  "project.design.manage": "ڈیزائن رجسٹر، حوالہ جات، ڈیزائن نوٹس اور جمع کرائی گئی دستاویزات کا انتظام", "project.design.architectural": "تعمیراتی شعبوں کا اختیار (فن تعمیر، اندرونی ڈیزائن، لینڈ سکیپ)", "project.design.technical": "تکنیکی شعبوں کا اختیار (ساختی، سول، میکانیکل، برقی، پلمبنگ، فائر فائٹنگ)", "project.design.approve": "عمل درآمد کے لیے ڈیزائن کی منظوری اور مشیر کے جوابات درج کرنا", "project.consultant.respond": "جمع کرائی گئی دستاویز پر مشیر کا جواب درج کرنا", "project.subcontract.progress.record": "ذیلی ٹھیکیدار کے کام کی تصدیق درج کرنا (قیمتوں کے بغیر)",
+  "project.design.manage": "ڈیزائن رجسٹر، حوالہ جات، ڈیزائن نوٹس اور جمع کرائی گئی دستاویزات کا انتظام", "project.design.architectural": "تعمیراتی شعبوں کا اختیار (فن تعمیر، اندرونی ڈیزائن، لینڈ سکیپ)", "project.design.technical": "تکنیکی شعبوں کا اختیار (ساختی، سول، میکانیکل، برقی، پلمبنگ، فائر فائٹنگ)", "project.design.approve": "عمل درآمد کے لیے ڈیزائن کی منظوری اور مشیر کے جوابات درج کرنا", "project.consultant.respond": "جمع کرائی گئی دستاویز پر مشیر کا جواب درج کرنا", "project.subcontract.progress.record": "ذیلی ٹھیکیدار کے کام کی تصدیق درج کرنا (قیمتوں کے بغیر)", "strategy.read": "حکمت عملی مرکز دیکھنا", "strategy.manage": "حکمت عملی کے مفروضے اور تبدیلی کی درخواستیں درج کرنا", "strategy.approve": "حکمت عملی کے مفروضوں اور ان کی تبدیلیوں کی منظوری",
   "project.tender.manage": "ٹینڈر پیکیج اور دعوت نامے منظم کریں", "project.tender.bids": "بولیاں درج کرنا اور ان میں ترمیم", "project.tender.level": "بولیوں کا موازنہ اور ہم وار کرنا", "project.tender.award": "ٹینڈر کا ٹھیکہ دینا",
   "project.create": "پروجیکٹ بنانا", "payment.prepare": "ادائیگیاں تیار کرنا", "payment.approve": "ادائیگیوں کی منظوری", "schedule.write": "شیڈول اور ماسٹر پلان لکھنا",
   "project.write": "پروجیکٹ کا ڈیٹا تبدیل کرنا", "project.manage": "پروجیکٹ کا انتظام", "tenant.manage": "کمپنی کا انتظام", "project.attendance.manage": "حاضری کا انتظام",
-  "project.budget.manage": "بجٹ کا انتظام", "project.cashflow.read": "کیش فلو دیکھنا", "project.commitment.manage": "وعدوں کا انتظام", "project.cost.enter": "اصل لاگت درج کرنا",
+  "project.budget.manage": "بجٹ کا انتظام", "project.cashflow.read": "کیش فلو دیکھنا", "project.profit.read": "منصوبے کا منافع دیکھنا", "project.commitment.manage": "وعدوں کا انتظام", "project.cost.enter": "اصل لاگت درج کرنا",
   "project.evm.manage": "اکتسابی قدر (EVM) کا انتظام", "project.field.manage": "فیلڈ ڈیٹا انٹری کا انتظام", "project.hr.manage": "ملازمین کا انتظام", "project.hr.sensitive.read": "ملازمین کا حساس ڈیٹا پڑھنا",
   "project.hse.manage": "صحت، حفاظت اور ماحول کا انتظام", "project.inventory.manage": "اسٹاک کا انتظام", "project.invoice.match": "انوائسز کا ملان", "project.material.request": "مواد کی درخواست",
   "project.ncr.manage": "عدم مطابقت کے معاملات کا انتظام", "project.payroll.approve": "تنخواہوں کی منظوری", "project.payroll.run": "تنخواہوں کا عمل چلانا", "project.payroll.sensitive.read": "حساس تنخواہیں پڑھنا",
@@ -116,10 +118,10 @@ export const hasUrduLabel = (code: string) => code.trim().toLowerCase().replace(
 
 const PERMISSION_AR: Record<string, string> = {
   "executive.read": "لوحة الإدارة العليا", "pmo.read": "عرض مكتب إدارة المشاريع (2)", "pmo.write": "تحرير مكتب إدارة المشاريع", "project.read": "عرض المشروع (3)",
-  "project.design.manage": "إدارة سجل المخططات والإحالات وملاحظات التصميم والتقديمات", "project.design.architectural": "سلطة التخصصات المعمارية (عمارة وتصميم داخلي وتنسيق مواقع)", "project.design.technical": "سلطة التخصصات الفنية (إنشائي ومدني وميكانيكا وكهرباء وسباكة وإطفاء)", "project.design.approve": "اعتماد المخططات للتنفيذ وتسجيل ردود الاستشاري", "project.consultant.respond": "تسجيل رد الاستشاري على التقديم", "project.subcontract.progress.record": "تسجيل إثبات أعمال المقاول (بلا أسعار)", 
+  "project.design.manage": "إدارة سجل المخططات والإحالات وملاحظات التصميم والتقديمات", "project.design.architectural": "سلطة التخصصات المعمارية (عمارة وتصميم داخلي وتنسيق مواقع)", "project.design.technical": "سلطة التخصصات الفنية (إنشائي ومدني وميكانيكا وكهرباء وسباكة وإطفاء)", "project.design.approve": "اعتماد المخططات للتنفيذ وتسجيل ردود الاستشاري", "project.consultant.respond": "تسجيل رد الاستشاري على التقديم", "project.subcontract.progress.record": "تسجيل إثبات أعمال المقاول (بلا أسعار)",  "strategy.read": "عرض مركز التخطيط الاستراتيجي", "strategy.manage": "إدخال افتراضات الاستراتيجية وطلبات تغييرها", "strategy.approve": "اعتماد افتراضات الاستراتيجية وتغييراتها",
   "project.tender.manage": "إدارة حزم المناقصات والدعوات", "project.tender.bids": "إدخال العروض وتعديلها", "project.tender.level": "تسوية العروض ومقارنتها", "project.tender.award": "ترسية المناقصة", "project.create": "إنشاء المشاريع", "payment.prepare": "إعداد الدفعات", "payment.approve": "اعتماد الدفعات", "schedule.write": "كتابة الجدول الزمني والخطة الرئيسية", 
   "project.write": "تحرير بيانات المشروع", "project.manage": "إدارة المشروع", "tenant.manage": "إدارة الشركة", "project.attendance.manage": "إدارة الحضور",
-  "project.budget.manage": "إدارة الميزانيات", "project.cashflow.read": "عرض التدفق النقدي", "project.commitment.manage": "إدارة الالتزامات", "project.cost.enter": "إدخال التكلفة الفعلية",
+  "project.budget.manage": "إدارة الميزانيات", "project.cashflow.read": "عرض التدفق النقدي", "project.profit.read": "عرض ربحية المشروع", "project.commitment.manage": "إدارة الالتزامات", "project.cost.enter": "إدخال التكلفة الفعلية",
   "project.evm.manage": "إدارة القيمة المكتسبة (EVM)", "project.field.manage": "إدارة الإدخال الميداني", "project.hr.manage": "إدارة الموظفين", "project.hr.sensitive.read": "قراءة بيانات الموظفين الحساسة",
   "project.hse.manage": "إدارة الصحة والسلامة والبيئة", "project.inventory.manage": "إدارة المخزون", "project.invoice.match": "مطابقة الفواتير", "project.material.request": "طلب المواد",
   "project.ncr.manage": "إدارة حالات عدم المطابقة", "project.payroll.approve": "اعتماد الرواتب", "project.payroll.run": "تشغيل دورة الرواتب", "project.payroll.sensitive.read": "قراءة الرواتب الحساسة",
