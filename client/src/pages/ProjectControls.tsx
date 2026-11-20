@@ -47,7 +47,7 @@ import { Activity, ArrowLeft, Banknote, FileUp, CalendarDays, Calculator, CheckC
 import React, { useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { ProjectStart } from "@/components/ProjectStart";
-import { ContentSkeleton } from "@/components/ShellSkeleton";
+import { BoardSkeleton } from "@/components/ShellSkeleton";
 import { ProjectUploadContext, SectionActions } from "@/components/SectionActions";
 import { anyImportPermission } from "@shared/importPermissions";
 import { enumLabel } from "@/lib/labels";
@@ -155,7 +155,7 @@ export default function ProjectControls() {
 
   // Q-18: the page's first two reads decide its header and whether the «start your project» card is there; drawing the page before them made everything
   // below jump when they landed (layout shift 0.30). Until they answer, the page's grey shape; then the page once.
-  if ((scheduleQuery.isLoading && !scheduleQuery.error) || (financialsQuery.isLoading && !financialsQuery.error)) return <PageMain className="min-w-0"><ContentSkeleton /></PageMain>;
+  if ((scheduleQuery.isLoading && !scheduleQuery.error) || (financialsQuery.isLoading && !financialsQuery.error)) return <PageMain className="min-w-0"><BoardSkeleton /></PageMain>;
   if (scheduleQuery.error && financialsQuery.error && performanceQuery.error) return <PageMain className="p-2 text-destructive">{getLocalizedProjectError(scheduleQuery.error, isArabic)}</PageMain>;
 
   const fallbackData = { project: { code: projectId, name: t.title }, wbs: [], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null };

@@ -25,7 +25,7 @@ async function clear() {
   for (const slug of [SLUG, SLUG_B]) {
     const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [slug]);
     for (const { id } of companies) {
-      for (const table of ["audit_logs", "subcontract_work_confirmation_lines", "subcontract_work_confirmations", "subcontract_contracts", "boq_items", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
+      for (const table of ["audit_logs", "subcontract_work_confirmation_lines", "subcontract_work_confirmations", "subcontract_contracts", "boq_items", "pmc_qc_receipts", "pmc_unit_activity_progress", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
       await connection.query("DELETE FROM membership_roles WHERE membershipId IN (SELECT id FROM memberships WHERE tenantId = ?)", [id]);
       await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId = ?)", [id]);
       for (const table of ["role_template_removals", "roles", "memberships", "tenant_entitlements", "tenant_licenses", "subscriptions", "projects"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
@@ -205,5 +205,37 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-43: subcontractor work
     const correction = await create("site", "WC-P7", subA, [{ ...unit(1, 1, -50), correctsLineId: original.id }]);
     expect((await approve(correction.id)).status).toBe("approved");
     expect(await code(create("site", "WC-P8", subB, [unit(1, 1, 50)]))).toBe("no error");
+  });
+
+  // Q-43 batch 4b (proposal §5.4, decision 5: a warning, never a block): what the approver sees next to each line
+  it("APPROVER VIEW POSITIVE: each line says what the subcontract already has approved for the cell; a line reaching 100% warns while the site cell is not COMPLETE and QC has not received it, and stops warning once both are true", async () => {
+    const X = "43aa0000-0000-4000-8000-0000000000a9";
+    await connection.query("INSERT INTO pmc_units (id, tenantId, projectId, blockId, unitNumber, modelCode, saleStatus, unitWeight) VALUES (?, ?, ?, 'q43-b', 9, 'MDL-A', 'available', 1)", [X, tenantId, P]);
+    const line = (percent: number): Line => ({ kind: "unit", pmcUnitId: X, pmcActivityDefinitionId: ACT[0], percent });
+    const first = await create("site", "WC-W1", subA, [line(60)]);
+    await move("site", first.id, "submitted");
+    expect((await linesOf("WC-W1"))[0]).toMatchObject({ previousApproved: 0, warnings: [] }); // 60% does not reach 100
+    await move("finance", first.id, "approved");
+    await create("site", "WC-W2", subA, [line(40)]);
+    expect((await linesOf("WC-W2"))[0]).toMatchObject({ previousApproved: 60, siteStatus: null, qcReceived: null, warnings: ["SITE_NOT_COMPLETE", "QC_NOT_RECEIVED"] });
+    await connection.query("INSERT INTO pmc_unit_activity_progress (id, tenantId, projectId, unitId, activityDefinitionId, status) VALUES ('q43-site-x', ?, ?, ?, ?, 'COMPLETE')", [tenantId, P, X, ACT[0]]);
+    expect((await linesOf("WC-W2"))[0].warnings).toEqual(["QC_NOT_RECEIVED"]);
+    await connection.query("INSERT INTO pmc_qc_receipts (id, tenantId, projectId, unitId, activityDefinitionId, received, receivedOn) VALUES ('q43-qc-x', ?, ?, ?, ?, true, '2026-11-15')", [tenantId, P, X, ACT[0]]);
+    expect((await linesOf("WC-W2"))[0]).toMatchObject({ siteStatus: "COMPLETE", qcReceived: true, warnings: [] });
+    // the approved confirmation itself warns about nothing, and its own lines are not counted as "previous"
+    expect((await linesOf("WC-W1"))[0]).toMatchObject({ previousApproved: 0, warnings: [] });
+  });
+
+  it("APPROVER VIEW NEGATIVE: a warning never blocks — the warned line is sent and approved; no rate, amount or value appears in any line; another subcontract's approvals are not its previous", async () => {
+    const X = "43aa0000-0000-4000-8000-0000000000aa";
+    await connection.query("INSERT INTO pmc_units (id, tenantId, projectId, blockId, unitNumber, modelCode, saleStatus, unitWeight) VALUES (?, ?, ?, 'q43-b', 10, 'MDL-A', 'available', 1)", [X, tenantId, P]);
+    const warned = await create("site", "WC-W3", subB, [{ kind: "unit", pmcUnitId: X, pmcActivityDefinitionId: ACT[1], percent: 100 }]);
+    expect((await linesOf("WC-W3"))[0]).toMatchObject({ previousApproved: 0, warnings: ["SITE_NOT_COMPLETE", "QC_NOT_RECEIVED"] });
+    expect((await approve(warned.id)).status).toBe("approved");
+    const keys = JSON.stringify(await list()).match(/"[a-zA-Z]+":/g)!.map(key => key.slice(1, -2));
+    expect(keys.filter(key => /rate|amount|price|value|retention|advance/i.test(key))).toEqual([]);
+    const other = await create("site", "WC-W4", subA, [{ kind: "unit", pmcUnitId: X, pmcActivityDefinitionId: ACT[0], percent: 10 }]);
+    expect(other.id).toBeTruthy();
+    expect((await linesOf("WC-W4"))[0]).toMatchObject({ previousApproved: 0, warnings: [] });
   });
 });

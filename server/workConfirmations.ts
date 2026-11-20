@@ -11,7 +11,7 @@
 // never pulled into a certificate: the pulling batch reads the flag). A negative figure without corrects_line_id is still refused. Pulling comes later.
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
-import { auditLogs, boqItems, pmcActivityDefinitions, pmcBlocks, pmcUnits, subcontractContracts, subcontractWorkConfirmationLines, subcontractWorkConfirmations } from "../drizzle/schema";
+import { auditLogs, boqItems, pmcActivityDefinitions, pmcBlocks, pmcQcReceipts, pmcUnitActivityProgress, pmcUnits, subcontractContracts, subcontractWorkConfirmationLines, subcontractWorkConfirmations } from "../drizzle/schema";
 import { assertTenantAccess } from "./domain/authorization";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 
@@ -191,15 +191,45 @@ export async function listWorkConfirmations(input: Scope & { subcontractId?: str
     id: subcontractWorkConfirmationLines.id, confirmationId: subcontractWorkConfirmationLines.confirmationId, kind: subcontractWorkConfirmationLines.kind, percent: subcontractWorkConfirmationLines.percent,
     quantity: subcontractWorkConfirmationLines.quantity, note: subcontractWorkConfirmationLines.note, correctsLineId: subcontractWorkConfirmationLines.correctsLineId, historical: subcontractWorkConfirmationLines.historical, unitNumber: pmcUnits.unitNumber, activityCode: pmcActivityDefinitions.code, activityName: pmcActivityDefinitions.name,
     boqCode: boqItems.code, unitOfMeasure: boqItems.unitOfMeasure,
+    unitId: subcontractWorkConfirmationLines.pmcUnitId, activityId: subcontractWorkConfirmationLines.pmcActivityDefinitionId, boqItemId: subcontractWorkConfirmationLines.boqItemId,
   }).from(subcontractWorkConfirmationLines)
     .leftJoin(pmcUnits, and(eq(pmcUnits.id, subcontractWorkConfirmationLines.pmcUnitId), eq(pmcUnits.tenantId, subcontractWorkConfirmationLines.tenantId)))
     .leftJoin(pmcActivityDefinitions, and(eq(pmcActivityDefinitions.id, subcontractWorkConfirmationLines.pmcActivityDefinitionId), eq(pmcActivityDefinitions.tenantId, subcontractWorkConfirmationLines.tenantId)))
     .leftJoin(boqItems, and(eq(boqItems.id, subcontractWorkConfirmationLines.boqItemId), eq(boqItems.tenantId, subcontractWorkConfirmationLines.tenantId)))
     .where(and(own(subcontractWorkConfirmationLines, input), inArray(subcontractWorkConfirmationLines.confirmationId, headers.map(header => header.id))))
     .orderBy(asc(pmcUnits.unitNumber), asc(boqItems.code));
+  // Batch 4b (proposal §5.4, decision 5: a warning, never a block): for the approver, each line carries what this subcontract already has APPROVED for the
+  // same cell or BOQ item outside this confirmation, and — for a unit line that takes it to 100% — whether the site cell is COMPLETE and QC has received it
+  const approved = await db.select({
+    subcontractId: subcontractWorkConfirmations.subcontractId, confirmationId: subcontractWorkConfirmationLines.confirmationId, kind: subcontractWorkConfirmationLines.kind,
+    unitId: subcontractWorkConfirmationLines.pmcUnitId, activityId: subcontractWorkConfirmationLines.pmcActivityDefinitionId, boqItemId: subcontractWorkConfirmationLines.boqItemId,
+    percent: subcontractWorkConfirmationLines.percent, quantity: subcontractWorkConfirmationLines.quantity,
+  }).from(subcontractWorkConfirmationLines)
+    .innerJoin(subcontractWorkConfirmations, and(eq(subcontractWorkConfirmations.id, subcontractWorkConfirmationLines.confirmationId), eq(subcontractWorkConfirmations.tenantId, subcontractWorkConfirmationLines.tenantId)))
+    .where(and(own(subcontractWorkConfirmationLines, input), eq(subcontractWorkConfirmations.status, "approved")));
+  const cellOf = (line: { kind: string; unitId: string | null; activityId: string | null; boqItemId: string | null }) => (line.kind === "unit" ? `u|${line.unitId}|${line.activityId}` : `q|${line.boqItemId}`);
+  const unitIds = Array.from(new Set(lines.map(line => line.unitId).filter((id): id is string => Boolean(id))));
+  const [site, qc] = unitIds.length ? await Promise.all([
+    db.select({ unitId: pmcUnitActivityProgress.unitId, activityId: pmcUnitActivityProgress.activityDefinitionId, status: pmcUnitActivityProgress.status }).from(pmcUnitActivityProgress).where(and(own(pmcUnitActivityProgress, input), inArray(pmcUnitActivityProgress.unitId, unitIds))),
+    db.select({ unitId: pmcQcReceipts.unitId, activityId: pmcQcReceipts.activityDefinitionId, received: pmcQcReceipts.received }).from(pmcQcReceipts).where(and(own(pmcQcReceipts, input), inArray(pmcQcReceipts.unitId, unitIds))),
+  ]) : [[], []];
+  const siteOf = new Map(site.map(row => [`${row.unitId}|${row.activityId}`, row.status]));
+  const qcOf = new Map(qc.map(row => [`${row.unitId}|${row.activityId}`, row.received]));
   return headers.map(header => ({
     ...header,
-    lines: lines.filter(line => line.confirmationId === header.id).map(({ confirmationId: _confirmation, percent, quantity, ...line }) => ({ ...line, percent: percent === null ? null : Number(percent), quantity: quantity === null ? null : Number(quantity) })),
+    lines: lines.filter(line => line.confirmationId === header.id).map(({ confirmationId, percent, quantity, unitId, activityId, boqItemId, ...line }) => {
+      const cell = cellOf({ kind: line.kind, unitId, activityId, boqItemId });
+      const previousApproved = Math.round(approved.filter(row => row.subcontractId === header.subcontractId && row.confirmationId !== confirmationId && cellOf(row) === cell).reduce((sum, row) => sum + Number((line.kind === "unit" ? row.percent : row.quantity) ?? 0), 0) * 1000) / 1000;
+      const value = Number((line.kind === "unit" ? percent : quantity) ?? 0);
+      const siteStatus = line.kind === "unit" ? siteOf.get(`${unitId}|${activityId}`) ?? null : null;
+      const qcReceived = line.kind === "unit" ? qcOf.get(`${unitId}|${activityId}`) ?? null : null;
+      const warnings: Array<"SITE_NOT_COMPLETE" | "QC_NOT_RECEIVED"> = [];
+      if (line.kind === "unit" && header.status !== "approved" && previousApproved + value >= 100 - 1e-9) {
+        if (siteStatus !== "COMPLETE") warnings.push("SITE_NOT_COMPLETE");
+        if (qcReceived !== true) warnings.push("QC_NOT_RECEIVED");
+      }
+      return { ...line, percent: percent === null ? null : Number(percent), quantity: quantity === null ? null : Number(quantity), previousApproved, siteStatus, qcReceived, warnings };
+    }),
   }));
 }
 

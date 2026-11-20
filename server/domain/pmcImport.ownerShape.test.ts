@@ -139,3 +139,36 @@ describe("«البند الفرعي» beside «النشاط»: the data tells th
     expect(mapped(parsed)).toMatchObject({ sub: "البند الفرعي", activityName: "النشاط" });
   });
 });
+
+// I50 (adviser 20-11 04:10, on the owner's real files): the totals line writes «الإجمالي» in the unmapped «م» column (merged with the division cell), leaves
+// every mapped label empty, and carries the rounded sum (0.99999) as its weight. It was refused as PMC_CLASSIFICATION_BLANK; it is a totals line, skipped and counted.
+describe("Q-48 I50: a totals line whose word is in a column no field reads", () => {
+  it("NEGATIVE on main, POSITIVE now: the original copy's totals line in «م» is skipped and counted, not refused; the model still totals exactly 100", async () => {
+    const parsed = await parse(await ownerOriginalWeights({ totalIn: "serial" }));
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.notes?.skippedTotals).toBe(1);
+    expect(parsed.rows.some(row => row.rowNumber === 10)).toBe(false);
+    const out = weightsToCatalogRows(parsed.rows, ["A"]);
+    expect(out.errors).toEqual([]);
+    expect(planCatalog(out.rows, emptyContext).errors).toEqual([]);
+  });
+
+  it("POSITIVE: the edited copy's totals line (row 7) is skipped and counted too", async () => {
+    const parsed = await parse(await ownerEditedWeights({ withTotal: true }));
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.notes?.skippedTotals).toBe(1);
+    expect(parsed.rows.some(row => row.rowNumber === 7)).toBe(false);
+  });
+
+  it("NEGATIVE: a row with an activity name is never a totals line, even with «Total» in another column; a real section with no activity stays an error", async () => {
+    const book = new ExcelJS.Workbook();
+    const ws = book.addWorksheet("W");
+    ws.getRow(1).values = ["م", "بند CSI", "تصنيف داخلي", "البند الفرعي", "NEW Percentage"];
+    ws.getRow(2).values = ["Total", "03 مختلق", "هيكل", "صب القواعد", 0.5];
+    ws.getRow(3).values = [2, "03 مختلق", "هيكل", "صب الأعمدة", 0.5];
+    ws.getRow(4).values = ["الإجمالي", "09 مختلق", "", "", 1];
+    const parsed = await parse(new Uint8Array(await book.xlsx.writeBuffer()));
+    expect(parsed.notes?.skippedTotals ?? 0).toBe(0);
+    expect(parsed.rows.map(row => row.rowNumber)).toEqual([2, 3, 4]); // row 4 names a real section: kept, and refused later on its own row
+  });
+});

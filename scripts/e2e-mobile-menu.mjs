@@ -41,7 +41,7 @@ const overlaps = (a, b) => a && b && a.x < b.x + b.width && b.x < a.x + a.width 
 
 const browser = await chromium.launch();
 try {
-  for (const lang of ["ar", "en", "ur"]) {
+  for (const lang of (process.env.MENU_LANGS ?? "ar,en,ur").split(",")) { // CI runs one language per job (MENU_LANGS)
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
     await context.addCookies([{ name: "app_session_id", value: token, url: BASE_URL }]);
     const page = await context.newPage(); const errors = []; page.on("pageerror", error => errors.push(error.message));
