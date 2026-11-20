@@ -167,7 +167,11 @@ export type ParsedRow = { rowNumber: number; cells: Record<string, unknown> };
 export type PmcImportColumns = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null }>; overridden: boolean };
 /** Q-48: a column the file has and no field reads, shown in the preview with a few of its values so a person sees it was seen and left aside. */
 export type PmcIgnoredColumn = { header: string; samples: string[] };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[] } };
+/** Q-50 batch 4: what a person corrected in the preview — a cell of a row (by the field it is read for) or a row left out — never written to the stored file. */
+export type PmcImportEdits = { cells: Array<{ row: number; field: string; value: string }>; ignoreRows: number[] };
+/** An applied cell correction, with the value the file holds, for the report and the audit trail. */
+export type PmcAppliedEdit = { row: number; field: string; header: string; from: string; to: string };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[] } };
 
 /**
  * Q-31 (P0-01): how a header is compared with a field's spellings. Arabic letter variants, diacritics and tatweel, Eastern digits, punctuation and
@@ -313,7 +317,7 @@ function applyOverride(fields: Field[], headers: string[], match: HeaderMatch, o
   };
 }
 
-export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string> }): Promise<ParsedFile> {
+export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string>; edits?: PmcImportEdits }): Promise<ParsedFile> {
   const fail = (code: string, detail?: string): ParsedFile => ({ headers: [], rows: [], errors: [{ rowNumber: 0, code, ...(detail ? { detail } : {}) }] });
   // CSV: UTF-8, or the Windows Arabic code page that older Excel writes (Q-31)
   const parsed = await readSpreadsheetSafely(input.format === "csv" ? decodeCsv(input.bytes).text : input.bytes, input.format);
@@ -351,11 +355,32 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   const ignoredColumns: PmcIgnoredColumn[] = headers.filter(header => header && !used.has(header) && holdsData(header))
     .map(header => ({ header, samples: Array.from(new Set(rows.map(row => String(row[header] ?? "").trim()).filter(Boolean))).slice(0, 3) }));
   const notes: NonNullable<ParsedFile["notes"]> = { skippedTotals: 0, filledDown: 0, ...(ignoredColumns.length ? { ignoredColumns } : {}) };
+  // Q-50 batch 4: the person's corrections, applied to the rows as read (the stored file is untouched). A correction of a row the table does not have, or of a
+  // field no column is read for, is refused with the row — never dropped silently
+  const ignored = new Set<number>();
+  if (input.edits) {
+    const indexOf = new Map(rowNumbers.map((rowNumber, index) => [rowNumber, index] as const));
+    const refused: PmcImportError[] = [];
+    for (const row of input.edits.ignoreRows) { if (indexOf.has(row)) ignored.add(row); else refused.push({ rowNumber: row, code: "IMPORT_EDIT_INVALID" }); }
+    const applied: PmcAppliedEdit[] = [];
+    for (const edit of input.edits.cells) {
+      const index = indexOf.get(edit.row);
+      const header = mapping.get(edit.field);
+      if (index === undefined || !header) { refused.push({ rowNumber: edit.row, code: "IMPORT_EDIT_INVALID", field: edit.field }); continue; }
+      const from = String(rows[index][header] ?? "").trim();
+      rows[index][header] = edit.value;
+      applied.push({ row: edit.row, field: edit.field, header, from, to: edit.value });
+    }
+    if (refused.length) return { headers, rows: [], errors: refused, columns };
+    if (applied.length) notes.edits = applied;
+    if (ignored.size) notes.ignoredRows = Array.from(ignored).sort((a, b) => a - b);
+  }
   // Q-48: a section merged over its rows and left with no name is empty on purpose — those rows do not take the section above them
   const csiColumn = mapping.has("csi") ? headers.indexOf(mapping.get("csi")!) + 1 : 0;
   const blankByMerge = emptyVerticalMergeCover(sheet);
   let lastCsi = "";
   rows.forEach((row, index) => {
+    if (ignored.has(rowNumbers[index])) return;
     const cells = Object.fromEntries(fields.map(field => [field.key, mapping.has(field.key) ? row[mapping.get(field.key)!] : undefined]));
     if (input.kind === "weights") {
       // a totals line: every filled label of the row (section, sub-item, activity) is total words — skipped, and COUNTED in the report (never silent)
