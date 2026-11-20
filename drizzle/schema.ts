@@ -101,6 +101,8 @@ export const employees = pgTable(
     identityDocumentType: varchar("identity_document_type", { length: 80 }),
     identityReference: varchar("identity_reference", { length: 512 }),
     linkedUserId: integer("linked_user_id").references(() => users.id),
+    // Q-17 (205-5, G-147): the employee's one direct manager, another employee of the same company (checked by the server), or none
+    reportsToEmployeeId: varchar("reports_to_employee_id", { length: 36 }),
     retentionPolicy: employeesRetentionPolicyEnum("retention_policy").default("standard").notNull(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
@@ -111,6 +113,8 @@ export const employees = pgTable(
     uniqueIndex("employees_tenant_number_unique").on(table.tenantId, table.employeeNumber),
     uniqueIndex("employees_tenant_user_unique").on(table.tenantId, table.linkedUserId),
     index("employees_tenant_status_idx").on(table.tenantId, table.employmentStatus),
+    index("employees_tenant_reports_to_idx").on(table.tenantId, table.reportsToEmployeeId),
+    foreignKey({ name: "employees_reports_to_employee_id_employees_id_fk", columns: [table.reportsToEmployeeId], foreignColumns: [table.id] }),
   ],
 );
 
