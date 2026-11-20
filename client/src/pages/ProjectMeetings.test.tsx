@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Q-25 (P-114): the meetings screen shows only what the server returned and sends exactly what was entered. Synthetic data only.
-const h = vi.hoisted(() => ({ addItem: vi.fn(), create: vi.fn(), issue: vi.fn(), detail: undefined as unknown, list: [] as unknown[] }));
+const h = vi.hoisted(() => ({ addItem: vi.fn(), create: vi.fn(), issue: vi.fn(), exportMinutes: vi.fn(), detail: undefined as unknown, list: [] as unknown[] }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>, useCan: () => true }));
@@ -16,6 +16,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: { meetings: {
   addItem: { useMutation: () => ({ mutate: h.addItem, isPending: false, error: null }) },
   addAction: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
   issue: { useMutation: () => ({ mutate: h.issue, isPending: false, error: null }) },
+  export: { useMutation: () => ({ mutateAsync: h.exportMinutes, isPending: false, error: null }) },
 } } }));
 
 import ProjectMeetings, { parseAttendees } from "./ProjectMeetings";
@@ -29,7 +30,7 @@ const detailOf = (status: "draft" | "issued") => ({
   actions: [{ id: "x1", title: "Send the recovery plan", priority: "high", dueAt: "2026-11-21T00:00:00Z", status: "open", meetingId: M1, ownerName: "Site engineer (synthetic)" }],
   broughtForward: [{ id: "x0", title: "Confirm the pump booking", priority: "medium", dueAt: null, status: "open", meetingId: "older", ownerName: "PM (synthetic)" }],
 });
-beforeEach(() => { h.addItem.mockReset(); h.create.mockReset(); h.issue.mockReset(); h.list = [{ ...meeting("draft"), openActions: 1 }]; });
+beforeEach(() => { h.addItem.mockReset(); h.create.mockReset(); h.issue.mockReset(); h.exportMinutes.mockReset(); h.list = [{ ...meeting("draft"), openActions: 1 }]; });
 afterEach(() => cleanup());
 
 describe("ProjectMeetings (Q-25)", () => {
@@ -54,6 +55,17 @@ describe("ProjectMeetings (Q-25)", () => {
     expect(document.querySelector("[data-add-item]")).toBeNull();
     expect(document.querySelector("[data-add-action]")).toBeNull();
     expect(screen.queryByRole("button", { name: "Issue the minutes" })).toBeNull();
+  });
+
+  it("«Download Word» / «Download PDF» ask the server for that meeting's minutes in the screen's language, and the file is named once it is ready (batch 2)", async () => {
+    h.detail = detailOf("issued");
+    h.exportMinutes.mockResolvedValue({ fileName: "minutes-2026-11-17-11111111.docx", url: "https://storage.example.test/signed", bytes: 1000 });
+    render(<ProjectMeetings />);
+    fireEvent.click(screen.getByRole("button", { name: "Download Word" }));
+    expect(h.exportMinutes).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", meetingId: M1, format: "docx", locale: "en" });
+    expect((await screen.findByText(/Downloaded:/)).textContent).toContain("minutes-2026-11-17-11111111.docx");
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" }));
+    expect(h.exportMinutes).toHaveBeenLastCalledWith({ tenantId: "t", projectId: "p", meetingId: M1, format: "pdf", locale: "en" });
   });
 
   it("attendees are read one per line as «name — organisation»; empty lines are skipped", () => {
