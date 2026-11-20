@@ -108,11 +108,14 @@ describe("a person's column mapping (Q-31, P0-02)", () => {
   it("POSITIVE: columns no alias names are read once a person maps them, and the report says which column each field came from", async () => {
     const unmapped = await villas([["Plot Block", "House", "Kind"], ["B1", 1, "A"]]);
     expect(codes(unmapped)).toEqual(expect.arrayContaining(["IMPORT_REQUIRED_COLUMN_MISSING"]));
-    expect(unmapped.columns?.fields.find(field => field.key === "blockCode")).toEqual({ key: "blockCode", required: true, header: null });
+    // Q-50 batch 3b: not read, but «Plot Block» is offered as a suggestion (it holds the accepted name «block») — never applied by the reader
+    expect(unmapped.columns?.fields.find(field => field.key === "blockCode")).toEqual({ key: "blockCode", required: true, header: null, source: null, suggestion: { header: "Plot Block", confidence: 0.8 } });
+    expect(unmapped.rows).toEqual([]);
     const mapped = await villas([["Plot Block", "House", "Kind"], ["B1", 1, "A"]], { blockCode: "Plot Block", unitNumber: "House", modelCode: "Kind" });
     expect(mapped.errors).toEqual([]);
     expect(mapped.rows[0].cells).toMatchObject({ blockCode: "B1", modelCode: "A" });
     expect(mapped.columns).toMatchObject({ overridden: true, headers: ["Plot Block", "House", "Kind"] });
+    expect(mapped.columns?.fields.find(field => field.key === "blockCode")).toMatchObject({ header: "Plot Block", source: "chosen", suggestion: null });
   });
 
   it("POSITIVE: a mapping settles an ambiguity — the person says which of two weight columns is the weight", async () => {

@@ -5,7 +5,9 @@
 //   - A field the file kind does not have, a header the file does not have, or one header for two fields is refused WHOLE (`invalid`): never half applied.
 //   - The report lists the file's headers and, per field, the column it is read from, so a screen can offer the choice.
 export type ColumnField = { key: string; required: boolean; aliases: readonly string[] };
-export type ColumnReport = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null }>; overridden: boolean };
+import { columnHints, type ColumnSuggestion, type FieldSource } from "./importEngine/hints";
+// Q-50 batch 3b: `source` (found by name, chosen by the person, or not found) and, for a field not found, a `suggestion` that is shown and never applied
+export type ColumnReport = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null; source?: FieldSource; suggestion?: ColumnSuggestion | null }>; overridden: boolean };
 export type ColumnResolution = { columns: Record<string, string | undefined>; report: ColumnReport; invalid?: string };
 
 /** The key a person sends to say «I saw every column; the ones no field takes are ignored». Accepted for symmetry with the job importers; these readers ignore extra columns anyway. */
@@ -29,7 +31,10 @@ export function resolveColumns(fields: readonly ColumnField[], fileHeaders: stri
   const columns: Record<string, string | undefined> = {};
   for (const field of fields) columns[field.key] = headers.find(header => field.aliases.includes(normalize(header)));
   const chosen = choice ? Object.entries(choice).filter(([key]) => key !== IGNORE_OTHER_COLUMNS) : [];
-  const report = (): ColumnReport => ({ headers, fields: fields.map(field => ({ key: field.key, required: field.required, header: columns[field.key] ?? null })), overridden: chosen.length > 0 });
+  const report = (): ColumnReport => {
+    const hints = columnHints(fields, headers, columns, new Set(chosen.filter(([, header]) => header !== "").map(([key]) => key)));
+    return { headers, fields: fields.map(field => ({ key: field.key, required: field.required, header: columns[field.key] ?? null, ...hints[field.key] })), overridden: chosen.length > 0 };
+  };
   if (!chosen.length) return { columns, report: report() };
   const keys = new Set(fields.map(field => field.key));
   const used = new Set<string>();
