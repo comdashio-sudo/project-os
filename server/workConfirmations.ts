@@ -182,6 +182,8 @@ export async function listWorkConfirmations(input: Scope & { subcontractId?: str
     id: subcontractWorkConfirmations.id, number: subcontractWorkConfirmations.confirmationNumber, subcontractId: subcontractWorkConfirmations.subcontractId, subcontractCode: subcontractContracts.code,
     subcontractorName: subcontractContracts.subcontractorName, periodStart: subcontractWorkConfirmations.periodStart, periodEnd: subcontractWorkConfirmations.periodEnd, status: subcontractWorkConfirmations.status,
     rejectionReason: subcontractWorkConfirmations.rejectionReason, note: subcontractWorkConfirmations.note, preparedByUserId: subcontractWorkConfirmations.preparedByUserId, reviewedByUserId: subcontractWorkConfirmations.reviewedByUserId,
+    // Q-43 batch 5: the certificate it was pulled into (an id, no money) — the screen offers only what is not pulled yet
+    certificateId: subcontractWorkConfirmations.certificateId,
   }).from(subcontractWorkConfirmations)
     .innerJoin(subcontractContracts, and(eq(subcontractContracts.id, subcontractWorkConfirmations.subcontractId), eq(subcontractContracts.tenantId, subcontractWorkConfirmations.tenantId)))
     .where(and(own(subcontractWorkConfirmations, input), input.subcontractId ? eq(subcontractWorkConfirmations.subcontractId, input.subcontractId) : undefined))

@@ -95,6 +95,8 @@ import {
   scheduledJobs,
   selfServiceSignupAttempts,
   subcontractCertificateLines,
+  subcontractWorkConfirmations,
+  subcontractWorkConfirmationLines,
   subcontractCertificates,
   subcontractContracts,
   suppliers,
@@ -4524,7 +4526,29 @@ export async function getSubcontractCertificatesForTenant(input: { userId: numbe
   }));
 }
 
-export async function createSubcontractCertificateForTenant(input: { userId: number; tenantId: string; projectId: string; subcontractId: string; certificateNumber: string; periodStart: Date; periodEnd: Date; lines: { boqItemId: string; currentQuantity: number }[] }) {
+/**
+ * Q-43 batch 5 (docs/proposals/subcontractor-progress.md §5 «السحب إلى مستخلص»): the quantity lines of approved work confirmations of THIS subcontract,
+ * summed per BOQ item (an approved correction counts with its sign). A confirmation is pulled once, whole; one with a historical line (work approved
+ * before the platform) or a unit line (villa × activity × percent — no BOQ rate prices it yet) is refused, never pulled in part.
+ */
+async function confirmationQuantities(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: { tenantId: string; projectId: string; subcontractId: string; confirmationIds: string[] }) {
+  const headers = await db.select({ id: subcontractWorkConfirmations.id, subcontractId: subcontractWorkConfirmations.subcontractId, status: subcontractWorkConfirmations.status, certificateId: subcontractWorkConfirmations.certificateId })
+    .from(subcontractWorkConfirmations)
+    .where(and(eq(subcontractWorkConfirmations.tenantId, input.tenantId), eq(subcontractWorkConfirmations.projectId, input.projectId), inArray(subcontractWorkConfirmations.id, input.confirmationIds)));
+  if (headers.length !== input.confirmationIds.length || headers.some(header => header.subcontractId !== input.subcontractId)) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_WORK_CONFIRMATION_NOT_FOUND" });
+  if (headers.some(header => header.status !== "approved")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WORK_CONFIRMATION_NOT_APPROVED" });
+  if (headers.some(header => header.certificateId)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WORK_CONFIRMATION_ALREADY_PULLED" });
+  const lines = await db.select({ kind: subcontractWorkConfirmationLines.kind, boqItemId: subcontractWorkConfirmationLines.boqItemId, quantity: subcontractWorkConfirmationLines.quantity, historical: subcontractWorkConfirmationLines.historical })
+    .from(subcontractWorkConfirmationLines)
+    .where(and(eq(subcontractWorkConfirmationLines.tenantId, input.tenantId), eq(subcontractWorkConfirmationLines.projectId, input.projectId), inArray(subcontractWorkConfirmationLines.confirmationId, input.confirmationIds)));
+  if (lines.some(line => line.historical)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WORK_CONFIRMATION_HISTORICAL" });
+  if (lines.some(line => line.kind !== "quantity")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED" });
+  const byItem = new Map<string, number>();
+  for (const line of lines) byItem.set(line.boqItemId!, Math.round(((byItem.get(line.boqItemId!) ?? 0) + Number(line.quantity)) * 1000) / 1000);
+  return Array.from(byItem.entries()).filter(([, quantity]) => quantity !== 0).map(([boqItemId, currentQuantity]) => ({ boqItemId, currentQuantity }));
+}
+
+export async function createSubcontractCertificateForTenant(input: { userId: number; tenantId: string; projectId: string; subcontractId: string; certificateNumber: string; periodStart: Date; periodEnd: Date; lines: { boqItemId: string; currentQuantity: number }[]; confirmationIds?: string[] }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
@@ -4538,6 +4562,12 @@ export async function createSubcontractCertificateForTenant(input: { userId: num
   const [duplicate] = await db.select({ id: subcontractCertificates.id }).from(subcontractCertificates).where(and(eq(subcontractCertificates.tenantId, input.tenantId), eq(subcontractCertificates.projectId, input.projectId), eq(subcontractCertificates.certificateNumber, input.certificateNumber))).limit(1);
   if (duplicate) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_CERTIFICATE_NUMBER_EXISTS" });
 
+  // Q-43 batch 5: lines from approved work confirmations, beside (never on top of) the lines typed by hand — the same BOQ item from both is refused
+  const confirmationIds = Array.from(new Set(input.confirmationIds ?? []));
+  const pulled = confirmationIds.length ? await confirmationQuantities(db, { tenantId: input.tenantId, projectId: input.projectId, subcontractId: input.subcontractId, confirmationIds }) : [];
+  if (pulled.some(line => input.lines.some(typed => typed.boqItemId === line.boqItemId))) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_CERTIFICATE_LINE_TWICE" });
+  input = { ...input, lines: [...input.lines, ...pulled] };
+  if (!input.lines.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WORK_CONFIRMATION_NOTHING_TO_PULL" });
   const boqIds = input.lines.map(l => l.boqItemId);
   const boqRows = await db.select().from(boqItems).where(and(eq(boqItems.tenantId, input.tenantId), eq(boqItems.projectId, input.projectId), inArray(boqItems.id, boqIds)));
   const boqMap = new Map(boqRows.map(b => [b.id, b]));
@@ -4585,6 +4615,13 @@ export async function createSubcontractCertificateForTenant(input: { userId: num
     for (const line of processedLines) {
       await tx.insert(subcontractCertificateLines).values(line);
     }
+    // each confirmation is pulled once: the link is set only where none is (rows < count means another certificate took it first — nothing is kept)
+    if (confirmationIds.length) {
+      const linked = await tx.update(subcontractWorkConfirmations).set({ certificateId, updatedAt: new Date() })
+        .where(and(eq(subcontractWorkConfirmations.tenantId, input.tenantId), eq(subcontractWorkConfirmations.projectId, input.projectId), eq(subcontractWorkConfirmations.subcontractId, input.subcontractId), eq(subcontractWorkConfirmations.status, "approved"), inArray(subcontractWorkConfirmations.id, confirmationIds), isNull(subcontractWorkConfirmations.certificateId)))
+        .returning({ id: subcontractWorkConfirmations.id });
+      if (linked.length !== confirmationIds.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WORK_CONFIRMATION_ALREADY_PULLED" });
+    }
     await tx.insert(auditLogs).values({
       id: crypto.randomUUID(),
       tenantId: input.tenantId,
@@ -4592,7 +4629,7 @@ export async function createSubcontractCertificateForTenant(input: { userId: num
       action: "project.subcontract_certificate_created",
       entityType: "subcontract_certificate",
       entityId: certificateId,
-      metadata: JSON.stringify({ projectId: input.projectId, subcontractId: input.subcontractId, certificateNumber: input.certificateNumber, grossAmount })
+      metadata: JSON.stringify({ projectId: input.projectId, subcontractId: input.subcontractId, certificateNumber: input.certificateNumber, grossAmount, ...(confirmationIds.length ? { confirmationIds, pulledLines: pulled } : {}) })
     });
   });
 
