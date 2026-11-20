@@ -7,9 +7,11 @@
 // An approved assumption is never edited in place: its values move only when a change request is approved, and every approval, change, refusal and
 // retirement writes one row to strategy_assumption_changes (append-only in the database) and one audit row, in the same transaction as the change.
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { auditLogs, strategyAssumptionChanges, strategyAssumptions } from "../drizzle/schema";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { auditLogs, changeRequests, projectCommercialInvoices, projects, strategyAssumptionChanges, strategyAssumptions } from "../drizzle/schema";
 import { assumptionRisks } from "./domain/assumptionRisks";
+import { strategyBacklog } from "./domain/strategyBacklog";
+import { runStrategyModel } from "./domain/strategyModel";
 import { assertTenantAccess } from "./domain/authorization";
 import { getDb, getTenantAccessSnapshot } from "./db";
 import { violates } from "./projectProfile";
@@ -233,4 +235,37 @@ export async function getStrategyAssumptionRisks(input: Caller & { horizonMonths
   const asOf = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
   const board = assumptionRisks(rows.map(row => ({ ...shape(row), key: row.code, sourceType: row.sourceType, sourceUrl: row.sourceUrl })), asOf, input.horizonMonths ?? 36);
   return { asOf, ...board };
+}
+
+/**
+ * Q-21 (c): the forecast the strategy centre and the board pack show — server/domain/strategyModel.ts run on this company's APPROVED assumptions (the
+ * model ignores the rest) and its backlog (server/domain/strategyBacklog.ts: active or on-hold projects, the adjusted contract value less issued or paid
+ * invoices, on a straight line to the planned finish). Company-wide under strategy.read; the backlog is returned only as totals (how many contracts and
+ * how much), never per project, so a reader without a project's money permission learns no project's contract value from here.
+ */
+export async function getStrategyForecast(input: Caller & { horizonMonths?: number }) {
+  const db = await authorized(input, "strategy.read");
+  const horizonMonths = Math.min(Math.max(Math.trunc(input.horizonMonths ?? 36), 12), 60);
+  const asOf = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+  const [assumptionRows, projectRows] = await Promise.all([
+    db.select().from(strategyAssumptions).where(eq(strategyAssumptions.tenantId, input.tenantId)),
+    db.select({ id: projects.id, code: projects.code, contractValue: projects.contractValue, plannedFinishAt: projects.plannedFinishAt }).from(projects)
+      .where(and(eq(projects.tenantId, input.tenantId), inArray(projects.status, ["active", "on_hold"]))),
+  ]);
+  const ids = projectRows.map(row => row.id);
+  const [changeRows, invoiceRows] = ids.length ? await Promise.all([
+    db.select({ projectId: changeRequests.projectId, status: changeRequests.status, contractValueImpact: changeRequests.contractValueImpact }).from(changeRequests)
+      .where(and(eq(changeRequests.tenantId, input.tenantId), inArray(changeRequests.projectId, ids), eq(changeRequests.status, "approved"))),
+    db.select({ projectId: projectCommercialInvoices.projectId, total: sql<string>`COALESCE(SUM(${projectCommercialInvoices.totalAmount}), 0)` }).from(projectCommercialInvoices)
+      .where(and(eq(projectCommercialInvoices.tenantId, input.tenantId), inArray(projectCommercialInvoices.projectId, ids), inArray(projectCommercialInvoices.status, ["issued", "paid"])))
+      .groupBy(projectCommercialInvoices.projectId),
+  ]) : [[], []];
+  const invoiced = new Map(invoiceRows.map(row => [row.projectId, Number(row.total)]));
+  const backlog = strategyBacklog(projectRows.map(row => ({
+    code: row.code, contractValue: Number(row.contractValue), invoiced: invoiced.get(row.id) ?? 0,
+    changeOrders: changeRows.filter(change => change.projectId === row.id).map(change => ({ status: change.status, contractValueImpact: Number(change.contractValueImpact) })),
+    plannedFinishAt: row.plannedFinishAt ? new Date(row.plannedFinishAt.getTime() + 3 * 3_600_000).toISOString().slice(0, 10) : null,
+  })), asOf.slice(0, 7));
+  const model = runStrategyModel({ horizonMonths, backlog: backlog.contracts, assumptions: assumptionRows.map(row => ({ key: row.code, status: row.status, values: shape(row).values })) });
+  return { asOf, horizonMonths, backlog: { scheduled: backlog.scheduled, unscheduled: backlog.unscheduled }, ...model };
 }
