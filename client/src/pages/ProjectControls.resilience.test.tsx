@@ -47,6 +47,7 @@ vi.mock("@/components/MasterPlanDrawing", () => ({ MasterPlanDrawing: () => null
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), mutateAsync: async (input: unknown) => { state.saved.push(input); return {}; }, isPending: false, error: null, data: null });
   return { trpc: {
+    siteReports: { list: { useQuery: () => ({ data: [] }) }, get: { useQuery: () => ({ data: undefined }) } }, // Q-54: the labour card beside the hero
     pmc: { stalledUnits: { useQuery: () => ({ data: { threshold: 3, longDays: 14, counts: { stalled: 2, long: 1, active: 4 }, rows: [] }, isError: false, error: null }) } },
     reportPeriods: { monthly: { useQuery: () => ({ isLoading: false, error: null, data: undefined }) } },
     projects: {

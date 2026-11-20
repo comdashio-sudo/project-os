@@ -2,6 +2,7 @@ import { indicatorBasisLine } from "@/lib/indicatorBasis";
 import { PAGE_NAMES } from "@shared/pageNames";
 import { PageHeader, PageMain } from "@/components/pageFrame";
 import { ProjectBoardHero } from "@/components/ProjectBoardHero";
+import { ProjectBoardKpis } from "@/components/ProjectBoardKpis";
 import { MetricCard, formatDate, formatNumber } from "@/components/ds";
 import { UPLOAD_ANY_FILE_FALLBACK_GROUP, uploadAnyFileHref } from "@/lib/uploadAnyFile";
 import { Badge } from "@/components/ui/badge";
@@ -240,6 +241,7 @@ export default function ProjectControls() {
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_performance" state={performanceQuery.error ? "error" : performanceQuery.data && (!latestEvm || !latestHealth) ? "partial" : null} />
         {/* Q-19 (3): the date, the day of the programme and the dark hero card of weighted progress against the plan head the board */}
         <ProjectBoardHero tenantId={tenantId} projectId={projectId} starts={data.activities.map(activity => activity.plannedStartAt)} />
+        <ProjectBoardKpis tenantId={tenantId} projectId={projectId} />
         <section className="flex flex-col gap-4 rounded-[var(--radius-card,var(--radius))] border border-border bg-card p-5 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1 basis-64">
