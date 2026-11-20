@@ -253,7 +253,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("project base file: the c
     const boq = Buffer.from("Ref,Scope,UOM code,Amount qty,Price\nQ31-01,Formwork,m2,10,50\n").toString("base64");
     const blind = await callers.owner.projects.baseline.previewBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: boq });
     expect(blind).toMatchObject({ refusal: "PROJECT_OS_BOQ_COLUMNS_MISSING", columns: { headers: ["Ref", "Scope", "UOM code", "Amount qty", "Price"], overridden: false } });
-    expect(blind.columns?.fields.find(field => field.key === "code")).toEqual({ key: "code", required: true, header: null });
+    // Q-50 batch 3b: not found, and «UOM code» is not offered for it (it is as close to the unit of measure); the reader applies no suggestion
+    expect(blind.columns?.fields.find(field => field.key === "code")).toEqual({ key: "code", required: true, header: null, source: null, suggestion: null });
     const mapping = { code: "Ref", description: "Scope", unitOfMeasure: "UOM code", quantity: "Amount qty", unitRate: "Price", __others__: "ignore" };
     const seen = await callers.owner.projects.baseline.previewBoq({ tenantId, projectId: projectA, format: "csv", fileBase64: boq, mapping });
     expect(seen).toMatchObject({ refusal: null, count: 1, totalAmount: 500, columns: { overridden: true } });

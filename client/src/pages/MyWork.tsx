@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useParams } from "wouter";
 import { formatDate } from "@/components/ds/format";
 import { PageMain } from "@/components/pageFrame";
-import { ProductShell } from "@/components/ProductShell";
 import { SourceNotice } from "@/components/SectionResilience";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,8 +35,8 @@ export default function MyWork() {
   const complete = trpc.executive.completeMyAction.useMutation({ onSuccess: () => { setNotice(t.saved); void work.refetch(); } });
   const transition = trpc.executive.transitionDecision.useMutation({ onSuccess: () => { setNotice(t.saved); void work.refetch(); } });
   const failure = complete.error ?? transition.error;
-  return <ProductShell tenantId={tenantId}>
-    <PageMain className="mx-auto grid w-full max-w-4xl gap-5 p-4 md:p-8">
+  // the router frames every /:tenantId page in the product shell (App.tsx withAuth + isFramedPath); a second shell here drew the frame twice
+  return <PageMain className="mx-auto grid w-full max-w-4xl gap-5 p-4 md:p-8">
       <header className="grid gap-1"><h1 className="text-2xl font-bold">{t.title}</h1><p className="text-sm text-muted-foreground">{t.intro}</p></header>
       <SourceNotice query={work} isArabic={isArabic} title={t.title} />
       <SourceNotice query={deadlines} isArabic={isArabic} title={t.late} />
@@ -84,6 +83,5 @@ export default function MyWork() {
           })}
         </CardContent></Card>
       </> : null}
-    </PageMain>
-  </ProductShell>;
+    </PageMain>;
 }

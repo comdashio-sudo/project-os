@@ -139,11 +139,11 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("equipment list import on
     const file = await importFile(callers.manager, "fleet.xlsx", await ownHeaders([["Grader", 1, "G-1", "EQ-970"], ["Grader", 2, "G-2", ""]]));
     expect(file.analysed.status).toBe("uploaded");
     expect(file.analysed.analysis?.errors.map(error => error.code)).toEqual(["IMPORT_REQUIRED_COLUMN_MISSING"]);
-    expect(columnsOf(file.analysed)).toMatchObject({ headers: ["Asset class", "Units", "Make", "Reg"], overridden: false, fields: expect.arrayContaining([{ key: "equipmentType", required: true, header: null }]) });
+    expect(columnsOf(file.analysed)).toMatchObject({ headers: ["Asset class", "Units", "Make", "Reg"], overridden: false, fields: expect.arrayContaining([expect.objectContaining({ key: "equipmentType", required: true, header: null, source: null })]) });
     await callers.manager.dataImports.reanalyze({ tenantId, projectId: A, importId: file.id, mappingOverride: { equipmentType: "Asset class", count: "Units", model: "Make", plateOrSize: "Reg", __others__: "ignore" } });
     const again = await settle(callers.manager, file.id);
     expect(again).toMatchObject({ status: "validated", totalRows: 2 });
-    expect(columnsOf(again)).toMatchObject({ overridden: true, fields: expect.arrayContaining([{ key: "plateOrSize", required: false, header: "Reg" }]) });
+    expect(columnsOf(again)).toMatchObject({ overridden: true, fields: expect.arrayContaining([expect.objectContaining({ key: "plateOrSize", required: false, header: "Reg", source: "chosen" })]) });
     expect(await count("SELECT COUNT(*) AS n FROM project_equipment WHERE tenantId = ? AND equipmentType = 'Grader'", [tenantId])).toBe(0);
     expect(await file.confirm()).toMatchObject({ status: "completed", createdRows: 3 });
     expect(await count("SELECT COUNT(*) AS n FROM project_equipment WHERE tenantId = ? AND equipmentType = 'Grader' AND plateOrSize = 'EQ-970' AND model = 'G-1'", [tenantId])).toBe(1);

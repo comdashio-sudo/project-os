@@ -2,6 +2,7 @@ import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, sa
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions } from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
+import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
@@ -72,7 +73,7 @@ const riskPatchSchema = z.object({
   residualProbability: riskScale.nullable(), residualSeverity: riskScale.nullable(), response: riskText(4000), mitigation: riskText(4000), trigger: riskText(2000),
   ownerMembershipId: z.string().uuid().nullable(), nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), status: z.enum(["open", "mitigating", "accepted"]),
 }).partial().strict();
-import { createImportUpload, deleteImportTemplate, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportReanalysis, saveImportTemplate } from "./importJobs";
+import { createImportUpload, deleteImportTemplate, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportCorrection, requestImportReanalysis, saveImportTemplate } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
@@ -333,6 +334,11 @@ export const appRouter = router({
     saveTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), name: z.string().trim().min(2).max(160) })).mutation(({ ctx, input }) => saveImportTemplate({ userId: ctx.user.id, ...input })),
     deleteTemplate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), templateId: z.string().uuid() })).mutation(({ ctx, input }) => deleteImportTemplate({ userId: ctx.user.id, ...input })),
     reanalyze: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), mappingOverride: z.record(z.string().min(1).max(64), z.string().max(128)) }).refine(value => Object.keys(value.mappingOverride).length <= 12, { message: "PROJECT_OS_IMPORT_MAPPING_INVALID" })).mutation(({ ctx, input }) => requestImportReanalysis({ userId: ctx.user.id, ...input })),
+    // Q-50 batch 4: corrections in the preview of a PMC file (a cell by row and field, or a row left out); the full set each time, analysed again in the background
+    correct: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), edits: z.object({
+      cells: z.array(z.object({ row: z.number().int().min(1).max(1_048_576), field: z.string().min(1).max(64), value: z.string().max(500) })).max(200),
+      ignoreRows: z.array(z.number().int().min(1).max(1_048_576)).max(500),
+    }).refine(value => new Set(value.cells.map(cell => `${cell.row}:${cell.field}`)).size === value.cells.length && new Set(value.ignoreRows).size === value.ignoreRows.length, { message: "PROJECT_OS_IMPORT_EDITS_INVALID" }) })).mutation(({ ctx, input }) => requestImportCorrection({ userId: ctx.user.id, ...input })),
     confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), approvedDiffHash: z.string().regex(/^[0-9a-f]{64}$/).optional() })).mutation(({ ctx, input }) => requestImportConfirmation({ userId: ctx.user.id, ...input })),
     // Export → edit → re-import: what the file would change, row by row, before anything is written.
     diff: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), kind: z.enum(["new", "modified", "conflict", "all"]).optional(), offset: z.number().int().min(0).max(10_000_000).optional() })).query(({ ctx, input }) => previewImportDiff({ userId: ctx.user.id, ...input })),
@@ -641,6 +647,10 @@ export const appRouter = router({
     runConnection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), connectionId: z.string().uuid(), direction: z.enum(["in", "out", "both"]) })).mutation(({ ctx, input }) => runConnectionForManager({ userId: ctx.user.id, ...input })),
   }),
   // The four levels a role works at (work order 12, item 2): each answers over exactly the projects the caller's own assignment covers.
+  // Q-53 (adviser 20-11): «التشغيل» — a row per project the caller reads (project.read at its scope), from existing records only (server/operationsOverview.ts)
+  operations: router({
+    overview: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getOperationsOverview({ userId: ctx.user.id, ...input })),
+  }),
   scopes: router({
     company: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getCompanyLevel({ userId: ctx.user.id, ...input })),
     portfolio: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getPortfolioLevel({ userId: ctx.user.id, ...input })),

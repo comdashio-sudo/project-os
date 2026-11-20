@@ -4,6 +4,7 @@
 //   - a row without one is a count of machines of that type and model: the import adds only what the project does not have yet (never removes), so importing the
 //     same list again adds nothing;
 //   - anything wrong (no type, a count that is not a whole number from 1 to 500, a count above 1 with a plate, a plate twice in the file) stops the whole file.
+import { columnHints, type ColumnSuggestion, type FieldSource } from "./domain/importEngine/hints";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -34,7 +35,7 @@ export type EquipmentPlan = {
 };
 
 /** Which column of the file each field was read from (Q-31, P0-02), shown with the report so a person can choose another and analyse again. */
-export type EquipmentColumns = { headers: string[]; fields: Array<{ key: Field; required: boolean; header: string | null }>; overridden: boolean };
+export type EquipmentColumns = { headers: string[]; fields: Array<{ key: Field; required: boolean; header: string | null; source?: FieldSource; suggestion?: ColumnSuggestion | null }>; overridden: boolean };
 export type EquipmentFile = { rows: Array<{ rowNumber: number; values: Record<Field, string> }>; columns?: EquipmentColumns; errors: Error_[] };
 const FIELDS = Object.keys(ALIASES) as Field[];
 const IGNORE_OTHER_COLUMNS = "__others__";
@@ -73,15 +74,18 @@ export async function readEquipmentRows(bytes: Uint8Array, format: "xlsx" | "csv
       for (const [field, column] of Array.from(columns)) if (chosen.has(column)) columns.delete(field);
       for (const [field, header] of choice) { columns.delete(field as Field); if (header !== "") columns.set(field as Field, headers.indexOf(header)); }
     } else if (!columns.has("equipmentType")) continue;
-    return read(sheet.rows, r, headers, columns, Boolean(choice));
+    return read(sheet.rows, r, headers, columns, Boolean(choice), new Set((choice ?? []).filter(([, header]) => header !== "").map(([field]) => field)));
   }
   if (choice) return invalid(wanted.find(header => !grid.sheets.some(sheet => sheet.rows.slice(0, 10).some(row => row.map(cell => text(cell)).includes(header)))) ?? wanted[0] ?? "");
   if (!fallback) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_EQUIPMENT_IMPORT_NOT_RECOGNISED" });
-  return read(fallback.sheet.rows, fallback.r, fallback.sheet.rows[fallback.r].map(cell => text(cell)), new Map(), false);
+  return read(fallback.sheet.rows, fallback.r, fallback.sheet.rows[fallback.r].map(cell => text(cell)), new Map(), false, new Set());
 }
 
-function read(sheetRows: Cell[][], r: number, headers: string[], columns: Map<Field, number>, overridden: boolean): EquipmentFile {
-  const report: EquipmentColumns = { headers: headers.filter(Boolean), fields: FIELDS.map(field => ({ key: field, required: field === "equipmentType", header: columns.has(field) ? headers[columns.get(field)!] : null })), overridden };
+function read(sheetRows: Cell[][], r: number, headers: string[], columns: Map<Field, number>, overridden: boolean, chosenKeys: ReadonlySet<string>): EquipmentFile {
+  // Q-50 batch 3c: where each column came from, and a suggestion (never applied) for a field not found
+  const resolved = Object.fromEntries(FIELDS.map(field => [field, columns.has(field) ? headers[columns.get(field)!] : null]));
+  const hints = columnHints(FIELDS.map(field => ({ key: field, aliases: ALIASES[field] })), headers.filter(Boolean), resolved, chosenKeys);
+  const report: EquipmentColumns = { headers: headers.filter(Boolean), fields: FIELDS.map(field => ({ key: field, required: field === "equipmentType", header: resolved[field], ...hints[field] })), overridden };
   if (!columns.has("equipmentType")) return { rows: [], columns: report, errors: [{ rowNumber: 0, code: "IMPORT_REQUIRED_COLUMN_MISSING", field: "equipmentType" }] };
   const rows = sheetRows.slice(r + 1).map((row, i) => ({ rowNumber: r + i + 2, values: Object.fromEntries(FIELDS.map(field => [field, columns.has(field) ? text(row[columns.get(field)!]) : ""])) as Record<Field, string> }))
     .filter(row => Object.values(row.values).some(Boolean));

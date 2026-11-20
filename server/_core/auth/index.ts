@@ -16,7 +16,7 @@ export function registerDefaultAuthRoutes(app: Express) {
     emailCodes: createEmailCodeService({ provider: supabase ? createSupabaseCodeProvider(supabase) : null, attempts: createDbAttemptLimiter(), ttlSeconds: ENV.authCodeTtlSeconds }),
     google: googleConfig ? { config: googleConfig, keys: googleKeys() } : null,
     secret: ENV.cookieSecret,
-    isEligible: email => isEligibleToSignIn(email),
+    isEligible: (email, options) => isEligibleToSignIn(email, options),
     upsertUser: user => upsertUser(user),
     createSessionToken: (openId, options) => sdk.issueSession(openId, { name: options.name, expiresInMs: options.expiresInMs }),
   });
