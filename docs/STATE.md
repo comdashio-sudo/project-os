@@ -1999,6 +1999,8 @@
 |---|---|---|
 | الهدف والمبادرة والفرصة: فحص تكرار الرمز يسبق المعاملة، فحفظان متزامنان بالرمز نفسه يمرّان به؛ الفهرس الفريد `(tenant_id, code)` يُبقي واحدًا، والآخر يُرجع الآن `PROJECT_OS_STRATEGY_*_CODE_EXISTS` (بـ`violates()` القائم) بدل خطأ القاعدة 23505 | `PROVEN` | `server/strategyGoals.database.test.ts` › «two saves of the same code at the same moment» (يسقط بلا الإصلاح، 7/7 معه، 2026-11-20) |
 | الفحوص | `PROVEN` | 2026-11-20: `pnpm check` ناجح؛ `pnpm build` ناجح؛ `pnpm test` 4422/0؛ `test:db` 970/0؛ الرحلات الثلاث 42/0 |
+| المساران الشقيقان (القاعدة 18، مراجعة المبرمج ج على #496): المنافس بالاسم (إنشاء وتعديل، الفهرس `strategy_competitors_tenant_name_unique`) والافتراض بالرمز (إنشاء، `strategy_assumptions_tenant_code_unique`) كانا يُرجعان للحفظ الثاني نص الاستعلام الخام (مسبار على `9852c2f`)؛ صارا يُرجعان `PROJECT_OS_STRATEGY_COMPETITOR_EXISTS` و`PROJECT_OS_STRATEGY_ASSUMPTION_CODE_EXISTS` بـ`violates()` نفسه. لا تكرار كان يُحفظ قبل الإصلاح (الفهرس يمنعه)؛ العيب في الرسالة وحدها | `PROVEN` | `strategyCompetitors.database.test.ts` › «two saves of the same name at the same moment» (إنشاءان متزامنان، وتسمية منافسَين مختلفين بالاسم نفسه معًا) و`strategyAssumptions.database.test.ts` › «two drafts with the same code at the same moment»: بلا الإصلاح يسقط الاثنان (2 فشل / 15)، ومعه 22/22 مع `strategyGoals` (2026-11-20، المبرمج ج) |
+| فحوص المسارين الشقيقين | `PROVEN` | 2026-11-20 على `aa763c0` + الإصلاح: `pnpm check` ناجح؛ `pnpm build` ناجح؛ `pnpm test` 4422/0؛ `coverage:trpc` ناجح (لا استثناء قديم)؛ `test:db` 972/0 (970 قبله + الاختباران)؛ الرحلات الثلاث 42/0؛ `check:secrets` نظيف |
 
 ### Q-21 (أ) الدفعة 6 (الوحدة 5): الأهداف والمبادرات والانحرافات (2026-11-20، المبرمج ب، ترحيلة 0051، فوق الدفعة 4 #408)
 

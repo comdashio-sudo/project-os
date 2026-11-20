@@ -11,6 +11,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { auditLogs, strategyAssumptionChanges, strategyAssumptions } from "../drizzle/schema";
 import { assertTenantAccess } from "./domain/authorization";
 import { getDb, getTenantAccessSnapshot } from "./db";
+import { violates } from "./projectProfile";
 
 type Caller = { userId: number; tenantId: string };
 type Values = { conservative: number; base: number; optimistic: number };
@@ -102,7 +103,9 @@ export async function createStrategyAssumption(input: Caller & AssumptionFields)
       valueConservative: num(input.values.conservative), valueBase: num(input.values.base), valueOptimistic: num(input.values.optimistic), createdByUserId: input.userId,
     });
     await audit(tx, input, "strategy_assumption.created", id, { code: input.code, module: input.module ?? "general", evidence: input.evidence ?? "estimate", values: input.values });
-  });
+    // two saves of the same code at the same moment both pass the read above; the unique (tenant, code) index lets one win and the other gets the same
+    // translated refusal, not a raw 23505 (the sibling of #496)
+  }).catch((error: unknown): never => { if (violates(error, "strategy_assumptions_tenant_code_unique")) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_ASSUMPTION_CODE_EXISTS"); throw error; });
   return { id, status: "draft" as const };
 }
 
