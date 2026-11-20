@@ -7,14 +7,14 @@ import { ProjectOperationalImports } from "./ProjectOperationalImports";
 const IMPORT = "00000000-0000-4000-8000-0000000000e1";
 const h = vi.hoisted(() => ({
   arabic: false, can: true, put: vi.fn(), template: vi.fn(), exporter: vi.fn(),
-  imports: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, diff: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn(), template: vi.fn() },
+  imports: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, diff: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn(), template: vi.fn(), templates: [] as unknown[], saveTemplate: vi.fn() },
 }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.arabic, language: (h.arabic) ? "ar" : "en", isRtl: h.arabic }) }));
 vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: h.put }));
 vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children, reason }: { children: React.ReactNode; reason?: { en: string } }) => (h.can ? <>{children}</> : <p role="note">{reason?.en}</p>) }));
 vi.mock("@/lib/trpc", async () => {
   const base = (await import("../test/importsTrpcMock")).importsTrpc(h.imports);
-  return { trpc: { dataImports: { ...base.dataImports, template: { useMutation: () => ({ mutate: h.template, isPending: false, error: null }) }, export: { useMutation: () => ({ mutate: h.exporter, isPending: false, error: null }) } } } };
+  return { trpc: { useUtils: base.useUtils, dataImports: { ...base.dataImports, template: { useMutation: () => ({ mutate: h.template, isPending: false, error: null }) }, export: { useMutation: () => ({ mutate: h.exporter, isPending: false, error: null }) } } } };
 });
 
 const view = (over: Record<string, unknown> = {}) => ({ id: IMPORT, status: "validated", progressPercent: 100, progressStage: null, failureReason: null, totalRows: 2, validRows: 2, invalidRows: 0, createdRows: 0, updatedRows: 0, skippedRows: 0, analysis: { headers: [], mapping: {}, errors: [], errorsListed: 0, errorsTotal: 0 }, external: { canConfirm: true, report: { ledger: {} } }, ...over });
@@ -26,7 +26,7 @@ beforeEach(() => {
   h.imports.createUpload.mockReset().mockResolvedValue({ uploadUrl: "https://storage.example.test/u", uploadKey: "imports/t/p/pending/k/f", headers: {}, maxBytes: 1 });
   h.imports.registerUpload.mockReset().mockResolvedValue({ id: IMPORT, status: "analyzing" });
   h.imports.confirm.mockReset().mockResolvedValue({ id: IMPORT, status: "importing" });
-  h.imports.progress = undefined; h.imports.diff = undefined;
+  h.imports.progress = undefined; h.imports.diff = undefined; h.imports.templates = []; h.imports.reanalyze.mockReset(); h.imports.saveTemplate.mockReset();
 });
 afterEach(cleanup);
 
@@ -101,5 +101,30 @@ describe("ProjectOperationalImports", () => {
     expect(screen.getByText("Excel للبيانات التشغيلية")).toBeTruthy();
     expect(screen.getByText("المبلغ (ريال) · مطلوب")).toBeTruthy();
     expect(screen.getByText("تنزيل القالب")).toBeTruthy();
+  });
+
+  it("Q-50 2b: a suggested template is applied only by the person (analysed again, nothing confirmed), a clean mapping can be saved, and the company's ledger templates are listed", async () => {
+    h.imports.templates = [{ id: "tpl-1", name: "Example costs layout", kind: "costs", mapping: { wbsCode: "Ref WBS" }, updatedAt: "2026-11-19T10:00:00Z" }, { id: "tpl-2", name: "Example villa list", kind: "pmc.locations", mapping: {}, updatedAt: "2026-11-19T10:00:00Z" }];
+    h.imports.progress = view({ suggestedTemplate: { id: "tpl-1", name: "Example costs layout", score: 0.9, mapping: { wbsCode: "Ref WBS" } } });
+    render(<ProjectOperationalImports tenantId="t" projectId="p" />);
+    expect(screen.getByText("Actual costs · 1 fields")).toBeTruthy();
+    expect(screen.queryByText("Example villa list")).toBeNull(); // a PMC template is not a ledger's
+    await analyse();
+    await waitFor(() => expect(screen.getByTestId("suggested-template")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Apply the template and analyse again" }));
+    await waitFor(() => expect(h.imports.reanalyze).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", importId: IMPORT, mappingOverride: { wbsCode: "Ref WBS", __others__: "ignore" } }));
+    expect(h.imports.confirm).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Template name"), { target: { value: "Example costs layout 2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save the template" }));
+    await waitFor(() => expect(h.imports.saveTemplate).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", importId: IMPORT, name: "Example costs layout 2" }));
+  });
+
+  it("Q-50 2b NEGATIVE: no suggestion → no card; an analysis that is not clean offers no save", async () => {
+    h.imports.progress = view({ status: "uploaded", suggestedTemplate: null, external: { canConfirm: false, report: { ledger: {} } } });
+    render(<ProjectOperationalImports tenantId="t" projectId="p" />);
+    await analyse();
+    await waitFor(() => expect(screen.getByText("Rows: 2")).toBeTruthy());
+    expect(screen.queryByTestId("suggested-template")).toBeNull();
+    expect(screen.queryByTestId("save-template")).toBeNull();
   });
 });

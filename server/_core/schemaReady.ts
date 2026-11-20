@@ -90,11 +90,13 @@ export const REQUIRED_SCHEMA = [
   { migration: "0043_risk_register", kind: "column", table: "risks", column: "closed_at" },
   { migration: "0043_risk_register", kind: "column", table: "risks", column: "closure_reason" },
   { migration: "0043_risk_register", kind: "column", table: "risks", column: "issue_id" },
-  { migration: "0044_strategy_assumptions", kind: "table", table: "strategy_assumptions" },
-  { migration: "0044_strategy_assumptions", kind: "table", table: "strategy_assumption_changes" },
-  { migration: "0045_strategy_market", kind: "column", table: "strategy_assumptions", column: "evidence" },
-  { migration: "0046_strategy_competitors_swot", kind: "table", table: "strategy_competitors" },
-  { migration: "0046_strategy_competitors_swot", kind: "table", table: "strategy_swot_items" },
+  { migration: "0044_safety_register", kind: "table", table: "safety_incidents" },
+  { migration: "0044_safety_register", kind: "table", table: "work_permits" },
+  { migration: "0045_strategy_assumptions", kind: "table", table: "strategy_assumptions" },
+  { migration: "0045_strategy_assumptions", kind: "table", table: "strategy_assumption_changes" },
+  { migration: "0046_strategy_market", kind: "column", table: "strategy_assumptions", column: "evidence" },
+  { migration: "0047_strategy_competitors_swot", kind: "table", table: "strategy_competitors" },
+  { migration: "0047_strategy_competitors_swot", kind: "table", table: "strategy_swot_items" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
