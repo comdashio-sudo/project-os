@@ -4,7 +4,7 @@
 //
 // Which daily reports count: the APPROVED ones (the record), unless includeUnapproved asks for every report but a rejected one (a draft view for the planner).
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { ncrs, pmcActivityDefinitions, pmcInspectionRequests, pmcUnits, projectEquipment, projectLabourRoles, projectProfiles, rfis, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportLines, siteDailyReports } from "../drizzle/schema";
 import { activityFigures, ncrAges, periodRange, round, workDaysOf, workingDays, type ActivityDayRow, type PeriodKind } from "./domain/reportPeriod";
 import { authorize, HSE_KINDS, READ_PERMISSIONS } from "./siteReports";
@@ -77,14 +77,18 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
     }).from(ncrs).where(mine(ncrs, input)),
   ]);
 
-  // safety man-hours: each day's headcount times that day's working hours (the report's, else the project's); a day with neither is counted, not guessed
-  const headcountByDay = new Map<string, number>();
-  for (const row of labourRows) headcountByDay.set(row.date, (headcountByDay.get(row.date) ?? 0) + row.headcount);
+  // safety man-hours: each REPORT's headcount times that report's working hours (else the project's working day); a report with people but no hours is
+  // counted, not guessed. Per report, not per day: two reports of one day (two engineers or contractors) used to multiply the whole day's headcount twice.
+  const headcountRows = reports.length ? await db.select({ reportId: siteDailyReportLabour.reportId, headcount: sql<number>`coalesce(sum(${siteDailyReportLabour.headcount}), 0)::int` })
+    .from(siteDailyReportLabour).where(and(eq(siteDailyReportLabour.tenantId, input.tenantId), eq(siteDailyReportLabour.projectId, input.projectId), inArray(siteDailyReportLabour.reportId, reports.map(report => report.id))))
+    .groupBy(siteDailyReportLabour.reportId) : [];
+  const headcountByReport = new Map(headcountRows.map(row => [row.reportId, row.headcount]));
   let manHours = 0; let daysWithoutHours = 0;
   for (const report of reports) {
+    const people = headcountByReport.get(report.id) ?? 0;
     const hours = num(report.workHours) ?? profileHours;
-    if (hours === null) { if (headcountByDay.get(report.date)) daysWithoutHours += 1; continue; }
-    manHours += (headcountByDay.get(report.date) ?? 0) * hours;
+    if (hours === null) { if (people) daysWithoutHours += 1; continue; }
+    manHours += people * hours;
   }
 
   const unitsOf = new Map(unitsPerModel.map(row => [row.modelCode, row.units]));
