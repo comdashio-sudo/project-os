@@ -41,9 +41,10 @@ export function MasterPlanBoard({ tenantId, projectId, entities, selectedId, onS
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {shown.map(block => <section key={block.id || "none"} data-board-block className="rounded-[18px] bg-card p-4 shadow-sm">
             <div className="flex items-baseline justify-between gap-2"><h3 className="text-base font-bold">{blockLabel(block.code)}</h3><span className="text-xs text-muted-foreground tabular-nums">{block.progress}%</span></div>
-            <div className="mt-3 grid grid-cols-5 gap-1.5">
+            {/* phone: as many 44px tiles as fit (five fixed columns made them 37px wide — the touch audit on /controls, D-76) */}
+            <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-1.5">
               {block.units.map(unit => <button key={unit.id} type="button" data-board-unit={unit.state} aria-pressed={unit.id === selectedId} aria-label={`${unit.code} · ${t.state[unit.state]} · ${unit.progress}%`} onClick={() => onSelect(unit.id)}
-                className={`grid min-h-11 min-w-0 place-items-center rounded-lg border text-[11px] font-semibold tabular-nums ${BOARD_STATE_CLASS[unit.state]} ${unit.id === selectedId ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`}>
+                className={`grid min-h-11 min-w-11 place-items-center rounded-lg border text-[11px] font-semibold tabular-nums ${BOARD_STATE_CLASS[unit.state]} ${unit.id === selectedId ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`}>
                 <span className="truncate px-0.5">{unit.code}</span>
               </button>)}
             </div>
