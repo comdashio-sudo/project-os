@@ -187,6 +187,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-43: subcontractor work
     expect(await code(callerFor("siteOther").workConfirmations.options(scope()))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callerFor("ownerB").workConfirmations.options(scope()))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
     expect((await callerFor("owner").workConfirmations.options({ tenantId, projectId: P2 })).subcontracts.map(item => item.code)).toEqual(["Q43-O"]);
+  });
 
   // review of #449 (programmer C): a correction frees room under the caps only once it is approved; a pending one still counts toward the floor
   it("CORRECTION PENDING: a draft −50 on an approved 100% frees no room (another subcontract's 50% is OVER_COMPLETE, the same one's DUPLICATE); cancelled, the cell stays whole; approved, the room opens", async () => {
