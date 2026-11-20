@@ -1703,6 +1703,17 @@ export const projectErrorMessages = {
     en: "This risk code is already used in this project. Choose another code.",
     ur: "خطرے کا یہ کوڈ اس پروجیکٹ میں پہلے ہی استعمال ہو رہا ہے۔ کوئی دوسرا کوڈ منتخب کریں۔",
   },
+  // Q-28 (P-117): the safety register
+  PROJECT_OS_SAFETY_DATE_IN_FUTURE: { ar: "تاريخ الحادث بعد يوم الموقع. أدخل تاريخًا وقع فعلًا.", en: "The incident date is after the site day. Enter a date that has happened.", ur: "واقعے کی تاریخ سائٹ کے دن کے بعد ہے۔ ایسی تاریخ درج کریں جو گزر چکی ہو۔" },
+  PROJECT_OS_SAFETY_LOST_DAYS_INVALID: { ar: "أيام العمل الضائعة تُسجَّل للإصابة المضيّعة للوقت أو الوفاة فقط.", en: "Lost days are recorded only for a lost-time injury or a fatality.", ur: "ضائع دن صرف وقت ضائع کرنے والی چوٹ یا موت کے لیے درج ہوتے ہیں۔" },
+  PROJECT_OS_SAFETY_NUMBER_EXISTS: { ar: "هذا الرقم مستعمل في سجل السلامة لهذا المشروع. اختر رقمًا آخر.", en: "This number is already used in this project's safety register. Choose another number.", ur: "یہ نمبر اس پروجیکٹ کے حفاظتی رجسٹر میں پہلے سے استعمال ہو رہا ہے۔ کوئی دوسرا نمبر منتخب کریں۔" },
+  PROJECT_OS_SAFETY_INCIDENT_NOT_FOUND: { ar: "الحادث غير موجود في هذا المشروع.", en: "This incident does not exist in this project.", ur: "یہ واقعہ اس پروجیکٹ میں موجود نہیں ہے۔" },
+  PROJECT_OS_SAFETY_INCIDENT_CLOSED: { ar: "هذا الحادث مغلق ولا يُعدَّل.", en: "This incident is closed and cannot be changed.", ur: "یہ واقعہ بند ہے اور اس میں تبدیلی نہیں ہو سکتی۔" },
+  PROJECT_OS_SAFETY_TRANSITION_INVALID: { ar: "لا يمكن نقل الحادث إلى هذه الحالة من حالته الحالية.", en: "The incident cannot move to this status from its current one.", ur: "واقعہ اپنی موجودہ حالت سے اس حالت میں منتقل نہیں ہو سکتا۔" },
+  PROJECT_OS_SAFETY_CORRECTIVE_ACTION_REQUIRED: { ar: "اكتب الإجراء التصحيحي قبل إغلاق الحادث.", en: "Write the corrective action before closing the incident.", ur: "واقعہ بند کرنے سے پہلے اصلاحی اقدام لکھیں۔" },
+  PROJECT_OS_SAFETY_PERMIT_WINDOW_INVALID: { ar: "نهاية صلاحية التصريح يجب أن تكون بعد بدايتها.", en: "The permit must end after it starts.", ur: "اجازت نامے کا اختتام اس کے آغاز کے بعد ہونا چاہیے۔" },
+  PROJECT_OS_SAFETY_PERMIT_NOT_FOUND: { ar: "التصريح غير موجود في هذا المشروع.", en: "This permit does not exist in this project.", ur: "یہ اجازت نامہ اس پروجیکٹ میں موجود نہیں ہے۔" },
+  PROJECT_OS_SAFETY_PERMIT_CLOSED: { ar: "هذا التصريح مغلق أو ملغى من قبل.", en: "This permit is already closed or cancelled.", ur: "یہ اجازت نامہ پہلے ہی بند یا منسوخ ہو چکا ہے۔" },
   // Q-27 (P-115): the project risk register
   PROJECT_OS_RISK_NOT_FOUND: {
     ar: "الخطر غير موجود في هذا المشروع.",
