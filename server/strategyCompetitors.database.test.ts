@@ -92,6 +92,19 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-21 (a) batch 3: compet
     expect(await code(callerFor("exec").strategy.updateCompetitor({ tenantId, competitorId, ...rival("Renamed") }))).toBe("PROJECT_OS_PERMISSION_DENIED");
   });
 
+  it("NEGATIVE (sibling of #496): two saves of the same name at the same moment — one is kept, the other gets the translated refusal, not a raw database error", async () => {
+    const entrant = callerFor("entrant");
+    const pair = async (first: Promise<unknown>, second: Promise<unknown>) => (await Promise.all([code(first), code(second)])).sort();
+    expect(await pair(entrant.strategy.createCompetitor({ tenantId, ...rival("Race Co.") }), entrant.strategy.createCompetitor({ tenantId, ...rival("Race Co.") })))
+      .toEqual(["PROJECT_OS_STRATEGY_COMPETITOR_EXISTS", "no error"]);
+    // a rename race: two different competitors renamed to one free name at once
+    const { id: left } = await entrant.strategy.createCompetitor({ tenantId, ...rival("Left Synthetic Co.") });
+    const { id: right } = await entrant.strategy.createCompetitor({ tenantId, ...rival("Right Synthetic Co.") });
+    expect(await pair(entrant.strategy.updateCompetitor({ tenantId, competitorId: left, ...rival("Merged Synthetic Co.") }), entrant.strategy.updateCompetitor({ tenantId, competitorId: right, ...rival("Merged Synthetic Co.") })))
+      .toEqual(["PROJECT_OS_STRATEGY_COMPETITOR_EXISTS", "no error"]);
+    expect((await entrant.strategy.competitors({ tenantId })).filter(item => item.name === "Race Co." || item.name === "Merged Synthetic Co.").length).toBe(2);
+  });
+
   it("ISOLATION: the site engineer and another company read nothing", async () => {
     expect(await code(callerFor("site").strategy.competitors({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");
     expect(await code(callerFor("site").strategy.swot({ tenantId }))).toBe("PROJECT_OS_PERMISSION_DENIED");

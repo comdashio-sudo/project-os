@@ -9,8 +9,10 @@
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { auditLogs, strategyAssumptionChanges, strategyAssumptions } from "../drizzle/schema";
+import { assumptionRisks } from "./domain/assumptionRisks";
 import { assertTenantAccess } from "./domain/authorization";
 import { getDb, getTenantAccessSnapshot } from "./db";
+import { violates } from "./projectProfile";
 
 type Caller = { userId: number; tenantId: string };
 type Values = { conservative: number; base: number; optimistic: number };
@@ -102,7 +104,9 @@ export async function createStrategyAssumption(input: Caller & AssumptionFields)
       valueConservative: num(input.values.conservative), valueBase: num(input.values.base), valueOptimistic: num(input.values.optimistic), createdByUserId: input.userId,
     });
     await audit(tx, input, "strategy_assumption.created", id, { code: input.code, module: input.module ?? "general", evidence: input.evidence ?? "estimate", values: input.values });
-  });
+    // two saves of the same code at the same moment both pass the read above; the unique (tenant, code) index lets one win and the other gets the same
+    // translated refusal, not a raw 23505 (the sibling of #496)
+  }).catch((error: unknown): never => { if (violates(error, "strategy_assumptions_tenant_code_unique")) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_ASSUMPTION_CODE_EXISTS"); throw error; });
   return { id, status: "draft" as const };
 }
 
@@ -220,4 +224,13 @@ export async function retireStrategyAssumption(input: Caller & { assumptionId: s
     await audit(tx, input, "strategy_assumption.retired", row.id, { reason: input.reason.trim() });
   });
   return { id: input.assumptionId, status: "retired" as const };
+}
+
+/** Q-21 (a), batch 5: the assumption-risk board (server/domain/assumptionRisks.ts) — read-only, from this company's register, as of the site day. */
+export async function getStrategyAssumptionRisks(input: Caller & { horizonMonths?: number }) {
+  const db = await authorized(input, "strategy.read");
+  const rows = await db.select().from(strategyAssumptions).where(eq(strategyAssumptions.tenantId, input.tenantId));
+  const asOf = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+  const board = assumptionRisks(rows.map(row => ({ ...shape(row), key: row.code, sourceType: row.sourceType, sourceUrl: row.sourceUrl })), asOf, input.horizonMonths ?? 36);
+  return { asOf, ...board };
 }
