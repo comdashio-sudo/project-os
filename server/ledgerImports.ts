@@ -8,6 +8,7 @@ import { type ExportLocale } from "@shared/exportLocale";
 //   · purchase orders  always created as drafts; only a draft may be changed; the Status column is shown but a change to it is refused (submitting / approving stays a workflow action)
 //   · employees        the working record only (no nationality, no identity document); terminating stays on the HR screen; every read of the records is audited
 //   · hours            the employee's assignment on this project, and the approved-attendance rule of the hours screen, are enforced row by row; entries are created as drafts
+import { columnHints, type ColumnSuggestion, type FieldSource } from "./domain/importEngine/hints";
 import { createHash, randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
@@ -63,7 +64,7 @@ const dayKey = (date: Date | null | undefined) => (date ? date.toISOString().sli
 type ParsedRow = { rowNumber: number; cells: Record<string, unknown>; fileId?: string; fileVersion?: string };
 
 /** Which column of the file each field was read from (Q-31, P0-02): shown with the report so a person can choose another and analyse again. Same shape as PMC's. */
-export type LedgerColumns = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null }>; overridden: boolean };
+export type LedgerColumns = { headers: string[]; fields: Array<{ key: string; required: boolean; header: string | null; source?: FieldSource; suggestion?: ColumnSuggestion | null }>; overridden: boolean };
 /** The key that says «the columns no field takes are ignored, not refused» (the person saw the whole list). Same key as the PMC importer. */
 export const IGNORE_OTHER_COLUMNS = "__others__";
 type Table = { rows: ParsedRow[]; errors: LedgerError[]; columns?: LedgerColumns };
@@ -122,7 +123,10 @@ export async function readLedgerTable(moduleCode: LedgerModule, format: "xlsx" |
     ({ mapping: headerOf, ignoreOthers } = applied);
   }
   const fileColumns = headers.filter(header => header && header !== LEDGER_ID_HEADER && header !== LEDGER_VERSION_HEADER);
-  const report: LedgerColumns = { headers: fileColumns, fields: columns.map(column => ({ key: column.key, required: column.required, header: headerOf.get(column.key) ?? null })), overridden: Boolean(choice) };
+  // Q-50 batch 3c: where each column came from, and a suggestion (never applied) for a field not found — as the PMC and baseline reports already say
+  const chosenKeys = new Set(Object.entries(choice ?? {}).filter(([key, header]) => key !== "__others__" && header && header !== "ignore").map(([key]) => key));
+  const hints = columnHints(columns.map(column => ({ key: column.key, aliases: acceptedHeaders(column) })), fileColumns, Object.fromEntries(columns.map(column => [column.key, headerOf.get(column.key) ?? null])), chosenKeys);
+  const report: LedgerColumns = { headers: fileColumns, fields: columns.map(column => ({ key: column.key, required: column.required, header: headerOf.get(column.key) ?? null, ...hints[column.key] })), overridden: Boolean(choice) };
   const known = new Set(Array.from(headerOf.values()));
   const errors: LedgerError[] = [];
   if (!ignoreOthers) for (const header of fileColumns) if (!known.has(header)) errors.push({ rowNumber: 0, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
