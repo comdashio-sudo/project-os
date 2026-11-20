@@ -4220,3 +4220,38 @@ export const strategySwotItems = pgTable(
     index("strategy_swot_items_tenant_kind_idx").on(table.tenantId, table.kind),
   ],
 );
+
+// Q-21 (a), batch 4: the company's opportunities pipeline — tenders and opportunities the COMPANY pursues (not the procurement tenders inside a project,
+// tender_packages). Each has its value, the probability the company gives it, when the award is expected and how long the work would run, and its outcome:
+// won, lost (and, when known, to which competitor), or withdrawn. The actual win rate is computed from the decided ones; the model reads it later.
+export const strategyOpportunityStatusEnum = pgEnum("strategy_opportunity_status", ["open", "submitted", "won", "lost", "withdrawn"]);
+export const strategyOpportunities = pgTable(
+  "strategy_opportunities",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 60 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    clientName: varchar("client_name", { length: 200 }),
+    sector: varchar("sector", { length: 120 }),
+    region: varchar("region", { length: 120 }),
+    estimatedValue: numeric("estimated_value", { precision: 18, scale: 2 }).notNull(),
+    probabilityPercent: numeric("probability_percent", { precision: 5, scale: 2 }).notNull(),
+    expectedAwardAt: date("expected_award_at", { mode: "string" }),
+    durationMonths: integer("duration_months"),
+    status: strategyOpportunityStatusEnum("status").default("open").notNull(),
+    decidedAt: date("decided_at", { mode: "string" }),
+    winnerCompetitorId: varchar("winner_competitor_id", { length: 36 }),
+    winningValue: numeric("winning_value", { precision: 18, scale: 2 }),
+    outcomeNote: varchar("outcome_note", { length: 500 }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_opportunities_tenant_code_unique").on(table.tenantId, table.code),
+    foreignKey({ name: "strategy_opportunities_winner_fk", columns: [table.winnerCompetitorId, table.tenantId], foreignColumns: [strategyCompetitors.id, strategyCompetitors.tenantId] }),
+    index("strategy_opportunities_tenant_status_idx").on(table.tenantId, table.status),
+    check("strategy_opportunities_probability_range", sql`${table.probabilityPercent} >= 0 AND ${table.probabilityPercent} <= 100`),
+  ],
+);
