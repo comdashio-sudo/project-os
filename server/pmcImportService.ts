@@ -45,6 +45,8 @@ import {
   type ParsedFile,
   type PmcImportKind,
   type PmcStatus,
+  type PmcImportEdits,
+  type PmcAppliedEdit,
 } from "./domain/pmcImport";
 import { PMC_INSPECTION_STEPS } from "./pmcService";
 
@@ -88,10 +90,10 @@ function decode(base64: string) {
 
 const report = (kind: PmcImportKind, fileHash: string, totalRows: number, errors: PmcImportError[], counts: PmcImportCounts, details: Record<string, unknown> = {}): PmcImportReport => ({ kind, fileHash, totalRows, errorCount: errors.length, errors: errors.slice(0, MAX_REPORTED_ERRORS), counts, details, canConfirm: errors.length === 0 && counts.create + counts.update > 0 });
 
-async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; mappingOverride?: Record<string, string> } & ({ base64: string } | { bytes: Buffer })): Promise<Prepared> {
+async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; mappingOverride?: Record<string, string>; edits?: PmcImportEdits } & ({ base64: string } | { bytes: Buffer })): Promise<Prepared> {
   // `bytes`: the file came through the direct-upload path (a signed URL, up to MAX_DIRECT_UPLOAD_BYTES), so it was size-checked there and is not limited to a request body.
   const { bytes, fileHash } = "bytes" in input ? { bytes: input.bytes, fileHash: createHash("sha256").update(input.bytes).digest("hex") } : decode(input.base64);
-  const parsed = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes, mappingOverride: input.mappingOverride });
+  const parsed = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes, mappingOverride: input.mappingOverride, edits: input.edits });
   const none: PmcImportCounts = { create: 0, update: 0, unchanged: 0 };
   // Q-31 (P0-02): the report says which column each field was read from (and whether a person chose it), so the screen can show it and offer to change it
   const columns = parsed.columns ? { columns: parsed.columns } : {};
@@ -99,7 +101,7 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
   const prepared = await prepareRows(db, input, parsed, fileHash);
   // what the reader did quietly is said in the report too: totals lines skipped, sections filled down (Q-31 review of #370, Q-47)
   // Q-48: and the columns no field reads, with a few of their values, so a person sees each was seen and left aside
-  const notes = parsed.notes && (parsed.notes.skippedTotals || parsed.notes.filledDown || parsed.notes.ignoredColumns?.length) ? parsed.notes : {};
+  const notes = parsed.notes && (parsed.notes.skippedTotals || parsed.notes.filledDown || parsed.notes.ignoredColumns?.length || parsed.notes.edits?.length || parsed.notes.ignoredRows?.length) ? parsed.notes : {};
   return { ...prepared, report: { ...prepared.report, details: { ...prepared.report.details, ...columns, ...notes } } };
 }
 
@@ -292,9 +294,15 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
   };
 }
 
+/** Q-50 batch 4: the corrections a report carries (each with the file's value and the one used), for the audit row of the write. */
+const correctionsOf = (report: PmcImportReport) => {
+  const details = report.details as { edits?: PmcAppliedEdit[]; ignoredRows?: number[] };
+  return { ...(details.edits?.length ? { edits: details.edits } : {}), ...(details.ignoredRows?.length ? { ignoredRows: details.ignoredRows } : {}) };
+};
+
 /** Reads and checks a file; writes nothing. */
 /** `bytes` instead of `base64`: the file came through the direct-upload path (read from Storage by the background job). */
-export async function analyzePmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; mappingOverride?: Record<string, string> } & ({ base64: string } | { bytes: Buffer })): Promise<PmcImportReport> {
+export async function analyzePmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; mappingOverride?: Record<string, string>; edits?: PmcImportEdits } & ({ base64: string } | { bytes: Buffer })): Promise<PmcImportReport> {
   const db = await authorize(input);
   return (await prepare(db, input)).report;
 }
@@ -304,7 +312,7 @@ export async function analyzePmcImport(input: Scope & { kind: PmcImportKind; for
  * that report: if the bytes differ, or the project changed so that the file no
  * longer passes, nothing is saved.
  */
-export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; approvedHash: string; mappingOverride?: Record<string, string> } & ({ base64: string } | { bytes: Buffer })) {
+export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; approvedHash: string; mappingOverride?: Record<string, string>; edits?: PmcImportEdits } & ({ base64: string } | { bytes: Buffer })) {
   const db = await authorize(input);
   const prepared = await prepare(db, input);
   if (prepared.report.fileHash !== input.approvedHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
@@ -314,7 +322,7 @@ export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; for
     await apply(tx);
     // Statuses, catalog weights/links and the unit list all move PMC progress; the other kinds do not.
     if (input.kind === "status" || input.kind === "catalog" || input.kind === "weights" || input.kind === "locations") await syncPmcProgressToEvm(tx, input, new Date());
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.import_confirmed", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ kind: input.kind, fileHash: prepared.report.fileHash, counts: prepared.report.counts, totalRows: prepared.report.totalRows }) });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.import_confirmed", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ kind: input.kind, fileHash: prepared.report.fileHash, counts: prepared.report.counts, totalRows: prepared.report.totalRows, ...correctionsOf(prepared.report) }) });
   });
   void refreshStatisticsAfterBulkLoad(db, ["pmc_*"], prepared.report.totalRows); // never blocks (bulkLoadStats.ts)
   return { kind: input.kind, counts: prepared.report.counts, totalRows: prepared.report.totalRows, fileHash: prepared.report.fileHash };
