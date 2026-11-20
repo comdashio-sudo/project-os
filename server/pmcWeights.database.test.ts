@@ -134,6 +134,11 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-3: the weights table a
     const original = asBase64(Buffer.from(await ownerOriginalWeights()));
     const report = await manager().pmc.analyzeImport({ ...owner, kind: "weights", format: "xlsx", base64: original });
     expect(report.errors).toEqual([]);
+    // I50: the owner's real totals line — «الإجمالي» in the unmapped «م» cell, the rounded sum 0.99999 in the weight — is skipped the same way, 0 refused
+    const realTotal = await manager().pmc.analyzeImport({ ...owner, kind: "weights", format: "xlsx", base64: asBase64(Buffer.from(await ownerOriginalWeights({ totalIn: "serial" }))) });
+    expect(realTotal.errors).toEqual([]);
+    expect(realTotal.details).toMatchObject({ skippedTotals: 1 });
+    expect(realTotal.counts).toEqual({ create: 10, update: 0, unchanged: 0 });
     expect(report.details).toMatchObject({ ignoredZeroWeight: 1, scaledFromFractions: true, skippedTotals: 1 });
     expect((report.details as { ignoredColumns?: Array<{ header: string }> }).ignoredColumns?.map(column => column.header)).toContain("القسم");
     expect(report.counts).toEqual({ create: 10, update: 0, unchanged: 0 });
