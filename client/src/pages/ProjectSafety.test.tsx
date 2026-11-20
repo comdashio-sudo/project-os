@@ -86,7 +86,7 @@ describe("ProjectSafety (Q-28, P-118)", () => {
     render(<ProjectSafety />);
     fireEvent.click(screen.getByRole("radio", { name: "Permits to work" }));
     const expired = document.querySelector('[data-permit="PTW-1"]') as HTMLElement;
-    expect(expired.querySelector("[data-state]")!.getAttribute("data-state")).toBe("expired");
+    expect(expired.querySelector("[data-permit-state]")!.getAttribute("data-permit-state")).toBe("expired");
     fireEvent.click(within(expired).getByRole("button", { name: "Close the permit" }));
     fireEvent.change(within(expired).getByLabelText(/^Note/), { target: { value: "Work finished" } });
     fireEvent.click(within(expired.querySelector("[data-permit-close]") as HTMLElement).getByRole("button", { name: "Close the permit" }));

@@ -199,7 +199,7 @@ function Permits({ permits, t, tenantId, projectId, onChanged }: { permits: Perm
         <Card key={permit.id} data-permit={permit.permitNumber}><CardBody className="flex flex-col gap-2 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <bdi dir="ltr" className="font-semibold">{permit.permitNumber}</bdi><span className="font-medium">{t.permitTypes[permit.permitType]}</span>
-            <Badge tone={STATE_TONE[permit.state]}><span data-state={permit.state}>{t.states[permit.state]}</span></Badge>
+            <Badge tone={STATE_TONE[permit.state]}><span data-permit-state={permit.state}>{t.states[permit.state]}</span></Badge>
           </div>
           <p>{permit.description}</p>
           <p className="text-muted-foreground"><bdi dir="ltr">{t.window(formatDateTime(permit.validFrom, language), formatDateTime(permit.validTo, language))}</bdi>{permit.location ? ` · ${permit.location}` : ""}{permit.responsibleParty ? ` · ${permit.responsibleParty}` : ""}</p>
