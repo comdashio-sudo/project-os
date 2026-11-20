@@ -87,6 +87,8 @@ try {
     check(`${lang} desktop: the sidebar folds and unfolds`, narrow < wide && Math.abs(back - wide) < 2, `${Math.round(wide)} → ${Math.round(narrow)} → ${Math.round(back)}`);
     const head = await aside.locator("[data-sidebar-switcher]").first().boundingBox({ timeout: 2000 }).catch(() => null); const group = await aside.locator("[data-nav-group]").first().boundingBox({ timeout: 2000 }).catch(() => null);
     check(`${lang} desktop: the project heading does not overlap the company switcher`, Boolean(head) && !overlaps(head, group));
+    const deskCard = await aside.locator("[data-sidebar-user]").boundingBox({ timeout: 2000 }).catch(() => null);
+    check(`${lang} desktop: the person's card is at the foot of the menu`, Boolean(deskCard) && deskCard.y + deskCard.height <= 900);
     await dpage.screenshot({ path: `${process.env.SHOTS_DIR ?? "/tmp"}/menu-${lang}-1280.png` });
     await desk.close();
   }

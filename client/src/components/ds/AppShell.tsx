@@ -143,6 +143,9 @@ export function AppShell(props: Props) {
               </div>
               <NavList nav={props.nav} activeId={props.activeId} onNavigate={props.onNavigate} collapsed={collapsed} />
             </div>
+            {/* Q-54: the person's card at the foot of the dark menu, as the reference draws it (folded: the initials only) */}
+            {collapsed ? <span aria-hidden="true" title={props.user.name} className="mx-auto grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-accent-foreground" data-sidebar-user>{initials}</span>
+              : <div className="flex shrink-0 items-center gap-3 rounded-[12px] bg-sidebar-surface p-3" data-sidebar-user><span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-accent-foreground">{initials}</span><span className="flex min-w-0 flex-col"><span className="truncate text-sm font-semibold text-sidebar-accent-foreground">{props.user.name}</span><span dir="ltr" className="truncate text-start text-[11px] text-sidebar-foreground/70">{props.user.email}</span></span></div>}
             <button type="button" onClick={() => setCollapsed(value => !value)} aria-label={collapsed ? text.expand : text.collapse} aria-expanded={!collapsed} className="flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius)] text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60">
               {collapsed ? <ChevronsRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" /> : <ChevronsLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />}{collapsed ? null : <span>{text.collapse}</span>}
             </button>
