@@ -19,7 +19,7 @@ vi.mock("@/lib/trpc", () => {
     useQuery: () => state.lists[name] ?? { isLoading: false, isFetching: false, error: null, data: [], refetch: vi.fn() },
     useMutation: idleMutation,
   });
-  return { trpc: {
+  return { trpc: { workConfirmations: { list: { useQuery: () => ({ data: [], isLoading: false, error: null }) }, transition: { useMutation: () => ({ mutate: () => undefined, reset: () => undefined, isPending: false, error: null }) } },
     useUtils: () => new Proxy({}, { get: () => new Proxy({}, { get: () => vi.fn() }) }),
     boq: { list: procedure("boq"), create: { useMutation: idleMutation } },
     subcontracts: { list: procedure("contracts"), listCertificates: procedure("certificates"), create: { useMutation: idleMutation }, transitionCertificate: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) }, createCertificate: { useMutation: idleMutation } },

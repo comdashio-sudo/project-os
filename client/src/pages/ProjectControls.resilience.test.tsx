@@ -102,7 +102,8 @@ describe("ProjectControls section resilience", () => {
   it("Q-18: while a main read (the schedule) is on its way, the page shows its grey shape once instead of a half page that jumps when it lands", () => {
     state.scheduleLoading = true;
     const { container } = render(<ProjectControls />);
-    expect(container.querySelector('[data-skeleton="content"]')).toBeTruthy();
+    expect(container.querySelector('[data-skeleton="board"]')).toBeTruthy(); // Q-54: the board's own shape (dark hero, four cards, a list)
+    expect(screen.getByRole("status").getAttribute("aria-label")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Project delivery board" })).toBeNull();
   });
 

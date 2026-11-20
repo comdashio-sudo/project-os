@@ -74,6 +74,15 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("period engin
       await q("INSERT INTO site_daily_reports (id, tenant_id, project_id, report_date, prepared_by_user_id, status) VALUES ($1,$2,$3,'2026-11-09',$4,$5)", [report, T, P, by, status]);
       await q("INSERT INTO site_daily_report_lines (id, tenant_id, project_id, report_id, line_type, pmc_activity_definition_id, description, planned_quantity, actual_quantity) VALUES ($1,$2,$3,$4,'work',$5,'line',1000,1000)", [uuid(), T, P, report, act.finishA]);
     }
+    // a SECOND approved report on a day that already has one (another preparer, another contractor's crew, a shorter day): man-hours are counted per report,
+    // so this crew is multiplied by ITS 5 hours only, and the first report's crew is not multiplied by them too (the double count fixed with Q-28)
+    {
+      const report = uuid(); const date = "2026-11-11"; const hours = 5;
+      await q("INSERT INTO site_daily_reports (id, tenant_id, project_id, report_date, prepared_by_user_id, status, report_number, work_hours) VALUES ($1,$2,$3,$4,$5,'approved','DR-2ND',$6)", [report, T, P, date, a.people.site.id, hours]);
+      labour.push({ date, category: "direct", shift: "day", headcount: 20, hours });
+      await q("INSERT INTO site_daily_report_labour (id, tenant_id, project_id, report_id, company_id, labour_role_id, shift, headcount) VALUES ($1,$2,$3,$4,$5,$6,'day',20)", [uuid(), T, P, report, company, mason]);
+      await q("INSERT INTO site_daily_report_equipment (id, tenant_id, project_id, report_id, equipment_id, count, hours) VALUES ($1,$2,$3,$4,$5,2,7.5)", [uuid(), T, P, report, crane]);
+    }
     // another company's project, same dates, big numbers: never counted here
     const otherReport = uuid();
     await q("INSERT INTO site_daily_reports (id, tenant_id, project_id, report_date, prepared_by_user_id, status) VALUES ($1,$2,$3,'2026-11-09',$4,'approved')", [otherReport, b.tenantId, b.projectId, b.owner.id]);
