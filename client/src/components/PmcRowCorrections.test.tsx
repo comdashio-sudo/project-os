@@ -64,3 +64,29 @@ describe("PmcRowCorrections (Q-50 4b)", () => {
     expect(container.innerHTML).toBe("");
   });
 });
+
+describe("row classes (Q-50 4c)", () => {
+  const preview = [
+    { row: 2, class: "data" as const, cells: { blockCode: "BQ2", unitNumber: "72001" } },
+    { row: 3, class: "total" as const, cells: { blockCode: "Total", unitNumber: "" } },
+    { row: 4, class: "data" as const, cells: { blockCode: "BQ2", unitNumber: "72003" } },
+  ];
+
+  it("POSITIVE: each row shows its class; a data row left out and a totals line read as data are sent with the rest", () => {
+    render(<PmcRowCorrections {...scope} errors={[]} fields={fields} applied={[]} ignoredRows={[]} preview={preview} language="en" />);
+    expect((screen.getByLabelText("Class · Row 3") as HTMLSelectElement).value).toBe("total");
+    expect(Array.from((screen.getByLabelText("Class · Row 2") as HTMLSelectElement).options).map(option => option.value)).toEqual(["data", "leftOut"]);
+    fireEvent.change(screen.getByLabelText("Class · Row 4"), { target: { value: "leftOut" } });
+    fireEvent.change(screen.getByLabelText("Class · Row 3"), { target: { value: "data" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse again with these corrections" }));
+    expect(state.mutate).toHaveBeenCalledWith({ ...scope, edits: { cells: [], ignoreRows: [4], readRows: [3] } });
+  });
+
+  it("NEGATIVE: setting the classes back to what the reader found sends nothing; a totals line left out is not also read", () => {
+    render(<PmcRowCorrections {...scope} errors={[]} fields={fields} applied={[]} ignoredRows={[]} preview={preview} language="ar" />);
+    fireEvent.change(screen.getByLabelText("التصنيف · الصف 4"), { target: { value: "leftOut" } });
+    fireEvent.change(screen.getByLabelText("التصنيف · الصف 4"), { target: { value: "data" } });
+    expect(screen.getByRole("button", { name: "أعد التحليل بهذه التصحيحات" }).hasAttribute("disabled")).toBe(true);
+    expect(correctionsOf([], new Set(), {}, new Set([3]), new Set([3]))).toEqual({ cells: [], ignoreRows: [3] });
+  });
+});
