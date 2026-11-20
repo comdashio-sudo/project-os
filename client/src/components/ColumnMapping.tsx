@@ -71,7 +71,7 @@ export function ColumnMapping({ columns, language, flow, fieldLabel, pending, er
             {!field.header && field.suggestion && choice[field.key] === NONE && columns.headers.includes(field.suggestion.header) && (
               <Button type="button" variant="outline" className="min-h-[44px]" onClick={() => setChoice(current => ({ ...current, [field.key]: field.suggestion!.header }))}>{t.useSuggestion(field.suggestion.header, Math.round(field.suggestion.confidence * 100))}</Button>
             )}
-            <Select className="w-full sm:w-64" aria-label={fieldLabel(field.key)} value={choice[field.key]} options={options} onValueChange={value => setChoice(current => ({ ...current, [field.key]: value }))} />
+            <Select className="w-full min-h-11 sm:w-64 md:min-h-11" aria-label={fieldLabel(field.key)} value={choice[field.key]} options={options} onValueChange={value => setChoice(current => ({ ...current, [field.key]: value }))} />
           </li>
         ))}
       </ul>
