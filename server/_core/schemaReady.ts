@@ -82,7 +82,6 @@ export const REQUIRED_SCHEMA = [
   { migration: "0042_pmc_english_names", kind: "column", table: "pmc_activity_stages", column: "name_en" },
   { migration: "0042_pmc_english_names", kind: "column", table: "pmc_activity_definitions", column: "name_en" },
   { migration: "0039_project_meetings", kind: "trigger", table: "project_meeting_attendees", column: "project_meeting_attendees_append_only" },
-
   { migration: "0040_work_confirmations", kind: "table", table: "subcontract_work_confirmations" },
   { migration: "0040_work_confirmations", kind: "table", table: "subcontract_work_confirmation_lines" },
   { migration: "0041_material_request_warehouse", kind: "column", table: "procurement_requisitions", column: "warehouse_id" },
@@ -98,6 +97,7 @@ export const REQUIRED_SCHEMA = [
   { migration: "0046_profit_read_permission", kind: "permission", table: "permissions", column: "project.profit.read" },
   { migration: "0047_strategy_assumptions", kind: "table", table: "strategy_assumptions" },
   { migration: "0047_strategy_assumptions", kind: "table", table: "strategy_assumption_changes" },
+  { migration: "0048_strategy_market", kind: "column", table: "strategy_assumptions", column: "evidence" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;

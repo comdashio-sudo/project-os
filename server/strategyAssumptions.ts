@@ -18,6 +18,8 @@ type Row = typeof strategyAssumptions.$inferSelect;
 export type AssumptionFields = {
   code: string; name: string; unit: Row["unit"]; sourceType: Row["sourceType"]; sourceNote?: string | null; confidence: Row["confidence"];
   reviewFrequency: Row["reviewFrequency"]; nextReviewAt?: string | null; values: Values;
+  // Q-21 (a), batch 2: the market study's indicators are assumptions of the «market» module
+  module?: Row["module"]; evidence?: Row["evidence"]; sourceUrl?: string | null;
 };
 
 const fail = (code: "FORBIDDEN" | "NOT_FOUND" | "CONFLICT" | "BAD_REQUEST", message: string) => new TRPCError({ code, message });
@@ -37,8 +39,16 @@ function assertValues(values: Values) {
   if (![values.conservative, values.base, values.optimistic].every(Number.isFinite)) throw fail("BAD_REQUEST", "PROJECT_OS_STRATEGY_VALUE_INVALID");
 }
 
+/** Q-21 (a), batch 2: every market indicator names where it came from — a link, a note, or both; a link is an https address. */
+function sourceOf(input: Pick<AssumptionFields, "module" | "sourceNote" | "sourceUrl">) {
+  const note = input.sourceNote?.trim() || null; const url = input.sourceUrl?.trim() || null;
+  if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw fail("BAD_REQUEST", "PROJECT_OS_STRATEGY_SOURCE_URL_INVALID");
+  if ((input.module ?? "general") === "market" && !note && !url) throw fail("BAD_REQUEST", "PROJECT_OS_STRATEGY_MARKET_SOURCE_REQUIRED");
+  return { sourceNote: note, sourceUrl: url };
+}
+
 const shape = (row: Row) => ({
-  id: row.id, code: row.code, name: row.name, unit: row.unit, sourceType: row.sourceType, sourceNote: row.sourceNote, confidence: row.confidence,
+  id: row.id, code: row.code, name: row.name, unit: row.unit, sourceType: row.sourceType, sourceNote: row.sourceNote, sourceUrl: row.sourceUrl, module: row.module, evidence: row.evidence, confidence: row.confidence,
   reviewFrequency: row.reviewFrequency, nextReviewAt: row.nextReviewAt, status: row.status, approvedAt: row.approvedAt,
   values: { conservative: Number(row.valueConservative), base: Number(row.valueBase), optimistic: Number(row.valueOptimistic) },
   pendingChange: row.proposedBase === null ? null : {
@@ -47,9 +57,10 @@ const shape = (row: Row) => ({
   },
 });
 
-export async function listStrategyAssumptions(input: Caller) {
+export async function listStrategyAssumptions(input: Caller & { module?: Row["module"] }) {
   const db = await authorized(input, "strategy.read");
-  const rows = await db.select().from(strategyAssumptions).where(eq(strategyAssumptions.tenantId, input.tenantId)).orderBy(asc(strategyAssumptions.code));
+  const rows = await db.select().from(strategyAssumptions)
+    .where(and(eq(strategyAssumptions.tenantId, input.tenantId), input.module ? eq(strategyAssumptions.module, input.module) : undefined)).orderBy(asc(strategyAssumptions.code));
   return rows.map(shape);
 }
 
@@ -80,16 +91,17 @@ const audit = (tx: Tx, input: Caller, action: string, entityId: string, metadata
 export async function createStrategyAssumption(input: Caller & AssumptionFields) {
   const db = await authorized(input, "strategy.manage");
   assertValues(input.values);
+  const source = sourceOf(input);
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
     const [duplicate] = await tx.select({ id: strategyAssumptions.id }).from(strategyAssumptions).where(and(eq(strategyAssumptions.tenantId, input.tenantId), eq(strategyAssumptions.code, input.code))).limit(1);
     if (duplicate) throw fail("CONFLICT", "PROJECT_OS_STRATEGY_ASSUMPTION_CODE_EXISTS");
     await tx.insert(strategyAssumptions).values({
-      id, tenantId: input.tenantId, code: input.code, name: input.name, unit: input.unit, sourceType: input.sourceType, sourceNote: input.sourceNote?.trim() || null,
+      id, tenantId: input.tenantId, code: input.code, name: input.name, unit: input.unit, sourceType: input.sourceType, ...source, module: input.module ?? "general", evidence: input.evidence ?? "estimate",
       confidence: input.confidence, reviewFrequency: input.reviewFrequency, nextReviewAt: input.nextReviewAt ?? null,
       valueConservative: num(input.values.conservative), valueBase: num(input.values.base), valueOptimistic: num(input.values.optimistic), createdByUserId: input.userId,
     });
-    await audit(tx, input, "strategy_assumption.created", id, { code: input.code, values: input.values });
+    await audit(tx, input, "strategy_assumption.created", id, { code: input.code, module: input.module ?? "general", evidence: input.evidence ?? "estimate", values: input.values });
   });
   return { id, status: "draft" as const };
 }
@@ -100,10 +112,11 @@ export async function updateStrategyAssumptionDraft(input: Caller & { assumption
   assertValues(input.values);
   await db.transaction(async tx => {
     const row = await loadLocked(tx, input);
+    const source = sourceOf({ ...input, module: input.module ?? row.module });
     if (row.status === "approved") throw fail("CONFLICT", "PROJECT_OS_STRATEGY_ASSUMPTION_APPROVED_LOCKED");
     if (row.status !== "draft") throw fail("CONFLICT", "PROJECT_OS_STRATEGY_ASSUMPTION_NOT_DRAFT");
     await tx.update(strategyAssumptions).set({
-      name: input.name, unit: input.unit, sourceType: input.sourceType, sourceNote: input.sourceNote?.trim() || null, confidence: input.confidence, reviewFrequency: input.reviewFrequency,
+      name: input.name, unit: input.unit, sourceType: input.sourceType, ...source, module: input.module ?? row.module, evidence: input.evidence ?? row.evidence, confidence: input.confidence, reviewFrequency: input.reviewFrequency,
       nextReviewAt: input.nextReviewAt ?? null, valueConservative: num(input.values.conservative), valueBase: num(input.values.base), valueOptimistic: num(input.values.optimistic),
     }).where(and(eq(strategyAssumptions.id, row.id), eq(strategyAssumptions.tenantId, input.tenantId)));
     await audit(tx, input, "strategy_assumption.draft_updated", row.id, { values: input.values });

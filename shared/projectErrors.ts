@@ -2561,10 +2561,20 @@ export const projectErrorMessages = {
     en: "Write the reason for the change.",
     ur: "تبدیلی کی وجہ لکھیں۔",
   },
+  PROJECT_OS_STRATEGY_MARKET_SOURCE_REQUIRED: {
+    ar: "مؤشر السوق يحتاج مصدرًا: رابطًا أو ملاحظة بمكان المعلومة.",
+    en: "A market indicator needs a source: a link or a note saying where the figure came from.",
+    ur: "مارکیٹ کے اشاریے کے لیے ماخذ ضروری ہے: لنک یا نوٹ کہ یہ عدد کہاں سے آیا۔",
+  },
   PROJECT_OS_STRATEGY_NO_PENDING_CHANGE: {
     ar: "لا طلب تغيير بانتظار القرار لهذا الافتراض.",
     en: "This assumption has no change request awaiting a decision.",
     ur: "اس مفروضے کی کوئی تبدیلی کی درخواست فیصلے کی منتظر نہیں۔",
+  },
+  PROJECT_OS_STRATEGY_SOURCE_URL_INVALID: {
+    ar: "رابط المصدر عنوان يبدأ بـ https://.",
+    en: "The source link is an address starting with https://.",
+    ur: "ماخذ کا لنک https:// سے شروع ہونے والا پتہ ہونا چاہیے۔",
   },
   PROJECT_OS_STRATEGY_SELF_APPROVAL: {
     ar: "من أعدّ الافتراض أو طلب تغييره لا يعتمده؛ يعتمده شخص آخر.",

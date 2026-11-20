@@ -115,6 +115,8 @@ CREATE TYPE "public"."site_daily_report_lines_line_type" AS ENUM('labour', 'equi
 CREATE TYPE "public"."site_daily_reports_status" AS ENUM('draft', 'submitted', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."stocktakes_status" AS ENUM('counting', 'approved');--> statement-breakpoint
 CREATE TYPE "public"."strategy_assumption_confidence" AS ENUM('high', 'medium', 'low');--> statement-breakpoint
+CREATE TYPE "public"."strategy_assumption_evidence" AS ENUM('confirmed', 'estimate', 'analysis');--> statement-breakpoint
+CREATE TYPE "public"."strategy_assumption_module" AS ENUM('general', 'market');--> statement-breakpoint
 CREATE TYPE "public"."strategy_assumption_review" AS ENUM('monthly', 'quarterly', 'annual', 'event');--> statement-breakpoint
 CREATE TYPE "public"."strategy_assumption_source" AS ENUM('internal', 'external', 'management');--> statement-breakpoint
 CREATE TYPE "public"."strategy_assumption_status" AS ENUM('draft', 'pending', 'approved', 'retired');--> statement-breakpoint
@@ -2536,6 +2538,9 @@ CREATE TABLE "strategy_assumptions" (
 	"unit" "strategy_assumption_unit" NOT NULL,
 	"source_type" "strategy_assumption_source" NOT NULL,
 	"source_note" varchar(500),
+	"source_url" varchar(500),
+	"module" "strategy_assumption_module" DEFAULT 'general' NOT NULL,
+	"evidence" "strategy_assumption_evidence" DEFAULT 'estimate' NOT NULL,
 	"confidence" "strategy_assumption_confidence" NOT NULL,
 	"review_frequency" "strategy_assumption_review" NOT NULL,
 	"next_review_at" date,
@@ -3967,6 +3972,7 @@ CREATE UNIQUE INDEX "stored_files_key_unique" ON "stored_files" USING btree ("ke
 CREATE INDEX "stored_files_tenant_idx" ON "stored_files" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "strategy_assumption_changes_tenant_assumption_idx" ON "strategy_assumption_changes" USING btree ("tenant_id","assumption_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "strategy_assumptions_tenant_code_unique" ON "strategy_assumptions" USING btree ("tenant_id","code");--> statement-breakpoint
+CREATE INDEX "strategy_assumptions_tenant_module_idx" ON "strategy_assumptions" USING btree ("tenant_id","module");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_line_unique" ON "subcontract_certificate_lines" USING btree ("certificate_id","boq_item_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "subcert_project_number_unique" ON "subcontract_certificates" USING btree ("project_id","certificate_number");--> statement-breakpoint
 CREATE INDEX "subcert_tenant_project_idx" ON "subcontract_certificates" USING btree ("tenant_id","project_id");--> statement-breakpoint

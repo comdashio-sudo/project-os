@@ -1,5 +1,5 @@
 {
-  "id": "996ee3be-b368-40be-a76c-818d3d58af7d",
+  "id": "6157e402-0bce-430e-8527-3288fe319fb4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -28228,6 +28228,28 @@
           "primaryKey": false,
           "notNull": false
         },
+        "source_url": {
+          "name": "source_url",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "module": {
+          "name": "module",
+          "type": "strategy_assumption_module",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'general'"
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "strategy_assumption_evidence",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'estimate'"
+        },
         "confidence": {
           "name": "confidence",
           "type": "strategy_assumption_confidence",
@@ -28361,6 +28383,27 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "strategy_assumptions_tenant_module_idx": {
+          "name": "strategy_assumptions_tenant_module_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "module",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -35043,6 +35086,23 @@
         "high",
         "medium",
         "low"
+      ]
+    },
+    "public.strategy_assumption_evidence": {
+      "name": "strategy_assumption_evidence",
+      "schema": "public",
+      "values": [
+        "confirmed",
+        "estimate",
+        "analysis"
+      ]
+    },
+    "public.strategy_assumption_module": {
+      "name": "strategy_assumption_module",
+      "schema": "public",
+      "values": [
+        "general",
+        "market"
       ]
     },
     "public.strategy_assumption_review": {
