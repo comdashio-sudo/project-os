@@ -43,8 +43,10 @@
 | البند | الحالة | الدليل |
 |---|---|---|
 | التشغيل الأول على الإنتاج بإذن المالك المكتوب في جلسة المبرمج ب (run 44792006768، 20-11 18:21 UTC) وقف عند خطوة الاتصال: `GET /v1/projects/... -> 401 Invalid access token` (سرّ `SUPABASE_ACCESS_TOKEN` مرفوض من Supabase). لم يُكتب شيء في الإنتاج ولم تُعطَ كلمة مرور | `PROVEN` | سجل التشغيل |
-| الإصلاح: خطوة الاتصال `run.ts direct` بدل `database` — كلمة مرور القاعدة وحدها (`SUPABASE_DB_PASSWORD`) والمجمّع المثبّت أو المكتشف، كما في `migrate-production.yml` الذي نجح على الـcommit نفسه؛ لا يُقرأ رمز Supabase. المخرَجان نفساهما (`DATABASE_URL`، `DATABASE_SSL_CA`) | `SOURCE_VERIFIED` | `.github/workflows/readiness-journey.yml` |
-| التشغيل الثاني على الإنتاج بعد الدمج | `UNVERIFIED` | يُكتب رابطه ونتيجته هنا وفي G24 |
+| الإصلاح: خطوة الاتصال `run.ts direct` بدل `database` — كلمة مرور القاعدة وحدها (`SUPABASE_DB_PASSWORD`) والمجمّع المثبّت أو المكتشف، كما في `migrate-production.yml`؛ لا يُقرأ رمز Supabase. المخرَجان نفساهما (`DATABASE_URL`، `DATABASE_SSL_CA`) | `PROVEN` | #500 @ b146c92؛ التشغيل الثاني (run 44793965888، 20-11 18:33 UTC): خطوة الاتصال نجحت |
+| التشغيل الثاني وقف قبل الرحلة عند تثبيت المتصفح: `Playwright does not support chromium on ubuntu26.04-x64` (`ubuntu-latest` صار 26.04). لم تبدأ الرحلة؛ خطوة «disable» عملت كما صُمّمت: `{"disabled":"readiness.journey@readiness.example.test"}` (الحساب المختلق وحده) | `PROVEN` | سجل التشغيل 44793965888 |
+| الإصلاح الثاني: `runs-on: ubuntu-24.04` كما في `ci.yml` و`perf-weekly.yml` (الإصلاح الشقيق نفسه للسبب نفسه) | `SOURCE_VERIFIED` | `.github/workflows/readiness-journey.yml` |
+| التشغيل الثالث على الإنتاج بعد الدمج | `UNVERIFIED` | يُكتب رابطه ونتيجته هنا وفي G24 |
 | ملاحظة شقيقة: النسخ الاحتياطي اليومي (`daily-backup.yml`) يستعمل الرمز نفسه (`run.ts database`) وفشل كل يوم منذ 18-11 على الأقل | `OPEN` | ليس في هذا الطلب؛ مسجّل في سجل العمليات |
 
 ### Q-22 (2): رحلة الجاهزية على الإنتاج — سير «Readiness journey» يدوي بلا سرّ من المالك (2026-11-20، المبرمج ب، بقرار المستشار I24، بعد #485)
