@@ -14,13 +14,18 @@ export const SUGGEST_AT = 0.5;
 const normalize = (value: string) => value.replace(/^﻿/, "").trim().toLowerCase().replace(/[\s_\-./()]+/g, " ").trim();
 const tokens = (value: string) => new Set(normalize(value).split(" ").filter(Boolean));
 
-/** How close a header is to one accepted name: 1 the same words, 0.8 one inside the other ("unit no." vs "unit no"), else the share of words in common. */
+/**
+ * How close a header is to one accepted name: 1 the same words, 0.8 every word of the shorter is a word of the longer ("unit no" inside "villa unit no"),
+ * else the share of words in common. Words, never letters (review of #458): «ID» is not inside «width», nor «A» inside «area». A header of one letter is
+ * close to nothing.
+ */
 export function closeness(header: string, alias: string): number {
   const a = normalize(header); const b = normalize(alias);
-  if (!a || !b) return 0;
+  if (a.length < 2 || b.length < 2) return 0;
   if (a === b) return 1;
-  if (a.includes(b) || b.includes(a)) return 0.8;
   const x = tokens(a); const y = tokens(b);
+  const [shorter, longer] = x.size <= y.size ? [x, y] : [y, x];
+  if (Array.from(shorter).every(word => longer.has(word))) return 0.8;
   const shared = Array.from(x).filter(word => y.has(word)).length;
   return shared / Math.max(x.size, y.size);
 }
