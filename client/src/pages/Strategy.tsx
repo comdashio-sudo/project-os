@@ -2,13 +2,14 @@ import React from "react";
 import { useParams } from "wouter";
 import { formatAmount, formatDate, formatNumber } from "@/components/ds/format";
 import { PageMain } from "@/components/pageFrame";
-import { SourceNotice } from "@/components/SectionResilience";
+import { SectionErrorBoundary, SourceNotice } from "@/components/SectionResilience";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { enumLabel } from "@/lib/labels";
 import { pickLanguage, type Language } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { AssumptionActions, NewAssumption } from "./StrategyAssumptionActions";
+import { DecideVariance, NewGoal, NewInitiative, RecordVariance } from "./StrategyGoalActions";
 
 const TEXT = {
   ar: {
@@ -103,11 +104,16 @@ function Goals({ tenantId, t, language }: { tenantId: string; t: Text; language:
     <bdi>{item.code}</bdi><span>· {item.name}</span><Chip>{enumLabel(item.status, language)}</Chip>{item.dueAt ? <span className="text-xs text-muted-foreground">{t.due}: <bdi>{formatDate(item.dueAt, language)}</bdi></span> : null}
   </li>;
   const unlinked = initiatives.data?.filter(item => !item.goalId) ?? [];
+  const assumptions = trpc.strategy.assumptions.useQuery({ tenantId });
   return <Card data-strategy-section="goals">
     <CardHeader className="pb-3"><CardTitle className="text-base">{t.goals}</CardTitle></CardHeader>
     <CardContent className="grid gap-2">
       <SourceNotice query={goals} isArabic={language === "ar"} title={t.goals} />
       <SourceNotice query={initiatives} isArabic={language === "ar"} title={t.initiatives} />
+      <div className="flex flex-wrap gap-2">
+        <NewGoal tenantId={tenantId} language={language} assumptions={assumptions.data ?? []} />
+        <NewInitiative tenantId={tenantId} language={language} goals={goals.data ?? []} />
+      </div>
       {goals.data && !goals.data.length ? <Empty name="goals">{t.noGoals}</Empty> : null}
       {goals.data?.map(goal => {
         const own = initiatives.data?.filter(item => item.goalId === goal.id) ?? [];
@@ -125,12 +131,14 @@ function Goals({ tenantId, t, language }: { tenantId: string; t: Text; language:
 function Variances({ tenantId, t, language }: { tenantId: string; t: Text; language: Language }) {
   const variances = trpc.strategy.variances.useQuery({ tenantId });
   const assumptions = trpc.strategy.assumptions.useQuery({ tenantId });
+  const initiatives = trpc.strategy.initiatives.useQuery({ tenantId });
   const nameOf = (id: string) => assumptions.data?.find(item => item.id === id);
   return <Card data-strategy-section="variances">
     <CardHeader className="pb-3"><CardTitle className="text-base">{t.variances}</CardTitle></CardHeader>
     <CardContent className="grid gap-2">
       <SourceNotice query={variances} isArabic={language === "ar"} title={t.variances} />
       <SourceNotice query={assumptions} isArabic={language === "ar"} title={t.assumptions} />
+      <RecordVariance tenantId={tenantId} language={language} assumptions={assumptions.data?.filter(item => item.status === "approved") ?? []} />
       {variances.data && !variances.data.length ? <Empty name="variances">{t.noVariances}</Empty> : null}
       {variances.data?.map(item => {
         const assumption = nameOf(item.assumptionId);
@@ -147,6 +155,7 @@ function Variances({ tenantId, t, language }: { tenantId: string; t: Text; langu
             <span>{t.sample}: <bdi dir="ltr">{formatNumber(item.sampleSize)}</bdi></span>
             <span>{t.source}: {item.actualSource === "pipeline" ? t.pipelineSource : t.manualSource}</span>
           </div>
+          {item.decision ? null : <DecideVariance tenantId={tenantId} language={language} varianceId={item.id} initiatives={initiatives.data ?? []} />}
         </div>;
       })}
     </CardContent>
@@ -154,7 +163,7 @@ function Variances({ tenantId, t, language }: { tenantId: string; t: Text; langu
 }
 
 /**
- * Q-21 (b), batch 1: «مركز التخطيط الاستراتيجي» — company-wide; batch 2 adds working the assumptions register (StrategyAssumptionActions.tsx). Every section reads its own strategy.* procedure (strategy.read at company
+ * Q-21 (b), batch 1: «مركز التخطيط الاستراتيجي» — company-wide; batch 2 adds working the assumptions register (StrategyAssumptionActions.tsx), and goals, initiatives and variances (StrategyGoalActions.tsx). Every section reads its own strategy.* procedure (strategy.read at company
  * scope on the server; a viewer without it gets the server's refusal in each section's notice, never a figure). Nothing is computed here: the win rate,
  * the weighted value and each variance's difference come from the server as they are.
  */
@@ -167,9 +176,10 @@ export default function Strategy() {
       <h1 className="text-2xl font-bold">{t.title}</h1>
       <p className="text-sm text-muted-foreground">{t.intro}</p>
     </header>
-    <Assumptions tenantId={tenantId} t={t} language={language} />
-    <Pipeline tenantId={tenantId} t={t} language={language} />
-    <Goals tenantId={tenantId} t={t} language={language} />
-    <Variances tenantId={tenantId} t={t} language={language} />
+    {/* each section stands alone: one that throws shows its own notice and leaves the others (G-100) */}
+    <SectionErrorBoundary title={t.assumptions} isArabic={language === "ar"}><Assumptions tenantId={tenantId} t={t} language={language} /></SectionErrorBoundary>
+    <SectionErrorBoundary title={t.pipeline} isArabic={language === "ar"}><Pipeline tenantId={tenantId} t={t} language={language} /></SectionErrorBoundary>
+    <SectionErrorBoundary title={t.goals} isArabic={language === "ar"}><Goals tenantId={tenantId} t={t} language={language} /></SectionErrorBoundary>
+    <SectionErrorBoundary title={t.variances} isArabic={language === "ar"}><Variances tenantId={tenantId} t={t} language={language} /></SectionErrorBoundary>
   </PageMain>;
 }
