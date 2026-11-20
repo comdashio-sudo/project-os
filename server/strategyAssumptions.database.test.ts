@@ -167,4 +167,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-21 (a): the register o
     expect(await code(callerFor("ownerB").strategy.assumptionChanges({ tenantId: tenantB, assumptionId: winId }))).toBe("no error");
     expect(await callerFor("ownerB").strategy.assumptionChanges({ tenantId: tenantB, assumptionId: winId })).toEqual([]);
   });
+  it("NEGATIVE (sibling of #496): two drafts with the same code at the same moment — one is kept, the other gets the translated refusal, not a raw database error", async () => {
+    const entrant = callerFor("entrant");
+    const outcomes = (await Promise.all([1, 2].map(() => code(entrant.strategy.createAssumption({ tenantId, code: "raceCode", ...fields(10, { name: "Synthetic race" }) }))))).sort();
+    expect(outcomes).toEqual(["PROJECT_OS_STRATEGY_ASSUMPTION_CODE_EXISTS", "no error"]);
+    expect((await register()).filter(item => item.code === "raceCode")).toHaveLength(1);
+  });
 });
