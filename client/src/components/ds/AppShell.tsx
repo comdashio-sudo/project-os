@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { Building2, Check, ChevronsLeft, ChevronsRight, Languages, LogOut, Menu as MenuIcon, Moon, Sun, X, type LucideIcon } from "lucide-react";
+import * as RadixSelect from "@radix-ui/react-select";
+import { Building2, Check, ChevronDown, ChevronsLeft, ChevronsRight, Languages, LogOut, Menu as MenuIcon, Moon, Sun, X, type LucideIcon } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LANGUAGES, LANGUAGE_NAMES } from "@/lib/language";
 import { cn } from "@/lib/utils";
@@ -23,13 +24,32 @@ type Props = {
   children: React.ReactNode;
 };
 
-function Switchers({ companies, company, onCompany, projects, project, onProject, vertical }: Pick<Props, "companies" | "company" | "onCompany" | "projects" | "project" | "onProject"> & { vertical?: boolean }) {
-  const text = useDsText();
+/** Q-54: a switcher on the dark menu — a dark card (#151B3A, edge #1C2350) with a small label over the chosen name, as the approved reference draws it; never the
+ * light form field (white on the dark menu, and in Safari the field's placeholder showed under the value). The name is written from the options, not by Radix. */
+export function SidebarSwitcher({ label, options, value, onValueChange }: { label: string; options: SelectOption[]; value: string; onValueChange: (value: string) => void }) {
+  const chosen = options.find(option => option.value === value)?.label;
   return (
-    <div className={cn("flex gap-2", vertical ? "flex-col" : "items-center")}>
-      <Select aria-label={text.company} options={companies} value={company} onValueChange={onCompany} className={vertical ? "" : "min-h-9 w-52 md:min-h-9"} />
-      <Select aria-label={text.project} options={projects} value={project} onValueChange={onProject} className={vertical ? "" : "min-h-9 w-52 md:min-h-9"} />
-    </div>
+    <RadixSelect.Root value={value || undefined} onValueChange={onValueChange}>
+      <RadixSelect.Trigger aria-label={label} data-sidebar-switcher className="flex min-h-[52px] w-full items-center justify-between gap-2 rounded-[12px] border border-sidebar-accent bg-sidebar-surface px-3 py-2 text-start text-sidebar-accent-foreground outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[11px] leading-4 text-sidebar-foreground/70">{label}</span>
+          <span className="truncate text-sm font-semibold leading-5">{chosen ?? "—"}</span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-sidebar-foreground/70" aria-hidden="true" />
+      </RadixSelect.Trigger>
+      <RadixSelect.Portal>
+        <RadixSelect.Content position="popper" sideOffset={4} className="z-[60] max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-[12px] border border-sidebar-accent bg-sidebar-surface text-sidebar-accent-foreground shadow-lg">
+          <RadixSelect.Viewport className="p-1">
+            {options.map(option => (
+              <RadixSelect.Item key={option.value} value={option.value} className="relative flex min-h-11 cursor-pointer select-none items-center rounded-[10px] py-2 ps-8 pe-3 text-sm outline-none data-[highlighted]:bg-sidebar-accent">
+                <RadixSelect.ItemIndicator className="absolute start-2"><Check className="h-4 w-4" aria-hidden="true" /></RadixSelect.ItemIndicator>
+                <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
+              </RadixSelect.Item>
+            ))}
+          </RadixSelect.Viewport>
+        </RadixSelect.Content>
+      </RadixSelect.Portal>
+    </RadixSelect.Root>
   );
 }
 
@@ -40,7 +60,7 @@ function NavList({ nav, activeId, onNavigate, collapsed }: Pick<Props, "nav" | "
       <ul className="flex flex-col gap-1">
         {nav.map((item, index) => { const active = item.id === activeId; const Icon = item.icon; const heading = item.group && item.group !== nav[index - 1]?.group ? item.group : null; return (
           <li key={item.id}>
-            {heading ? <p className={cn("px-3 pb-1 text-xs font-semibold text-sidebar-foreground/60", index > 0 && "mt-3", collapsed && "sr-only")} data-nav-group>{heading}</p> : null}
+            {heading ? <p className={cn("truncate px-3 pb-1.5 text-[11px] font-medium tracking-wide text-sidebar-foreground/60", index > 0 && "mt-4", collapsed && "sr-only")} data-nav-group>{heading}</p> : null}
             <a href={item.href ?? "#"} aria-current={active ? "page" : undefined} title={collapsed ? item.label : undefined} onClick={event => { if (onNavigate) { event.preventDefault(); onNavigate(item); } }}
               className={cn("flex min-h-11 items-center gap-3 rounded-[var(--radius)] px-3 text-sm font-medium transition-colors", collapsed && "justify-center px-0", active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground")}>
               <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -50,6 +70,17 @@ function NavList({ nav, activeId, onNavigate, collapsed }: Pick<Props, "nav" | "
           </li>); })}
       </ul>
     </nav>
+  );
+}
+
+function UserCard({ user, initials }: { user: { name: string; email: string }; initials: string }) {
+  return (
+    <div className="shrink-0 border-t border-sidebar-border px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-mobile-menu-user>
+      <div className="flex items-center gap-3 rounded-[12px] bg-sidebar-surface p-3">
+        <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-accent-foreground">{initials}</span>
+        <span className="flex min-w-0 flex-col"><span className="truncate text-sm font-semibold text-sidebar-accent-foreground">{user.name}</span><span dir="ltr" className="truncate text-start text-[11px] text-sidebar-foreground/70">{user.email}</span></span>
+      </div>
+    </div>
   );
 }
 
@@ -66,10 +97,17 @@ export function AppShell(props: Props) {
           <Dialog.Trigger asChild><button type="button" aria-label={text.menu} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-muted md:hidden"><MenuIcon className="h-5 w-5" aria-hidden="true" /></button></Dialog.Trigger>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-40 bg-foreground/50 md:hidden" />
-            <Dialog.Content aria-describedby={undefined} className="fixed inset-y-0 start-0 z-50 flex w-72 max-w-[85vw] flex-col gap-4 border-e border-sidebar-border bg-sidebar p-4 text-sidebar-foreground md:hidden">
-              <div className="flex items-center justify-between"><Dialog.Title asChild><span><Logo variant="horizontal" size={28} onDark /></span></Dialog.Title><Dialog.Close aria-label={text.close} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-sidebar-accent"><X className="h-5 w-5" aria-hidden="true" /></Dialog.Close></div>
-              <Switchers {...props} vertical />
-              <NavList nav={props.nav} activeId={props.activeId} onNavigate={item => { props.onNavigate?.(item); setDrawer(false); }} />
+            <Dialog.Content aria-describedby={undefined} data-mobile-menu className="fixed inset-y-0 start-0 z-50 flex h-[100dvh] w-72 max-w-[85vw] flex-col border-e border-sidebar-border bg-sidebar text-sidebar-foreground md:hidden">
+              {/* Q-54: clear of the notch and of Safari's bars (safe areas), the list scrolls inside, the person's card stays at the foot */}
+              <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))]"><Dialog.Title asChild><span className="min-w-0"><Logo variant="horizontal" size={28} onDark /></span></Dialog.Title><Dialog.Close aria-label={text.close} className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius)] hover:bg-sidebar-accent"><X className="h-5 w-5" aria-hidden="true" /></Dialog.Close></div>
+              <div className="flex shrink-0 flex-col gap-2 border-b border-sidebar-border px-4 pb-4">
+                <SidebarSwitcher label={text.company} options={props.companies} value={props.company} onValueChange={props.onCompany} />
+                {props.projects.length ? <SidebarSwitcher label={text.project} options={props.projects} value={props.project} onValueChange={props.onProject} /> : null}
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4" data-mobile-menu-list>
+                <NavList nav={props.nav} activeId={props.activeId} onNavigate={item => { props.onNavigate?.(item); setDrawer(false); }} />
+              </div>
+              <UserCard user={props.user} initials={initials} />
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
@@ -97,11 +135,11 @@ export function AppShell(props: Props) {
       <div className="flex min-h-0 flex-1">
         <aside className={cn("hidden shrink-0 border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] md:block", collapsed ? "w-[4.5rem]" : "w-60")}>
           <div className="sticky top-14 flex h-[calc(100vh-3.5rem)] flex-col justify-between gap-3 p-3">
-            <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+            <div className="flex min-h-0 flex-col gap-4 overflow-y-auto [&>*]:shrink-0">{/* Q-54: in a scrolling column the head must not shrink (it did, and the project heading drew over the company switcher) */}
               {/* Q-19 (2): the logo on dark and the company switcher head the dark menu */}
               <div className={cn("flex flex-col gap-3 border-b border-sidebar-border pb-3", collapsed && "items-center")} data-sidebar-head>
                 <Logo variant={collapsed ? "symbol" : "horizontal"} size={28} className="shrink-0" onDark />
-                {collapsed ? null : <Select aria-label={text.company} options={props.companies} value={props.company} onValueChange={props.onCompany} className="min-h-9 w-full md:min-h-9" />}
+                {collapsed ? null : <SidebarSwitcher label={text.company} options={props.companies} value={props.company} onValueChange={props.onCompany} />}
               </div>
               <NavList nav={props.nav} activeId={props.activeId} onNavigate={props.onNavigate} collapsed={collapsed} />
             </div>
