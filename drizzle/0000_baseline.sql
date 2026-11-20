@@ -794,6 +794,7 @@ CREATE TABLE "employees" (
 	"identity_document_type" varchar(80),
 	"identity_reference" varchar(512),
 	"linked_user_id" integer,
+	"reports_to_employee_id" varchar(36),
 	"retention_policy" "employees_retention_policy" DEFAULT 'standard' NOT NULL,
 	"archived_at" timestamp with time zone,
 	"created_by_user_id" integer NOT NULL,
@@ -3114,6 +3115,7 @@ ALTER TABLE "employee_time_entries" ADD CONSTRAINT "employee_time_entries_review
 ALTER TABLE "employees" ADD CONSTRAINT "employees_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employees" ADD CONSTRAINT "employees_linked_user_id_users_id_fk" FOREIGN KEY ("linked_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employees" ADD CONSTRAINT "employees_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "employees" ADD CONSTRAINT "employees_reports_to_employee_id_employees_id_fk" FOREIGN KEY ("reports_to_employee_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employment_contracts" ADD CONSTRAINT "employment_contracts_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employment_contracts" ADD CONSTRAINT "employment_contracts_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employment_contracts" ADD CONSTRAINT "employment_contracts_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3679,6 +3681,7 @@ CREATE INDEX "employee_time_entries_tenant_project_idx" ON "employee_time_entrie
 CREATE UNIQUE INDEX "employees_tenant_number_unique" ON "employees" USING btree ("tenant_id","employee_number");--> statement-breakpoint
 CREATE UNIQUE INDEX "employees_tenant_user_unique" ON "employees" USING btree ("tenant_id","linked_user_id");--> statement-breakpoint
 CREATE INDEX "employees_tenant_status_idx" ON "employees" USING btree ("tenant_id","employment_status");--> statement-breakpoint
+CREATE INDEX "employees_tenant_reports_to_idx" ON "employees" USING btree ("tenant_id","reports_to_employee_id");--> statement-breakpoint
 CREATE INDEX "employment_contracts_tenant_employee_idx" ON "employment_contracts" USING btree ("tenant_id","employee_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "evm_snapshots_project_period_unique" ON "evm_snapshots" USING btree ("project_id","period_at");--> statement-breakpoint
 CREATE INDEX "evm_snapshots_tenant_project_idx" ON "evm_snapshots" USING btree ("tenant_id","project_id");--> statement-breakpoint
