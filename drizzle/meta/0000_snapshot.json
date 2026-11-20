@@ -1,5 +1,5 @@
 {
-  "id": "35ad96f5-e3b4-490a-8aea-d6e1c40edd48",
+  "id": "e8380ab5-ff25-4ba1-8f8a-0cc303e52b40",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -29621,6 +29621,208 @@
         "strategy_variances_decision_shape": {
           "name": "strategy_variances_decision_shape",
           "value": "(\"strategy_variances\".\"decision\" IS NULL AND \"strategy_variances\".\"initiative_id\" IS NULL AND \"strategy_variances\".\"decided_by_user_id\" IS NULL) OR (\"strategy_variances\".\"decision\" = 'adjust_assumption' AND \"strategy_variances\".\"initiative_id\" IS NULL AND \"strategy_variances\".\"decided_by_user_id\" IS NOT NULL) OR (\"strategy_variances\".\"decision\" = 'initiative' AND \"strategy_variances\".\"initiative_id\" IS NOT NULL AND \"strategy_variances\".\"decided_by_user_id\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.subcontract_activity_boq_links": {
+      "name": "subcontract_activity_boq_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subcontract_id": {
+          "name": "subcontract_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pmc_activity_definition_id": {
+          "name": "pmc_activity_definition_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "boq_item_id": {
+          "name": "boq_item_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity_per_unit": {
+          "name": "quantity_per_unit",
+          "type": "numeric(18, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "subcontract_activity_boq_links_unique": {
+          "name": "subcontract_activity_boq_links_unique",
+          "columns": [
+            {
+              "expression": "subcontract_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pmc_activity_definition_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "subcontract_activity_boq_links_tenant_project_idx": {
+          "name": "subcontract_activity_boq_links_tenant_project_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "subcontract_activity_boq_links_tenant_id_companies_id_fk": {
+          "name": "subcontract_activity_boq_links_tenant_id_companies_id_fk",
+          "tableFrom": "subcontract_activity_boq_links",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontract_activity_boq_links_project_id_projects_id_fk": {
+          "name": "subcontract_activity_boq_links_project_id_projects_id_fk",
+          "tableFrom": "subcontract_activity_boq_links",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontract_activity_boq_links_subcontract_id_subcontract_contracts_id_fk": {
+          "name": "subcontract_activity_boq_links_subcontract_id_subcontract_contracts_id_fk",
+          "tableFrom": "subcontract_activity_boq_links",
+          "tableTo": "subcontract_contracts",
+          "columnsFrom": [
+            "subcontract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontract_activity_boq_links_pmc_activity_definition_id_pmc_activity_definitions_id_fk": {
+          "name": "subcontract_activity_boq_links_pmc_activity_definition_id_pmc_activity_definitions_id_fk",
+          "tableFrom": "subcontract_activity_boq_links",
+          "tableTo": "pmc_activity_definitions",
+          "columnsFrom": [
+            "pmc_activity_definition_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontract_activity_boq_links_boq_item_id_boq_items_id_fk": {
+          "name": "subcontract_activity_boq_links_boq_item_id_boq_items_id_fk",
+          "tableFrom": "subcontract_activity_boq_links",
+          "tableTo": "boq_items",
+          "columnsFrom": [
+            "boq_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontract_activity_boq_links_created_by_user_id_users_id_fk": {
+          "name": "subcontract_activity_boq_links_created_by_user_id_users_id_fk",
+          "tableFrom": "subcontract_activity_boq_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "subcontract_activity_boq_links_quantity_positive": {
+          "name": "subcontract_activity_boq_links_quantity_positive",
+          "value": "\"subcontract_activity_boq_links\".\"quantity_per_unit\" > 0"
         }
       },
       "isRLSEnabled": false

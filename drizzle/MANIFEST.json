@@ -51,6 +51,7 @@
     "0048_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff",
     "0049_strategy_competitors_swot.sql": "6318fb2b92e7f0ea8e8bc4e20c438f42788a4126d9738ef3f9790a0968d7f118",
     "0050_strategy_opportunities.sql": "4259243cd7547af3a686dc0c9295db06cac936110d6e79ce7a3ff19fb6cb1508",
-    "0051_strategy_goals_variances.sql": "dcfb248c7b7a32c66e7de010d7f0d7daca6d322f9172624a0e1be2644f8de25e"
+    "0051_strategy_goals_variances.sql": "dcfb248c7b7a32c66e7de010d7f0d7daca6d322f9172624a0e1be2644f8de25e",
+    "0052_subcontract_activity_boq_links.sql": "d81e4dd6bf11d6c4cec5efad602defdcee2c3acdcaef9abc952eabc62635564a"
   }
 }
