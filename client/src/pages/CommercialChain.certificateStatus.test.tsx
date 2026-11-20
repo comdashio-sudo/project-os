@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({ arabic: false, can: true, transition: vi.fn(),
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "tenant-1", projectId: "project-1" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/permissions", async importOriginal => ({ ...(await importOriginal<object>()), useCan: () => state.can, WriteGate: ({ children }: { children: React.ReactNode }) => (state.can ? <>{children}</> : null) }));
-vi.mock("@/lib/trpc", () => ({ trpc: {
+vi.mock("@/lib/trpc", () => ({ trpc: { workConfirmations: { list: { useQuery: () => ({ data: [], isLoading: false, error: null }) }, transition: { useMutation: () => ({ mutate: () => undefined, reset: () => undefined, isPending: false, error: null }) } },
   useUtils: () => ({ boq: { list: { invalidate: vi.fn() } }, subcontracts: { list: { invalidate: vi.fn() }, listCertificates: { invalidate: vi.fn() } }, projectInvoices: { list: { invalidate: vi.fn() } } }),
   boq: { list: { useQuery: () => ({ data: [{ id: "b1", code: "BOQ-01", description: "Concrete", unitOfMeasure: "m3", quantity: "10", unitRate: "100", totalAmount: "1000", currency: "SAR" }], isLoading: false, error: null }) }, create: { useMutation: () => ({ mutate: state.createBoq, isPending: false, error: null }) } },
   procurement: { register: { useQuery: () => ({ data: { suppliers: [{ id: "sup-1", code: "SUP-01", legalName: "Build Co", active: true }] } }) } },
