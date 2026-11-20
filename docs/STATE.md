@@ -2038,6 +2038,18 @@
 | اختبار كان يبحث عن `bg-red-50` صار يبحث عن `bg-danger-soft` (`ProjectControls.resilience.test.tsx`) | `PROVEN` | 25/25 |
 | البوابات: `pnpm check` 0؛ `pnpm test` 4204/0؛ `pnpm build` ناجح | `PROVEN` | 2026-11-19 |
 
+### Q-43 (P2-06) الدفعة 5أ (الخادم): سحب إثباتات الكميات المعتمدة إلى مستخلص (2026-11-20، المبرمج ب، بلا ترحيلة: `certificate_id` من الدفعة 2)
+
+التصور `docs/proposals/subcontractor-progress.md` §5 «السحب إلى مستخلص» و§8. الكود `createSubcontractCertificateForTenant` في `server/db.ts`.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| `subcontracts.createCertificate` يقبل `confirmationIds` (≤100) بجانب الأسطر اليدوية: أسطر الكمية لإثباتات معتمدة من العقد نفسه تُجمع لكل بند BOQ (التصحيح المعتمد بإشارته)، والسعر من BOQ داخل الخادم ككل سطر، و«السابق» والاستبقاء كما هما؛ ويُربط كل إثبات بالمستخلص في المعاملة نفسها بشرط `certificate_id IS NULL` (عدد أقل ← رفض ولا يُحفظ شيء)، وصف التدقيق `project.subcontract_certificate_created` يسمّي الإثباتات والكميات المسحوبة | `PROVEN` | `workConfirmations.database.test.ts` «PULL POSITIVE»: 30 + 20 − 5 = 45 م × 40 = 1800، والإثباتات الثلاثة مربوطة، والتدقيق يسمّيها |
+| السالب: إثبات سُحب ← `PROJECT_OS_WORK_CONFIRMATION_ALREADY_PULLED`؛ غير معتمد ← `…_NOT_APPROVED`؛ فيه سطر تاريخي ← `…_HISTORICAL` (قرار التصور: التاريخي لا يُسحب)؛ فيه سطر وحدة ← `…_UNIT_NOT_PRICED`؛ لعقد آخر ← `…_NOT_FOUND`؛ البند نفسه يدويًا ومسحوبًا ← `PROJECT_OS_CERTIFICATE_LINE_TWICE`؛ لا أسطر ← `…_NOTHING_TO_PULL`؛ مهندس الموقع (بلا صلاحية الالتزامات) ← مرفوض. لا مستخلص يُكتب ولا ربط | `PROVEN` | «PULL NEGATIVE»؛ `workConfirmations` 16/16 و`subcontractCertificates` 8/8 |
+| قرار لم يكن في الأمر: أسطر الوحدات (فيلا × نشاط × نسبة) لا تُسعَّر — جدول الكميات لا يربط النشاط ببند ولا سعر للنسبة؛ تُرفض صراحةً بدل تخمين سعر، وتُضاف يدويًا ببندها. تسعيرها يحتاج قرارًا (سعر للنشاط في العقد أو ربط نشاط ← بند) | `OPEN` | سؤال للمستشار في «الطابور» صف Q-43 |
+| الرسائل ع/En/أردو | `SOURCE_VERIFIED` | `shared/projectErrors.ts` |
+| الشاشة: «إضافة من الإثباتات المعتمدة» في المستخلص لمن يملك المال | `OPEN` | الدفعة 5ب |
+
 ### Q-43 (P2-06) الدفعة 4ب (الخادم): ما يراه المعتمِد بجانب كل سطر (2026-11-20، المبرمج ب، بلا ترحيلة)
 
 | البند | الحالة | الدليل |
