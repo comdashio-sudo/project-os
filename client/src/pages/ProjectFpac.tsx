@@ -77,8 +77,8 @@ function Unavailable({ reason, t }: { reason: string; t: T }) {
 export function ProjectFpac({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { isArabic, language } = useLanguage();
   const t = pickLanguage(language, text);
-  // G-212: the report is read only by who may read it (the server checks project.cashflow.read); anyone else sees why, and no refused call is made.
-  const canRead = useCan("project.cashflow.read", projectId); const permissionsLoading = usePermissionsLoading();
+  // G-212: the report is read only by who may read it (the server checks project.profit.read since Q-53); anyone else sees why, and no refused call is made.
+  const canRead = useCan("project.profit.read", projectId); const permissionsLoading = usePermissionsLoading();
   const report = trpc.profitability.project.useQuery({ tenantId, projectId }, { enabled: canRead });
   const history = trpc.profitability.history.useQuery({ tenantId, projectId }, { enabled: canRead });
   const [openItem, setOpenItem] = useState<string | null>(null);
