@@ -23,8 +23,8 @@ export function PlanningControlCenter({ result, currency, isLoading = false }: P
   // Q-17 (205-1): without the right to see the project's money the three amounts say so, rather than showing zeroes
   const hidden = pickLanguage(language, { ar: "مخفي: يحتاج صلاحية قراءة التدفق النقدي", en: "Hidden: needs the cash-flow read permission", ur: "پوشیدہ: نقد بہاؤ دیکھنے کی اجازت درکار ہے" });
   const amount = (value: number) => (result.moneyVisible ? formatPlanningAmount(value, currency, language) : "—");
-  const tone = result.riskLevel === "attention" ? "border-warning/40 bg-warning-soft" : "border-success/40 bg-success-soft";
-  return <section aria-label={t.eyebrow} className={`rounded-2xl border p-5 shadow-sm ${tone}`}>
+  // Q-54: a white card like every card of the board; the state is the badge alone (the approved identity has no large tinted areas)
+  return <section aria-label={t.eyebrow} data-risk={result.riskLevel} className="rounded-[var(--radius-card)] border border-border bg-card p-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><p className="text-xs font-bold tracking-[.14em] text-primary">{t.eyebrow}</p><h2 className="mt-2 text-xl font-semibold text-foreground">{t.title}</h2><p className="mt-2 max-w-4xl text-sm leading-6 text-muted-foreground">{t.note}</p></div>
       <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${result.riskLevel === "attention" ? "bg-warning/20 text-warning-soft-foreground" : "bg-success/20 text-success-soft-foreground"}`}>{result.riskLevel === "attention" ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{result.riskLevel === "attention" ? t.attention : t.controlled}</div>

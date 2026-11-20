@@ -8,7 +8,9 @@ import ExcelJS from "exceljs";
 const REF = { formula: "1+#REF!", result: { error: "#REF!" } } as unknown as ExcelJS.CellValue;
 const refOnly = { formula: "#REF!", result: { error: "#REF!" } } as unknown as ExcelJS.CellValue;
 
-export type OwnerShapeOptions = { weightOfFirst?: ExcelJS.CellValue };
+// `totalIn`: where the totals line writes its word — "item" (the CSI column, the first copy), or "serial" (the owner's real file, I50: «الإجمالي» in the
+// unmapped «م» cell merged with the division cell, nothing in any mapped label, and the rounded sum 0.99999 in the weight column)
+export type OwnerShapeOptions = { weightOfFirst?: ExcelJS.CellValue; totalIn?: "item" | "serial" };
 
 export async function ownerOriginalWeights(options: OwnerShapeOptions = {}): Promise<Uint8Array> {
   const book = new ExcelJS.Workbook();
@@ -39,12 +41,18 @@ export async function ownerOriginalWeights(options: OwnerShapeOptions = {}): Pro
   ws.getCell("D4").value = refOnly; ws.mergeCells("D4:D6");
   ws.mergeCells("C7:C9");
   ws.mergeCells("D7:D9");
-  ws.getCell("E10").value = "الإجمالي";
-  ws.getCell("K10").value = 1;
+  if (options.totalIn === "serial") {
+    ws.getCell("A10").value = "الإجمالي";
+    ws.mergeCells("A10:B10");
+    ws.getCell("K10").value = 0.99999;
+  } else {
+    ws.getCell("E10").value = "الإجمالي";
+    ws.getCell("K10").value = 1;
+  }
   return new Uint8Array(await book.xlsx.writeBuffer());
 }
 
-export async function ownerEditedWeights(): Promise<Uint8Array> {
+export async function ownerEditedWeights(options: { withTotal?: boolean } = {}): Promise<Uint8Array> {
   const book = new ExcelJS.Workbook();
   const ws = book.addWorksheet("Sheet1");
   ws.getRow(1).values = ["م", "القسم", "وزن القسم", "قيمة القسم", "القسم", "النشاط", "البند الفرعي", "الوزن"];
@@ -65,5 +73,7 @@ export async function ownerEditedWeights(): Promise<Uint8Array> {
   ws.getCell("B2").value = "Division 03 مختلق";
   ws.mergeCells("B2:B4");
   ws.mergeCells("B5:B6"); // a division merged and left without a name
+  // I50: the owner's edited copy ends with a totals line — «الإجمالي» in the unmapped «م» cell merged with the division, the rounded sum in the weight column
+  if (options.withTotal) { ws.getCell("A7").value = "الإجمالي"; ws.mergeCells("A7:B7"); ws.getCell("H7").value = 99.999; }
   return new Uint8Array(await book.xlsx.writeBuffer());
 }
