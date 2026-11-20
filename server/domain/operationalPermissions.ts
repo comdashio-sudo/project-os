@@ -65,11 +65,11 @@ export const governedActionPermissions = {
   getTeamHoursSheetForTenant: ["project.manage"],
   createTeamTimeEntriesForTenant: ["project.manage"],
   // cash-flow figures
-  getProjectProfitabilityForTenant: ["project.cashflow.read"],
+  getProjectProfitabilityForTenant: ["project.profit.read"],
   getProjectLabourCostForTenant: ["project.cashflow.read"],
   getProjectCashFlowForTenant: ["project.cashflow.read"],
   getProfitabilityCostBreakdownForTenant: ["project.cashflow.read"],
-  getProfitabilityHistoryForTenant: ["project.cashflow.read"],
+  getProfitabilityHistoryForTenant: ["project.profit.read"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type GovernedAction = keyof typeof governedActionPermissions;

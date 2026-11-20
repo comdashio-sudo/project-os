@@ -263,6 +263,8 @@
     font-family: var(--font-latin);
     width: 100%;
     overflow-x: hidden;
+    /* Q-54: a long figure or word wraps inside its card instead of leaving it (the audit found 20 such: totals, labels); words still break only when nothing else fits */
+    overflow-wrap: break-word;
   }
   #root,
   main {
