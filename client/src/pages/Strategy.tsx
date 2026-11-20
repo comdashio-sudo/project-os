@@ -16,7 +16,7 @@ const TEXT = {
     pipeline: "خط الفرص", inPlay: "فرص قائمة", weighted: "القيمة المرجّحة بالاحتمال", winRate: "نسبة الفوز الفعلية", decided: "محسومة", won: "فزنا بها", noWinRate: "لا فرص حُسمت خلال آخر 12 شهرًا", lostTo: "خسرناها لصالح",
     goals: "الأهداف والمبادرات", noGoals: "لا أهداف بعد.", target: "الهدف", period: "الفترة", initiatives: "المبادرات", noInitiatives: "لا مبادرات لهذا الهدف.", due: "الاستحقاق", unlinked: "مبادرات غير مربوطة بهدف",
     variances: "الانحرافات (المفترض مقابل الفعلي)", noVariances: "لا انحرافات مسجّلة بعد.", assumed: "المفترض", actual: "الفعلي", difference: "الفرق", sample: "عدد العناصر", source: "مصدر الفعلي", pipelineSource: "من الفرص المحسومة", manualSource: "مُدخل يدويًا", recurring: "يتكرر", decision: "القرار", undecided: "بانتظار القرار",
-    sar: "ريال", months: "شهر", days: "يوم", count: "",
+    sar: "ريال", months: "شهر", days: "يوم",
   },
   en: {
     title: "Strategy centre", intro: "The approved assumptions the model reads, the opportunities pipeline and the actual win rate, the goals and their initiatives, and the variance between what we assumed and what happened. Every figure here is computed on the server from the company's records; nothing in the results is typed by hand.",
@@ -24,7 +24,7 @@ const TEXT = {
     pipeline: "Opportunities pipeline", inPlay: "Opportunities in play", weighted: "Value weighted by probability", winRate: "Actual win rate", decided: "decided", won: "won", noWinRate: "No opportunity decided in the last 12 months", lostTo: "Lost to",
     goals: "Goals and initiatives", noGoals: "No goals yet.", target: "Target", period: "Period", initiatives: "Initiatives", noInitiatives: "No initiatives for this goal.", due: "Due", unlinked: "Initiatives not linked to a goal",
     variances: "Variances (assumed against actual)", noVariances: "No variances recorded yet.", assumed: "Assumed", actual: "Actual", difference: "Difference", sample: "Items", source: "Actual from", pipelineSource: "decided opportunities", manualSource: "entered by hand", recurring: "Recurs", decision: "Decision", undecided: "Awaiting a decision",
-    sar: "SAR", months: "months", days: "days", count: "",
+    sar: "SAR", months: "months", days: "days",
   },
   ur: {
     title: "اسٹریٹجک منصوبہ بندی کا مرکز", intro: "منظور شدہ مفروضے جن سے ماڈل پڑھتا ہے، مواقع کی پائپ لائن اور اصل جیت کی شرح، اہداف اور ان کے اقدامات، اور جو ہم نے فرض کیا اور جو ہوا اس کا فرق۔ یہاں ہر عدد سرور پر کمپنی کے ریکارڈ سے حساب ہوتا ہے؛ نتائج میں کچھ بھی ہاتھ سے نہیں لکھا جاتا۔",
@@ -32,7 +32,7 @@ const TEXT = {
     pipeline: "مواقع کی پائپ لائن", inPlay: "جاری مواقع", weighted: "امکان سے وزنی قدر", winRate: "اصل جیت کی شرح", decided: "فیصلہ شدہ", won: "جیتے", noWinRate: "پچھلے 12 ماہ میں کوئی موقع طے نہیں ہوا", lostTo: "ہارے بمقابلہ",
     goals: "اہداف اور اقدامات", noGoals: "ابھی کوئی ہدف نہیں۔", target: "ہدف", period: "مدت", initiatives: "اقدامات", noInitiatives: "اس ہدف کے لیے کوئی اقدام نہیں۔", due: "مقررہ تاریخ", unlinked: "ہدف سے غیر منسلک اقدامات",
     variances: "فرق (فرض شدہ بمقابلہ اصل)", noVariances: "ابھی کوئی فرق درج نہیں۔", assumed: "فرض شدہ", actual: "اصل", difference: "فرق", sample: "عناصر", source: "اصل کا ماخذ", pipelineSource: "طے شدہ مواقع", manualSource: "ہاتھ سے درج", recurring: "دہرایا جاتا ہے", decision: "فیصلہ", undecided: "فیصلے کا منتظر",
-    sar: "ریال", months: "ماہ", days: "دن", count: "",
+    sar: "ریال", months: "ماہ", days: "دن",
   },
 } satisfies Record<Language, Record<string, string>>;
 type Text = (typeof TEXT)["ar"];
@@ -40,7 +40,7 @@ type Unit = "percent" | "sar" | "months" | "days" | "count";
 
 /** A value in its unit, in Western digits and isolated left-to-right inside the Arabic line. */
 function Value({ value, unit, t }: { value: number; unit: Unit; t: Text }) {
-  const text = unit === "percent" ? `${formatNumber(value, 2)}%` : unit === "sar" ? `${formatAmount(value)} ${t.sar}` : `${formatNumber(value, 2)}${t[unit] ? ` ${t[unit]}` : ""}`;
+  const text = unit === "percent" ? `${formatNumber(value, 2)}%` : unit === "sar" ? `${formatAmount(value)} ${t.sar}` : unit === "count" ? formatNumber(value, 2) : `${formatNumber(value, 2)} ${t[unit]}`;
   return <bdi dir="ltr">{text}</bdi>;
 }
 const Chip = ({ children }: { children: React.ReactNode }) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">{children}</span>;
@@ -101,6 +101,7 @@ function Goals({ tenantId, t, language }: { tenantId: string; t: Text; language:
     <CardHeader className="pb-3"><CardTitle className="text-base">{t.goals}</CardTitle></CardHeader>
     <CardContent className="grid gap-2">
       <SourceNotice query={goals} isArabic={language === "ar"} title={t.goals} />
+      <SourceNotice query={initiatives} isArabic={language === "ar"} title={t.initiatives} />
       {goals.data && !goals.data.length ? <Empty name="goals">{t.noGoals}</Empty> : null}
       {goals.data?.map(goal => {
         const own = initiatives.data?.filter(item => item.goalId === goal.id) ?? [];
@@ -123,6 +124,7 @@ function Variances({ tenantId, t, language }: { tenantId: string; t: Text; langu
     <CardHeader className="pb-3"><CardTitle className="text-base">{t.variances}</CardTitle></CardHeader>
     <CardContent className="grid gap-2">
       <SourceNotice query={variances} isArabic={language === "ar"} title={t.variances} />
+      <SourceNotice query={assumptions} isArabic={language === "ar"} title={t.assumptions} />
       {variances.data && !variances.data.length ? <Empty name="variances">{t.noVariances}</Empty> : null}
       {variances.data?.map(item => {
         const assumption = nameOf(item.assumptionId);
