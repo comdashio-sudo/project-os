@@ -224,6 +224,62 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC and master-plan impo
     expect(units.map(unit => Number(unit.unitNumber))).toEqual([71001, 71002]);
   }, 120_000);
 
+  it("Q-50 batch 4: a cell corrected (and a row left out) in the preview is analysed again, audited with both values, and written — the stored file untouched", async () => {
+    const pmc = callerFor(users.pmc, "ext-pmc");
+    // row 3 holds a unit number Excel left as text with a typo, row 4 a stray note line under the table
+    const csv = Buffer.from("Block Code,Unit Number,Model Code\nBQ2,72001,A\nBQ2,72x02,A\nBQ2,see the site plan,A\n", "utf8");
+    const { registered } = await upload(pmc, "pmc.locations", { name: "units-typo.csv", bytes: csv, format: "csv" });
+    const first = await pollUntilDone(pmc, registered.id);
+    expect(first.view.status).toBe("uploaded");
+    expect(first.view.analysis!.errors.map(error => error.rowNumber)).toEqual([3, 4]);
+    const hash = (await connection.query<{ fileHash: string }[]>("SELECT fileHash FROM data_imports WHERE id = ?", [registered.id]))[0][0].fileHash;
+    // NEGATIVE: a correction of a row the table does not have is refused with that row; nothing can be confirmed
+    await pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [{ row: 40, field: "unitNumber", value: "72040" }], ignoreRows: [] } });
+    const outside = await pollUntilDone(pmc, registered.id);
+    expect(outside.view.analysis!.errors.map(error => [error.rowNumber, error.code])).toEqual([[40, "IMPORT_EDIT_INVALID"]]);
+    await expect(pmc.dataImports.confirm({ ...scope, importId: registered.id })).rejects.toThrow("PROJECT_OS_IMPORT_NOT_CONFIRMABLE");
+    // NEGATIVE: the general importer (no project.pmc.manage) cannot correct a PMC file; the same cell twice is refused before anything runs
+    await expect(callerFor(users.importer, "ext-importer").dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [{ row: 3, field: "unitNumber", value: "72002" }], ignoreRows: [] } })).rejects.toThrow();
+    await expect(pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [{ row: 3, field: "unitNumber", value: "72002" }, { row: 3, field: "unitNumber", value: "72003" }], ignoreRows: [] } })).rejects.toThrow("PROJECT_OS_IMPORT_EDITS_INVALID");
+    // POSITIVE: the typo corrected and the note line left out — validated, and the report says what was changed and from what
+    await pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [{ row: 3, field: "unitNumber", value: "72002" }], ignoreRows: [4] } });
+    const corrected = await pollUntilDone(pmc, registered.id);
+    expect(corrected.view).toMatchObject({ status: "validated", totalRows: 2 });
+    const details = (corrected.view.external!.report as { pmc: { details: { edits: unknown[]; ignoredRows: number[] } } }).pmc.details;
+    expect(details.edits).toEqual([{ row: 3, field: "unitNumber", header: "Unit Number", from: "72x02", to: "72002" }]);
+    expect(details.ignoredRows).toEqual([4]);
+    const [audit] = await connection.query<{ action: string; metadata: string }[]>("SELECT action, metadata FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action = 'data_import_cells_corrected' ORDER BY createdAt", [T, registered.id]);
+    expect(audit).toHaveLength(1);
+    expect(JSON.parse(audit[0].metadata)).toMatchObject({ projectId: P, moduleCode: "pmc.locations", fileHash: hash, edits: [{ row: 3, field: "unitNumber", header: "Unit Number", from: "72x02", to: "72002" }], ignoredRows: [4] });
+    // the write reads the same corrections: two units, and the confirm audit names them too; the stored object is the uploaded one
+    expect(await pmc.dataImports.confirm({ ...scope, importId: registered.id })).toMatchObject({ status: "completed", createdRows: 2 });
+    const [units] = await connection.query<{ unitNumber: number }[]>("SELECT unitNumber FROM pmc_units WHERE tenantId = ? AND unitNumber IN (72001, 72002, 72040) ORDER BY unitNumber", [T]);
+    expect(units.map(unit => Number(unit.unitNumber))).toEqual([72001, 72002]);
+    const [confirmed] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'pmc.import_confirmed' ORDER BY createdAt DESC LIMIT 1", [T]);
+    expect(JSON.parse(confirmed[0].metadata)).toMatchObject({ kind: "locations", edits: [{ row: 3, from: "72x02", to: "72002" }], ignoredRows: [4] });
+    expect((await connection.query<{ fileHash: string }[]>("SELECT fileHash FROM data_imports WHERE id = ?", [registered.id]))[0][0].fileHash).toBe(hash);
+  }, 120_000);
+
+  it("Q-50 batch 4: other columns drop the corrections; the master plan (and every non-PMC kind) is refused corrections", async () => {
+    const pmc = callerFor(users.pmc, "ext-pmc");
+    const csv = Buffer.from("Block Code,Unit Number,Model Code\nBQ3,73001,A\nBQ3,73x02,A\n", "utf8");
+    const { registered } = await upload(pmc, "pmc.locations", { name: "units-typo-2.csv", bytes: csv, format: "csv" });
+    await pollUntilDone(pmc, registered.id);
+    await pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [{ row: 3, field: "unitNumber", value: "73002" }], ignoreRows: [] } });
+    expect((await pollUntilDone(pmc, registered.id)).view.status).toBe("validated");
+    // a new column choice is a new reading: the correction is dropped and the typo is an error again
+    await pmc.dataImports.reanalyze({ ...scope, importId: registered.id, mappingOverride: { blockCode: "Block Code", unitNumber: "Unit Number", modelCode: "Model Code" } });
+    const remapped = await pollUntilDone(pmc, registered.id);
+    expect(remapped.view.status).toBe("uploaded");
+    expect(remapped.view.analysis!.errors.map(error => error.rowNumber)).toEqual([3]);
+    // NEGATIVE: a master-plan import (and, by the same rule, a ledger or the equipment list) takes no corrections
+    const planner = callerFor(users.planner, "ext-planner");
+    const mapping = Buffer.from("Entity Code,Unit Number\nV-1,1\n", "utf8");
+    const plan = await upload(planner, "masterPlanMapping", { name: "mp-map.csv", bytes: mapping, format: "csv" }, { masterPlanVersionId: MPV });
+    await pollUntilDone(planner, plan.registered.id);
+    await expect(planner.dataImports.correct({ ...scope, importId: plan.registered.id, edits: { cells: [{ row: 2, field: "unitNumber", value: "2" }], ignoreRows: [] } })).rejects.toThrow("PROJECT_OS_IMPORT_EDITS_NOT_ALLOWED");
+  }, 120_000);
+
   it("the master-plan mapping rides the same path: the version it belongs to is kept with the import, and another company's version is refused", async () => {
     const planner = callerFor(users.planner, "ext-planner");
     const csv = Buffer.from("Code,Status,Progress\nV-1,in_progress,40\nV-2,completed,100\n", "utf8");

@@ -3,7 +3,7 @@
 //   strategy.read     the register and each assumption's change history
 //   strategy.manage   enter a draft, correct it, send it for approval; ask for a change to an approved one
 //   strategy.approve  approve a draft or a change, refuse a change, retire an assumption
-// Separation of duties: whoever entered or sent a draft, or asked for a change, does not approve it (PROJECT_OS_STRATEGY_SELF_APPROVAL).
+// Separation of duties: whoever entered, corrected or sent a draft, or asked for a change, does not approve it (PROJECT_OS_STRATEGY_SELF_APPROVAL).
 // An approved assumption is never edited in place: its values move only when a change request is approved, and every approval, change, refusal and
 // retirement writes one row to strategy_assumption_changes (append-only in the database) and one audit row, in the same transaction as the change.
 import { TRPCError } from "@trpc/server";
@@ -143,6 +143,13 @@ export async function decideStrategyAssumption(input: Caller & { assumptionId: s
     const row = await loadLocked(tx, input);
     if (row.status !== "pending") throw fail("CONFLICT", "PROJECT_OS_STRATEGY_ASSUMPTION_NOT_PENDING");
     if (row.createdByUserId === input.userId || row.submittedByUserId === input.userId) throw fail("FORBIDDEN", "PROJECT_OS_STRATEGY_SELF_APPROVAL");
+    // Review of #397 (programmer A): whoever corrected the draft's values (any draft_updated row of theirs, in this draft's whole life — a return to draft
+    // keeps the values they wrote) does not approve it either; returning it stays open to them. Read from the audit trail, so no migration.
+    if (input.decision === "approve") {
+      const [edited] = await tx.select({ id: auditLogs.id }).from(auditLogs).where(and(eq(auditLogs.tenantId, input.tenantId), eq(auditLogs.entityType, "strategy_assumption"),
+        eq(auditLogs.entityId, row.id), eq(auditLogs.action, "strategy_assumption.draft_updated"), eq(auditLogs.actorUserId, input.userId))).limit(1);
+      if (edited) throw fail("FORBIDDEN", "PROJECT_OS_STRATEGY_SELF_APPROVAL");
+    }
     const where = and(eq(strategyAssumptions.id, row.id), eq(strategyAssumptions.tenantId, input.tenantId));
     if (input.decision === "return") {
       await tx.update(strategyAssumptions).set({ status: "draft", submittedByUserId: null }).where(where);
