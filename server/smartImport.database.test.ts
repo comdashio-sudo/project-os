@@ -220,4 +220,23 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("smart import on a real d
     await expect(stranger.smartImport.source({ tenantId: T, projectId: P, importId: real.id })).rejects.toThrow();
     await expect(stranger.smartImport.source({ tenantId: T2, projectId: P2, importId: real.id })).rejects.toThrow("PROJECT_OS_IMPORT_NOT_FOUND");
   }, 60_000);
+
+  // review of #446: import_source_profiles also holds the Q-50 column templates (kind = the job importer's module, map = field → header). The smart reader never
+  // reads one as its own profile, never lists it, and never takes over its name.
+  it("a Q-50 column template is not a smart profile: not matched, not listed, and its name is refused before anything is written", async () => {
+    const importer = callerFor(users.importer, "smi-importer");
+    const file = sample("boq-ar-contractor");
+    const [smart] = await one<{ id: string; headerSignature: string }>("SELECT id, headerSignature FROM import_source_profiles WHERE tenantId = ? AND name = ?", [T, "جدول كميات مقاول المثال"]);
+    // the smart profile stops matching; a Q-50 costs template with the very same headers takes its place in the table
+    await connection.query("UPDATE import_source_profiles SET headerSignature = ? WHERE id = ?", ['["no-such-header"]', smart.id]);
+    await connection.query("INSERT INTO import_source_profiles (id, tenantId, name, kind, headerSignature, columnMapJson, timesUsed, createdByUserId) VALUES ('7a000006-0000-4000-8000-0000000009c1', ?, 'Q50 costs template', 'costs', ?, ?, 1, ?)", [T, smart.headerSignature, JSON.stringify({ amount: "x" }), users.importer]);
+    const target = await upload(importer, file);
+    const analysis = await importer.smartImport.analyze({ ...scope, uploadKey: target.uploadKey, fileName: file.fileName });
+    expect(analysis.profile).toBeNull();
+    expect((await importer.smartImport.profiles(scope)).map(profile => profile.name)).not.toContain("Q50 costs template");
+    const before = (await one<{ n: number }>("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ?", [T]))[0].n;
+    await expect(importer.smartImport.confirm({ ...scope, uploadKey: target.uploadKey, fileName: file.fileName, kind: "boq", sheet: analysis.understanding.sheet ?? undefined, forced: forcedOf(analysis.understanding.columns) as never, profileName: "Q50 costs template" })).rejects.toThrow("PROJECT_OS_IMPORT_TEMPLATE_NAME_TAKEN");
+    expect((await one<{ n: number }>("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ?", [T]))[0].n).toBe(before);
+    expect((await one<{ kind: string; columnMapJson: string }>("SELECT kind, columnMapJson FROM import_source_profiles WHERE id = '7a000006-0000-4000-8000-0000000009c1'", []))[0]).toMatchObject({ kind: "costs", columnMapJson: JSON.stringify({ amount: "x" }) });
+  }, 60_000);
 });

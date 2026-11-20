@@ -1,5 +1,5 @@
 {
-  "id": "bbcb6868-b0f0-42eb-8122-a379291b1dc3",
+  "id": "03b456e4-fa08-4ddc-9630-837efcd89a9f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -24559,6 +24559,228 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.safety_incidents": {
+      "name": "safety_incidents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "incident_number": {
+          "name": "incident_number",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_on": {
+          "name": "occurred_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "safety_incident_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "people_involved": {
+          "name": "people_involved",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "lost_days": {
+          "name": "lost_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "root_cause": {
+          "name": "root_cause",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corrective_action": {
+          "name": "corrective_action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "safety_incident_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "reported_by_user_id": {
+          "name": "reported_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "safety_incidents_project_number_unique": {
+          "name": "safety_incidents_project_number_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "incident_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "safety_incidents_tenant_project_date_idx": {
+          "name": "safety_incidents_tenant_project_date_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "safety_incidents_tenant_id_companies_id_fk": {
+          "name": "safety_incidents_tenant_id_companies_id_fk",
+          "tableFrom": "safety_incidents",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "safety_incidents_project_id_projects_id_fk": {
+          "name": "safety_incidents_project_id_projects_id_fk",
+          "tableFrom": "safety_incidents",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "safety_incidents_reported_by_user_id_users_id_fk": {
+          "name": "safety_incidents_reported_by_user_id_users_id_fk",
+          "tableFrom": "safety_incidents",
+          "tableTo": "users",
+          "columnsFrom": [
+            "reported_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "safety_incidents_counts_check": {
+          "name": "safety_incidents_counts_check",
+          "value": "\"safety_incidents\".\"people_involved\" >= 0 AND \"safety_incidents\".\"lost_days\" >= 0 AND (\"safety_incidents\".\"lost_days\" = 0 OR \"safety_incidents\".\"kind\" IN ('lost_time', 'fatality'))"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.salary_structures": {
       "name": "salary_structures",
       "schema": "",
@@ -33401,6 +33623,214 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.work_permits": {
+      "name": "work_permits",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permit_number": {
+          "name": "permit_number",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permit_type": {
+          "name": "permit_type",
+          "type": "work_permit_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responsible_party": {
+          "name": "responsible_party",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valid_from": {
+          "name": "valid_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valid_to": {
+          "name": "valid_to",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "work_permit_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "issued_by_user_id": {
+          "name": "issued_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "close_note": {
+          "name": "close_note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "work_permits_project_number_unique": {
+          "name": "work_permits_project_number_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "permit_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_permits_tenant_project_status_idx": {
+          "name": "work_permits_tenant_project_status_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "work_permits_tenant_id_companies_id_fk": {
+          "name": "work_permits_tenant_id_companies_id_fk",
+          "tableFrom": "work_permits",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "work_permits_project_id_projects_id_fk": {
+          "name": "work_permits_project_id_projects_id_fk",
+          "tableFrom": "work_permits",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "work_permits_issued_by_user_id_users_id_fk": {
+          "name": "work_permits_issued_by_user_id_users_id_fk",
+          "tableFrom": "work_permits",
+          "tableTo": "users",
+          "columnsFrom": [
+            "issued_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_permits_window_check": {
+          "name": "work_permits_window_check",
+          "value": "\"work_permits\".\"valid_to\" > \"work_permits\".\"valid_from\""
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -34501,6 +34931,29 @@
         "PROJECT"
       ]
     },
+    "public.safety_incident_kind": {
+      "name": "safety_incident_kind",
+      "schema": "public",
+      "values": [
+        "near_miss",
+        "first_aid",
+        "medical_treatment",
+        "restricted_work",
+        "lost_time",
+        "fatality",
+        "property_damage",
+        "environmental"
+      ]
+    },
+    "public.safety_incident_status": {
+      "name": "safety_incident_status",
+      "schema": "public",
+      "values": [
+        "open",
+        "investigating",
+        "closed"
+      ]
+    },
     "public.salary_structures_eos_accrual_mode": {
       "name": "salary_structures_eos_accrual_mode",
       "schema": "public",
@@ -34803,6 +35256,28 @@
         "approved",
         "rejected",
         "cancelled"
+      ]
+    },
+    "public.work_permit_status": {
+      "name": "work_permit_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "closed",
+        "cancelled"
+      ]
+    },
+    "public.work_permit_type": {
+      "name": "work_permit_type",
+      "schema": "public",
+      "values": [
+        "hot_work",
+        "work_at_height",
+        "confined_space",
+        "excavation",
+        "electrical",
+        "lifting",
+        "other"
       ]
     }
   },

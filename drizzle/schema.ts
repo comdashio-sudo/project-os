@@ -1292,6 +1292,67 @@ export const hseObservations = pgTable(
   table => [uniqueIndex("hse_observations_project_number_unique").on(table.projectId, table.observationNumber), index("hse_observations_tenant_project_status_due_idx").on(table.tenantId, table.projectId, table.status, table.dueAt)],
 );
 
+// Q-28 (P-117, 0044): the project's safety register — incidents (and near misses), with the lost days that make LTIFR and the recordable kinds that make TRIR,
+// and the permits to work for hazardous work, each valid for a window (expired = still active past its end). Writes take project.hse.manage (server/safety.ts).
+export const safetyIncidentKindEnum = pgEnum("safety_incident_kind", ["near_miss", "first_aid", "medical_treatment", "restricted_work", "lost_time", "fatality", "property_damage", "environmental"]);
+export const safetyIncidentStatusEnum = pgEnum("safety_incident_status", ["open", "investigating", "closed"]);
+export const safetyIncidents = pgTable(
+  "safety_incidents",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    incidentNumber: varchar("incident_number", { length: 60 }).notNull(),
+    occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+    kind: safetyIncidentKindEnum("kind").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description").notNull(),
+    location: varchar("location", { length: 160 }),
+    peopleInvolved: integer("people_involved").default(0).notNull(),
+    lostDays: integer("lost_days").default(0).notNull(),
+    rootCause: text("root_cause"),
+    correctiveAction: text("corrective_action"),
+    status: safetyIncidentStatusEnum("status").default("open").notNull(),
+    reportedByUserId: integer("reported_by_user_id").notNull().references(() => users.id),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("safety_incidents_project_number_unique").on(table.projectId, table.incidentNumber),
+    index("safety_incidents_tenant_project_date_idx").on(table.tenantId, table.projectId, table.occurredOn),
+    check("safety_incidents_counts_check", sql`${table.peopleInvolved} >= 0 AND ${table.lostDays} >= 0 AND (${table.lostDays} = 0 OR ${table.kind} IN ('lost_time', 'fatality'))`),
+  ],
+);
+export const workPermitTypeEnum = pgEnum("work_permit_type", ["hot_work", "work_at_height", "confined_space", "excavation", "electrical", "lifting", "other"]);
+export const workPermitStatusEnum = pgEnum("work_permit_status", ["active", "closed", "cancelled"]);
+export const workPermits = pgTable(
+  "work_permits",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    permitNumber: varchar("permit_number", { length: 60 }).notNull(),
+    permitType: workPermitTypeEnum("permit_type").notNull(),
+    description: text("description").notNull(),
+    location: varchar("location", { length: 160 }),
+    responsibleParty: varchar("responsible_party", { length: 160 }),
+    validFrom: timestamp("valid_from", { withTimezone: true }).notNull(),
+    validTo: timestamp("valid_to", { withTimezone: true }).notNull(),
+    status: workPermitStatusEnum("status").default("active").notNull(),
+    issuedByUserId: integer("issued_by_user_id").notNull().references(() => users.id),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closeNote: varchar("close_note", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("work_permits_project_number_unique").on(table.projectId, table.permitNumber),
+    index("work_permits_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status),
+    check("work_permits_window_check", sql`${table.validTo} > ${table.validFrom}`),
+  ],
+);
+
 export const fieldReportsReportTypeEnum = pgEnum("field_reports_report_type", ["daily", "inspection", "progress"]);
 export const fieldReportsShiftEnum = pgEnum("field_reports_shift", ["day", "night"]);
 export const fieldReportsStatusEnum = pgEnum("field_reports_status", ["draft", "submitted", "reviewed", "approved", "rejected"]);

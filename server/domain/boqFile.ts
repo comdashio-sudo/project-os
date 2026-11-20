@@ -1,7 +1,8 @@
 // Q-10 (c): a project's bill of quantities from an Excel/CSV file — item code, description, unit, quantity and unit rate per row.
 // A pure reader: rows in, items and every refusal (with its row and value) out. Nothing here touches the database.
-import { resolveColumns, type ColumnReport } from "./columnChoice";
+import { headerEvaluator, resolveColumns, type ColumnReport } from "./columnChoice";
 import { readSpreadsheetSafely, worksheetToRows } from "./excelWorkbook";
+import { chooseSheet } from "./importEngine/read";
 
 export type BoqFileItem = { rowNumber: number; code: string; description: string; unitOfMeasure: string; quantity: number; unitRate: number; totalAmount: number };
 export type BoqIssue = { rowNumber: number; code: "BOQ_CODE_MISSING" | "BOQ_CODE_TOO_LONG" | "BOQ_DESCRIPTION_MISSING" | "BOQ_UNIT_INVALID" | "BOQ_QUANTITY_INVALID" | "BOQ_RATE_INVALID" | "BOQ_CODE_REPEATED"; value?: string };
@@ -23,7 +24,7 @@ const amount = (value: unknown) => { const raw = text(value).replace(/,/g, ""); 
 const BOQ_FIELDS = Object.entries(BOQ_HEADERS).map(([key, aliases]) => ({ key, required: true, aliases }));
 
 /** `choice`: a person's choice of columns (Q-31, columnChoice.ts); the preview and the save carry the same one. */
-export function analyzeBoqRows(rows: Array<Record<string, unknown>>, headers: string[], choice?: Record<string, string>): BoqAnalysis {
+export function analyzeBoqRows(rows: Array<Record<string, unknown>>, headers: string[], choice?: Record<string, string>, rowNumbers?: number[]): BoqAnalysis {
   const resolved = resolveColumns(BOQ_FIELDS, headers, choice);
   const columns = resolved.columns as Record<keyof typeof BOQ_HEADERS, string | undefined>;
   const none = { items: [], issues: [], totalAmount: 0, columns: resolved.report };
@@ -32,7 +33,7 @@ export function analyzeBoqRows(rows: Array<Record<string, unknown>>, headers: st
   if (rows.length > MAX_BOQ_ROWS) return { ...none, fileError: "BOQ_TOO_MANY_ROWS" };
   const items: BoqFileItem[] = []; const issues: BoqIssue[] = []; const seen = new Set<string>();
   rows.forEach((row, index) => {
-    const rowNumber = index + 2; const code = text(row[columns.code!]); const description = text(row[columns.description!]); const unit = text(row[columns.unitOfMeasure!]);
+    const rowNumber = rowNumbers?.[index] ?? index + 2; const code = text(row[columns.code!]); const description = text(row[columns.description!]); const unit = text(row[columns.unitOfMeasure!]);
     const quantity = amount(row[columns.quantity!]); const unitRate = amount(row[columns.unitRate!]);
     if (!code) return void issues.push({ rowNumber, code: "BOQ_CODE_MISSING" });
     if (code.length > 80) return void issues.push({ rowNumber, code: "BOQ_CODE_TOO_LONG", value: code.slice(0, 40) });
@@ -50,10 +51,11 @@ export function analyzeBoqRows(rows: Array<Record<string, unknown>>, headers: st
 export async function analyzeBoqFile(bytes: Uint8Array, format: "xlsx" | "csv", choice?: Record<string, string>): Promise<BoqAnalysis> {
   const read = await readSpreadsheetSafely(bytes, format);
   if (!read.ok) return { items: [], issues: [], totalAmount: 0, fileError: read.code };
-  const sheet = read.workbook.worksheets[0];
-  if (!sheet) return { items: [], issues: [], totalAmount: 0, fileError: "BOQ_COLUMNS_MISSING" };
-  const { headers, rows } = worksheetToRows(sheet, { maxRows: MAX_BOQ_ROWS + 1, maxColumns: 30 });
-  return analyzeBoqRows(rows, headers, choice);
+  // Q-50 (importEngine/read.ts): the sheet whose header names the required columns, and that header row (a title above the table is common); two such sheets are refused
+  const picked = chooseSheet(read.workbook, headerEvaluator(BOQ_FIELDS), { maxRows: 0, maxColumns: 30 });
+  if (!picked.ok) return { items: [], issues: [], totalAmount: 0, fileError: picked.code === "IMPORT_EMPTY_WORKBOOK" ? "BOQ_COLUMNS_MISSING" : picked.code, ...(picked.detail ? { fileErrorDetail: picked.detail } : {}) };
+  const { headers, rows, rowNumbers } = worksheetToRows(picked.sheet, { maxRows: MAX_BOQ_ROWS + 1, maxColumns: 30 }, picked.candidate.row);
+  return analyzeBoqRows(rows, headers, choice, rowNumbers);
 }
 
 /** Why a save is refused, or null: a file error, any refused row, or no item at all. */
