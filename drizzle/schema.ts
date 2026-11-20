@@ -4255,3 +4255,88 @@ export const strategyOpportunities = pgTable(
     check("strategy_opportunities_probability_range", sql`${table.probabilityPercent} >= 0 AND ${table.probabilityPercent} <= 100`),
   ],
 );
+
+// Q-21 (a), batch 6 (unit 5): goals (what we WANT), initiatives (what we DO) and variances (an assumption — what we EXPECT — against what HAPPENED), kept
+// apart and linked. A variance records both values, how many items the actual rests on, the period and whether it recurs, and the decision it calls for:
+// adjust the assumption (a change request on it, approved by someone else as always) or an initiative to improve performance. A goal is never lowered by it.
+export const strategyGoalStatusEnum = pgEnum("strategy_goal_status", ["active", "achieved", "retired"]);
+export const strategyInitiativeStatusEnum = pgEnum("strategy_initiative_status", ["planned", "in_progress", "done", "cancelled"]);
+export const strategyVarianceDecisionEnum = pgEnum("strategy_variance_decision", ["adjust_assumption", "initiative"]);
+export const strategyGoals = pgTable(
+  "strategy_goals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 60 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    assumptionId: varchar("assumption_id", { length: 36 }),
+    unit: strategyAssumptionUnitEnum("unit").notNull(),
+    targetValue: numeric("target_value", { precision: 18, scale: 4 }).notNull(),
+    periodStart: date("period_start", { mode: "string" }).notNull(),
+    periodEnd: date("period_end", { mode: "string" }).notNull(),
+    status: strategyGoalStatusEnum("status").default("active").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_goals_tenant_code_unique").on(table.tenantId, table.code),
+    unique("strategy_goals_id_tenant_unique").on(table.id, table.tenantId),
+    foreignKey({ name: "strategy_goals_assumption_fk", columns: [table.assumptionId, table.tenantId], foreignColumns: [strategyAssumptions.id, strategyAssumptions.tenantId] }),
+    check("strategy_goals_period_order", sql`${table.periodEnd} >= ${table.periodStart}`),
+  ],
+);
+export const strategyInitiatives = pgTable(
+  "strategy_initiatives",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 60 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    goalId: varchar("goal_id", { length: 36 }),
+    ownerUserId: integer("owner_user_id").references(() => users.id),
+    dueAt: date("due_at", { mode: "string" }),
+    status: strategyInitiativeStatusEnum("status").default("planned").notNull(),
+    note: varchar("note", { length: 500 }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_initiatives_tenant_code_unique").on(table.tenantId, table.code),
+    unique("strategy_initiatives_id_tenant_unique").on(table.id, table.tenantId),
+    foreignKey({ name: "strategy_initiatives_goal_fk", columns: [table.goalId, table.tenantId], foreignColumns: [strategyGoals.id, strategyGoals.tenantId] }),
+  ],
+);
+export const strategyVariances = pgTable(
+  "strategy_variances",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    assumptionId: varchar("assumption_id", { length: 36 }).notNull(),
+    periodStart: date("period_start", { mode: "string" }).notNull(),
+    periodEnd: date("period_end", { mode: "string" }).notNull(),
+    assumedValue: numeric("assumed_value", { precision: 18, scale: 4 }).notNull(),
+    actualValue: numeric("actual_value", { precision: 18, scale: 4 }).notNull(),
+    sampleSize: integer("sample_size").notNull(),
+    actualSource: varchar("actual_source", { length: 30 }).notNull(),
+    recurring: boolean("recurring").default(false).notNull(),
+    note: varchar("note", { length: 500 }),
+    decision: strategyVarianceDecisionEnum("decision"),
+    initiativeId: varchar("initiative_id", { length: 36 }),
+    decisionReason: varchar("decision_reason", { length: 500 }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    recordedByUserId: integer("recorded_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "strategy_variances_assumption_fk", columns: [table.assumptionId, table.tenantId], foreignColumns: [strategyAssumptions.id, strategyAssumptions.tenantId] }),
+    foreignKey({ name: "strategy_variances_initiative_fk", columns: [table.initiativeId, table.tenantId], foreignColumns: [strategyInitiatives.id, strategyInitiatives.tenantId] }),
+    index("strategy_variances_tenant_assumption_idx").on(table.tenantId, table.assumptionId),
+    check("strategy_variances_period_order", sql`${table.periodEnd} >= ${table.periodStart}`),
+    check("strategy_variances_sample_size", sql`${table.sampleSize} >= 0`),
+    check("strategy_variances_decision_shape", sql`(${table.decision} IS NULL AND ${table.initiativeId} IS NULL AND ${table.decidedByUserId} IS NULL) OR (${table.decision} = 'adjust_assumption' AND ${table.initiativeId} IS NULL AND ${table.decidedByUserId} IS NOT NULL) OR (${table.decision} = 'initiative' AND ${table.initiativeId} IS NOT NULL AND ${table.decidedByUserId} IS NOT NULL)`),
+  ],
+);

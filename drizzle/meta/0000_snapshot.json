@@ -1,5 +1,5 @@
 {
-  "id": "6d2a1ad9-7cd3-4ac8-ab60-a18c7a9a5b60",
+  "id": "35ad96f5-e3b4-490a-8aea-d6e1c40edd48",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -28657,6 +28657,355 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.strategy_goals": {
+      "name": "strategy_goals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assumption_id": {
+          "name": "assumption_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unit": {
+          "name": "unit",
+          "type": "strategy_assumption_unit",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_value": {
+          "name": "target_value",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "strategy_goal_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "strategy_goals_tenant_code_unique": {
+          "name": "strategy_goals_tenant_code_unique",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "strategy_goals_tenant_id_companies_id_fk": {
+          "name": "strategy_goals_tenant_id_companies_id_fk",
+          "tableFrom": "strategy_goals",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_goals_created_by_user_id_users_id_fk": {
+          "name": "strategy_goals_created_by_user_id_users_id_fk",
+          "tableFrom": "strategy_goals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_goals_assumption_fk": {
+          "name": "strategy_goals_assumption_fk",
+          "tableFrom": "strategy_goals",
+          "tableTo": "strategy_assumptions",
+          "columnsFrom": [
+            "assumption_id",
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "strategy_goals_id_tenant_unique": {
+          "name": "strategy_goals_id_tenant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "tenant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "strategy_goals_period_order": {
+          "name": "strategy_goals_period_order",
+          "value": "\"strategy_goals\".\"period_end\" >= \"strategy_goals\".\"period_start\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.strategy_initiatives": {
+      "name": "strategy_initiatives",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "goal_id": {
+          "name": "goal_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_at": {
+          "name": "due_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "strategy_initiative_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'planned'"
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "strategy_initiatives_tenant_code_unique": {
+          "name": "strategy_initiatives_tenant_code_unique",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "strategy_initiatives_tenant_id_companies_id_fk": {
+          "name": "strategy_initiatives_tenant_id_companies_id_fk",
+          "tableFrom": "strategy_initiatives",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_initiatives_owner_user_id_users_id_fk": {
+          "name": "strategy_initiatives_owner_user_id_users_id_fk",
+          "tableFrom": "strategy_initiatives",
+          "tableTo": "users",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_initiatives_created_by_user_id_users_id_fk": {
+          "name": "strategy_initiatives_created_by_user_id_users_id_fk",
+          "tableFrom": "strategy_initiatives",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_initiatives_goal_fk": {
+          "name": "strategy_initiatives_goal_fk",
+          "tableFrom": "strategy_initiatives",
+          "tableTo": "strategy_goals",
+          "columnsFrom": [
+            "goal_id",
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "strategy_initiatives_id_tenant_unique": {
+          "name": "strategy_initiatives_id_tenant_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "tenant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.strategy_opportunities": {
       "name": "strategy_opportunities",
       "schema": "",
@@ -29038,6 +29387,242 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.strategy_variances": {
+      "name": "strategy_variances",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assumption_id": {
+          "name": "assumption_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assumed_value": {
+          "name": "assumed_value",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actual_value": {
+          "name": "actual_value",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sample_size": {
+          "name": "sample_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actual_source": {
+          "name": "actual_source",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recurring": {
+          "name": "recurring",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision": {
+          "name": "decision",
+          "type": "strategy_variance_decision",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "initiative_id": {
+          "name": "initiative_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_reason": {
+          "name": "decision_reason",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_by_user_id": {
+          "name": "decided_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_by_user_id": {
+          "name": "recorded_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "strategy_variances_tenant_assumption_idx": {
+          "name": "strategy_variances_tenant_assumption_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "assumption_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "strategy_variances_tenant_id_companies_id_fk": {
+          "name": "strategy_variances_tenant_id_companies_id_fk",
+          "tableFrom": "strategy_variances",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_variances_decided_by_user_id_users_id_fk": {
+          "name": "strategy_variances_decided_by_user_id_users_id_fk",
+          "tableFrom": "strategy_variances",
+          "tableTo": "users",
+          "columnsFrom": [
+            "decided_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_variances_recorded_by_user_id_users_id_fk": {
+          "name": "strategy_variances_recorded_by_user_id_users_id_fk",
+          "tableFrom": "strategy_variances",
+          "tableTo": "users",
+          "columnsFrom": [
+            "recorded_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_variances_assumption_fk": {
+          "name": "strategy_variances_assumption_fk",
+          "tableFrom": "strategy_variances",
+          "tableTo": "strategy_assumptions",
+          "columnsFrom": [
+            "assumption_id",
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strategy_variances_initiative_fk": {
+          "name": "strategy_variances_initiative_fk",
+          "tableFrom": "strategy_variances",
+          "tableTo": "strategy_initiatives",
+          "columnsFrom": [
+            "initiative_id",
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "strategy_variances_period_order": {
+          "name": "strategy_variances_period_order",
+          "value": "\"strategy_variances\".\"period_end\" >= \"strategy_variances\".\"period_start\""
+        },
+        "strategy_variances_sample_size": {
+          "name": "strategy_variances_sample_size",
+          "value": "\"strategy_variances\".\"sample_size\" >= 0"
+        },
+        "strategy_variances_decision_shape": {
+          "name": "strategy_variances_decision_shape",
+          "value": "(\"strategy_variances\".\"decision\" IS NULL AND \"strategy_variances\".\"initiative_id\" IS NULL AND \"strategy_variances\".\"decided_by_user_id\" IS NULL) OR (\"strategy_variances\".\"decision\" = 'adjust_assumption' AND \"strategy_variances\".\"initiative_id\" IS NULL AND \"strategy_variances\".\"decided_by_user_id\" IS NOT NULL) OR (\"strategy_variances\".\"decision\" = 'initiative' AND \"strategy_variances\".\"initiative_id\" IS NOT NULL AND \"strategy_variances\".\"decided_by_user_id\" IS NOT NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.subcontract_certificate_lines": {
@@ -35694,6 +36279,25 @@
         "count"
       ]
     },
+    "public.strategy_goal_status": {
+      "name": "strategy_goal_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "achieved",
+        "retired"
+      ]
+    },
+    "public.strategy_initiative_status": {
+      "name": "strategy_initiative_status",
+      "schema": "public",
+      "values": [
+        "planned",
+        "in_progress",
+        "done",
+        "cancelled"
+      ]
+    },
     "public.strategy_opportunity_status": {
       "name": "strategy_opportunity_status",
       "schema": "public",
@@ -35713,6 +36317,14 @@
         "weakness",
         "opportunity",
         "threat"
+      ]
+    },
+    "public.strategy_variance_decision": {
+      "name": "strategy_variance_decision",
+      "schema": "public",
+      "values": [
+        "adjust_assumption",
+        "initiative"
       ]
     },
     "public.subcontract_certificates_status": {

@@ -6,6 +6,7 @@ import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
+import { createStrategyGoal, createStrategyInitiative, decideStrategyVariance, listStrategyGoals, listStrategyInitiatives, listStrategyVariances, recordStrategyVariance, updateStrategyGoal, updateStrategyInitiative } from "./strategyGoals";
 import { createStrategyOpportunity, decideStrategyOpportunity, getStrategyPipelineSummary, listStrategyOpportunities, updateStrategyOpportunity } from "./strategyOpportunities";
 import { createStrategyCompetitor, createStrategySwot, listStrategyCompetitors, listStrategySwot, updateStrategyCompetitor, updateStrategySwot } from "./strategyCompetitors";
 import { createStrategyAssumption, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
@@ -139,6 +140,26 @@ const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, c
   if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" });
 };
 
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const strategyGoalFields = {
+  code: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(2).max(200),
+  assumptionId: z.string().uuid().nullish(),
+  unit: z.enum(["percent", "sar", "months", "days", "count"]),
+  targetValue: z.number().finite(),
+  periodStart: isoDate,
+  periodEnd: isoDate,
+  status: z.enum(["active", "achieved", "retired"]).optional(),
+};
+const strategyInitiativeFields = {
+  code: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(2).max(200),
+  goalId: z.string().uuid().nullish(),
+  ownerUserId: z.number().int().positive().nullish(),
+  dueAt: isoDate.nullish(),
+  status: z.enum(["planned", "in_progress", "done", "cancelled"]).optional(),
+  note: z.string().trim().max(500).nullish(),
+};
 const strategyOpportunityFields = {
   code: z.string().trim().min(1).max(60),
   name: z.string().trim().min(2).max(200),
@@ -966,6 +987,20 @@ export const appRouter = router({
     decideAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "return"]), reason: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => decideStrategyAssumption({ userId: ctx.user.id, ...input })),
     requestChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), values: strategyValues, reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => requestStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
     decideChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "reject"]) })).mutation(({ ctx, input }) => decideStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
+    // Q-21 (a), batch 6 (unit 5): goals, initiatives and variances (server/strategyGoals.ts)
+    goals: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listStrategyGoals({ userId: ctx.user.id, ...input })),
+    createGoal: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyGoalFields })).mutation(({ ctx, input }) => createStrategyGoal({ userId: ctx.user.id, ...input })),
+    updateGoal: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), goalId: z.string().uuid(), ...strategyGoalFields })).mutation(({ ctx, input }) => updateStrategyGoal({ userId: ctx.user.id, ...input })),
+    initiatives: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listStrategyInitiatives({ userId: ctx.user.id, ...input })),
+    createInitiative: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyInitiativeFields })).mutation(({ ctx, input }) => createStrategyInitiative({ userId: ctx.user.id, ...input })),
+    updateInitiative: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), initiativeId: z.string().uuid(), ...strategyInitiativeFields })).mutation(({ ctx, input }) => updateStrategyInitiative({ userId: ctx.user.id, ...input })),
+    variances: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid().optional() })).query(({ ctx, input }) => listStrategyVariances({ userId: ctx.user.id, ...input })),
+    recordVariance: protectedProcedure.input(z.object({
+      tenantId: z.string().uuid(), assumptionId: z.string().uuid(), periodStart: isoDate, periodEnd: isoDate, recurring: z.boolean().optional(), note: z.string().trim().max(500).nullish(),
+      actual: z.discriminatedUnion("source", [z.object({ source: z.literal("pipeline") }), z.object({ source: z.literal("manual"), value: z.number().finite(), sampleSize: z.number().int().min(1) })]),
+    })).mutation(({ ctx, input }) => recordStrategyVariance({ userId: ctx.user.id, ...input })),
+    decideVariance: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), varianceId: z.string().uuid(), decision: z.enum(["adjust_assumption", "initiative"]), reason: z.string().trim().min(1).max(500), values: strategyValues.optional(), initiativeId: z.string().uuid().optional() }))
+      .mutation(({ ctx, input }) => decideStrategyVariance({ userId: ctx.user.id, ...input })),
     // Q-21 (a), batch 4: the company's opportunities pipeline (server/strategyOpportunities.ts)
     opportunities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), status: z.enum(["open", "submitted", "won", "lost", "withdrawn"]).optional() })).query(({ ctx, input }) => listStrategyOpportunities({ userId: ctx.user.id, ...input })),
     createOpportunity: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyOpportunityFields })).mutation(({ ctx, input }) => createStrategyOpportunity({ userId: ctx.user.id, ...input })),
