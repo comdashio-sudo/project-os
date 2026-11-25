@@ -155,7 +155,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the ready-made role temp
     for (const key of ["EXECUTIVE", "PMO_LEAD"] as const) {
       const navigation = await callers[key].navigation.get({ tenantId, projectId });
       // The levels entry (work order 16) leads to the person's own level; no other module is open to them. (Q-36: the levels sit under the executive, after the company modules)
-      expect(navigation.map(item => item.id), key).toEqual(key === "EXECUTIVE" ? ["executive-dashboard", "levels"] : ["pmo-dashboard", "levels"]);
+      // Q-59 (1): the menu lists every page whose own gate (shared/pageAccess.ts) lets the person in. So the executive also has the strategy centre
+      // (strategy.read in his template since Q-21), and the PMO lead the project's risks (pmo.read) and its meetings (pmo.write: he records the minutes,
+      // Q-25) — pages they could already open; no project action is opened by that (the probes below stay refused).
+      expect(navigation.map(item => item.id), key).toEqual(key === "EXECUTIVE" ? ["executive-dashboard", "strategy", "levels"] : ["project-risks", "project-meetings", "pmo-dashboard", "levels"]);
       for (const probe of PROBES) expect(await outcome(() => probe.run(callers[key])), `${key} x ${probe.name}`).toBe("denied");
     }
   });
