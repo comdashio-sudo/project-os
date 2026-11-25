@@ -14,8 +14,8 @@ vi.mock("@/lib/trpc", () => ({
     useUtils: () => ({ projects: { team: { invitations: { invalidate: vi.fn() } } } }),
     projects: { team: {
       invitableRoles: { useQuery: () => ({ isSuccess: true, data: [{ id: "r1", code: "SITE_ENGINEER", name: "Site Engineer", scope: "project" }, { id: "r2", code: "QC_CUSTOM", name: "QC engineer", scope: "project" }, { id: "r3", code: "PLANNING_ENGINEER", name: "Planning Engineer", scope: "company" }] }) },
-      list: { useQuery: () => ({ isSuccess: true, data: [{ membershipId: "m1", userId: 1, status: "active", name: "Site Engineer A", email: "a@example.test", roles: [{ roleId: "r1", code: "SE", name: "Site engineer", scope: "project" }] }] }) },
-      invitations: { useQuery: () => ({ isSuccess: true, data: [{ id: "i1", email: "b@example.test", roleName: "QC engineer", expiresAt: new Date("2026-11-19T00:00:00Z") }] }) },
+      list: { useQuery: () => ({ isSuccess: true, data: [{ membershipId: "m1", userId: 1, status: "active", name: "Site Engineer A", email: "a@example.test", roles: [{ roleId: "r1", code: "SITE_ENGINEER", name: "Site Engineer", scope: "project" }] }] }) },
+      invitations: { useQuery: () => ({ isSuccess: true, data: [{ id: "i1", email: "b@example.test", roleCode: "QC_CUSTOM", roleName: "QC engineer", expiresAt: new Date("2026-11-19T00:00:00Z") }] }) },
     } },
     tenant: {
       administration: { useQuery: () => ({ isSuccess: true, data: { roles: [{ id: "r1", name: "Site engineer" }, { id: "r2", name: "QC engineer" }] } }) },
@@ -41,7 +41,7 @@ describe("ProjectTeam", () => {
   it("lists the members with their roles and the invitations waiting for this project", () => {
     render(<ProjectTeam />);
     expect(screen.getByTestId("team-members").textContent).toContain("Site Engineer A");
-    expect(screen.getByTestId("team-members").textContent).toContain("Site engineer");
+    expect(screen.getByTestId("team-members").textContent).toContain("Site Engineer");
     expect(screen.getByTestId("team-invitations").textContent).toContain("b@example.test");
     expect(screen.getByTestId("team-invitations").textContent).toContain("QC engineer");
   });
@@ -74,6 +74,14 @@ describe("ProjectTeam", () => {
     expect(document.querySelector("[data-company-scope]")?.textContent).toContain("للشركة كلها");
     send("planner@q58.example.test");
     expect(h.invite).toHaveBeenCalledWith({ tenantId: "t1", email: "planner@q58.example.test", roleId: "r3", scopeType: "company" });
+  });
+
+  it("Q-58 (3): the members' roles and the waiting invitations are named in the reader's language too (a company's own role keeps its name)", () => {
+    h.language = "ar";
+    render(<ProjectTeam />);
+    expect(within(screen.getByTestId("team-members")).getByText("مهندس الموقع")).toBeTruthy(); // the badge, not the stored English name
+    expect(within(screen.getByTestId("team-members")).queryByText("Site Engineer")).toBeNull();
+    expect(screen.getByTestId("team-invitations").textContent).toContain("QC engineer");
   });
 
   it("Q-58 (3): a project role is still invited onto this project only", async () => {

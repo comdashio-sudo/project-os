@@ -43,7 +43,7 @@ export async function listProjectTeam(input: Scope) {
 /** Q-12 (c): the invitations still waiting for this project (made with scope «project» and this project's id): who, as which role, until when. project.manage. */
 export async function listProjectInvitations(input: Scope) {
   const db = await projectGate(input, ["project.manage", "project.team.invite"]);
-  const rows = await db.select({ id: membershipInvitations.id, email: membershipInvitations.email, roleName: roles.name, expiresAt: membershipInvitations.expiresAt })
+  const rows = await db.select({ id: membershipInvitations.id, email: membershipInvitations.email, roleCode: roles.code, roleName: roles.name, expiresAt: membershipInvitations.expiresAt })
     .from(membershipInvitations).innerJoin(roles, and(eq(roles.id, membershipInvitations.roleId), eq(roles.tenantId, membershipInvitations.tenantId)))
     .where(and(eq(membershipInvitations.tenantId, input.tenantId), eq(membershipInvitations.scopeType, "project"), eq(membershipInvitations.scopeId, input.projectId), eq(membershipInvitations.status, "pending")));
   const now = Date.now();

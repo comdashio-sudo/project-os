@@ -72,7 +72,7 @@ export default function ProjectTeam() {
               {(team.data ?? []).map(member => (
                 <li key={member.membershipId} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <div className="min-w-0"><p className="font-medium">{member.name ?? member.email}</p>{member.email ? <p dir="ltr" className="text-xs text-muted-foreground">{member.email}</p> : null}</div>
-                  <div className="flex flex-wrap gap-1">{member.roles.map(role => <Badge key={`${role.roleId}-${role.scope}`} tone="neutral">{role.name}{role.scope === "company" ? ` · ${t.company}` : ""}</Badge>)}{member.status === "invited" ? <Badge tone="warning">{t.invited}</Badge> : null}</div>
+                  <div className="flex flex-wrap gap-1">{member.roles.map(role => <Badge key={`${role.roleId}-${role.scope}`} tone="neutral">{getOperationalRoleName(role, language)}{role.scope === "company" ? ` · ${t.company}` : ""}</Badge>)}{member.status === "invited" ? <Badge tone="warning">{t.invited}</Badge> : null}</div>
                 </li>
               ))}
             </ul>
@@ -83,7 +83,7 @@ export default function ProjectTeam() {
           <CardBody>
             <SourceNotice query={invitations} isArabic={isArabic} title={t.pending} />
             <ul className="divide-y divide-border" data-testid="team-invitations">
-              {(invitations.data ?? []).map(item => <li key={item.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><span dir="ltr">{item.email}</span><span>{item.roleName} · {t.until} {formatDate(item.expiresAt, language)}</span></li>)}
+              {(invitations.data ?? []).map(item => <li key={item.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><span dir="ltr">{item.email}</span><span>{getOperationalRoleName({ code: item.roleCode, name: item.roleName }, language)} · {t.until} {formatDate(item.expiresAt, language)}</span></li>)}
             </ul>
           </CardBody>
         </Card>
