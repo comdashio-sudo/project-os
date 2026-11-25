@@ -209,7 +209,7 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     await choose("weights.xlsx");
     fireEvent.click(screen.getByText("Check the file"));
     const result = await screen.findByTestId("import-result");
-    const rows = [...result.querySelectorAll("[data-import-result-models] tbody tr")].map(row => [...row.querySelectorAll("td")].map(cell => cell.textContent));
+    const rows = Array.from(result.querySelectorAll("[data-import-result-models] tbody tr")).map(row => Array.from(row.querySelectorAll("td")).map(cell => cell.textContent));
     expect(rows).toEqual([["A", "5", "100%"], ["B", "5", "100%"]]);
     const skipped = result.querySelector("[data-import-result-skipped]")!.textContent!;
     expect(skipped).toContain("Totals lines skipped: 1");
