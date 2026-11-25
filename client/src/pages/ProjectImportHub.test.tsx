@@ -15,14 +15,16 @@ afterEach(() => cleanup());
 const cards = () => Array.from(document.querySelectorAll("[data-import-card]")).map(li => [li.getAttribute("data-import-card"), li.querySelector("a")!.getAttribute("href")]);
 
 describe("ProjectImportHub (Q-36 3 c)", () => {
-  it("POSITIVE: each kind of file goes where it is imported — the board's data group, the PMC import tab, the base file", () => {
+  it("POSITIVE (Q-56 1): each kind of file opens the import of its own kind — no two cards share an address", () => {
     render(<ProjectImportHub />);
     expect(document.querySelector("h1")!.textContent).toBe("Import");
     expect(cards()).toEqual([
-      ["programme", "/projects/t/p/controls#manager-assurance"], ["operational", "/projects/t/p/controls#manager-assurance"],
-      ["reference", "/projects/t/p/controls#manager-assurance"], ["masterPlan", "/projects/t/p/controls#manager-assurance"],
+      ["programme", "/projects/t/p/import/programme"], ["operational", "/projects/t/p/import/operational"],
+      ["reference", "/projects/t/p/import/reference"], ["masterPlan", "/projects/t/p/import/master-plan"],
       ["pmc", "/projects/t/p/pmc?tab=import"], ["baseline", "/projects/t/p/baseline"],
     ]);
+    const hrefs = cards().map(([, href]) => href);
+    expect(new Set(hrefs).size).toBe(hrefs.length);
   });
   it("NEGATIVE: a card whose page the person may not open is not drawn; with none, one line says so", () => {
     h.allowed = new Set(["pmc"]);
