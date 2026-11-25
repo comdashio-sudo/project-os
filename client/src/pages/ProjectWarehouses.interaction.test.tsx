@@ -1,8 +1,10 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const exported = vi.hoisted(() => ({ build: vi.fn(async (..._args: unknown[]) => new ArrayBuffer(8)) }));
+vi.mock("@/lib/excelExport", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/excelExport")>()), buildTableWorkbook: exported.build, downloadWorkbook: vi.fn() }));
 import { ProjectWarehouses } from "./ProjectWarehouses";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 import { TYPING_TEST } from "@/test/typing";
@@ -49,5 +51,17 @@ describe("ProjectWarehouses forms check themselves in the page's language (D-64)
     cleanup(); state.error = null; state.create.mockReset();
     render(<ProjectWarehouses tenantId="tenant-1" projectId="project-1" />);
     expectEmptySubmitRefused(document.querySelector("form")!, "en", state.create);
+  });
+  // Q-57: the balances export as Excel; the value, the average cost and the unpriced quantity are empty cells for a reader the server gave no prices (never 0)
+  it("Q-57: the balances export the quantity as a number and leave the price columns empty when the server sent no cost", async () => {
+    exported.build.mockClear();
+    render(<ProjectWarehouses tenantId="tenant-1" projectId="project-1" />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Export to Excel" })[0]); // the balances come first
+    await vi.waitFor(() => expect(exported.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    const call = exported.build.mock.calls[0][0] as { rows: unknown[]; columns: Array<{ header: string; value: (row: unknown) => unknown }> };
+    const cell = (header: string) => call.columns.find(column => column.header === header)!.value(call.rows[0]);
+    expect(cell("On hand")).toBe(8);
+    expect(cell("Material")).toBe("MAT-01");
+    for (const header of ["Value", "Average cost", "Unpriced quantity"]) expect(call.columns.some(column => column.header === header) ? cell(header) : null, header).toBeNull();
   });
 });

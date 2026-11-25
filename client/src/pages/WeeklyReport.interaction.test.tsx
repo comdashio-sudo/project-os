@@ -48,6 +48,20 @@ describe("the weekly report editor (D-49 b)", () => {
     expect(Array.from(document.querySelectorAll("input:not([type=checkbox]):not([type=file])")).map(input => (input as HTMLInputElement).type)).toEqual(["date"]); // the file input is the map picture (D-50), not a number
   });
 
+  it("Q-56 (4a): says how many of the week's daily reports wait for an approver (they are not counted until approved), with the way to them; nothing when none waits", () => {
+    const { unmount } = render(<WeeklyReport />);
+    expect(document.querySelector("[data-awaiting-approval]")).toBeNull();
+    unmount();
+    figures.awaitingApproval = 2;
+    try {
+      render(<WeeklyReport />);
+      const note = document.querySelector("[data-awaiting-approval]") as HTMLElement;
+      expect(note.getAttribute("data-awaiting-approval")).toBe("2");
+      expect(note.textContent).toContain("2 daily reports are waiting for approval by someone other than their writer");
+      expect(note.querySelector("a")!.getAttribute("href")).toBe("/m/t/p/report");
+    } finally { delete figures.awaitingApproval; }
+  });
+
   it("suggests the summary, the analysis and the issues from the figures, only into empty texts; then saves the words and the chosen photos", async () => {
     render(<WeeklyReport />);
     fireEvent.change(screen.getByLabelText("Analysis"), { target: { value: "Written by hand." } });

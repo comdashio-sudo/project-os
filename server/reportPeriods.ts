@@ -101,8 +101,13 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
   const wir = (code: string | null) => wirRows.filter(row => row.code === code).reduce((total, row) => total + row.items, 0);
   const rfi = (states: string[]) => rfiRows.filter(row => states.includes(row.status)).reduce((total, row) => total + row.items, 0);
 
+  // Q-56 (4a): the reports of the period that are sent and wait for an approver — the figures above count approved reports only, so a period whose reports all
+  // wait reads empty; the screen says how many wait instead of leaving the reader to guess
+  const [{ awaiting }] = await db.select({ awaiting: sql<number>`count(*)::int` }).from(siteDailyReports)
+    .where(and(mine(siteDailyReports, input), eq(siteDailyReports.status, "submitted"), sql`${siteDailyReports.reportDate} >= ${range.start}`, sql`${siteDailyReports.reportDate} <= ${range.end}`));
   return {
     period: { kind: input.kind, start: range.start, end: range.end, workDays, workingDays: working, workingDayCount: working.length, includeUnapproved: Boolean(input.includeUnapproved) },
+    awaitingApproval: awaiting,
     reports: reports.map(report => ({ id: report.id, date: report.date, reportNumber: report.reportNumber, status: report.status })),
     missingWorkingDays: working.filter(day => !reportedDays.has(day)),
     activities: activityFigures(dayRows, facts, range, working.length, completedFrom(firsts, range.start)),

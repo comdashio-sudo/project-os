@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { AwaitingApprovalNote } from "@/components/dailyReport/ApprovalWho";
 import { Link, useParams } from "wouter";
 import { Button, Card, CardBody, CardHeader, CardTitle, Field, TableScroll, TextInput, formatDate, formatNumber } from "@/components/ds";
 import { PageMain } from "@/components/pageFrame";
@@ -44,6 +45,9 @@ export default function MonthlyReport() {
         </div>
       </div>
       {report.error ? <SectionFailed title={t.figures} error={report.error} isArabic={language === "ar"} onRetry={() => report.refetch()} /> : data ? (
+        <>
+        {/* Q-56 (4a): the figures count approved reports only — say how many of the period's reports still wait for an approver */}
+        <AwaitingApprovalNote scope={scope} count={(data as { awaitingApproval?: number }).awaitingApproval} />
         <Card aria-label={t.figures} data-month-figures>
           <CardHeader><CardTitle>{t.figures}</CardTitle><p className="text-sm text-muted-foreground"><bdi>{formatDate(data.period.start, language)}</bdi> – <bdi>{formatDate(data.period.end, language)}</bdi></p></CardHeader>
           <CardBody className="flex flex-col gap-4">
@@ -58,6 +62,7 @@ export default function MonthlyReport() {
             <p className="text-sm">{t.milestones(data.milestones.length)}</p>
           </CardBody>
         </Card>
+        </>
       ) : null}
       {profile.error ? <p role="note" className="text-sm text-muted-foreground">{t.noProfile}</p> : null}
       <WeeklyExports title={t.exports} fileBase={`monthly-report-${month}`} deck={data && (profile.data !== undefined || profile.error) ? {

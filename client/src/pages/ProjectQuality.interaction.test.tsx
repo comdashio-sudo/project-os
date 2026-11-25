@@ -2,6 +2,8 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const exported = vi.hoisted(() => ({ build: vi.fn(async (..._args: unknown[]) => new ArrayBuffer(8)) }));
+vi.mock("@/lib/excelExport", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/excelExport")>()), buildTableWorkbook: exported.build, downloadWorkbook: vi.fn() }));
 import ProjectQuality from "./ProjectQuality";
 
 const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
@@ -183,5 +185,27 @@ describe("ProjectQuality — NCRs and the company's rules", () => {
     const { container } = render(<ProjectQuality />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(title);
     expect(container.querySelector("main")!.getAttribute("dir")).toBe(dir);
+  });
+
+  // Q-57: the register exports what the screen shows after its filter, with the screen's columns
+  it("Q-57: the inspection register exports the filtered rows — answers, accepted or not, age only while awaiting", async () => {
+    exported.build.mockClear();
+    render(<ProjectQuality />);
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "awaiting" } });
+    fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
+    await vi.waitFor(() => expect(exported.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    const call = exported.build.mock.calls[0][0] as { rows: Array<{ requestCode: string }>; columns: Array<{ header: string; value: (row: unknown) => unknown }> };
+    expect(call.rows.map(row => row.requestCode)).toEqual(["IR-1", "IR-2"]); // the filter's rows, not all five
+    const age = call.columns.find(column => column.header === "Age of the request")!;
+    expect(call.rows.map(row => age.value(row))).toEqual([6, 4]);
+    cleanup(); exported.build.mockClear();
+    render(<ProjectQuality />);
+    fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
+    await vi.waitFor(() => expect(exported.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    const all = exported.build.mock.calls[0][0] as { rows: Array<{ requestCode: string }>; columns: Array<{ header: string; value: (row: unknown) => unknown }> };
+    const status = all.columns.find(column => column.header === "Status")!;
+    const answered = all.rows.find(row => row.requestCode === "IR-3")!; const refused = all.rows.find(row => row.requestCode === "IR-5")!;
+    expect([status.value(answered), status.value(refused)]).toEqual(["Accepted", "Not accepted"]);
+    expect(all.columns.find(column => column.header === "Age of the request")!.value(answered)).toBeNull(); // an answered request has no waiting age, never 0
   });
 });
