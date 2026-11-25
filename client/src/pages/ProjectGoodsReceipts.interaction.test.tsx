@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectGoodsReceipts } from "./ProjectGoodsReceipts";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
-const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), refetch: vi.fn() }));
+const state = vi.hoisted(() => ({ arabic: false, create: vi.fn(), refetch: vi.fn(), grns: [] as unknown[], build: vi.fn(async (..._args: unknown[]) => new ArrayBuffer(8)) }));
+vi.mock("@/lib/excelExport", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/excelExport")>()), buildTableWorkbook: state.build, downloadWorkbook: vi.fn() }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: state.arabic, language: (state.arabic) ? "ar" : "en", isRtl: state.arabic }) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized GRN error" }));
-vi.mock("@/lib/trpc", () => ({ trpc: { goodsReceipts: { list: { useQuery: () => ({ isLoading: false, data: [], refetch: state.refetch, error: null }) }, create: { useMutation: () => ({ mutate: state.create, isPending: false, error: null }) } }, purchaseOrders: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "11111111-1111-4111-8111-111111111111", purchaseOrderNumber: "PO-ISSUED", supplierName: "Supply Co", status: "issued" }] }) } }, materials: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "22222222-2222-4222-8222-222222222222", code: "MAT-01", description: "Concrete", unitOfMeasure: "m3" }] }) } }, qualityInspections: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "33333333-3333-4333-8333-333333333333", inspectionNumber: "QI-FAIL", status: "accepted", outcome: "fail" }] }) } }, ncrs: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "44444444-4444-4444-8444-444444444444", ncrNumber: "NCR-01", status: "open" }] }) } }, warehouses: { list: { useQuery: () => ({ isLoading: false, error: null, refetch: state.refetch, data: { warehouses: [{ id: "55555555-5555-4555-8555-555555555555", code: "WH-01", name: "Main store", active: true }], balances: [], transactions: [] } }) } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { goodsReceipts: { list: { useQuery: () => ({ isLoading: false, data: state.grns, refetch: state.refetch, error: null }) }, create: { useMutation: () => ({ mutate: state.create, isPending: false, error: null }) } }, purchaseOrders: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "11111111-1111-4111-8111-111111111111", purchaseOrderNumber: "PO-ISSUED", supplierName: "Supply Co", status: "issued" }] }) } }, materials: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "22222222-2222-4222-8222-222222222222", code: "MAT-01", description: "Concrete", unitOfMeasure: "m3" }] }) } }, qualityInspections: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "33333333-3333-4333-8333-333333333333", inspectionNumber: "QI-FAIL", status: "accepted", outcome: "fail" }] }) } }, ncrs: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "44444444-4444-4444-8444-444444444444", ncrNumber: "NCR-01", status: "open" }] }) } }, warehouses: { list: { useQuery: () => ({ isLoading: false, error: null, refetch: state.refetch, data: { warehouses: [{ id: "55555555-5555-4555-8555-555555555555", code: "WH-01", name: "Main store", active: true }], balances: [], transactions: [] } }) } } } }));
 
 describe("ProjectGoodsReceipts interaction", () => {
   beforeEach(() => { state.arabic = false; state.create.mockReset(); state.refetch.mockReset(); }); afterEach(cleanup);
@@ -37,6 +38,28 @@ describe("ProjectGoodsReceipts interaction", () => {
     expect(screen.getByLabelText("Issued purchase order").getAttribute("aria-invalid")).toBe("true");
   });
   it("renders Arabic GRN context and does not expose sensitive compensation data", () => { state.arabic = true; render(<ProjectGoodsReceipts tenantId="tenant-1" projectId="project-1" />); expect(screen.getByText("استلام المواد (GRN)")).toBeTruthy(); expect(screen.getByLabelText("أمر الشراء الصادر")).toBeTruthy(); expect(screen.queryByText(/راتب|salary/i)).toBeNull(); });
+});
+
+describe("ProjectGoodsReceipts export (Q-57)", () => {
+  afterEach(() => { cleanup(); state.grns = []; state.arabic = false; });
+  beforeEach(() => { state.arabic = false; });
+  it("exports the receipts with quantities as numbers and the inspection and NCR only on a rejected receipt", async () => {
+    state.grns = [
+      { id: "g1", grnNumber: "GRN-01", purchaseOrderNumber: "PO-1", receivedAt: "2026-11-20T08:00:00.000Z", materialCode: "MAT-01", materialDescription: "Concrete", receivedQuantity: "8.000", rejectedQuantity: "2.000", unitOfMeasure: "m3", inspectionNumber: "QI-1", ncrNumber: "NCR-1" },
+      { id: "g2", grnNumber: "GRN-02", purchaseOrderNumber: "PO-1", receivedAt: "2026-11-21T08:00:00.000Z", materialCode: "MAT-01", materialDescription: "Concrete", receivedQuantity: "5.000", rejectedQuantity: "0.000", unitOfMeasure: "m3", inspectionNumber: "QI-STALE", ncrNumber: "NCR-STALE" },
+    ];
+    state.build.mockClear();
+    render(<ProjectGoodsReceipts tenantId="tenant-1" projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
+    await vi.waitFor(() => expect(state.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    const call = state.build.mock.calls[0][0] as { rows: unknown[]; columns: Array<{ header: string; value: (row: unknown) => unknown }> };
+    const cell = (header: string, index: number) => call.columns.find(column => column.header === header)!.value(call.rows[index]);
+    expect([cell("Accepted", 0), cell("Rejected", 0), cell("Accepted", 1)]).toEqual([8, 2, 5]);
+    expect(cell("GRN number", 0)).toBe("GRN-01");
+    expect([cell("Quality inspection", 0), cell("NCR", 0)]).toEqual(["QI-1", "NCR-1"]);
+    expect([cell("Quality inspection", 1), cell("NCR", 1)]).toEqual(["", ""]); // a receipt with nothing rejected carries no inspection or NCR, as the screen shows
+  });
+  it("no receipts, no export button", () => { render(<ProjectGoodsReceipts tenantId="tenant-1" projectId="project-1" />); expect(screen.queryByRole("button", { name: "Export to Excel" })).toBeNull(); });
 });
 
 describe("ProjectGoodsReceipts form checks itself in the page's language (D-64)", () => {
