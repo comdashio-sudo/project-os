@@ -4,6 +4,7 @@
 import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput } from "@/components/ds";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { PageHeader, PageMain } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -31,6 +32,17 @@ export default function StalledUnits() {
   const rows = query.data?.rows ?? [];
   const options = (values: string[]) => [{ value: ALL, label: t.all }, ...Array.from(new Set(values.filter(Boolean))).sort().map(value => ({ value, label: value }))];
   const shown = useMemo(() => rows.filter(row => (showActive || row.state !== "active") && (block === ALL || row.blockCode === block) && (model === ALL || row.modelCode === model) && (activity === ALL || row.lastActivity?.code === activity)), [rows, block, model, activity, showActive]);
+  // Q-57: the table the screen shows (after its filters) as Excel; the day the villa last moved stays a date, the working days a number
+  const exportColumns = [
+    { header: t.villa, value: (row: (typeof rows)[number]) => row.villa },
+    { header: t.block, value: (row: (typeof rows)[number]) => row.blockCode },
+    { header: t.model, value: (row: (typeof rows)[number]) => row.modelCode },
+    { header: `${t.stalled} / ${t.long} / ${t.active}`, value: (row: (typeof rows)[number]) => stateLabel(row.state) },
+    { header: t.days, kind: "number" as const, value: (row: (typeof rows)[number]) => row.workingDays },
+    { header: t.lastMoved, kind: "date" as const, value: (row: (typeof rows)[number]) => (row.lastMovedOn ? new Date(`${row.lastMovedOn}T12:00:00Z`) : null) },
+    { header: t.lastActivity, value: (row: (typeof rows)[number]) => row.lastActivity?.name ?? "" },
+    { header: t.next, value: (row: (typeof rows)[number]) => row.nextActivity?.name ?? "" },
+  ];
   const stateLabel = (state: string) => (state === "long" ? t.long : state === "stalled" ? t.stalled : t.active);
 
   return (
@@ -52,6 +64,7 @@ export default function StalledUnits() {
           <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" className="h-5 w-5" checked={showActive} onChange={event => setShowActive(event.target.checked)} />{t.showActive}</label>
         </CardBody>
       </Card>
+      <div><ExportExcelButton fileName="stalled-units" sheetName={t.title} title={t.title} rows={shown} columns={exportColumns} /></div>
       <ul className="flex flex-col gap-2" data-stall-rows>
         {shown.map(row => (
           <li key={row.unitId}>

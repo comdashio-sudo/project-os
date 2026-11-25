@@ -435,3 +435,25 @@
 /* Q-19: headings at 700 (IBM Plex Sans Arabic / Inter), and figures tabular everywhere. Unlayered on purpose: it holds over a utility's weight on a heading. */
 :is(h1, h2, h3) { font-weight: 700; }
 body { font-variant-numeric: lining-nums tabular-nums; }
+
+/* Q-57: the printed sheet. A4 landscape; the frame (menu, top bar, breadcrumb, buttons) is left off; the page's own header (PrintHeader) heads it; colours and charts
+   print as drawn; a long table continues on the next sheet with its header row repeated and no row cut in two. The scrolling boxes open to their full width so
+   nothing is hidden behind a scrollbar. Right-to-left pages print right to left, because the direction belongs to the page, not to this sheet. */
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  html, body { background: #fff !important; color: #000; width: auto; overflow: visible !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #root, main { overflow: visible !important; max-width: none !important; }
+  [data-no-print], button, [role="button"], [role="tablist"], input:not([type="hidden"]), select, textarea, [data-sonner-toaster], [data-radix-popper-content-wrapper] { display: none !important; }
+  .overflow-x-auto, .overflow-auto, .overflow-y-auto, [class*="overflow-"] { overflow: visible !important; }
+  .sticky, .fixed:not([data-print-keep]) { position: static !important; }
+  [class*="max-w-"] { max-width: none !important; }
+  table { width: 100% !important; min-width: 0 !important; border-collapse: collapse; font-size: 10px; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, img, svg, figure, canvas { break-inside: avoid; page-break-inside: avoid; }
+  th, td { padding: 3px 6px !important; }
+  h1, h2, h3 { break-after: avoid; }
+  a[href] { color: inherit; text-decoration: none; }
+  .shadow-sm, .shadow, .shadow-md, .shadow-lg { box-shadow: none !important; }
+}

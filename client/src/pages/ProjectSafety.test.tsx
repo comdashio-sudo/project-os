@@ -18,6 +18,9 @@ vi.mock("@/lib/trpc", () => ({ trpc: { safety: {
   closePermit: { useMutation: () => ({ mutate: h.close, isPending: false, error: null }) },
 } } }));
 
+const exported = vi.hoisted(() => ({ build: vi.fn(async (..._args: unknown[]) => new ArrayBuffer(8)), download: vi.fn() }));
+vi.mock("@/lib/excelExport", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/excelExport")>()), buildTableWorkbook: exported.build, downloadWorkbook: exported.download }));
+
 import ProjectSafety from "./ProjectSafety";
 
 const incidents = [
@@ -103,5 +106,30 @@ describe("ProjectSafety (Q-28, P-118)", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Permits to work" }));
     expect(screen.queryByRole("button", { name: "Issue a permit" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Close the permit" })).toBeNull();
+  });
+
+  // Q-57: the register and the permits export as Excel, the rows the screen shows, with the screen's columns and dates as dates
+  it("Q-57: the incident register and the permits each export their rows (numbers as numbers, days as dates); a register with no rows cannot export", async () => {
+    exported.build.mockClear();
+    render(<ProjectSafety />);
+    fireEvent.click(screen.getByRole("radio", { name: "Incidents" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
+    await vi.waitFor(() => expect(exported.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    const call = exported.build.mock.calls[0][0] as { rows: Array<{ incidentNumber: string }>; columns: Array<{ header: string; value: (row: unknown) => unknown }> };
+    expect(call.rows.map(row => row.incidentNumber)).toEqual(["I-01", "I-02"]);
+    const lost = call.columns.find(column => column.header === "Lost workdays")!;
+    expect(call.rows.map(row => lost.value(row))).toEqual([3, 0]);
+    const when = call.columns.find(column => column.header === "Date")!;
+    expect((when.value(call.rows[0]) as Date).toISOString().slice(0, 10)).toBe("2026-11-03");
+    fireEvent.click(screen.getByRole("radio", { name: "Permits to work" }));
+    exported.build.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
+    await vi.waitFor(() => expect(exported.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    expect((exported.build.mock.calls[0][0] as { rows: Array<{ permitNumber: string }> }).rows.map(row => row.permitNumber)).toEqual(["PTW-1", "PTW-2"]);
+    cleanup();
+    h.data = { ...(h.data as object), incidents: [] };
+    render(<ProjectSafety />);
+    fireEvent.click(screen.getByRole("radio", { name: "Incidents" }));
+    expect((screen.getByRole("button", { name: "Export to Excel" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

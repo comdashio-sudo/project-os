@@ -33,6 +33,8 @@ export const PAGE_NAMES = {
   progress: { ar: "تحديث الإنجاز", en: "Progress update", ur: "پیش رفت کی تازہ کاری" },
   qcReceipt: { ar: "استلام QC", en: "QC receipt", ur: "کیو سی وصولی" },
   liveSchedule: { ar: "الجدول الزمني الحي", en: "Live schedule", ur: "لائیو شیڈول" },
+  operations: { ar: "التشغيل", en: "Operations", ur: "آپریشنز" },
+  strategy: { ar: "مركز التخطيط الاستراتيجي", en: "Strategy centre", ur: "حکمتِ عملی کا مرکز" },
 } as const satisfies Record<string, PageName>;
 export type PageNameKey = keyof typeof PAGE_NAMES;
 

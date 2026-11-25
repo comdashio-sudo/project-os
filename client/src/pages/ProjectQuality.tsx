@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -172,6 +173,17 @@ export default function ProjectQuality() {
             </details>
           </WriteGate>
           <label className="block text-sm font-medium sm:max-w-xs">{t.filter}<Select className="mt-1" value={view} onValueChange={value => setView(value as typeof view)} options={[{ value: "all", label: t.all }, { value: "awaiting", label: t.awaiting }, { value: "answered", label: t.answered }, { value: "accepted", label: t.accepted }, { value: "notAccepted", label: t.notAccepted }]} /></label>
+          {requests.length > 0 ? <div><ExportExcelButton fileName="inspection-requests" sheetName={t.tabInspections} title={t.tabInspections} rows={shown} columns={[
+            { header: pickLanguage(language, { ar: "رقم الطلب", en: "Request no.", ur: "درخواست نمبر" }), value: request => request.requestCode },
+            { header: t.unit, value: request => request.unitIds.map(id => unitById.get(id)?.number ?? "?").join(", ") },
+            { header: t.activity, value: request => activityById.get(request.activityDefinitionId)?.code ?? "" },
+            { header: t.consultant, value: request => request.consultantLabel ?? "" },
+            { header: t.contractor, value: request => request.contractorLabel ?? "" },
+            { header: t.requestedAt, kind: "date", value: request => (request.requestedAt ? new Date(request.requestedAt) : null) },
+            { header: t.answer, value: request => request.responseCode ?? "" },
+            { header: pickLanguage(language, { ar: "الحالة", en: "Status", ur: "حالت" }), value: request => (!request.responseCode ? t.awaiting : isAccepted(request) ? t.acceptedBadge : t.notAcceptedBadge) },
+            { header: t.age, kind: "number", value: request => (request.responseCode ? null : dayAge(request.requestedAt)) },
+          ]} /></div> : null}
           {requests.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.noInspections}</p>
             : shown.length === 0 ? <p role="status" className="text-sm text-muted-foreground">{t.noMatch}</p>
             : <ul className="space-y-2">{shown.map(request => {
