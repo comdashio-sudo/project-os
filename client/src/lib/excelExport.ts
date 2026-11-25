@@ -105,17 +105,12 @@ export function exportFileName(base: string, exportedAt: Date): string {
   return `${slug}-${isoDay(exportedAt)}.xlsx`;
 }
 
-/** Builds the .xlsx bytes. Right-to-left for Arabic. The header row is bold and frozen; columns are sized to their content. */
-export async function buildTableWorkbook<Row>(input: {
-  sheetName: string;
-  columns: readonly ExportColumn<Row>[];
-  rows: readonly Row[];
-  meta: ExportMeta;
-}): Promise<ArrayBuffer> {
-  const { default: ExcelJS } = await import("exceljs");
-  const layout = buildExportLayout(input.columns, input.rows, input.meta);
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(sheetNameFor(input.sheetName), { views: [{ rightToLeft: isRtlLanguage(input.meta.locale) }] });
+export type ExportSheet<Row = unknown> = { sheetName: string; columns: readonly ExportColumn<Row>[]; rows: readonly Row[]; title?: string };
+
+type ExcelSheet = import("exceljs").Worksheet;
+
+/** Writes one table into a worksheet: the title block, the bold frozen header, the typed cells, the column widths. */
+function writeSheet(sheet: ExcelSheet, layout: ExportLayout, rtl: boolean) {
   for (const row of layout.metaRows) sheet.addRow(row).font = { bold: row.length === 1 };
   sheet.addRow([]);
   const headerIndex = sheet.rowCount + 1;
@@ -129,12 +124,38 @@ export async function buildTableWorkbook<Row>(input: {
       if (format) added.getCell(index + 1).numFmt = format;
     });
   }
-  sheet.views = [{ rightToLeft: isRtlLanguage(input.meta.locale), state: "frozen", ySplit: headerIndex }];
+  sheet.views = [{ rightToLeft: rtl, state: "frozen", ySplit: headerIndex }];
   layout.headerRow.forEach((text, index) => {
     const widest = Math.max(text.length, ...layout.rows.map(row => String(row[index]?.value instanceof Date ? "yyyy-mm-dd" : row[index]?.value ?? "").length));
     sheet.getColumn(index + 1).width = Math.min(Math.max(widest + 2, 12), 40);
   });
+}
+
+/** One workbook with a sheet per table (Q-57): every sheet goes through the same layout as a single table, so the cell kinds, the currency in the header and
+ *  the direction are the same. Two sheets may not share a name, so a repeated name gets a number. */
+export async function buildWorkbookOfSheets(input: { sheets: readonly ExportSheet<any>[]; meta: ExportMeta }): Promise<ArrayBuffer> {
+  const { default: ExcelJS } = await import("exceljs");
+  const workbook = new ExcelJS.Workbook();
+  const used = new Set<string>();
+  for (const spec of input.sheets) {
+    const base = sheetNameFor(spec.sheetName);
+    let name = base;
+    for (let n = 2; used.has(name.toLowerCase()); n++) name = `${base.slice(0, 31 - String(n).length - 1)} ${n}`;
+    used.add(name.toLowerCase());
+    const layout = buildExportLayout(spec.columns, spec.rows, { ...input.meta, title: spec.title ?? input.meta.title });
+    writeSheet(workbook.addWorksheet(name, { views: [{ rightToLeft: isRtlLanguage(input.meta.locale) }] }), layout, isRtlLanguage(input.meta.locale));
+  }
   return (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
+}
+
+/** Builds the .xlsx bytes. Right-to-left for Arabic. The header row is bold and frozen; columns are sized to their content. */
+export async function buildTableWorkbook<Row>(input: {
+  sheetName: string;
+  columns: readonly ExportColumn<Row>[];
+  rows: readonly Row[];
+  meta: ExportMeta;
+}): Promise<ArrayBuffer> {
+  return buildWorkbookOfSheets({ sheets: [{ sheetName: input.sheetName, columns: input.columns, rows: input.rows }], meta: input.meta });
 }
 
 /** Starts the browser download. Kept apart so the writer can be tested without touching the page. */

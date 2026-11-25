@@ -3,8 +3,9 @@
 // transaction. Decisions that were not in the order (recorded in docs/STATE.md): one report per engineer per project per day; the preparer cannot approve their own
 // report (it holds for the company owner too); an approved report only moves a cell FORWARD (a report cannot take back progress the cell already has); a COMPLETE line
 // obeys the company's quality policy like any other path to COMPLETE.
+import { REPORT_RANGE_CAP } from "../shared/siteReportRange";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { auditLogs, memberships, pmcInspectionRequests, projectReportApprovers, rfis, pmcActivityDefinitions, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportCounters, consultantSubmittals, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportTomorrow, siteDailyReportLines, siteDailyReportPhotos, siteDailyReports } from "../drizzle/schema";
 import { siteToday } from "./wo22Shared";
 import { violates } from "./projectProfile";
@@ -324,11 +325,12 @@ export async function attachSiteReportPhotoForTenant(input: Scope & { reportId: 
 // Q-12: the planning engineer gathers and exports the daily and weekly reports (project.pmc.manage / project.schedule.manage), and the HSE and QA/QC engineers read theirs
 export const READ_PERMISSIONS = DAILY_REPORT_READERS;
 
-export async function listSiteDailyReportsForTenant(input: Scope & { status?: "draft" | "submitted" | "approved" | "rejected"; limit?: number }) {
+/** Q-57 (4): `from` and `to` (inclusive, YYYY-MM-DD) bound the list for the period export; with a bound the read holds up to REPORT_RANGE_CAP + 1 reports (the extra one tells the screen the period is over the cap), otherwise the 60 most recent as before. The gate is the same. */
+export async function listSiteDailyReportsForTenant(input: Scope & { status?: "draft" | "submitted" | "approved" | "rejected"; limit?: number; from?: string; to?: string }) {
   const db = await authorize(input, READ_PERMISSIONS);
   return db.select({ id: siteDailyReports.id, reportDate: siteDailyReports.reportDate, status: siteDailyReports.status, weather: siteDailyReports.weather, preparedByUserId: siteDailyReports.preparedByUserId, submittedAt: siteDailyReports.submittedAt, reviewedAt: siteDailyReports.reviewedAt, reviewNote: siteDailyReports.reviewNote })
-    .from(siteDailyReports).where(and(mine(siteDailyReports, input), input.status ? eq(siteDailyReports.status, input.status) : undefined))
-    .orderBy(desc(siteDailyReports.reportDate), desc(siteDailyReports.createdAt)).limit(Math.min(input.limit ?? 60, 200));
+    .from(siteDailyReports).where(and(mine(siteDailyReports, input), input.status ? eq(siteDailyReports.status, input.status) : undefined, input.from ? gte(siteDailyReports.reportDate, input.from) : undefined, input.to ? lte(siteDailyReports.reportDate, input.to) : undefined))
+    .orderBy(desc(siteDailyReports.reportDate), desc(siteDailyReports.createdAt)).limit(input.from || input.to ? REPORT_RANGE_CAP + 1 : Math.min(input.limit ?? 60, 200));
 }
 
 export async function getSiteDailyReportForTenant(input: Scope & { reportId: string }) {

@@ -12,7 +12,7 @@ const B = "c1300000-0000-4000-8000-000000000002";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 const callerFor = (userId: number, openId: string) => appRouter.createCaller({ user: { id: userId, openId, name: openId, email: `${openId}@pi.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
 const code = (promise: Promise<unknown>) => promise.then(() => "no error", (error: { message?: string }) => error.message ?? "error");
-const KEYS = ["owner", "planner", "outsider"] as const;
+const KEYS = ["owner", "planner", "outsider", "manager"] as const;
 type Key = (typeof KEYS)[number];
 const ids = {} as Record<Key, number>;
 const callers = {} as Record<Key, ReturnType<typeof callerFor>>;
@@ -46,6 +46,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a planning engineer invi
     const [roleRows] = await connection.query<{ id: string; code: string }[]>("SELECT id, code FROM roles WHERE tenantId = ?", [tenantId]);
     for (const row of roleRows as Array<{ id: string; code: string }>) roleIds[row.code] = row.id;
     await callers.owner.tenant.assignMember({ tenantId, targetUserId: ids.planner, roleId: roleIds.PLANNING_ENGINEER, scopeType: "project", scopeId: A });
+    await callers.owner.tenant.assignMember({ tenantId, targetUserId: ids.manager, roleId: roleIds.PROJECT_MANAGER, scopeType: "project", scopeId: A });
     await connection.query("UPDATE memberships SET status = 'active' WHERE tenantId = ?", [tenantId]);
   });
   afterAll(async () => { if (connection) { await clear(); await connection.end(); } });
@@ -65,6 +66,28 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a planning engineer invi
     for (const refused of ["PROJECT_MANAGER", "HR_MANAGER", "TENANT_OWNER"]) expect(await code(callers.planner.tenant.createInvitation({ tenantId, email: `x-${refused.toLowerCase()}@pi.example.test`, roleId: roleIds[refused], scopeType: "project", scopeId: A }))).toBe("PROJECT_OS_INVITATION_ROLE_NOT_ALLOWED");
     expect(await code(callers.planner.projects.team.list({ tenantId, projectId: B }))).toBe("PROJECT_OS_PERMISSION_DENIED");
     for (const email of ["x1@pi.example.test", "x2@pi.example.test", "x-project_manager@pi.example.test", "x-hr_manager@pi.example.test", "x-tenant_owner@pi.example.test"]) expect(await invitations(email)).toBe(0);
+  });
+
+  it("Q-58 (3) POSITIVE: the company owner is offered every company role with the scope its invitation takes — the planning engineer «company» — and invites him for the company", async () => {
+    const offered = await callers.owner.projects.team.invitableRoles({ tenantId, projectId: A });
+    const scopeOf = (code: string) => offered.find(role => role.code === code)?.scope;
+    expect(scopeOf("PLANNING_ENGINEER")).toBe("company"); // project.create for the whole company: never a project role (before: not offered at all)
+    expect(scopeOf("SITE_ENGINEER")).toBe("project");
+    expect(scopeOf("TENANT_OWNER")).toBe("company");
+    expect(offered.find(role => role.code === "PLANNING_ENGINEER")).toMatchObject({ id: roleIds.PLANNING_ENGINEER, name: expect.any(String) });
+    await callers.owner.tenant.createInvitation({ tenantId, email: "planner.friend@pi.example.test", roleId: roleIds.PLANNING_ENGINEER, scopeType: "company" });
+    const [rows] = await connection.query<{ scopeType: string; scopeId: string | null; roleId: string }[]>("SELECT scopeType, scopeId, roleId FROM membership_invitations WHERE tenantId = ? AND email = ?", [tenantId, "planner.friend@pi.example.test"]);
+    expect(rows).toEqual([{ scopeType: "company", scopeId: null, roleId: roleIds.PLANNING_ENGINEER }]);
+  });
+
+  it("Q-58 (3) NEGATIVE: the project manager of A is not offered the planning engineer (nor any company role), and the server refuses it whatever the screen sends", async () => {
+    const offered = await callers.manager.projects.team.invitableRoles({ tenantId, projectId: A });
+    expect(offered.map(role => role.code)).toContain("SITE_ENGINEER");
+    expect(offered.map(role => role.code)).not.toContain("PLANNING_ENGINEER");
+    expect(offered.every(role => role.scope === "project")).toBe(true);
+    expect(await code(callers.manager.tenant.createInvitation({ tenantId, email: "pm-planner@pi.example.test", roleId: roleIds.PLANNING_ENGINEER, scopeType: "project", scopeId: A }))).toBe("PROJECT_OS_INVITATION_ROLE_NOT_ALLOWED");
+    expect(await code(callers.manager.tenant.createInvitation({ tenantId, email: "pm-planner@pi.example.test", roleId: roleIds.PLANNING_ENGINEER, scopeType: "company" }))).not.toBe("no error");
+    expect(await invitations("pm-planner@pi.example.test")).toBe(0);
   });
 
   it("NEGATIVE: another company's owner cannot invite onto A, nor see its team", async () => {

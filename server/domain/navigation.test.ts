@@ -9,14 +9,15 @@ const buildTenantNavigation = (input: NavInput) => build({ ...input, snapshot: {
 describe("buildTenantNavigation", () => {
   it("returns only items backed by licensed products, permissions, and company scope", () => {
     const items = buildTenantNavigation({ tenantId: "tenant-a", projectId: "project-a", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: ["EXECUTIVE", "PMO", "PROJECT"], permissionCodes: ["executive.read", "pmo.read", "project.read", "tenant.manage"], scopes: [{ scopeType: "company", scopeId: null }] } });
-    expect(items.map(item => item.id)).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "tenant-administration", "project-registry", "pmo-dashboard", "executive-dashboard", "levels"]);
+    // Q-59 (1): every page this person may open, by section; then the company's
+    expect(items.map(item => item.id)).toEqual(["project-controls", "project-site", "project-daily-report", "project-submittals", "project-safety", "project-planning", "project-schedule", "project-risks", "project-meetings", "project-reports", "project-weekly-report", "project-monthly-report", "project-supply", "project-commercial", "project-profitability", "project-baseline", "project-import", "project-guide", "operations", "pmo-dashboard", "executive-dashboard", "project-registry", "levels", "tenant-administration"]);
   });
 
   it("does not reveal tenant-wide or unrelated project links to a project-scoped project user", () => {
     const items = buildTenantNavigation({ tenantId: "tenant-a", projectId: "project-a", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: ["PROJECT"], permissionCodes: ["project.read"], scopes: [{ scopeType: "project", scopeId: "project-a" }] } });
-    expect(items.map(item => item.id)).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "levels"]);
-    // the levels entry is company-wide and reveals no project; the project's own links are not offered for project-b
-    expect(buildTenantNavigation({ tenantId: "tenant-a", projectId: "project-b", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: ["PROJECT"], permissionCodes: ["project.read"], scopes: [{ scopeType: "project", scopeId: "project-a" }] } }).map(item => item.id)).toEqual(["levels"]);
+    expect(items.map(item => item.id)).toEqual(["project-controls", "project-site", "project-daily-report", "project-submittals", "project-safety", "project-planning", "project-schedule", "project-meetings", "project-reports", "project-weekly-report", "project-monthly-report", "project-supply", "project-commercial", "project-profitability", "project-baseline", "project-import", "project-guide", "operations", "levels"]);
+    // the levels and operations entries answer over the person's own projects and reveal none; the project's own links are not offered for project-b
+    expect(buildTenantNavigation({ tenantId: "tenant-a", projectId: "project-b", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: ["PROJECT"], permissionCodes: ["project.read"], scopes: [{ scopeType: "project", scopeId: "project-a" }] } }).map(item => item.id)).toEqual(["operations", "levels"]);
   });
 
   it.each(["project.payroll.structure", "project.payroll.run", "project.payroll.approve", "project.payroll.sensitive.read"])("reveals one governed payroll route for %s", permission => {
@@ -33,7 +34,8 @@ describe("buildTenantNavigation by role", () => {
   // The company owner holds the whole catalog at company scope (server/db.ts ensureTenantOperationalRoles). Only the codes the navigation checks are listed.
   const ownerPermissions = ["executive.read", "pmo.read", "pmo.write", "project.read", "project.hr.manage", "project.payroll.structure", "project.payroll.run", "project.payroll.approve", "project.payroll.sensitive.read", "project.performance.read_own", "tenant.manage"];
   // Q-36 (step 2): administration · projects and PMO · people and payroll · executive, with the levels under it
-  const companyModules = ["tenant-administration", "project-registry", "pmo-dashboard", "employee-registry", "payroll", "executive-dashboard", "levels"];
+  // Q-59 (1): operations · PMO · executive · projects · people and payroll · levels · administration
+  const companyModules = ["operations", "pmo-dashboard", "executive-dashboard", "project-registry", "employee-registry", "payroll", "levels", "tenant-administration"];
 
   it("shows nothing to a member who holds no permission, even with every product licensed", () => {
     expect(ids({ tenantId: "tenant-a", projectId: "project-a", snapshot: { tenantId: "tenant-a", membershipStatus: "active", entitledProducts: allProducts, permissionCodes: [], scopes: company } })).toEqual([]);
@@ -52,7 +54,7 @@ describe("buildTenantNavigation by role", () => {
     expect(ids({ tenantId: "tenant-a", snapshot: owner })).toEqual(companyModules);
     // my-performance is listed here although the server refuses the page to a person with no employee record linked to the account.
     // That rule belongs to fix/ui-performance-self-only; this assertion changes with it.
-    expect(ids({ tenantId: "tenant-a", projectId: "project-a", snapshot: owner })).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "my-performance", ...companyModules]);
+    expect(ids({ tenantId: "tenant-a", projectId: "project-a", snapshot: owner })).toEqual(["project-controls", "my-performance", "project-site", "project-daily-report", "project-submittals", "project-safety", "project-planning", "project-schedule", "project-risks", "project-meetings", "project-reports", "project-weekly-report", "project-monthly-report", "project-supply", "project-commercial", "project-profitability", "project-baseline", "project-import", "project-guide", ...companyModules]);
   });
 
   it("shows nothing to a suspended owner", () => {
@@ -75,7 +77,7 @@ describe("buildTenantNavigation: the levels entry", () => {
   });
 
   it("offers a project person the levels entry, and the project's own links once a project is open", () => {
-    expect(ids({ tenantId: "tenant-a", projectId: "project-a", snapshot: snapshot({ permissionCodes: ["project.read"] }) })).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "levels"]);
+    expect(ids({ tenantId: "tenant-a", projectId: "project-a", snapshot: snapshot({ permissionCodes: ["project.read"] }) })).toEqual(["project-controls", "project-site", "project-daily-report", "project-submittals", "project-safety", "project-planning", "project-schedule", "project-meetings", "project-reports", "project-weekly-report", "project-monthly-report", "project-supply", "project-commercial", "project-profitability", "project-baseline", "project-import", "project-guide", "operations", "levels"]);
   });
 
   it("does not offer the levels entry to someone holding no level permission", () => {
@@ -99,7 +101,7 @@ describe("Q-36 (step 2): two groups, the project's first", () => {
     const items = buildTenantNavigation({ tenantId: "t", projectId: "p", snapshot: { tenantId: "t", membershipStatus: "active", entitledProducts: [...all], permissionCodes: ["project.read", "project.manage", "tenant.manage", "executive.read"], scopes: [{ scopeType: "company", scopeId: null }] } });
     const groups = items.map(item => item.group);
     expect(groups.indexOf("company")).toBeGreaterThan(groups.lastIndexOf("project"));
-    expect(items.filter(item => item.group === "project").map(item => item.id)).toEqual(["project-controls", "project-planning", "project-site", "project-supply", "project-commercial", "project-reports", "project-team"]);
+    expect(items.filter(item => item.group === "project").map(item => item.id)).toEqual(["project-controls", "project-site", "project-daily-report", "project-submittals", "project-safety", "project-planning", "project-schedule", "project-meetings", "project-reports", "project-weekly-report", "project-monthly-report", "project-supply", "project-commercial", "project-profitability", "project-baseline", "project-import", "project-team", "project-guide"]);
     expect(items.find(item => item.id === "project-team")?.href).toBe("/projects/t/p/team");
   });
   it("NEGATIVE: the team link needs project.manage or project.team.invite on THIS project, as its page does; a reader of the project does not get it", () => {
@@ -161,3 +163,30 @@ describe("Q-36 (step 4 b): the board's levels in the menu", () => {
   });
 });
 
+
+describe("Q-59 (1): the project's items in sections, each page shown only to whoever its own gate lets in", () => {
+  const nav = (codes: string[], scopeId = "p") => buildTenantNavigation({ tenantId: "t", projectId: "p", snapshot: { tenantId: "t", membershipStatus: "active", entitledProducts: ["EXECUTIVE", "PMO", "PROJECT"], permissionCodes: codes, scopes: [{ scopeType: "project", scopeId }] } });
+  it("POSITIVE: a PMC reader gets the site's four pages, PMC and the comparison, each in its section, and the sections come in the order of the menu", () => {
+    const items = nav(["project.read", "project.pmc.read", "pmo.read"]);
+    const section = (id: string) => items.find(item => item.id === id)?.section;
+    expect(["project-daily-report", "project-progress", "project-qc", "project-stalled"].map(section)).toEqual(["site", "site", "site", "site"]);
+    expect(["project-quality", "project-pmc", "project-risks", "project-site-consultant", "project-profitability", "project-baseline"].map(section)).toEqual(["quality", "planning", "planning", "reports", "supply", "setup"]);
+    const order = ["overview", "site", "quality", "planning", "reports", "supply", "setup", "company"];
+    const seen = items.map(item => order.indexOf(item.section));
+    expect(seen).toEqual([...seen].sort((a, b) => a - b));
+    expect(items.find(item => item.id === "project-qc")?.href).toBe("/m/t/p/qc");
+  });
+  it("NEGATIVE: without project.pmc.read no PMC page is offered (progress, QC, stalled, PMC, comparison, quality — its page waits for the PMC read too)", () => {
+    const ids = nav(["project.read"]).map(item => item.id);
+    for (const id of ["project-progress", "project-qc", "project-stalled", "project-pmc", "project-site-consultant", "project-quality"]) expect(ids).not.toContain(id);
+    expect(ids).toContain("project-daily-report");
+  });
+  it("NEGATIVE: a page's item is not offered on a project the person holds nothing on", () => {
+    expect(nav(["project.read", "project.pmc.read"], "other").filter(item => item.group === "project")).toEqual([]);
+  });
+  it("every item says its section, and no two items share an address", () => {
+    const items = nav(["project.read", "project.pmc.read", "project.manage", "pmo.read", "project.performance.read_own"]);
+    expect(items.every(item => typeof item.section === "string")).toBe(true);
+    const hrefs = items.map(item => item.href); expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+});

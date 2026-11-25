@@ -1,3 +1,5 @@
+import { ExportExcelButton } from "@/components/ExportExcelButton";
+import type { ExportColumn } from "@/lib/excelExport";
 import React from "react";
 import { Link, useParams } from "wouter";
 import { formatAmount, formatDate, formatNumber, formatPercent } from "@/components/ds/format";
@@ -90,6 +92,31 @@ function ProjectRow({ row, tenantId, t, language }: { row: Row; tenantId: string
   );
 }
 
+/** Q-57: the rows the page shows, one line per project, with the page's own labels. An unknown figure is an empty cell (never a 0), and the cost is empty for a reader
+ *  the server gave no money (the same answer the card shows as «hidden»). */
+export function operationsColumns(t: Text, language: Language): ExportColumn<Row>[] {
+  const nullable = (value: number | null) => (value === null ? null : value);
+  return [
+    { header: pickLanguage(language, { ar: "رمز المشروع", en: "Project code", ur: "پروجیکٹ کوڈ" }), value: row => row.code },
+    { header: pickLanguage(language, { ar: "المشروع", en: "Project", ur: "پروجیکٹ" }), value: row => row.name },
+    { header: pickLanguage(language, { ar: "الحالة", en: "Status", ur: "حالت" }), value: row => enumLabel(row.status, language) },
+    { header: `${t.progress} · ${t.actual}`, kind: "percent", value: row => (row.progress.actual === null ? null : row.progress.actual / 100) },
+    { header: `${t.progress} · ${t.planned}`, kind: "percent", value: row => (row.progress.planned === null ? null : row.progress.planned / 100) },
+    { header: t.deviation, kind: "number", value: row => nullable(row.progress.deviation) },
+    { header: t.overdue, kind: "number", value: row => row.overdueActivities },
+    { header: t.stalled, kind: "number", value: row => nullable(row.stalledUnits) },
+    { header: t.ncr, kind: "number", value: row => row.openNcrs },
+    { header: t.incidents, kind: "number", value: row => row.safety.openIncidents },
+    { header: t.lostTime, kind: "number", value: row => row.safety.lostTimeLast30Days },
+    { header: t.materials, kind: "number", value: row => row.materialsBelowReorder },
+    { header: t.cost, kind: "money", value: row => ("value" in row.cost ? null : row.cost.costVariance) },
+    { header: t.cpi, kind: "number", value: row => ("value" in row.cost ? null : row.cost.cpi) },
+    { header: t.risks, kind: "number", value: row => row.highRisks },
+    { header: t.decisions, kind: "number", value: row => row.waiting.decisions },
+    { header: t.escalations, kind: "number", value: row => row.waiting.escalations },
+  ];
+}
+
 /**
  * Q-53 (adviser 20-11): «التشغيل» — the operations manager's page, and anyone's who reads projects: a row per project from operations.overview
  * (server/operationsOverview.ts), every figure computed there from the projects' own records. Nothing is computed or defaulted here: a null stays
@@ -109,6 +136,7 @@ export default function Operations() {
       </header>
       <SourceNotice query={overview} isArabic={isArabic} title={t.title} />
       {overview.isLoading ? <p className="text-sm text-muted-foreground">{t.loading}</p> : null}
+      {overview.data && overview.data.projects.length > 0 ? <div><ExportExcelButton fileName="operations-overview" sheetName={t.title} title={t.title} rows={overview.data.projects} columns={operationsColumns(t, language)} /></div> : null}
       {overview.data && overview.data.projects.length === 0 ? <p className="text-sm text-muted-foreground" data-ops-empty>{t.empty}</p> : null}
       {overview.data?.projects.map(row => <ProjectRow key={row.projectId} row={row} tenantId={tenantId} t={t} language={language} />)}
     </PageMain>;
