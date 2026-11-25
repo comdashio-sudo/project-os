@@ -1,0 +1,110 @@
+[
+ {
+  "lang": "ar",
+  "width": 390,
+  "report": {
+   "hScroll": false,
+   "eastern": false,
+   "nobody": 2,
+   "own": 1,
+   "approveButtonsOnOwn": 0,
+   "smallLinks": 0
+  },
+  "weekly": {
+   "hScroll": false,
+   "eastern": false,
+   "awaiting": "1"
+  },
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "report": {
+   "hScroll": false,
+   "eastern": false,
+   "nobody": 2,
+   "own": 1,
+   "approveButtonsOnOwn": 0,
+   "smallLinks": 0
+  },
+  "weekly": {
+   "hScroll": false,
+   "eastern": false,
+   "awaiting": "1"
+  },
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "report": {
+   "hScroll": false,
+   "eastern": false,
+   "nobody": 2,
+   "own": 1,
+   "approveButtonsOnOwn": 0,
+   "smallLinks": 0
+  },
+  "weekly": {
+   "hScroll": false,
+   "eastern": false,
+   "awaiting": "1"
+  },
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "report": {
+   "hScroll": false,
+   "eastern": false,
+   "nobody": 2,
+   "own": 1,
+   "approveButtonsOnOwn": 0,
+   "smallLinks": 0
+  },
+  "weekly": {
+   "hScroll": false,
+   "eastern": false,
+   "awaiting": "1"
+  },
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "report": {
+   "hScroll": false,
+   "eastern": false,
+   "nobody": 2,
+   "own": 1,
+   "approveButtonsOnOwn": 0,
+   "smallLinks": 0
+  },
+  "weekly": {
+   "hScroll": false,
+   "eastern": false,
+   "awaiting": "1"
+  },
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "report": {
+   "hScroll": false,
+   "eastern": false,
+   "nobody": 2,
+   "own": 1,
+   "approveButtonsOnOwn": 0,
+   "smallLinks": 0
+  },
+  "weekly": {
+   "hScroll": false,
+   "eastern": false,
+   "awaiting": "1"
+  },
+  "errors": []
+ }
+]
