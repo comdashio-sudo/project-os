@@ -3,6 +3,8 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+const exported = vi.hoisted(() => ({ build: vi.fn(async (..._args: unknown[]) => new ArrayBuffer(8)) }));
+vi.mock("@/lib/excelExport", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/excelExport")>()), buildTableWorkbook: exported.build, downloadWorkbook: vi.fn() }));
 import { ProjectPurchaseOrders } from "./ProjectPurchaseOrders";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 import { TYPING_TEST } from "@/test/typing";
@@ -94,5 +96,20 @@ describe("ProjectPurchaseOrders when the contracts register fails (review of #23
     expect(state.contractsRefetch).toHaveBeenCalledTimes(1);
     expect(state.listRefetch).toHaveBeenCalledTimes(1);
     state.contractsError = null;
+  });
+
+  // Q-57: the register exports as Excel — the amount a number, the order day a date, the status in the screen's words
+  it("Q-57: the purchase-order register exports its rows with the amount as a number and the date as a date", async () => {
+    exported.build.mockClear();
+    render(<ProjectPurchaseOrders tenantId="tenant-1" projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
+    await vi.waitFor(() => expect(exported.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    const call = exported.build.mock.calls[0][0] as { rows: Array<{ purchaseOrderNumber: string }>; columns: Array<{ header: string; kind?: string; value: (row: unknown) => unknown }> };
+    const first = call.rows.find(row => row.purchaseOrderNumber === "PO-001")!;
+    const cell = (header: string) => call.columns.find(column => column.header === header)!.value(first);
+    expect(cell("Purchase-order number")).toBe("PO-001");
+    expect(cell("Amount")).toBe(12500.5);
+    expect((cell("Order date") as Date).toISOString().slice(0, 10)).toBe("2026-08-19");
+    expect(call.columns.find(column => column.header === "Amount")!.kind).toBe("money");
   });
 });
