@@ -6,6 +6,7 @@ import { buildDailyRangeSheets, type RangeReport } from "@/lib/dailyRangeExport"
 import { buildWorkbookOfSheets, downloadWorkbook, exportFileName } from "@/lib/excelExport";
 import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
+import { REPORT_RANGE_CAP } from "@shared/siteReportRange";
 import { FileSpreadsheet, Loader2 } from "lucide-react";
 import React, { useState } from "react";
 
@@ -24,7 +25,6 @@ const WORDS = {
   cap: { ar: "الفترة تضم أكثر من 400 تقرير؛ ضيّقها حتى لا يُقطع السجل.", en: "The period holds more than 400 reports; narrow it so the log is not cut.", ur: "اس مدت میں 400 سے زیادہ رپورٹیں ہیں؛ اسے محدود کریں۔" },
   failed: { ar: "تعذّر إنشاء الملف. حاول مرة أخرى.", en: "The file could not be created. Try again.", ur: "فائل نہیں بن سکی۔ دوبارہ کوشش کریں۔" },
 };
-const CAP = 400;
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
 export function DailyRangeExport({ tenantId, projectId, company, project }: { tenantId: string; projectId: string; company?: string; project?: string }) {
@@ -40,7 +40,7 @@ export function DailyRangeExport({ tenantId, projectId, company, project }: { te
     try {
       const listed = await utils.siteReports.list.fetch({ tenantId, projectId, from, to });
       if (listed.length === 0) { setState("none"); return; }
-      if (listed.length >= CAP) { setState("cap"); return; }
+      if (listed.length > REPORT_RANGE_CAP) { setState("cap"); return; }
       // the reports are read one by one, a few at a time, each through the screen's own read (which drops the sections the reader may not see)
       const reads: RangeReport[] = [];
       for (let at = 0; at < listed.length; at += 6) reads.push(...(await Promise.all(listed.slice(at, at + 6).map(item => utils.siteReports.get.fetch({ tenantId, projectId, reportId: item.id })))) as unknown as RangeReport[]);
