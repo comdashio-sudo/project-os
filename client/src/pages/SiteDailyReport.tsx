@@ -5,6 +5,7 @@ import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { useCan, usePermissionsLoading, WriteGate } from "@/lib/permissions";
+import { projectErrorCode } from "@/lib/errorCode";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { useDirectUpload } from "@/lib/useDirectUpload";
@@ -153,7 +154,7 @@ export default function SiteDailyReport() {
     onSuccess: result => { setCopyChoices(null); void utils.siteReports.list.invalidate(); void openReport(result.id); },
     // Q-58 (1): the previous day holds two or more of my reports — the server asks which; the choices are that day's reports of mine
     onError: error => {
-      if (error.message !== "PROJECT_OS_SITE_REPORT_COPY_WHICH") return;
+      if (projectErrorCode(error) !== "PROJECT_OS_SITE_REPORT_COPY_WHICH") return;
       const earlier = (list.data ?? []).filter(row => row.preparedByUserId === me.data?.id && row.reportDate < date).map(row => row.reportDate).sort().pop();
       setCopyChoices((list.data ?? []).filter(row => row.preparedByUserId === me.data?.id && row.reportDate === earlier).map(row => ({ id: row.id, reportNumber: (row as { reportNumber?: string | null }).reportNumber ?? null, label: (row as { label?: string | null }).label ?? null })));
     },
@@ -431,7 +432,7 @@ function ReviewPanel({ scope, waiting, me, t, language, isArabic, onDone }: { sc
       setPreview(null); setDone(variables.decision === "approve" ? t.approvedDone : t.rejectedDone); onDone();
     },
     // Q-56 (4b): a refusal for QC opens the list of what holds it, with the way to approve without moving those villas
-    onError: (error, variables) => { if (error.message === "PROJECT_OS_QC_NOT_ACCEPTED" && !variables.dryRun) review.mutate({ ...variables, dryRun: true }); },
+    onError: (error, variables) => { if (projectErrorCode(error) === "PROJECT_OS_QC_NOT_ACCEPTED" && !variables.dryRun) review.mutate({ ...variables, dryRun: true }); },
   });
   const cellName = (cell: Cell) => {
     const unit = options.data?.units.find(item => item.id === cell.unitId); const activity = options.data?.activities.find(item => item.id === cell.activityDefinitionId);
@@ -442,7 +443,7 @@ function ReviewPanel({ scope, waiting, me, t, language, isArabic, onDone }: { sc
       <h2 className="text-base font-semibold">{t.review}</h2>
       <p className="text-sm text-muted-foreground">{t.reviewHint}</p>
       {done && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{done}</p>}
-      {review.error && !(review.error.message === "PROJECT_OS_QC_NOT_ACCEPTED" && preview) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(review.error, isArabic)}</p>}
+      {review.error && !(projectErrorCode(review.error) === "PROJECT_OS_QC_NOT_ACCEPTED" && preview) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(review.error, isArabic)}</p>}
       {waiting.length === 0 && <p className="text-sm text-muted-foreground">{t.nothingToReview}</p>}
       <ul className="space-y-3">
         {waiting.map(report => (

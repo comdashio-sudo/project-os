@@ -13,12 +13,12 @@ const h = vi.hoisted(() => ({
     // D-45 (c): what the server reads for the day, and the chain as it stands
     inspections: { wir: { submitted: 3, approved: 1, rejected: 1, pending: 1, items: [{ id: "w1", code: "WIR-001", state: "approved" }, { id: "w2", code: "WIR-002", state: "rejected" }, { id: "w3", code: "WIR-003", state: "pending" }] }, rfi: { submitted: 0, approved: 0, rejected: 0, pending: 0, items: [] as Array<{ id: string; number: string; state: string }> } },
     approval: { prepare: { holder: 5 as number | null, by: 5 as number | null, at: "2026-10-20T08:00:00Z" as string | null }, review: { holder: 7 as number | null, by: null as number | null, at: null as string | null, note: null as string | null }, approve: { holder: null as number | null, by: null as number | null, at: null as string | null } } },
-  me: { id: 7 }, check: vi.fn(), copy: vi.fn(), copyError: null as null | { message: string }, companiesError: null as unknown,
+  me: { id: 7 }, check: vi.fn(), copy: vi.fn(), copyError: null as null | { message: string; data: { projectError: { code: string } } }, companiesError: null as unknown,
   companies: [{ id: "c-main", name: "Main Contractor Co.", active: true }, { id: "c-old", name: "Gone Sub Co.", active: false }],
   dryRun: { applied: [{ unitId: "u12", activityDefinitionId: "a-walls", from: null, to: "IN_PROGRESS" }], skipped: [{ unitId: "u13", activityDefinitionId: "a-walls" }], notAccepted: [{ unitId: "u12", activityDefinitionId: "a-walls" }] },
   // Q-56 (4a): who may approve the project's reports (siteReports.approvers), and a refusal the next approval meets (4b)
   approvers: { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }, { userId: 9, name: "Manager Nine" }] } as { named: boolean; reviewFirst: boolean; people: Array<{ userId: number; name: string | null }> },
-  reviewError: null as null | { message: string },
+  reviewError: null as null | { message: string; data: { projectError: { code: string } } },
 }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
@@ -82,7 +82,8 @@ describe("SiteDailyReport — several reports of one day (Q-58 1)", () => {
   });
 
   it("«copy from yesterday» meets two reports there: it asks which, and copies the one chosen", () => {
-    h.copyError = { message: "PROJECT_OS_SITE_REPORT_COPY_WHICH" };
+    // the server's shape: a translated sentence in `message`, the product code in data.projectError.code (never read from `message`)
+    h.copyError = { message: "Your previous day holds more than one report: say which to copy.", data: { projectError: { code: "PROJECT_OS_SITE_REPORT_COPY_WHICH" } } };
     h.reports = [
       { id: "y1", reportDate: "2026-10-19", status: "approved", weather: null, preparedByUserId: 7, reportNumber: "DR-0003", label: "Zone A" },
       { id: "y2", reportDate: "2026-10-19", status: "approved", weather: null, preparedByUserId: 7, reportNumber: "DR-0004", label: "Zone B" },
@@ -201,7 +202,7 @@ describe("SiteDailyReport — the project manager's side", () => {
   });
 
   it("Q-56 (4b): approving meets QC — the villas and activities that hold it are named, and the report can be approved without moving them", () => {
-    h.reviewError = { message: "PROJECT_OS_QC_NOT_ACCEPTED" };
+    h.reviewError = { message: "Quality control has not accepted some villas.", data: { projectError: { code: "PROJECT_OS_QC_NOT_ACCEPTED" } } };
     render(<SiteDailyReport />);
     const panel = screen.getByRole("region", { name: "Approve reports" });
     fireEvent.click(within(panel).getByText("Approve"));
