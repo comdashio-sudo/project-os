@@ -4551,14 +4551,16 @@ async function confirmationQuantities(db: NonNullable<Awaited<ReturnType<typeof 
   const linkOf = new Map(links.map(link => [link.pmcActivityDefinitionId, link]));
   if (unitActivities.some(activityId => !linkOf.has(activityId))) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED" });
   const byItem = new Map<string, number>();
+  const fromUnits = new Set<string>();
   for (const line of lines) {
     const link = line.kind === "unit" ? linkOf.get(line.activityId!)! : null;
     const item = link ? link.boqItemId : line.boqItemId!;
     const quantity = link ? (Number(line.percent) / 100) * Number(link.quantityPerUnit) : Number(line.quantity);
     byItem.set(item, (byItem.get(item) ?? 0) + quantity);
+    if (link) fromUnits.add(item);
   }
   for (const [item, quantity] of Array.from(byItem)) byItem.set(item, Math.round(quantity * 1000) / 1000);
-  return Array.from(byItem.entries()).filter(([, quantity]) => quantity !== 0).map(([boqItemId, currentQuantity]) => ({ boqItemId, currentQuantity }));
+  return Array.from(byItem.entries()).filter(([, quantity]) => quantity !== 0).map(([boqItemId, currentQuantity]) => ({ boqItemId, currentQuantity, fromUnits: fromUnits.has(boqItemId) }));
 }
 
 export async function createSubcontractCertificateForTenant(input: { userId: number; tenantId: string; projectId: string; subcontractId: string; certificateNumber: string; periodStart: Date; periodEnd: Date; lines: { boqItemId: string; currentQuantity: number }[]; confirmationIds?: string[] }) {
@@ -4606,6 +4608,9 @@ export async function createSubcontractCertificateForTenant(input: { userId: num
       if (!boq) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_REQUEST_FAILED" });
       const prevQty = prevQtyMap.get(line.boqItemId) ?? 0;
       const cumulativeQty = prevQty + line.currentQuantity;
+      // Q-43 batch 6 (review of #499): a quantity that came from unit lines (percent × the linked quantity per villa) is computed, not typed and seen
+      // by a person before the pull — so it may not take the item past its BOQ quantity; refused, nothing written (a quantity line has OVER_BOQ at entry)
+      if ((line as { fromUnits?: boolean }).fromUnits && Math.round(cumulativeQty * 1000) > Math.round(Number(boq.quantity) * 1000)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WORK_CONFIRMATION_UNIT_OVER_BOQ" });
       const amount = line.currentQuantity * Number(boq.unitRate);
       grossAmount += amount;
       return { id: crypto.randomUUID(), certificateId, boqItemId: line.boqItemId, previousQuantity: String(prevQty), currentQuantity: String(line.currentQuantity), cumulativeQuantity: String(cumulativeQty), unitRate: boq.unitRate, currentAmount: String(amount) };

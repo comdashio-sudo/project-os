@@ -2166,6 +2166,11 @@ export const projectErrorMessages = {
     en: "An activity in the unit lines (villa × activity × percent) is not linked to a BOQ item in this subcontract; link it to its item and the quantity per villa, or add the units by hand against their item.",
     ur: "یونٹ لائنوں (ولا × سرگرمی × فیصد) کی ایک سرگرمی اس ذیلی معاہدے میں کسی BOQ آئٹم سے منسلک نہیں؛ اسے اس کے آئٹم اور فی ولا مقدار سے منسلک کریں، یا یونٹس ہاتھ سے ان کے آئٹم پر شامل کریں۔",
   },
+  PROJECT_OS_WORK_CONFIRMATION_UNIT_OVER_BOQ: {
+    ar: "أسطر الوحدات المسحوبة تتجاوز بها كمية بند جدول الكميات المعتمدة (مع ما صُدِّق قبلًا)؛ راجع كمية الفيلا الواحدة في ربط النشاط بالبند، ولم يُنشأ المستخلص.",
+    en: "The unit lines pulled would take a BOQ item past its quantity (with what was certified before); check the quantity per villa in the activity's link to the item. No certificate was created.",
+    ur: "کھینچی گئی یونٹ لائنیں BOQ آئٹم کو اس کی مقدار سے آگے لے جائیں گی (پہلے تصدیق شدہ سمیت)؛ سرگرمی کے آئٹم سے ربط میں فی ولا مقدار دیکھیں۔ کوئی سرٹیفکیٹ نہیں بنا۔",
+  },
   PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID: {
     ar: "ربط الأنشطة ببنود جدول الكميات غير صالح: نشاط مكرر، أو كمية غير موجبة، أو نشاط أو بند ليس من هذا المشروع.",
     en: "The activity-to-BOQ links are not valid: an activity twice, a quantity that is not positive, or an activity or item not of this project.",

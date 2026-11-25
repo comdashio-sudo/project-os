@@ -273,7 +273,7 @@ export async function listActivityBoqLinks(input: Scope & { subcontractId: strin
 export async function setActivityBoqLinks(input: Scope & { subcontractId: string; links: ActivityBoqLink[] }) {
   const db = await authorized(input, APPROVE);
   const activityIds = input.links.map(link => link.pmcActivityDefinitionId);
-  if (new Set(activityIds).size !== activityIds.length || input.links.some(link => !(Number.isFinite(link.quantityPerUnit) && link.quantityPerUnit > 0))) throw fail("BAD_REQUEST", "PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
+  if (new Set(activityIds).size !== activityIds.length || input.links.some(link => !(Number.isFinite(link.quantityPerUnit) && Number(link.quantityPerUnit.toFixed(3)) > 0))) throw fail("BAD_REQUEST", "PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
   const [subcontract] = await db.select({ id: subcontractContracts.id }).from(subcontractContracts).where(and(eq(subcontractContracts.id, input.subcontractId), own(subcontractContracts, input))).limit(1);
   if (!subcontract) throw fail("NOT_FOUND", "PROJECT_OS_SUBCONTRACT_NOT_FOUND");
   if (activityIds.length) {
@@ -283,6 +283,9 @@ export async function setActivityBoqLinks(input: Scope & { subcontractId: string
     if (activities.length !== activityIds.length || items.length !== boqIds.length) throw fail("NOT_FOUND", "PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
   }
   await db.transaction(async tx => {
+    // the subcontract is locked first (the lock a certificate takes too): two saves of the same set run one after the other, the second replaces
+    // the first instead of colliding on the unique (subcontract, activity) and leaking the raw statement; «before» is then exactly what is replaced
+    await tx.execute(sql`SELECT id FROM subcontract_contracts WHERE id = ${input.subcontractId} AND tenant_id = ${input.tenantId} FOR UPDATE`);
     const before = await tx.select().from(subcontractActivityBoqLinks).where(and(own(subcontractActivityBoqLinks, input), eq(subcontractActivityBoqLinks.subcontractId, input.subcontractId)));
     await tx.delete(subcontractActivityBoqLinks).where(and(own(subcontractActivityBoqLinks, input), eq(subcontractActivityBoqLinks.subcontractId, input.subcontractId)));
     if (input.links.length) await tx.insert(subcontractActivityBoqLinks).values(input.links.map(link => ({
@@ -291,7 +294,7 @@ export async function setActivityBoqLinks(input: Scope & { subcontractId: string
     })));
     await tx.insert(auditLogs).values({
       id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.subcontract_activity_boq_links_set", entityType: "subcontract_contract", entityId: input.subcontractId,
-      metadata: JSON.stringify({ projectId: input.projectId, before: before.map(row => ({ activity: row.pmcActivityDefinitionId, boqItemId: row.boqItemId, quantityPerUnit: Number(row.quantityPerUnit) })), after: input.links }),
+      metadata: JSON.stringify({ projectId: input.projectId, before: before.map(row => ({ pmcActivityDefinitionId: row.pmcActivityDefinitionId, boqItemId: row.boqItemId, quantityPerUnit: Number(row.quantityPerUnit) })), after: input.links }),
     });
   });
   return { subcontractId: input.subcontractId, links: input.links.length };

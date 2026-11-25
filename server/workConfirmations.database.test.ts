@@ -315,4 +315,37 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-43: subcontractor work
     const [[audit]] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'project.subcontract_activity_boq_links_set' AND entityId = ?", [tenantId, subU]);
     expect(JSON.parse(audit.metadata)).toMatchObject({ before: [], after: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }] });
   });
+
+  it("PULL UNIT over the BOQ and two saves at once (review of #499): a unit-priced quantity never takes an item past its BOQ quantity; two simultaneous link saves both succeed, one after the other", async () => {
+    const owner = callerFor("owner"); const finance = callerFor("finance");
+    await owner.subcontracts.create({ ...scope(), code: "Q43-V", title: "Synthetic tilers", subcontractorName: "Synthetic Tilers", contractValue: 90000 });
+    const subV = (await owner.subcontracts.list(scope())).find(item => item.code === "Q43-V")!.id;
+    const { id: tiny } = await owner.boq.create({ ...scope(), code: "Q43-TINY", description: "Synthetic small item", unitOfMeasure: "m2", quantity: 50, unitRate: 10 });
+    const villa = "43aa0000-0000-4000-8000-0000000000c7";
+    await connection.query("INSERT INTO pmc_units (id, tenantId, projectId, blockId, unitNumber, modelCode, saleStatus, unitWeight) VALUES (?, ?, ?, 'q43-b', 96, 'MDL-A', 'available', 1)", [villa, tenantId, P]);
+    const confirmation = await create("site", "WC-QV1", subV, [{ kind: "unit", pmcUnitId: villa, pmcActivityDefinitionId: ACT[0], percent: 100 }]);
+    await approve(confirmation.id);
+    const pull = (number: string) => code(finance.subcontracts.createCertificate({ ...scope(), subcontractId: subV, certificateNumber: number, periodStart: new Date("2026-11-01"), periodEnd: new Date("2026-11-15"), lines: [], confirmationIds: [confirmation.id] }));
+    const certificates = async () => (await owner.subcontracts.listCertificates({ ...scope(), subcontractId: subV })).length;
+    // NEGATIVE: a link of 400 m2 per villa on an item of 50 m2 — 100% of one villa would certify 400; refused, nothing written
+    await finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subV, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: tiny, quantityPerUnit: 400 }] });
+    expect(await pull("Q43-CV0")).toBe("PROJECT_OS_WORK_CONFIRMATION_UNIT_OVER_BOQ");
+    expect(await certificates()).toBe(0);
+    // NEGATIVE: a quantity that rounds to zero (3 decimals, as stored) is refused in words, not by the database
+    expect(await code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subV, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: tiny, quantityPerUnit: 0.0004 }] }))).toBe("PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
+    // POSITIVE: two saves of the same set at the same moment — both answer, the second replaces the first, one link stays (without the lock the second
+    // collided on the unique (subcontract, activity) and returned the raw statement)
+    const save = (quantityPerUnit: number) => code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subV, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: tiny, quantityPerUnit }] }));
+    for (let round = 0; round < 5; round++) expect(await Promise.all([save(30), save(40)])).toEqual(["no error", "no error"]);
+    const links = await finance.workConfirmations.activityBoqLinks({ ...scope(), subcontractId: subV });
+    expect(links).toHaveLength(1);
+    expect([30, 40]).toContain(links[0].quantityPerUnit);
+    // POSITIVE: within the item, the pull goes through — 100% × the link's quantity, at the BOQ rate
+    expect(await pull("Q43-CV1")).toBe("no error");
+    const [certificate] = await owner.subcontracts.listCertificates({ ...scope(), subcontractId: subV });
+    expect(certificate.lines.map(line => [Number(line.currentQuantity), Number(line.currentAmount)])).toEqual([[links[0].quantityPerUnit, links[0].quantityPerUnit * 10]]);
+    // the audit keeps the same key before and after
+    const [rows] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'project.subcontract_activity_boq_links_set' AND entityId = ? ORDER BY createdAt DESC LIMIT 1", [tenantId, subV]);
+    expect(Object.keys(JSON.parse(rows[0].metadata).before[0])).toEqual(["pmcActivityDefinitionId", "boqItemId", "quantityPerUnit"]);
+  });
 });
