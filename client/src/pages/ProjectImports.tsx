@@ -76,7 +76,8 @@ export function ProjectImports({ tenantId, projectId, initialModule = "wbs" }: {
   const rollback = trpc.dataImports.rollback.useMutation({ onSuccess: () => finishJob() });
   const [replacing, setReplacing] = useState<string | null>(null);
   const busy = uploadPercent !== null || createUpload.isPending || registerUpload.isPending;
-  const isReplaceable = (code: string): code is typeof moduleCode => canRollbackModule(code);
+  // Q-23: a full XER import can be rolled back, but not «replaced» here — an .xer file goes through the smart import box, not this screen's uploader
+  const isReplaceable = (code: string): code is typeof moduleCode => canRollbackModule(code) && code !== "p6";
   const t = pickLanguage(language, { ar: {
         title: "استيراد بيانات",
         note: "ارفع XLSX أو CSV، واختر سياسة التكرار، ثم راجع النتيجة قبل تأكيد الكتابة التشغيلية.",

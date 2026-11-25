@@ -1,11 +1,15 @@
 import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions } from "./workConfirmations";
-import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES } from "./meetings";
+import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, exportProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES, MINUTES_EXPORT_FORMATS } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
 import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordStocktakeCounts } from "./stocktakes";
+import { createStrategyGoal, createStrategyInitiative, decideStrategyVariance, listStrategyGoals, listStrategyInitiatives, listStrategyVariances, recordStrategyVariance, updateStrategyGoal, updateStrategyInitiative } from "./strategyGoals";
+import { createStrategyOpportunity, decideStrategyOpportunity, getStrategyPipelineSummary, listStrategyOpportunities, updateStrategyOpportunity } from "./strategyOpportunities";
+import { createStrategyCompetitor, createStrategySwot, listStrategyCompetitors, listStrategySwot, updateStrategyCompetitor, updateStrategySwot } from "./strategyCompetitors";
+import { createStrategyAssumption, getStrategyAssumptionRisks, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
 import { getMonthlyReport } from "./monthlyReport";
@@ -134,6 +138,72 @@ const smartForcedSchema = z.record(z.string().regex(/^\d{1,3}$/), z.string().max
 const importFormatRule = (value: { moduleCode: string; sourceFormat: string }, context: z.RefinementCtx) => {
   if (value.moduleCode === "schedule" && value.sourceFormat !== "xlsx" && value.sourceFormat !== "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_SCHEDULE_FORMAT_INVALID" });
   if (value.moduleCode !== "schedule" && value.sourceFormat === "xer") context.addIssue({ code: "custom", message: "PROJECT_OS_IMPORT_FORMAT_INVALID" });
+};
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const strategyGoalFields = {
+  code: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(2).max(200),
+  assumptionId: z.string().uuid().nullish(),
+  unit: z.enum(["percent", "sar", "months", "days", "count"]),
+  targetValue: z.number().finite(),
+  periodStart: isoDate,
+  periodEnd: isoDate,
+  status: z.enum(["active", "achieved", "retired"]).optional(),
+};
+const strategyInitiativeFields = {
+  code: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(2).max(200),
+  goalId: z.string().uuid().nullish(),
+  ownerUserId: z.number().int().positive().nullish(),
+  dueAt: isoDate.nullish(),
+  status: z.enum(["planned", "in_progress", "done", "cancelled"]).optional(),
+  note: z.string().trim().max(500).nullish(),
+};
+const strategyOpportunityFields = {
+  code: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(2).max(200),
+  clientName: z.string().trim().max(200).nullish(),
+  sector: z.string().trim().max(120).nullish(),
+  region: z.string().trim().max(120).nullish(),
+  estimatedValue: z.number().finite(),
+  probabilityPercent: z.number().finite(),
+  expectedAwardAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  durationMonths: z.number().int().nullish(),
+  status: z.enum(["open", "submitted"]).optional(),
+};
+const strategyCompetitorFields = {
+  name: z.string().trim().min(2).max(200),
+  sector: z.string().trim().max(120).nullish(),
+  region: z.string().trim().max(120).nullish(),
+  projectTypes: z.string().trim().max(300).nullish(),
+  sizeValue: z.number().finite().nonnegative().nullish(),
+  sizeEvidence: z.enum(["confirmed", "estimate", "analysis"]).optional(),
+  sourceNote: z.string().trim().max(500).nullish(),
+  sourceUrl: z.string().trim().max(500).nullish(),
+  collectedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+};
+const strategySwotFields = {
+  kind: z.enum(["strength", "weakness", "opportunity", "threat"]),
+  statement: z.string().trim().max(500),
+  evidence: z.string().trim().max(500),
+  competitorId: z.string().uuid().nullish(),
+  assumptionId: z.string().uuid().nullish(),
+};
+const strategyValues = z.object({ conservative: z.number().finite(), base: z.number().finite(), optimistic: z.number().finite() });
+const strategyAssumptionFields = {
+  name: z.string().trim().min(2).max(200),
+  unit: z.enum(["percent", "sar", "months", "days", "count"]),
+  sourceType: z.enum(["internal", "external", "management"]),
+  sourceNote: z.string().trim().max(500).nullish(),
+  confidence: z.enum(["high", "medium", "low"]),
+  reviewFrequency: z.enum(["monthly", "quarterly", "annual", "event"]),
+  nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  values: strategyValues,
+  // Q-21 (a), batch 2: the market study
+  module: z.enum(["general", "market"]).optional(),
+  evidence: z.enum(["confirmed", "estimate", "analysis"]).optional(),
+  sourceUrl: z.string().trim().max(500).nullish(),
 };
 
 // Q-31 (P0-02): a person's choice of columns for a baseline file sent inside the request (field key → the header as the file writes it; "" = no column)
@@ -644,6 +714,8 @@ export const appRouter = router({
     addItem: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid(), topic: z.string().trim().min(1).max(255), discussion: z.string().trim().max(5000).optional(), decision: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => addProjectMeetingItem({ userId: ctx.user.id, ...input })),
     addAction: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid(), title: z.string().trim().min(2).max(255), ownerMembershipId: z.string().uuid(), dueAt: z.date().optional(), priority: z.enum(["low", "medium", "high", "critical"]).default("medium") })).mutation(({ ctx, input }) => addProjectMeetingAction({ userId: ctx.user.id, ...input })),
     issue: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid() })).mutation(({ ctx, input }) => issueProjectMeeting({ userId: ctx.user.id, ...input })),
+    // Q-25 batch 2: the minutes as Word or PDF, for whoever reads them
+    export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), meetingId: z.string().uuid(), format: z.enum(MINUTES_EXPORT_FORMATS), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportProjectMeeting({ userId: ctx.user.id, ...input })),
   }),
   executive: router({
     createDecision: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), problem: z.string().trim().min(2).max(5000), options: z.string().trim().min(2).max(5000), recommendation: z.string().trim().max(5000).optional(), decisionOwnerMembershipId: z.string().uuid().optional(), costImpact: z.number().finite().optional(), scheduleImpactDays: z.number().int().min(-3650).max(3650).optional(), riskImpact: z.string().trim().max(5000).optional() })).mutation(({ ctx, input }) => createDecision({ userId: ctx.user.id, ...input })),
@@ -907,6 +979,47 @@ export const appRouter = router({
     })).mutation(({ ctx, input }) => createWorkConfirmation({ userId: ctx.user.id, ...input })),
     transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), confirmationId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "cancelled"]), reason: z.string().trim().max(500).nullish() })).mutation(({ ctx, input }) => transitionWorkConfirmation({ userId: ctx.user.id, ...input })),
   }),
+  // Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (server/strategyAssumptions.ts).
+  strategy: router({
+    assumptions: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), module: z.enum(["general", "market"]).optional() })).query(({ ctx, input }) => listStrategyAssumptions({ userId: ctx.user.id, ...input })),
+    // Q-21 (a), batch 5: the assumption-risk board (read-only)
+    assumptionRisks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), horizonMonths: z.number().int().min(6).max(120).optional() })).query(({ ctx, input }) => getStrategyAssumptionRisks({ userId: ctx.user.id, ...input })),
+    assumptionChanges: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid() })).query(({ ctx, input }) => getStrategyAssumptionChanges({ userId: ctx.user.id, ...input })),
+    createAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), code: z.string().trim().min(2).max(60).regex(/^[A-Za-z0-9_.-]+$/), ...strategyAssumptionFields })).mutation(({ ctx, input }) => createStrategyAssumption({ userId: ctx.user.id, ...input })),
+    updateDraft: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), ...strategyAssumptionFields })).mutation(({ ctx, input }) => updateStrategyAssumptionDraft({ userId: ctx.user.id, ...input })),
+    submitAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid() })).mutation(({ ctx, input }) => submitStrategyAssumption({ userId: ctx.user.id, ...input })),
+    decideAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "return"]), reason: z.string().trim().max(500).optional() })).mutation(({ ctx, input }) => decideStrategyAssumption({ userId: ctx.user.id, ...input })),
+    requestChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), values: strategyValues, reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => requestStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
+    decideChange: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), decision: z.enum(["approve", "reject"]) })).mutation(({ ctx, input }) => decideStrategyAssumptionChange({ userId: ctx.user.id, ...input })),
+    // Q-21 (a), batch 6 (unit 5): goals, initiatives and variances (server/strategyGoals.ts)
+    goals: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listStrategyGoals({ userId: ctx.user.id, ...input })),
+    createGoal: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyGoalFields })).mutation(({ ctx, input }) => createStrategyGoal({ userId: ctx.user.id, ...input })),
+    updateGoal: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), goalId: z.string().uuid(), ...strategyGoalFields })).mutation(({ ctx, input }) => updateStrategyGoal({ userId: ctx.user.id, ...input })),
+    initiatives: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => listStrategyInitiatives({ userId: ctx.user.id, ...input })),
+    createInitiative: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyInitiativeFields })).mutation(({ ctx, input }) => createStrategyInitiative({ userId: ctx.user.id, ...input })),
+    updateInitiative: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), initiativeId: z.string().uuid(), ...strategyInitiativeFields })).mutation(({ ctx, input }) => updateStrategyInitiative({ userId: ctx.user.id, ...input })),
+    variances: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid().optional() })).query(({ ctx, input }) => listStrategyVariances({ userId: ctx.user.id, ...input })),
+    recordVariance: protectedProcedure.input(z.object({
+      tenantId: z.string().uuid(), assumptionId: z.string().uuid(), periodStart: isoDate, periodEnd: isoDate, recurring: z.boolean().optional(), note: z.string().trim().max(500).nullish(),
+      actual: z.discriminatedUnion("source", [z.object({ source: z.literal("pipeline") }), z.object({ source: z.literal("manual"), value: z.number().finite(), sampleSize: z.number().int().min(1) })]),
+    })).mutation(({ ctx, input }) => recordStrategyVariance({ userId: ctx.user.id, ...input })),
+    decideVariance: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), varianceId: z.string().uuid(), decision: z.enum(["adjust_assumption", "initiative"]), reason: z.string().trim().min(1).max(500), values: strategyValues.optional(), initiativeId: z.string().uuid().optional() }))
+      .mutation(({ ctx, input }) => decideStrategyVariance({ userId: ctx.user.id, ...input })),
+    // Q-21 (a), batch 4: the company's opportunities pipeline (server/strategyOpportunities.ts)
+    opportunities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), status: z.enum(["open", "submitted", "won", "lost", "withdrawn"]).optional() })).query(({ ctx, input }) => listStrategyOpportunities({ userId: ctx.user.id, ...input })),
+    createOpportunity: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyOpportunityFields })).mutation(({ ctx, input }) => createStrategyOpportunity({ userId: ctx.user.id, ...input })),
+    updateOpportunity: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), opportunityId: z.string().uuid(), ...strategyOpportunityFields })).mutation(({ ctx, input }) => updateStrategyOpportunity({ userId: ctx.user.id, ...input })),
+    decideOpportunity: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), opportunityId: z.string().uuid(), outcome: z.enum(["won", "lost", "withdrawn"]), decidedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), winnerCompetitorId: z.string().uuid().nullish(), winningValue: z.number().finite().nullish(), note: z.string().trim().max(500).nullish() })).mutation(({ ctx, input }) => decideStrategyOpportunity({ userId: ctx.user.id, ...input })),
+    pipeline: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), months: z.number().int().min(1).max(60).optional() })).query(({ ctx, input }) => getStrategyPipelineSummary({ userId: ctx.user.id, ...input })),
+    // Q-21 (a), batch 3: competitors and SWOT (server/strategyCompetitors.ts)
+    competitors: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), includeArchived: z.boolean().optional() })).query(({ ctx, input }) => listStrategyCompetitors({ userId: ctx.user.id, ...input })),
+    createCompetitor: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategyCompetitorFields })).mutation(({ ctx, input }) => createStrategyCompetitor({ userId: ctx.user.id, ...input })),
+    updateCompetitor: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), competitorId: z.string().uuid(), archived: z.boolean().optional(), ...strategyCompetitorFields })).mutation(({ ctx, input }) => updateStrategyCompetitor({ userId: ctx.user.id, ...input })),
+    swot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), includeArchived: z.boolean().optional(), competitorId: z.string().uuid().optional() })).query(({ ctx, input }) => listStrategySwot({ userId: ctx.user.id, ...input })),
+    createSwot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategySwotFields })).mutation(({ ctx, input }) => createStrategySwot({ userId: ctx.user.id, ...input })),
+    updateSwot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), swotId: z.string().uuid(), archived: z.boolean().optional(), ...strategySwotFields })).mutation(({ ctx, input }) => updateStrategySwot({ userId: ctx.user.id, ...input })),
+    retireAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => retireStrategyAssumption({ userId: ctx.user.id, ...input })),
+  }),
   // G-104 (D-32 part 2): the stocktake document — open, count, approve (server/stocktakes.ts).
   stocktakes: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listStocktakes({ userId: ctx.user.id, ...input })),
@@ -959,7 +1072,9 @@ export const appRouter = router({
     create: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), code: z.string().trim().min(1).max(80), title: z.string().trim().min(1).max(255), subcontractorName: z.string().trim().min(1).max(255), supplierId: z.string().uuid().optional(), contractValue: z.number().finite().min(0), retentionPercent: z.number().finite().min(0).max(100).optional(), advancePercent: z.number().finite().min(0).max(100).optional() })).mutation(({ ctx, input }) => createSubcontractContractForTenant({ userId: ctx.user.id, ...input })),
     transitionCertificate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), certificateId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "paid", "cancelled"]) })).mutation(({ ctx, input }) => transitionSubcontractCertificateForTenant({ userId: ctx.user.id, ...input })),
     listCertificates: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid().optional() })).query(({ ctx, input }) => getSubcontractCertificatesForTenant({ userId: ctx.user.id, ...input })),
-    createCertificate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid(), certificateNumber: z.string().trim().min(1).max(80), periodStart: z.date(), periodEnd: z.date(), lines: z.array(z.object({ boqItemId: z.string().uuid(), currentQuantity: z.number().finite() })).min(1) })).mutation(({ ctx, input }) => createSubcontractCertificateForTenant({ userId: ctx.user.id, ...input })),
+    createCertificate: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid(), certificateNumber: z.string().trim().min(1).max(80), periodStart: z.date(), periodEnd: z.date(), lines: z.array(z.object({ boqItemId: z.string().uuid(), currentQuantity: z.number().finite() })).max(500),
+      // Q-43 batch 5: approved work confirmations of this subcontract pulled into the certificate (their quantity lines, priced from BOQ here)
+      confirmationIds: z.array(z.string().uuid()).max(100).optional() }).refine(value => value.lines.length > 0 || (value.confirmationIds?.length ?? 0) > 0, { message: "PROJECT_OS_WORK_CONFIRMATION_NOTHING_TO_PULL" })).mutation(({ ctx, input }) => createSubcontractCertificateForTenant({ userId: ctx.user.id, ...input })),
   }),
   projectInvoices: router({
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getProjectCommercialInvoicesForTenant({ userId: ctx.user.id, ...input })),

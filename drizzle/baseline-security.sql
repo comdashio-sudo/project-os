@@ -81,6 +81,26 @@ ALTER TABLE audit_logs ENABLE ALWAYS TRIGGER audit_logs_refuse_delete;
 --> statement-breakpoint
 ALTER TABLE audit_logs ENABLE ALWAYS TRIGGER audit_logs_refuse_truncate;
 --> statement-breakpoint
+-- 3c. Q-21 (a): the change history of a strategy assumption is append-only the same way (one function names the table it refuses) ------------------
+CREATE FUNCTION project_os_append_only_refuse() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION '% is append-only: % is refused', TG_TABLE_NAME, TG_OP USING ERRCODE = 'insufficient_privilege';
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER strategy_assumption_changes_refuse_update BEFORE UPDATE ON strategy_assumption_changes FOR EACH ROW EXECUTE FUNCTION project_os_append_only_refuse();
+--> statement-breakpoint
+CREATE TRIGGER strategy_assumption_changes_refuse_delete BEFORE DELETE ON strategy_assumption_changes FOR EACH ROW EXECUTE FUNCTION project_os_append_only_refuse();
+--> statement-breakpoint
+CREATE TRIGGER strategy_assumption_changes_refuse_truncate BEFORE TRUNCATE ON strategy_assumption_changes FOR EACH STATEMENT EXECUTE FUNCTION project_os_append_only_refuse();
+--> statement-breakpoint
+ALTER TABLE strategy_assumption_changes ENABLE ALWAYS TRIGGER strategy_assumption_changes_refuse_update;
+--> statement-breakpoint
+ALTER TABLE strategy_assumption_changes ENABLE ALWAYS TRIGGER strategy_assumption_changes_refuse_delete;
+--> statement-breakpoint
+ALTER TABLE strategy_assumption_changes ENABLE ALWAYS TRIGGER strategy_assumption_changes_refuse_truncate;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION project_os_append_only_refuse() FROM PUBLIC;
+--> statement-breakpoint
 
 -- 4. the per-request context RLS reads ------------------------------------------------------------------------------------
 -- Set by the server for the length of one statement or transaction (server/_core/database.ts). With nothing set, no tenant row is visible.

@@ -4095,3 +4095,248 @@ export const subcontractWorkConfirmationLines = pgTable(
     check("work_confirmation_lines_shape", sql`(${table.kind} = 'unit' AND ${table.pmcUnitId} IS NOT NULL AND ${table.pmcActivityDefinitionId} IS NOT NULL AND ${table.percent} IS NOT NULL AND ${table.boqItemId} IS NULL AND ${table.quantity} IS NULL) OR (${table.kind} = 'quantity' AND ${table.boqItemId} IS NOT NULL AND ${table.quantity} IS NOT NULL AND ${table.pmcUnitId} IS NULL AND ${table.pmcActivityDefinitionId} IS NULL AND ${table.percent} IS NULL)`),
   ],
 );
+
+// Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (no project). The values it holds for the three scenarios are the ones the
+// financial model (server/domain/strategyModel.ts) reads, and only once approved: a draft or a pending assumption moves no number. An approved assumption is
+// changed only through a change request (proposed_* + change_reason) that someone other than the requester approves; every approval, change, refusal and
+// retirement leaves one row in strategy_assumption_changes, which the database keeps append-only (UPDATE, DELETE and TRUNCATE refused by trigger for every role).
+export const strategyAssumptionUnitEnum = pgEnum("strategy_assumption_unit", ["percent", "sar", "months", "days", "count"]);
+export const strategyAssumptionSourceEnum = pgEnum("strategy_assumption_source", ["internal", "external", "management"]);
+export const strategyAssumptionConfidenceEnum = pgEnum("strategy_assumption_confidence", ["high", "medium", "low"]);
+export const strategyAssumptionReviewEnum = pgEnum("strategy_assumption_review", ["monthly", "quarterly", "annual", "event"]);
+export const strategyAssumptionStatusEnum = pgEnum("strategy_assumption_status", ["draft", "pending", "approved", "retired"]);
+// Q-21 (a), batch 2: a market indicator is an assumption of the «market» module, and every one says how sure it is: confirmed (a published figure),
+// estimate (a judgement), or analysis (derived from other figures). It also names where it came from (a link, a note, or both).
+export const strategyAssumptionModuleEnum = pgEnum("strategy_assumption_module", ["general", "market"]);
+export const strategyAssumptionEvidenceEnum = pgEnum("strategy_assumption_evidence", ["confirmed", "estimate", "analysis"]);
+export const strategyAssumptions = pgTable(
+  "strategy_assumptions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 60 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    unit: strategyAssumptionUnitEnum("unit").notNull(),
+    sourceType: strategyAssumptionSourceEnum("source_type").notNull(),
+    sourceNote: varchar("source_note", { length: 500 }),
+    sourceUrl: varchar("source_url", { length: 500 }),
+    module: strategyAssumptionModuleEnum("module").default("general").notNull(),
+    evidence: strategyAssumptionEvidenceEnum("evidence").default("estimate").notNull(),
+    confidence: strategyAssumptionConfidenceEnum("confidence").notNull(),
+    reviewFrequency: strategyAssumptionReviewEnum("review_frequency").notNull(),
+    nextReviewAt: date("next_review_at", { mode: "string" }),
+    status: strategyAssumptionStatusEnum("status").default("draft").notNull(),
+    valueConservative: numeric("value_conservative", { precision: 18, scale: 4 }).notNull(),
+    valueBase: numeric("value_base", { precision: 18, scale: 4 }).notNull(),
+    valueOptimistic: numeric("value_optimistic", { precision: 18, scale: 4 }).notNull(),
+    proposedConservative: numeric("proposed_conservative", { precision: 18, scale: 4 }),
+    proposedBase: numeric("proposed_base", { precision: 18, scale: 4 }),
+    proposedOptimistic: numeric("proposed_optimistic", { precision: 18, scale: 4 }),
+    changeReason: varchar("change_reason", { length: 500 }),
+    changeRequestedByUserId: integer("change_requested_by_user_id").references(() => users.id),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    submittedByUserId: integer("submitted_by_user_id").references(() => users.id),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_assumptions_tenant_code_unique").on(table.tenantId, table.code),
+    index("strategy_assumptions_tenant_module_idx").on(table.tenantId, table.module),
+    unique("strategy_assumptions_id_tenant_unique").on(table.id, table.tenantId),
+  ],
+);
+export const strategyAssumptionChanges = pgTable(
+  "strategy_assumption_changes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    assumptionId: varchar("assumption_id", { length: 36 }).notNull(),
+    kind: varchar("kind", { length: 30 }).notNull(),
+    previousConservative: numeric("previous_conservative", { precision: 18, scale: 4 }),
+    previousBase: numeric("previous_base", { precision: 18, scale: 4 }),
+    previousOptimistic: numeric("previous_optimistic", { precision: 18, scale: 4 }),
+    newConservative: numeric("new_conservative", { precision: 18, scale: 4 }),
+    newBase: numeric("new_base", { precision: 18, scale: 4 }),
+    newOptimistic: numeric("new_optimistic", { precision: 18, scale: 4 }),
+    reason: varchar("reason", { length: 500 }),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id),
+    decidedByUserId: integer("decided_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "strategy_assumption_changes_assumption_fk", columns: [table.assumptionId, table.tenantId], foreignColumns: [strategyAssumptions.id, strategyAssumptions.tenantId] }),
+    index("strategy_assumption_changes_tenant_assumption_idx").on(table.tenantId, table.assumptionId, table.createdAt),
+  ],
+);
+
+// Q-21 (a), batch 3: competitors and SWOT. A competitor is what the company knows about another contractor — sector, region, the projects it does, its
+// size (documented or estimated), and where the information came from and when. A SWOT point is a strength, weakness, opportunity or threat with the
+// evidence behind it; it may name the competitor it is about and the assumption it bears on. Nothing is deleted: a point no longer held is archived.
+export const strategySwotKindEnum = pgEnum("strategy_swot_kind", ["strength", "weakness", "opportunity", "threat"]);
+export const strategyCompetitors = pgTable(
+  "strategy_competitors",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    name: varchar("name", { length: 200 }).notNull(),
+    sector: varchar("sector", { length: 120 }),
+    region: varchar("region", { length: 120 }),
+    projectTypes: varchar("project_types", { length: 300 }),
+    sizeValue: numeric("size_value", { precision: 18, scale: 2 }),
+    sizeEvidence: strategyAssumptionEvidenceEnum("size_evidence").default("estimate").notNull(),
+    sourceNote: varchar("source_note", { length: 500 }),
+    sourceUrl: varchar("source_url", { length: 500 }),
+    collectedAt: date("collected_at", { mode: "string" }).notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_competitors_tenant_name_unique").on(table.tenantId, table.name),
+    unique("strategy_competitors_id_tenant_unique").on(table.id, table.tenantId),
+  ],
+);
+export const strategySwotItems = pgTable(
+  "strategy_swot_items",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    kind: strategySwotKindEnum("kind").notNull(),
+    statement: varchar("statement", { length: 500 }).notNull(),
+    evidence: varchar("evidence", { length: 500 }).notNull(),
+    competitorId: varchar("competitor_id", { length: 36 }),
+    assumptionId: varchar("assumption_id", { length: 36 }),
+    archived: boolean("archived").default(false).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "strategy_swot_items_competitor_fk", columns: [table.competitorId, table.tenantId], foreignColumns: [strategyCompetitors.id, strategyCompetitors.tenantId] }),
+    foreignKey({ name: "strategy_swot_items_assumption_fk", columns: [table.assumptionId, table.tenantId], foreignColumns: [strategyAssumptions.id, strategyAssumptions.tenantId] }),
+    index("strategy_swot_items_tenant_kind_idx").on(table.tenantId, table.kind),
+  ],
+);
+
+// Q-21 (a), batch 4: the company's opportunities pipeline — tenders and opportunities the COMPANY pursues (not the procurement tenders inside a project,
+// tender_packages). Each has its value, the probability the company gives it, when the award is expected and how long the work would run, and its outcome:
+// won, lost (and, when known, to which competitor), or withdrawn. The actual win rate is computed from the decided ones; the model reads it later.
+export const strategyOpportunityStatusEnum = pgEnum("strategy_opportunity_status", ["open", "submitted", "won", "lost", "withdrawn"]);
+export const strategyOpportunities = pgTable(
+  "strategy_opportunities",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 60 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    clientName: varchar("client_name", { length: 200 }),
+    sector: varchar("sector", { length: 120 }),
+    region: varchar("region", { length: 120 }),
+    estimatedValue: numeric("estimated_value", { precision: 18, scale: 2 }).notNull(),
+    probabilityPercent: numeric("probability_percent", { precision: 5, scale: 2 }).notNull(),
+    expectedAwardAt: date("expected_award_at", { mode: "string" }),
+    durationMonths: integer("duration_months"),
+    status: strategyOpportunityStatusEnum("status").default("open").notNull(),
+    decidedAt: date("decided_at", { mode: "string" }),
+    winnerCompetitorId: varchar("winner_competitor_id", { length: 36 }),
+    winningValue: numeric("winning_value", { precision: 18, scale: 2 }),
+    outcomeNote: varchar("outcome_note", { length: 500 }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_opportunities_tenant_code_unique").on(table.tenantId, table.code),
+    foreignKey({ name: "strategy_opportunities_winner_fk", columns: [table.winnerCompetitorId, table.tenantId], foreignColumns: [strategyCompetitors.id, strategyCompetitors.tenantId] }),
+    index("strategy_opportunities_tenant_status_idx").on(table.tenantId, table.status),
+    check("strategy_opportunities_probability_range", sql`${table.probabilityPercent} >= 0 AND ${table.probabilityPercent} <= 100`),
+  ],
+);
+
+// Q-21 (a), batch 6 (unit 5): goals (what we WANT), initiatives (what we DO) and variances (an assumption — what we EXPECT — against what HAPPENED), kept
+// apart and linked. A variance records both values, how many items the actual rests on, the period and whether it recurs, and the decision it calls for:
+// adjust the assumption (a change request on it, approved by someone else as always) or an initiative to improve performance. A goal is never lowered by it.
+export const strategyGoalStatusEnum = pgEnum("strategy_goal_status", ["active", "achieved", "retired"]);
+export const strategyInitiativeStatusEnum = pgEnum("strategy_initiative_status", ["planned", "in_progress", "done", "cancelled"]);
+export const strategyVarianceDecisionEnum = pgEnum("strategy_variance_decision", ["adjust_assumption", "initiative"]);
+export const strategyGoals = pgTable(
+  "strategy_goals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 60 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    assumptionId: varchar("assumption_id", { length: 36 }),
+    unit: strategyAssumptionUnitEnum("unit").notNull(),
+    targetValue: numeric("target_value", { precision: 18, scale: 4 }).notNull(),
+    periodStart: date("period_start", { mode: "string" }).notNull(),
+    periodEnd: date("period_end", { mode: "string" }).notNull(),
+    status: strategyGoalStatusEnum("status").default("active").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_goals_tenant_code_unique").on(table.tenantId, table.code),
+    unique("strategy_goals_id_tenant_unique").on(table.id, table.tenantId),
+    foreignKey({ name: "strategy_goals_assumption_fk", columns: [table.assumptionId, table.tenantId], foreignColumns: [strategyAssumptions.id, strategyAssumptions.tenantId] }),
+    check("strategy_goals_period_order", sql`${table.periodEnd} >= ${table.periodStart}`),
+  ],
+);
+export const strategyInitiatives = pgTable(
+  "strategy_initiatives",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    code: varchar("code", { length: 60 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    goalId: varchar("goal_id", { length: 36 }),
+    ownerUserId: integer("owner_user_id").references(() => users.id),
+    dueAt: date("due_at", { mode: "string" }),
+    status: strategyInitiativeStatusEnum("status").default("planned").notNull(),
+    note: varchar("note", { length: 500 }),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("strategy_initiatives_tenant_code_unique").on(table.tenantId, table.code),
+    unique("strategy_initiatives_id_tenant_unique").on(table.id, table.tenantId),
+    foreignKey({ name: "strategy_initiatives_goal_fk", columns: [table.goalId, table.tenantId], foreignColumns: [strategyGoals.id, strategyGoals.tenantId] }),
+  ],
+);
+export const strategyVariances = pgTable(
+  "strategy_variances",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    assumptionId: varchar("assumption_id", { length: 36 }).notNull(),
+    periodStart: date("period_start", { mode: "string" }).notNull(),
+    periodEnd: date("period_end", { mode: "string" }).notNull(),
+    assumedValue: numeric("assumed_value", { precision: 18, scale: 4 }).notNull(),
+    actualValue: numeric("actual_value", { precision: 18, scale: 4 }).notNull(),
+    sampleSize: integer("sample_size").notNull(),
+    actualSource: varchar("actual_source", { length: 30 }).notNull(),
+    recurring: boolean("recurring").default(false).notNull(),
+    note: varchar("note", { length: 500 }),
+    decision: strategyVarianceDecisionEnum("decision"),
+    initiativeId: varchar("initiative_id", { length: 36 }),
+    decisionReason: varchar("decision_reason", { length: 500 }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    recordedByUserId: integer("recorded_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "strategy_variances_assumption_fk", columns: [table.assumptionId, table.tenantId], foreignColumns: [strategyAssumptions.id, strategyAssumptions.tenantId] }),
+    foreignKey({ name: "strategy_variances_initiative_fk", columns: [table.initiativeId, table.tenantId], foreignColumns: [strategyInitiatives.id, strategyInitiatives.tenantId] }),
+    index("strategy_variances_tenant_assumption_idx").on(table.tenantId, table.assumptionId),
+    check("strategy_variances_period_order", sql`${table.periodEnd} >= ${table.periodStart}`),
+    check("strategy_variances_sample_size", sql`${table.sampleSize} >= 0`),
+    check("strategy_variances_decision_shape", sql`(${table.decision} IS NULL AND ${table.initiativeId} IS NULL AND ${table.decidedByUserId} IS NULL) OR (${table.decision} = 'adjust_assumption' AND ${table.initiativeId} IS NULL AND ${table.decidedByUserId} IS NOT NULL) OR (${table.decision} = 'initiative' AND ${table.initiativeId} IS NOT NULL AND ${table.decidedByUserId} IS NOT NULL)`),
+  ],
+);

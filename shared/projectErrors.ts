@@ -2146,6 +2146,36 @@ export const projectErrorMessages = {
     en: "More than one sheet in the file holds this file's columns: remove the extra sheet or keep the table on one sheet.",
     ur: "فائل کی ایک سے زیادہ شیٹس میں اس فائل کے کالم ہیں: زائد شیٹ حذف کریں یا جدول ایک ہی شیٹ پر رکھیں۔",
   },
+  PROJECT_OS_WORK_CONFIRMATION_NOT_APPROVED: {
+    ar: "لا يُسحب إلى المستخلص إلا إثبات أعمال معتمد.",
+    en: "Only an approved work confirmation can be pulled into a certificate.",
+    ur: "صرف منظور شدہ کام کی تصدیق ہی بل میں شامل کی جا سکتی ہے۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_ALREADY_PULLED: {
+    ar: "هذا الإثبات سُحب إلى مستخلص من قبل؛ لا يُسحب مرتين.",
+    en: "This confirmation is already in a certificate; it cannot be pulled twice.",
+    ur: "یہ تصدیق پہلے ہی ایک بل میں شامل ہے؛ اسے دو بار شامل نہیں کیا جا سکتا۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_HISTORICAL: {
+    ar: "إثبات فيه أعمال تاريخية (اعتُمدت قبل المنصة) لا يُسحب إلى مستخلص.",
+    en: "A confirmation with historical work (approved before the platform) cannot be pulled into a certificate.",
+    ur: "تاریخی کام (پلیٹ فارم سے پہلے منظور شدہ) والی تصدیق بل میں شامل نہیں کی جا سکتی۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED: {
+    ar: "أسطر الوحدات (فيلا × نشاط × نسبة) لا سعر لها في جدول الكميات بعد؛ اسحب إثباتات الكميات فقط، وأضف الوحدات يدويًا ببند الكميات.",
+    en: "Unit lines (villa × activity × percent) have no BOQ rate yet; pull quantity confirmations only, and add the units by hand against their BOQ item.",
+    ur: "یونٹ لائنوں (ولا × سرگرمی × فیصد) کا ابھی BOQ ریٹ نہیں؛ صرف مقدار والی تصدیقات شامل کریں اور یونٹس کو ان کے BOQ آئٹم کے ساتھ ہاتھ سے شامل کریں۔",
+  },
+  PROJECT_OS_WORK_CONFIRMATION_NOTHING_TO_PULL: {
+    ar: "لا أسطر في المستخلص: أضف بندًا أو اسحب إثباتًا بكمية غير صفرية.",
+    en: "The certificate has no lines: add an item or pull a confirmation with a non-zero quantity.",
+    ur: "بل میں کوئی لائن نہیں: کوئی آئٹم شامل کریں یا غیر صفر مقدار والی تصدیق شامل کریں۔",
+  },
+  PROJECT_OS_CERTIFICATE_LINE_TWICE: {
+    ar: "البند نفسه مكتوب يدويًا ومسحوب من إثبات؛ اختر أحدهما حتى لا تُطالب بالكمية مرتين.",
+    en: "The same item is typed by hand and pulled from a confirmation; keep one so the quantity is not claimed twice.",
+    ur: "ایک ہی آئٹم ہاتھ سے بھی لکھا گیا اور تصدیق سے بھی آیا؛ ایک رکھیں تاکہ مقدار دو بار نہ مانگی جائے۔",
+  },
   PROJECT_OS_IMPORT_EDITS_INVALID: {
     ar: "التصحيحات غير صالحة: الخلية نفسها أو الصف نفسه مكرر.",
     en: "The corrections are not valid: the same cell or the same row appears twice.",
@@ -2485,6 +2515,186 @@ export const projectErrorMessages = {
     ar: "اخترتَ موردًا من السجل لكن نوع الطرف المقابل ليس «مورد».",
     en: "A supplier was chosen from the register but the counterparty type is not \"supplier\".",
     ur: "رجسٹر سے سپلائر منتخب کیا گیا ہے مگر فریق کی قسم “سپلائر” نہیں ہے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_APPROVED_LOCKED: {
+    ar: "الافتراض معتمد ولا يُعدَّل مباشرة؛ قدّم طلب تغيير يعتمده شخص آخر.",
+    en: "This assumption is approved and cannot be edited directly; submit a change request for someone else to approve.",
+    ur: "یہ مفروضہ منظور شدہ ہے اور براہ راست تبدیل نہیں ہوتا؛ تبدیلی کی درخواست دیں جسے کوئی اور منظور کرے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_CODE_EXISTS: {
+    ar: "في الشركة افتراض بهذا الرمز.",
+    en: "The company already has an assumption with this code.",
+    ur: "کمپنی میں اس کوڈ کا مفروضہ پہلے سے موجود ہے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_NOT_APPROVED: {
+    ar: "طلب التغيير لافتراض معتمد فقط؛ المسودة تُعدَّل مباشرة.",
+    en: "A change request is only for an approved assumption; a draft is edited directly.",
+    ur: "تبدیلی کی درخواست صرف منظور شدہ مفروضے کے لیے ہے؛ مسودہ براہ راست تبدیل ہوتا ہے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_NOT_DRAFT: {
+    ar: "هذا الإجراء للمسودة فقط.",
+    en: "This action is for a draft only.",
+    ur: "یہ عمل صرف مسودے کے لیے ہے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_NOT_FOUND: {
+    ar: "الافتراض غير موجود في هذه الشركة.",
+    en: "The assumption was not found in this company.",
+    ur: "یہ مفروضہ اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_NOT_PENDING: {
+    ar: "الافتراض ليس بانتظار الاعتماد.",
+    en: "The assumption is not awaiting approval.",
+    ur: "یہ مفروضہ منظوری کا منتظر نہیں ہے۔",
+  },
+  PROJECT_OS_STRATEGY_ASSUMPTION_RETIRED: {
+    ar: "الافتراض متوقف بالفعل.",
+    en: "The assumption is already retired.",
+    ur: "یہ مفروضہ پہلے ہی موقوف ہے۔",
+  },
+  PROJECT_OS_STRATEGY_CHANGE_ALREADY_PENDING: {
+    ar: "لهذا الافتراض طلب تغيير بانتظار القرار؛ يُبَتّ فيه أولًا.",
+    en: "This assumption already has a change request awaiting a decision; decide it first.",
+    ur: "اس مفروضے کی ایک تبدیلی کی درخواست فیصلے کی منتظر ہے؛ پہلے اس کا فیصلہ کریں۔",
+  },
+  PROJECT_OS_STRATEGY_CHANGE_REASON_REQUIRED: {
+    ar: "اكتب سبب التغيير.",
+    en: "Write the reason for the change.",
+    ur: "تبدیلی کی وجہ لکھیں۔",
+  },
+  PROJECT_OS_STRATEGY_COLLECTED_AT_FUTURE: {
+    ar: "تاريخ جمع المعلومة لم يأتِ بعد. اختر اليوم أو تاريخًا مضى.",
+    en: "The date the information was gathered is in the future. Choose today or an earlier date.",
+    ur: "معلومات جمع کرنے کی تاریخ ابھی نہیں آئی۔ آج یا گزری ہوئی تاریخ منتخب کریں۔",
+  },
+  PROJECT_OS_STRATEGY_COMPETITOR_EXISTS: {
+    ar: "في الشركة منافس بهذا الاسم.",
+    en: "The company already has a competitor with this name.",
+    ur: "کمپنی میں اس نام کا حریف پہلے سے موجود ہے۔",
+  },
+  PROJECT_OS_STRATEGY_COMPETITOR_NOT_FOUND: {
+    ar: "المنافس غير موجود في هذه الشركة.",
+    en: "The competitor was not found in this company.",
+    ur: "یہ حریف اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_SOURCE_REQUIRED: {
+    ar: "اذكر مصدر المعلومة: رابطًا أو ملاحظة.",
+    en: "Name the source of the information: a link or a note.",
+    ur: "معلومات کا ماخذ بتائیں: لنک یا نوٹ۔",
+  },
+  PROJECT_OS_STRATEGY_SWOT_EVIDENCE_REQUIRED: {
+    ar: "نقطة SWOT تحتاج نصها والدليل عليها.",
+    en: "A SWOT point needs its statement and the evidence behind it.",
+    ur: "SWOT نکتے کے لیے اس کا متن اور اس کا ثبوت ضروری ہے۔",
+  },
+  PROJECT_OS_STRATEGY_SWOT_NOT_FOUND: {
+    ar: "نقطة SWOT غير موجودة في هذه الشركة.",
+    en: "The SWOT point was not found in this company.",
+    ur: "یہ SWOT نکتہ اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_DECIDED_AT_FUTURE: {
+    ar: "تاريخ النتيجة لم يأتِ بعد. اختر اليوم أو تاريخًا مضى.",
+    en: "The outcome date is in the future. Choose today or an earlier date.",
+    ur: "نتیجے کی تاریخ ابھی نہیں آئی۔ آج یا گزری ہوئی تاریخ منتخب کریں۔",
+  },
+  PROJECT_OS_STRATEGY_OPPORTUNITY_CODE_EXISTS: {
+    ar: "في الشركة فرصة بهذا الرمز.",
+    en: "The company already has an opportunity with this code.",
+    ur: "کمپنی میں اس کوڈ کا موقع پہلے سے موجود ہے۔",
+  },
+  PROJECT_OS_STRATEGY_OPPORTUNITY_DECIDED: {
+    ar: "حُسمت نتيجة هذه الفرصة، فأرقامها لا تُعدَّل لأن منها تُحسب نسبة الفوز الفعلية.",
+    en: "This opportunity's outcome is decided; its figures are not edited because the actual win rate is computed from them.",
+    ur: "اس موقع کا نتیجہ طے ہو چکا ہے؛ اس کے اعداد تبدیل نہیں ہوتے کیونکہ اصل جیت کی شرح انہی سے نکلتی ہے۔",
+  },
+  PROJECT_OS_STRATEGY_OPPORTUNITY_NOT_FOUND: {
+    ar: "الفرصة غير موجودة في هذه الشركة.",
+    en: "The opportunity was not found in this company.",
+    ur: "یہ موقع اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_GOAL_NOT_FOUND: {
+    ar: "الهدف غير موجود في هذه الشركة.",
+    en: "The goal was not found in this company.",
+    ur: "یہ ہدف اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_GOAL_CODE_EXISTS: {
+    ar: "رمز الهدف مستعمل في هذه الشركة.",
+    en: "This goal code is already used in this company.",
+    ur: "یہ ہدف کوڈ اس کمپنی میں پہلے سے استعمال ہے۔",
+  },
+  PROJECT_OS_STRATEGY_GOAL_RETIRED: {
+    ar: "الهدف متوقف؛ لا يُعدَّل.",
+    en: "The goal is retired; it is not edited.",
+    ur: "ہدف موقوف ہے؛ اس میں ترمیم نہیں ہوتی۔",
+  },
+  PROJECT_OS_STRATEGY_INITIATIVE_NOT_FOUND: {
+    ar: "المبادرة غير موجودة في هذه الشركة.",
+    en: "The initiative was not found in this company.",
+    ur: "یہ اقدام اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_INITIATIVE_CODE_EXISTS: {
+    ar: "رمز المبادرة مستعمل في هذه الشركة.",
+    en: "This initiative code is already used in this company.",
+    ur: "یہ اقدام کوڈ اس کمپنی میں پہلے سے استعمال ہے۔",
+  },
+  PROJECT_OS_STRATEGY_OWNER_NOT_MEMBER: {
+    ar: "مسؤول المبادرة ليس عضوًا نشطًا في هذه الشركة.",
+    en: "The initiative's owner is not an active member of this company.",
+    ur: "اقدام کا ذمہ دار اس کمپنی کا فعال رکن نہیں ہے۔",
+  },
+  PROJECT_OS_STRATEGY_VARIANCE_NOT_FOUND: {
+    ar: "الانحراف غير موجود في هذه الشركة.",
+    en: "The variance was not found in this company.",
+    ur: "یہ فرق اس کمپنی میں نہیں ملا۔",
+  },
+  PROJECT_OS_STRATEGY_VARIANCE_DECIDED: {
+    ar: "حُسم قرار هذا الانحراف من قبل؛ القرار نهائي.",
+    en: "A decision on this variance was already taken; it is final.",
+    ur: "اس فرق پر فیصلہ پہلے ہو چکا ہے؛ یہ حتمی ہے۔",
+  },
+  PROJECT_OS_STRATEGY_NO_ACTUAL: {
+    ar: "لا فرص حُسمت (فوز أو خسارة) في هذه الفترة، فلا قيمة فعلية لها بعد.",
+    en: "No opportunity was won or lost in this period, so there is no actual value for it yet.",
+    ur: "اس مدت میں کوئی موقع جیتا یا ہارا نہیں گیا، اس لیے ابھی کوئی اصل قدر نہیں۔",
+  },
+  PROJECT_OS_STRATEGY_ACTUAL_SOURCE_INVALID: {
+    ar: "الفعلي من خط الفرص (نسبة الفوز) لافتراض بوحدة النسبة المئوية فقط؛ أدخل الفعلي يدويًا مع عدد العناصر.",
+    en: "The actual from the pipeline (the win rate) is only for a percent assumption; enter the actual by hand with how many items it rests on.",
+    ur: "پائپ لائن سے اصل (جیت کی شرح) صرف فیصد والے مفروضے کے لیے ہے؛ اصل قدر ہاتھ سے عناصر کی تعداد کے ساتھ درج کریں۔",
+  },
+  PROJECT_OS_STRATEGY_PERIOD_INVALID: {
+    ar: "الفترة غير صالحة: نهايتها قبل بدايتها أو بعد اليوم.",
+    en: "The period is not valid: it ends before it starts, or after today.",
+    ur: "مدت درست نہیں: یہ شروع ہونے سے پہلے یا آج کے بعد ختم ہوتی ہے۔",
+  },
+  PROJECT_OS_STRATEGY_WINNER_ONLY_WHEN_LOST: {
+    ar: "المنافس الفائز وقيمته تُذكر فقط حين تكون النتيجة «خسارة».",
+    en: "The winning competitor and its value are given only when the outcome is «lost».",
+    ur: "جیتنے والا حریف اور اس کی قیمت صرف اس وقت درج ہوتی ہے جب نتیجہ «ہار» ہو۔",
+  },
+  PROJECT_OS_STRATEGY_MARKET_SOURCE_REQUIRED: {
+    ar: "مؤشر السوق يحتاج مصدرًا: رابطًا أو ملاحظة بمكان المعلومة.",
+    en: "A market indicator needs a source: a link or a note saying where the figure came from.",
+    ur: "مارکیٹ کے اشاریے کے لیے ماخذ ضروری ہے: لنک یا نوٹ کہ یہ عدد کہاں سے آیا۔",
+  },
+  PROJECT_OS_STRATEGY_NO_PENDING_CHANGE: {
+    ar: "لا طلب تغيير بانتظار القرار لهذا الافتراض.",
+    en: "This assumption has no change request awaiting a decision.",
+    ur: "اس مفروضے کی کوئی تبدیلی کی درخواست فیصلے کی منتظر نہیں۔",
+  },
+  PROJECT_OS_STRATEGY_SOURCE_URL_INVALID: {
+    ar: "رابط المصدر عنوان يبدأ بـ https://.",
+    en: "The source link is an address starting with https://.",
+    ur: "ماخذ کا لنک https:// سے شروع ہونے والا پتہ ہونا چاہیے۔",
+  },
+  PROJECT_OS_STRATEGY_SELF_APPROVAL: {
+    ar: "من أعدّ الافتراض أو طلب تغييره لا يعتمده؛ يعتمده شخص آخر.",
+    en: "Whoever prepared the assumption or requested its change cannot approve it; someone else must.",
+    ur: "جس نے مفروضہ تیار کیا یا اس کی تبدیلی مانگی وہ اسے منظور نہیں کر سکتا؛ کوئی اور منظور کرے۔",
+  },
+  PROJECT_OS_STRATEGY_VALUE_INVALID: {
+    ar: "قيم السيناريوهات الثلاثة أرقام.",
+    en: "The three scenario values must be numbers.",
+    ur: "تینوں منظرناموں کی قدریں عدد ہونی چاہئیں۔",
   },
   PROJECT_OS_STOCKTAKE_ALREADY_OPEN: {
     ar: "لهذا المستودع جرد مفتوح لم يُعتمد بعد؛ أكمله أو اعتمده قبل فتح جرد جديد.",
