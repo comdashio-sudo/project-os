@@ -13,6 +13,7 @@ import { ReportSection } from "@/components/dailyReport/ReportSection";
 import { EquipmentOfDay, HeaderExtras, LabourMatrix, equipmentBody, equipmentFrom, equipmentProblems, labourBody, labourFrom, labourProblems, labourTotal, useCoreText, type EquipmentRows, type LabourCells } from "@/components/dailyReport/CoreSections";
 import { DailyReportDocument, ReportExports } from "@/components/dailyReport/DailyReportDocument";
 import { ApprovalChain, InspectionsSection, PhotoPlace, photoPlaceText } from "@/components/dailyReport/ApprovalSections";
+import { OwnReportNote, WhoApproves } from "@/components/dailyReport/ApprovalWho";
 import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
 import { formatWeekday } from "@/components/ds";
 import { SectionOnlyReport, useReportSections } from "@/components/dailyReport/SectionOnlyReport";
@@ -44,7 +45,7 @@ const text = {
     recent: "تقارير حديثة", noReports: "لا تقارير بعد.", open: "فتح", edit: "تعديل", view: "عرض", draft: "مسودة", pending: "بانتظار الاعتماد", approved: "معتمد", rejected: "أُعيد للتعديل",
     rejectedNote: "سبب الإعادة", locked: "هذا التقرير مُرسَل أو معتمد ولا يُعدَّل.", newReport: "تقرير جديد",
     review: "اعتماد التقارير", reviewHint: "تقارير بانتظار اعتمادك.", nothingToReview: "لا تقارير بانتظار الاعتماد.", preview: "ماذا سيتحرك؟", approve: "اعتماد", reject: "إعادة للتعديل", reason: "السبب (إلزامي)",
-    willMove: "ستتحرك هذه الخلايا", willSkip: "لن تتحرك (الخلية متقدمة أصلًا)", blocked: "تنبيه الجودة: لا فحص مقبول لهذه الخلايا", noMoves: "لا خلايا ستتحرك.", approvedDone: "اعتُمد التقرير وتحرك التقدم", rejectedDone: "أُعيد التقرير لكاتبه",
+    willMove: "ستتحرك هذه الخلايا", willSkip: "لن تتحرك (الخلية متقدمة أصلًا)", blocked: "تنبيه الجودة: لا فحص مقبول لهذه الخلايا", qcHeld: "لا استلام QC لهذه الفلل والأنشطة، فلا تُكمَّل:", leaveNotAccepted: "اعتماد التقرير دون تحريك هذه الفلل", noMoves: "لا خلايا ستتحرك.", approvedDone: "اعتُمد التقرير وتحرك التقدم", rejectedDone: "أُعيد التقرير لكاتبه",
     noPermission: "دورك لا يتيح كتابة التقرير اليومي.", noReview: "اعتماد التقارير لمدير المشروع.", otherReports: "تقارير الآخرين",
   },
   en: {
@@ -62,7 +63,7 @@ const text = {
     recent: "Recent reports", noReports: "No reports yet.", open: "Open", edit: "Edit", view: "View", draft: "Draft", pending: "Awaiting approval", approved: "Approved", rejected: "Sent back",
     rejectedNote: "Why it was sent back", locked: "This report is sent or approved and cannot be edited.", newReport: "New report",
     review: "Approve reports", reviewHint: "Reports waiting for your approval.", nothingToReview: "No report is waiting for approval.", preview: "What will move?", approve: "Approve", reject: "Send back", reason: "Reason (required)",
-    willMove: "These cells will move", willSkip: "These will not move (already further on)", blocked: "Quality warning: no accepted inspection for these cells", noMoves: "No cell will move.", approvedDone: "Report approved and progress moved", rejectedDone: "Report sent back to its writer",
+    willMove: "These cells will move", willSkip: "These will not move (already further on)", blocked: "Quality warning: no accepted inspection for these cells", qcHeld: "No QC receipt for these villas and activities, so they are not completed:", leaveNotAccepted: "Approve the report without moving these villas", noMoves: "No cell will move.", approvedDone: "Report approved and progress moved", rejectedDone: "Report sent back to its writer",
     noPermission: "Your role does not allow writing the daily report.", noReview: "Approving reports belongs to the project manager.", otherReports: "Other people's reports",
   },
   ur: {
@@ -80,7 +81,7 @@ const text = {
     recent: "حالیہ رپورٹس", noReports: "ابھی کوئی رپورٹ نہیں۔", open: "کھولیں", edit: "ترمیم", view: "دیکھیں", draft: "مسودہ", pending: "منظوری کے انتظار میں", approved: "منظور شدہ", rejected: "واپس بھیجی گئی",
     rejectedNote: "واپس بھیجنے کی وجہ", locked: "یہ رپورٹ بھیجی جا چکی ہے یا منظور ہے، اس میں ترمیم نہیں ہو سکتی۔", newReport: "نئی رپورٹ",
     review: "رپورٹس کی منظوری", reviewHint: "آپ کی منظوری کی منتظر رپورٹس۔", nothingToReview: "منظوری کی منتظر کوئی رپورٹ نہیں۔", preview: "کیا آگے بڑھے گا؟", approve: "منظور کریں", reject: "واپس بھیجیں", reason: "وجہ (لازمی)",
-    willMove: "یہ خانے آگے بڑھیں گے", willSkip: "یہ آگے نہیں بڑھیں گے (پہلے ہی آگے ہیں)", blocked: "معیار کی تنبیہ: ان خانوں کا کوئی قبول شدہ معائنہ نہیں", noMoves: "کوئی خانہ آگے نہیں بڑھے گا۔", approvedDone: "رپورٹ منظور ہو گئی اور پیش رفت آگے بڑھی", rejectedDone: "رپورٹ لکھنے والے کو واپس بھیج دی گئی",
+    willMove: "یہ خانے آگے بڑھیں گے", willSkip: "یہ آگے نہیں بڑھیں گے (پہلے ہی آگے ہیں)", blocked: "معیار کی تنبیہ: ان خانوں کا کوئی قبول شدہ معائنہ نہیں", qcHeld: "ان ولاز اور سرگرمیوں کی QC وصولی نہیں، اس لیے مکمل نہیں ہوں گی:", leaveNotAccepted: "ان ولاز کو آگے بڑھائے بغیر رپورٹ منظور کریں", noMoves: "کوئی خانہ آگے نہیں بڑھے گا۔", approvedDone: "رپورٹ منظور ہو گئی اور پیش رفت آگے بڑھی", rejectedDone: "رپورٹ لکھنے والے کو واپس بھیج دی گئی",
     noPermission: "آپ کا کردار روزانہ رپورٹ لکھنے کی اجازت نہیں دیتا۔", noReview: "رپورٹس کی منظوری پروجیکٹ مینیجر کا کام ہے۔", otherReports: "دوسروں کی رپورٹس",
   },
 };
@@ -344,6 +345,8 @@ export default function SiteDailyReport() {
           </div>
           {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
           {message && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{message}</p>}
+          {/* Q-56 (4a): once sent, where the report goes — or that nobody on the project can approve it yet */}
+          {reportId && locked && (detail.data?.report.status ?? "submitted") === "submitted" && <WhoApproves scope={scope} preparedBy={detail.data?.report.preparedByUserId ?? me.data?.id ?? null} />}
           {!locked && (
             // the save bar stays in reach of the thumb while the site engineer scrolls the sections
             <div data-save-bar className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t bg-background p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] lg:static lg:border-0 lg:p-0 lg:shadow-none">
@@ -381,51 +384,67 @@ export default function SiteDailyReport() {
         </ul>
       </section>
 
-      {canReview && <ReviewPanel scope={scope} waiting={waiting} t={t} language={language} isArabic={isArabic} onDone={() => { void utils.siteReports.list.invalidate(); }} />}
+      {canReview && <ReviewPanel scope={scope} waiting={waiting} me={me.data?.id ?? null} t={t} language={language} isArabic={isArabic} onDone={() => { void utils.siteReports.list.invalidate(); }} />}
     </FieldShell>
   );
 }
 
-type Waiting = { id: string; reportDate: string; weather: string | null };
-function ReviewPanel({ scope, waiting, t, language, isArabic, onDone }: { scope: { tenantId: string; projectId: string }; waiting: Waiting[]; t: (typeof text)["en"]; language: "ar" | "en" | "ur"; isArabic: boolean; onDone: () => void }) {
+type Waiting = { id: string; reportDate: string; weather: string | null; preparedByUserId?: number | null };
+type Cell = { unitId: string; activityDefinitionId: string };
+type Preview = { id: string; applied: Array<Cell & { from: string | null; to: string }>; skipped: Cell[]; notAccepted: Cell[] };
+function ReviewPanel({ scope, waiting, me, t, language, isArabic, onDone }: { scope: { tenantId: string; projectId: string }; waiting: Waiting[]; me: number | null; t: (typeof text)["en"]; language: "ar" | "en" | "ur"; isArabic: boolean; onDone: () => void }) {
   const [reason, setReason] = useState<Record<string, string>>({});
   const [done, setDone] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ id: string; applied: Array<{ unitId: string; activityDefinitionId: string; from: string | null; to: string }>; skipped: Array<{ unitId: string; activityDefinitionId: string }>; gate?: { mode: string; notAccepted: Array<{ unitId: string; activityDefinitionId: string }> } } | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
   const options = trpc.siteReports.options.useQuery(scope);
   const review = trpc.siteReports.review.useMutation({
     onSuccess: (result, variables) => {
-      if (variables.dryRun) { setPreview({ id: variables.reportId, applied: result.applied, skipped: result.skipped, gate: (result as { gate?: { mode: string; notAccepted: Array<{ unitId: string; activityDefinitionId: string }> } }).gate }); return; }
+      // the server names the cells QC has not accepted as «notAccepted» (Q-56 4b: the list used to be read under another name and never showed)
+      if (variables.dryRun) { setPreview({ id: variables.reportId, applied: result.applied, skipped: result.skipped, notAccepted: (result as { notAccepted?: Cell[] }).notAccepted ?? [] }); return; }
       setPreview(null); setDone(variables.decision === "approve" ? t.approvedDone : t.rejectedDone); onDone();
     },
+    // Q-56 (4b): a refusal for QC opens the list of what holds it, with the way to approve without moving those villas
+    onError: (error, variables) => { if (error.message === "PROJECT_OS_QC_NOT_ACCEPTED" && !variables.dryRun) review.mutate({ ...variables, dryRun: true }); },
   });
-  const cellName = (cell: { unitId: string; activityDefinitionId: string }) => {
+  const cellName = (cell: Cell) => {
     const unit = options.data?.units.find(item => item.id === cell.unitId); const activity = options.data?.activities.find(item => item.id === cell.activityDefinitionId);
-    return `${unit?.number ?? "?"} · ${activity?.code ?? "?"}`;
+    return `${unit?.number ?? "?"} · ${activity ? `${activity.code} — ${activity.name}` : "?"}`;
   };
   return (
     <section className="space-y-2" aria-label={t.review}>
       <h2 className="text-base font-semibold">{t.review}</h2>
       <p className="text-sm text-muted-foreground">{t.reviewHint}</p>
       {done && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{done}</p>}
-      {review.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(review.error, isArabic)}</p>}
+      {review.error && !(review.error.message === "PROJECT_OS_QC_NOT_ACCEPTED" && preview) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(review.error, isArabic)}</p>}
       {waiting.length === 0 && <p className="text-sm text-muted-foreground">{t.nothingToReview}</p>}
       <ul className="space-y-3">
         {waiting.map(report => (
           <li key={report.id} className="space-y-2 rounded-xl border bg-card p-3" data-review={report.id}>
             <p className="text-sm font-semibold">{showDate(report.reportDate, language)}</p>
-            <Button type="button" variant="outline" className={tap} disabled={review.isPending} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "approve", dryRun: true })}>{t.preview}</Button>
-            {preview?.id === report.id && (
-              <div className="space-y-1 rounded-lg bg-muted p-2 text-sm" data-preview>
-                {preview.applied.length === 0 ? <p>{t.noMoves}</p> : <><p className="font-semibold">{t.willMove}</p><ul>{preview.applied.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}: {cell.from ?? "—"} → {cell.to}</li>)}</ul></>}
-                {preview.skipped.length > 0 && <><p className="font-semibold">{t.willSkip}</p><ul>{preview.skipped.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}</li>)}</ul></>}
-                {preview.gate && preview.gate.notAccepted.length > 0 && <><p className="font-semibold text-warning-soft-foreground">{t.blocked} ({preview.gate.mode})</p><ul>{preview.gate.notAccepted.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}</li>)}</ul></>}
-              </div>
+            {/* Q-56 (4a): the preparer does not approve their own report (the server refuses it): no buttons that can only fail, and who approves instead */}
+            {me !== null && report.preparedByUserId === me ? <OwnReportNote scope={scope} preparedBy={me} /> : (
+              <>
+                <Button type="button" variant="outline" className={tap} disabled={review.isPending} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "approve", dryRun: true })}>{t.preview}</Button>
+                {preview?.id === report.id && (
+                  <div className="space-y-1 rounded-lg bg-muted p-2 text-sm" data-preview>
+                    {preview.applied.length === 0 ? <p>{t.noMoves}</p> : <><p className="font-semibold">{t.willMove}</p><ul>{preview.applied.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}: {cell.from ?? "—"} → {cell.to}</li>)}</ul></>}
+                    {preview.skipped.length > 0 && <><p className="font-semibold">{t.willSkip}</p><ul>{preview.skipped.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}</li>)}</ul></>}
+                    {preview.notAccepted.length > 0 && (
+                      <div className="space-y-2" data-qc-held={preview.notAccepted.length}>
+                        <p className="font-semibold text-warning-soft-foreground">{t.qcHeld}</p>
+                        <ul>{preview.notAccepted.map(cell => <li key={`${cell.unitId}${cell.activityDefinitionId}`}>{cellName(cell)}</li>)}</ul>
+                        <Button type="button" variant="outline" className={`${tap} w-full`} disabled={review.isPending} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "approve", leaveNotAccepted: true })}>{t.leaveNotAccepted}</Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button type="button" className={tap} disabled={review.isPending} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "approve" })}>{t.approve}</Button>
+                  <Button type="button" variant="outline" className={tap} disabled={review.isPending || !(reason[report.id] ?? "").trim()} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "reject", note: reason[report.id]!.trim() })}>{t.reject}</Button>
+                </div>
+                <input className={fieldInput} aria-label={t.reason} placeholder={t.reason} value={reason[report.id] ?? ""} onChange={event => setReason(current => ({ ...current, [report.id]: event.target.value }))} />
+              </>
             )}
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" className={tap} disabled={review.isPending} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "approve" })}>{t.approve}</Button>
-              <Button type="button" variant="outline" className={tap} disabled={review.isPending || !(reason[report.id] ?? "").trim()} onClick={() => review.mutate({ ...scope, reportId: report.id, decision: "reject", note: reason[report.id]!.trim() })}>{t.reject}</Button>
-            </div>
-            <input className={fieldInput} aria-label={t.reason} placeholder={t.reason} value={reason[report.id] ?? ""} onChange={event => setReason(current => ({ ...current, [report.id]: event.target.value }))} />
           </li>
         ))}
       </ul>

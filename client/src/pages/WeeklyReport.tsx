@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { AwaitingApprovalNote } from "@/components/dailyReport/ApprovalWho";
 import { ActivityNameToggle, hasEnglishNames, useActivityLabel, useActivityNameLanguage } from "@/lib/activityNames";
 import { Link, useParams } from "wouter";
 import { Button, Card, CardBody, CardHeader, CardTitle, Field, TableScroll, TextArea, TextInput, formatDate, formatNumber, formatPercent } from "@/components/ds";
@@ -99,6 +100,9 @@ export default function WeeklyReport() {
         </div>
       </div>
       {figures.error ? <SectionFailed title={t.figures} error={figures.error} isArabic={language === "ar"} onRetry={() => figures.refetch()} /> : data ? (
+        <>
+        {/* Q-56 (4a): the figures count approved reports only — say how many of the period's reports still wait for an approver */}
+        <AwaitingApprovalNote scope={scope} count={(data as { awaitingApproval?: number }).awaitingApproval} />
         <Card aria-label={t.figures} data-week-figures>
           <CardHeader><CardTitle>{t.figures}</CardTitle><p className="text-sm text-muted-foreground"><bdi dir="ltr">{formatDate(data.period.start, language)} – {formatDate(data.period.end, language)}</bdi></p></CardHeader>
           <CardBody className="flex flex-col gap-4">
@@ -116,6 +120,7 @@ export default function WeeklyReport() {
             )}
           </CardBody>
         </Card>
+        </>
       ) : null}
       {saved.error ? <SectionFailed title={t.words} error={saved.error} isArabic={language === "ar"} onRetry={() => saved.refetch()} /> : (
         <Card aria-label={t.words}>
