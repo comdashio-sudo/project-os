@@ -15,7 +15,10 @@ const h = vi.hoisted(() => ({
     approval: { prepare: { holder: 5 as number | null, by: 5 as number | null, at: "2026-10-20T08:00:00Z" as string | null }, review: { holder: 7 as number | null, by: null as number | null, at: null as string | null, note: null as string | null }, approve: { holder: null as number | null, by: null as number | null, at: null as string | null } } },
   me: { id: 7 }, check: vi.fn(), copy: vi.fn(), companiesError: null as unknown,
   companies: [{ id: "c-main", name: "Main Contractor Co.", active: true }, { id: "c-old", name: "Gone Sub Co.", active: false }],
-  dryRun: { applied: [{ unitId: "u12", activityDefinitionId: "a-walls", from: null, to: "IN_PROGRESS" }], skipped: [{ unitId: "u13", activityDefinitionId: "a-walls" }], gate: { mode: "warn", notAccepted: [{ unitId: "u12", activityDefinitionId: "a-walls" }] } },
+  dryRun: { applied: [{ unitId: "u12", activityDefinitionId: "a-walls", from: null, to: "IN_PROGRESS" }], skipped: [{ unitId: "u13", activityDefinitionId: "a-walls" }], notAccepted: [{ unitId: "u12", activityDefinitionId: "a-walls" }] },
+  // Q-56 (4a): who may approve the project's reports (siteReports.approvers), and a refusal the next approval meets (4b)
+  approvers: { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }, { userId: 9, name: "Manager Nine" }] } as { named: boolean; reviewFirst: boolean; people: Array<{ userId: number; name: string | null }> },
+  reviewError: null as null | { message: string },
 }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
@@ -29,8 +32,8 @@ const options = {
   activities: [{ id: "a-walls", modelCode: "A", code: "WALLS", name: "Walls" }, { id: "a-paint", modelCode: "A", code: "PAINT", name: "Paint" }, { id: "b-walls", modelCode: "B", code: "WALLS", name: "Walls" }],
 };
 vi.mock("@/lib/trpc", () => {
-  const mutation = (name: "save" | "submit" | "review" | "attachPhoto") => ({ useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void }) => ({
-    mutate: (input: unknown) => { const key = name === "attachPhoto" ? "attach" : name; h[key](input); const result = name === "save" ? { id: "r1", status: "draft" } : name === "review" ? ((input as { dryRun?: boolean }).dryRun ? h.dryRun : { applied: [], skipped: [] }) : { id: "r1", status: "submitted" }; config.onSuccess?.(result, input); },
+  const mutation = (name: "save" | "submit" | "review" | "attachPhoto") => ({ useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void; onError?: (error: unknown, variables: unknown) => void }) => ({
+    mutate: (input: unknown) => { const key = name === "attachPhoto" ? "attach" : name; h[key](input); if (name === "review" && h.reviewError && !(input as { dryRun?: boolean }).dryRun && !(input as { leaveNotAccepted?: boolean }).leaveNotAccepted) { config.onError?.(h.reviewError, input); return; } const result = name === "save" ? { id: "r1", status: "draft" } : name === "review" ? ((input as { dryRun?: boolean }).dryRun ? h.dryRun : { applied: [], skipped: [] }) : { id: "r1", status: "submitted" }; config.onSuccess?.(result, input); },
     mutateAsync: async (input: unknown) => { h.attach(input); config.onSuccess?.({}, input); return {}; }, isPending: false, error: null,
   }) });
   return { trpc: {
@@ -46,6 +49,7 @@ vi.mock("@/lib/trpc", () => {
     submittals: { list: { useQuery: (input: { submittalType?: string }) => (h.submittalsError ? { data: undefined, isLoading: false, error: h.submittalsError, isError: true, status: "error", refetch: vi.fn() } : { data: input.submittalType === "material_approval" ? [{ id: "00000000-0000-4000-8000-0000000000aa", submittalNumber: "MA-007", title: "Blocks" }] : [], isLoading: false, error: null, refetch: vi.fn() }) } },
     siteReports: {
       options: { useQuery: () => ({ data: options, isLoading: false, error: null, refetch: vi.fn() }) },
+      approvers: { useQuery: () => ({ data: h.approvers, isLoading: false, error: null }) },
       list: { useQuery: () => ({ data: h.reports, isLoading: false, error: null, refetch: vi.fn() }) },
       get: { useQuery: (_input: unknown, config: { enabled: boolean }) => ({ data: config.enabled ? { ...h.detail, photos: h.detail.photos } : undefined, error: null, refetch: vi.fn() }) },
       save: mutation("save"), submit: mutation("submit"), review: mutation("review"), attachPhoto: mutation("attachPhoto"),
@@ -56,7 +60,7 @@ vi.mock("@/lib/trpc", () => {
   } };
 });
 
-beforeEach(() => { h.check.mockReset(); h.copy.mockReset(); h.companiesError = null; h.me = { id: 7 }; h.language = "en"; h.submittalsError = null; h.detail.report.status = "rejected"; h.detail.materials = []; h.detail.hse = []; h.detail.obstacleItems = []; h.detail.tomorrow = []; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
+beforeEach(() => { h.reviewError = null; h.approvers = { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }, { userId: 9, name: "Manager Nine" }] }; h.check.mockReset(); h.copy.mockReset(); h.companiesError = null; h.me = { id: 7 }; h.language = "en"; h.submittalsError = null; h.detail.report.status = "rejected"; h.detail.materials = []; h.detail.hse = []; h.detail.obstacleItems = []; h.detail.tomorrow = []; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
   h.roles = [{ id: "r-mason", name: "Masons", category: "direct", active: true }, { id: "r-old", name: "Retired trade", category: "direct", active: false }];
   h.machines = [{ id: "e-mix", equipmentType: "Mixer", model: null, plateOrSize: null, active: true }, { id: "e-old", equipmentType: "Crane", model: "C-9", plateOrSize: "50 t", active: false }]; for (const key of ["save", "submit", "review", "attach", "upload"] as const) h[key].mockReset(); h.upload.mockResolvedValue("uploads/key-0123456789"); });
 afterEach(cleanup);
@@ -139,11 +143,43 @@ describe("SiteDailyReport — the project manager's side", () => {
     fireEvent.click(within(panel).getByText("What will move?"));
     expect(h.review).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", reportId: "r5", decision: "approve", dryRun: true });
     const preview = panel.querySelector("[data-preview]") as HTMLElement;
-    expect(preview.textContent).toContain("12 · WALLS: — → IN_PROGRESS");
+    expect(preview.textContent).toContain("12 · WALLS — Walls: — → IN_PROGRESS");
     expect(preview.textContent).toContain("These will not move");
-    expect(preview.textContent).toContain("Quality warning");
+    expect(preview.textContent).toContain("No QC receipt for these villas and activities"); // Q-56 (4b): read from the server's «notAccepted»
     fireEvent.click(within(panel).getByText("Approve"));
     expect(h.review).toHaveBeenLastCalledWith({ tenantId: "t", projectId: "p", reportId: "r5", decision: "approve" });
+    expect(within(panel).getByText("Report approved and progress moved")).toBeTruthy();
+  });
+
+  it("Q-56 (4a): on one's own report there is no approve button (the server refuses it) — it says who approves; with nobody else, it says to invite a project manager", () => {
+    h.reports = [{ id: "r5", reportDate: "2026-10-23", status: "submitted", weather: null, preparedByUserId: 7 } as never];
+    const { unmount } = render(<SiteDailyReport />);
+    let item = screen.getByRole("region", { name: "Approve reports" }).querySelector("[data-review=r5]") as HTMLElement;
+    expect(within(item).queryByText("Approve")).toBeNull();
+    expect(within(item).queryByText("What will move?")).toBeNull();
+    expect(item.textContent).toContain("You prepared this report, so someone else approves it.");
+    expect(item.querySelector("[data-approvers]")!.textContent).toContain("Manager Nine"); // the others, never the preparer
+    expect(item.querySelector("[data-approvers]")!.textContent).not.toContain("Reviewer Seven");
+    unmount();
+    h.approvers = { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }] };
+    render(<SiteDailyReport />);
+    item = screen.getByRole("region", { name: "Approve reports" }).querySelector("[data-review=r5]") as HTMLElement;
+    const none = item.querySelector("[data-approvers=none]") as HTMLElement;
+    expect(none.textContent).toContain("Invite a project manager");
+    expect(within(none).getByText("Project team → invite").closest("a")!.getAttribute("href")).toBe("/projects/t/p/team");
+  });
+
+  it("Q-56 (4b): approving meets QC — the villas and activities that hold it are named, and the report can be approved without moving them", () => {
+    h.reviewError = { message: "PROJECT_OS_QC_NOT_ACCEPTED" };
+    render(<SiteDailyReport />);
+    const panel = screen.getByRole("region", { name: "Approve reports" });
+    fireEvent.click(within(panel).getByText("Approve"));
+    // the refusal runs the preview at once: the list of what holds it, by villa number and activity name
+    expect(h.review).toHaveBeenLastCalledWith({ tenantId: "t", projectId: "p", reportId: "r5", decision: "approve", dryRun: true });
+    const held = panel.querySelector("[data-qc-held]") as HTMLElement;
+    expect(held.textContent).toContain("12 · WALLS — Walls");
+    fireEvent.click(within(held).getByText("Approve the report without moving these villas"));
+    expect(h.review).toHaveBeenLastCalledWith({ tenantId: "t", projectId: "p", reportId: "r5", decision: "approve", leaveNotAccepted: true });
     expect(within(panel).getByText("Report approved and progress moved")).toBeTruthy();
   });
 
