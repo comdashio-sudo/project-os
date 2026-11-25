@@ -16,6 +16,10 @@ vi.mock("@/lib/trpc", () => ({ trpc: { strategy: {
   initiatives: { useQuery: () => h.initiatives }, variances: { useQuery: () => h.variances },
 } } }));
 
+// the register's actions are tested on their own (StrategyAssumptionActions.test.tsx)
+vi.mock("./StrategyAssumptionActions", () => ({ NewAssumption: () => null, AssumptionActions: () => null }));
+vi.mock("./StrategyGoalActions", () => ({ NewGoal: () => null, NewInitiative: () => null, RecordVariance: () => null, DecideVariance: () => null }));
+
 import Strategy from "./Strategy";
 
 const assumption = { id: A, code: "winRate", name: "Synthetic win rate", unit: "percent", status: "approved", confidence: "medium", nextReviewAt: "2027-02-01", values: { conservative: 15, base: 20, optimistic: 25 }, pendingChange: { values: { conservative: 10, base: 15, optimistic: 20 }, reason: "x", requestedByUserId: 1 } };
