@@ -46,6 +46,12 @@
     "0043_risk_register.sql": "6eb7ea5cc9ec3403440afe723a874a8cbf0ad514edd3b657184f83952fe14570",
     "0044_safety_register.sql": "58da77310a11b7e71aafc7e8a8a155295976e9074f6ef00c7ffae6286458fc24",
     "0045_employee_reports_to.sql": "d8bd6fb9aa05edb7ce2f95defdc8bccb438ca896ce320b9dfcd8016aec347b0b",
-    "0046_profit_read_permission.sql": "9e8de5e2cbf2583e57a35e1ed146ddae814425de06a70c21933353da0844a1ad"
+    "0046_profit_read_permission.sql": "9e8de5e2cbf2583e57a35e1ed146ddae814425de06a70c21933353da0844a1ad",
+    "0047_strategy_assumptions.sql": "712b5cd0cd65ee2fdbf01904f0283a96b6ba0ef39fc677d65931edbe90724bad",
+    "0048_strategy_market.sql": "9b11dfcbca9ed8a1bb562a705f05c92050070a7f6561fa44dd54e15a934f78ff",
+    "0049_strategy_competitors_swot.sql": "6318fb2b92e7f0ea8e8bc4e20c438f42788a4126d9738ef3f9790a0968d7f118",
+    "0050_strategy_opportunities.sql": "4259243cd7547af3a686dc0c9295db06cac936110d6e79ce7a3ff19fb6cb1508",
+    "0051_strategy_goals_variances.sql": "dcfb248c7b7a32c66e7de010d7f0d7daca6d322f9172624a0e1be2644f8de25e",
+    "0052_subcontract_activity_boq_links.sql": "4811be024f50d6c64a14da3d364bd43ffb4cd9dfb37073042b80cb2ffda9787b"
   }
 }

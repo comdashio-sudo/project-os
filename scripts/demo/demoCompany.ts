@@ -12,7 +12,9 @@ import { appRouter } from "../../server/routers";
 import { createTenantForUser, ensureDefaultCommercialCatalog, getDb, upsertUser } from "../../server/db";
 import { deleteTenantData } from "../../server/tenantData";
 import { seedDemoExtras } from "./demoExtras";
-import { storageConfiguration, storagePut } from "../../server/storage";
+import { seedReportsModeProject } from "./demoReportsProject";
+import { seedWeightsModeProject } from "./demoWeightsMode";
+import { storageConfiguration, storageDelete, storagePut } from "../../server/storage";
 import { calculateEvm } from "../../server/domain/evm";
 import { fpac } from "../../server/domain/profitability";
 import { effectiveStatusFactors } from "../../server/domain/pmc";
@@ -504,10 +506,19 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
     await client.query("COMMIT");
     log(`EVM now: PV ${Math.round(evmNow.pv)} EV ${Math.round(evmNow.ev)} AC ${Math.round(evmNow.ac)} CPI ${evmNow.cpi} SPI ${evmNow.spi} EAC ${Math.round(evmNow.eac)}`);
 
+    // ---------------------------------------------------------------------------------------------------------- 9. Q-55 batch 2: the second project in «reports mode»
+    const reportsMode = await seedReportsModeProject({ client: client0, tenantId, projectId: project2Id, now, owner, siteEngineer: people.get("site2")!, manager: people.get("pm")!, callerFor, roleIds,
+      storagePut: storageReady ? (key, data, type) => storagePut(key, data, type) : undefined, log });
+
+    // ---------------------------------------------------------------------------------------------------------- 10. Q-55 batch 1: the first project in «weights and deliveries mode»
+    const weightsMode = await seedWeightsModeProject({ client: client0, bulk, tenantId, projectId, ownerId: owner.id, qcUserId: people.get("qc")!.id, siteUserId: people.get("site1")!.id,
+      unitIds, cells, defId, modelOf, groupIds, stageIds, day, today: PROJECT_DAYS, owner: callerFor(owner) as never,
+      storagePut: storageReady ? (key, data, type) => storagePut(key, data, type) : undefined, log });
+
     // the audit trail records that this is the demonstration
     await client.query("INSERT INTO audit_logs (id, tenant_id, actor_user_id, action, entity_type, entity_id, metadata) VALUES ($1,$2,$3,'demo.seeded','company',$2,$4)", [randomUUID(), tenantId, owner.id, JSON.stringify({ units: UNIT_COUNT, reports: reportRows.length, submittals: submittalRows.length, inspections: inspections.length, ncrs: ncrRows.length, issues })]);
     client0.release();
-    return { created: true as const, tenantId, projectId, project2Id, portfolioId, owner: { email: ownerEmail }, people: DEMO_PEOPLE.map(person => ({ level: person.level, email: person.email })), evm: { pv: evmNow.pv, ev: evmNow.ev, ac: evmNow.ac, cpi: evmNow.cpi, spi: evmNow.spi, eac: evmNow.eac } };
+    return { created: true as const, tenantId, projectId, project2Id, portfolioId, reportsMode, weightsMode, owner: { email: ownerEmail }, people: DEMO_PEOPLE.map(person => ({ level: person.level, email: person.email })), evm: { pv: evmNow.pv, ev: evmNow.ev, ac: evmNow.ac, cpi: evmNow.cpi, spi: evmNow.spi, eac: evmNow.eac } };
   } catch (error) {
     await client0.query("ROLLBACK").catch(() => undefined);
     client0.release();
@@ -534,7 +545,9 @@ export async function deleteDemoCompany(options: { ownerEmail: string; log?: Log
     if (!marker || strangers.length) throw new Error(`Refusing: the company has members that are not the demonstration's own (${strangers.length}).`);
     const owner = (await client.query("SELECT id FROM users WHERE email = $1", [options.ownerEmail.trim().toLowerCase()])).rows[0];
     if (!owner) throw new Error("The owner's user was not found.");
-    const report = await deleteTenantData({ db, tenantId: company.id, actorUserId: Number(owner.id) });
+    // the stored files go with the rows (photos, the consultant's exports): without a delete the erasure cannot verify them and says FAIL
+    let storageReady = false; try { storageConfiguration(); storageReady = true; } catch { storageReady = false; }
+    const report = await deleteTenantData({ db, tenantId: company.id, actorUserId: Number(owner.id), storageDelete: storageReady ? key => storageDelete(key) : undefined });
     log(`erased: ${report.verification}, ${report.rowsDeleted} rows over ${report.tablesChecked} tables, ${report.passes} pass(es), ${report.retained.auditRows} audit rows kept`);
     return { deleted: true as const, verification: report.verification, rowsDeleted: report.rowsDeleted, tablesChecked: report.tablesChecked, remaining: report.remaining, auditRowsKept: report.retained.auditRows, peopleScrubbed: report.people.scrubbed };
   } finally { client.release(); }

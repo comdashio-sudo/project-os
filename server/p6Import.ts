@@ -49,7 +49,7 @@ const STATUS: Record<string, "not_started" | "in_progress" | "completed"> = { TK
 
 type Syncable = { id: string };
 /** One entity: what exists (by the source's key) against what the file wants. Writes only what differs — inserts and updates both in batches of ≤500 rows — and returns the counts. */
-async function sync<E extends Syncable, D extends Syncable>(input: { desired: D[]; existing: Map<string, E>; key: (item: D) => string; same: (stored: E, wanted: D) => boolean; insert: (rows: D[]) => Promise<void>; update: (rows: Array<{ stored: E; wanted: D }>) => Promise<void> }): Promise<EntityCount> {
+async function sync<E extends Syncable, D extends Syncable>(input: { created?: string[]; desired: D[]; existing: Map<string, E>; key: (item: D) => string; same: (stored: E, wanted: D) => boolean; insert: (rows: D[]) => Promise<void>; update: (rows: Array<{ stored: E; wanted: D }>) => Promise<void> }): Promise<EntityCount> {
   const toCreate: D[] = []; const toUpdate: Array<{ stored: E; wanted: D }> = []; let unchanged = 0; const seen = new Set<string>();
   for (const item of input.desired) {
     const stored = input.existing.get(input.key(item)); seen.add(input.key(item));
@@ -58,6 +58,7 @@ async function sync<E extends Syncable, D extends Syncable>(input: { desired: D[
     else toUpdate.push({ stored, wanted: item });
   }
   for (const batch of chunks(toCreate)) await input.insert(batch);
+  input.created?.push(...toCreate.map(item => item.id)); // Q-23: what this import created, so it can be undone exactly (importAttempts.ts)
   for (const batch of chunks(toUpdate)) await input.update(batch);
   return { create: toCreate.length, update: toUpdate.length, unchanged, absent: Array.from(input.existing.keys()).filter(key => !seen.has(key)).length };
 }
@@ -72,6 +73,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   if (currency.differs) warnings.push(`XER_CURRENCY_DIFFERS:${model.header.currency}->${projectCurrency}`);
   if (model.skippedTables.length) warnings.push(`XER_TABLES_NOT_KEPT:${model.skippedTables.map(item => item.table).join(",")}`);
   const counts = Object.fromEntries(ENTITIES.map(name => [name, { create: 0, update: 0, unchanged: 0, absent: 0 }])) as Record<Entity, EntityCount>;
+  const createdIds: Partial<Record<Entity, string[]>> = {};
   const plan: P6Plan = { fileHash, header: model.header, project: model.project, currency, counts, skippedTables: model.skippedTables, issues: [...model.issues], warnings, canConfirm: false, summary };
   if (plan.issues.length) throw new Rollback(plan);
   const common = { tenantId: input.tenantId, projectId: input.projectId };
@@ -86,6 +88,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   const wbsId = new Map(model.wbs.map(node => [node.externalId, existingWbs.get(node.code)?.id ?? randomUUID()]));
   const directCost = new Map<string, number>(); for (const a of model.activities) directCost.set(a.wbsExternalId, (directCost.get(a.wbsExternalId) ?? 0) + (cost.get(a.code) ?? 0));
   counts.wbs = await sync({
+    created: (createdIds.wbs = []),
     desired: model.wbs.map(node => ({ id: wbsId.get(node.externalId)!, code: node.code, name: node.name.slice(0, 255), parentId: node.parentExternalId ? wbsId.get(node.parentExternalId) ?? null : null, plannedValue: Math.round((directCost.get(node.externalId) ?? 0) * 100) / 100 })),
     existing: existingWbs, key: item => item.code,
     same: (stored, wanted) => stored.name === wanted.name && (stored.parentId ?? null) === wanted.parentId && same2(stored.plannedValue, wanted.plannedValue),
@@ -97,6 +100,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   const existingCalendars = new Map((await tx.select().from(scheduleCalendars).where(mine(scheduleCalendars))).map(row => [row.externalId, row]));
   const calendarId = new Map(model.calendars.map(item => [item.externalId, existingCalendars.get(item.externalId)?.id ?? randomUUID()]));
   counts.calendars = await sync({
+    created: (createdIds.calendars = []),
     desired: model.calendars.map(item => ({ id: calendarId.get(item.externalId)!, externalId: item.externalId, name: item.name.slice(0, 255), type: item.type.slice(0, 40), isDefault: item.isDefault, day: item.hoursPerDay, week: item.hoursPerWeek, data: item.data })),
     existing: existingCalendars, key: item => item.externalId,
     same: (stored, wanted) => stored.name === wanted.name && stored.isDefault === wanted.isDefault && same2(stored.hoursPerDay, wanted.day) && same2(stored.hoursPerWeek, wanted.week) && (stored.definition ?? "") === wanted.data,
@@ -114,6 +118,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     duration: item.durationHours, remaining: item.remainingHours, percent: item.percentComplete, float: item.totalFloatHours, constraintType: item.constraintType?.slice(0, 24) ?? null, constraintDate: item.constraintDate,
   }));
   counts.activities = await sync({
+    created: (createdIds.activities = []),
     desired: wanted, existing: existingActivities, key: item => item.code,
     same: (s, w) => s.name === w.name && s.wbsItemId === w.wbsItemId && s.status === w.status && same2(s.plannedValue, w.plannedValue) && sameDate(s.plannedStartAt, w.plannedStart) && sameDate(s.plannedFinishAt, w.plannedFinish) && sameDate(s.actualStartAt, w.actualStart) && sameDate(s.actualFinishAt, w.actualFinish)
       && s.externalId === w.externalId && s.taskType === w.taskType && (s.calendarId ?? null) === w.calendarId && same2(s.durationHours, w.duration) && same2(s.remainingHours, w.remaining) && same2(s.percentComplete, w.percent) && (s.totalFloatHours === null ? w.float === null : w.float !== null && same2(s.totalFloatHours, w.float)),
@@ -128,6 +133,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   const resourceId = new Map(model.resources.map(item => [item.code, existingResources.get(item.code)?.id ?? randomUUID()]));
   const units = new Map<string, { units: number; cost: number }>(); for (const a of model.assignments) { const u = units.get(a.resourceCode) ?? { units: 0, cost: 0 }; u.units += a.plannedUnits; u.cost += a.plannedCost; units.set(a.resourceCode, u); }
   counts.resources = await sync({
+    created: (createdIds.resources = []),
     desired: model.resources.map(item => { const u = units.get(item.code) ?? { units: 0, cost: 0 }; return { id: resourceId.get(item.code)!, code: item.code, name: item.name.slice(0, 255), type: item.type, plannedUnits: Math.round(u.units * 100) / 100, unitCost: u.units > 0 ? Math.round((u.cost / u.units) * 100) / 100 : 0 }; }),
     existing: existingResources, key: item => item.code,
     same: (s, w) => s.name === w.name && s.resourceType === w.type && same2(s.plannedUnits, w.plannedUnits) && same2(s.unitCost, w.unitCost) && s.currency === projectCurrency,
@@ -139,6 +145,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   // ---- what is assigned to each activity
   const existingAssignments = new Map((await tx.select().from(activityResourceAssignments).where(mine(activityResourceAssignments))).map(row => [row.externalId, row]));
   counts.assignments = await sync({
+    created: (createdIds.assignments = []),
     desired: model.assignments.map(item => ({ id: existingAssignments.get(item.externalId)?.id ?? randomUUID(), activityId: activityId.get(item.activityCode)!, resourceId: resourceId.get(item.resourceCode)!, ...item })),
     existing: existingAssignments, key: item => item.externalId,
     same: (s, w) => s.activityId === w.activityId && s.resourceId === w.resourceId && same2(s.plannedUnits, w.plannedUnits) && same2(s.actualUnits, w.actualUnits) && same2(s.remainingUnits, w.remainingUnits) && same2(s.plannedCost, w.plannedCost) && same2(s.actualCost, w.actualCost) && same2(s.remainingCost, w.remainingCost),
@@ -156,6 +163,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     relations.set(key, { id: existingRelations.get(key)?.id ?? randomUUID(), predecessorId, successorId, type: item.type, lag: item.lagHours });
   }
   counts.relationships = await sync({
+    created: (createdIds.relationships = []),
     desired: Array.from(relations.values()), existing: existingRelations, key: item => `${item.predecessorId}|${item.successorId}|${item.type}`,
     same: (s, w) => same2(s.lagHours, w.lag),
     insert: async rows => { await tx.insert(activityRelationships).values(rows.map(w => ({ ...common, id: w.id, predecessorActivityId: w.predecessorId, successorActivityId: w.successorId, relationType: w.type, lagHours: String(w.lag) }))); },
@@ -166,6 +174,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   const existingTypes = new Map((await tx.select().from(activityCodeTypes).where(mine(activityCodeTypes))).map(row => [row.externalId, row]));
   const typeId = new Map(model.codeTypes.map(item => [item.externalId, existingTypes.get(item.externalId)?.id ?? randomUUID()]));
   counts.codeTypes = await sync({
+    created: (createdIds.codeTypes = []),
     desired: model.codeTypes.map(item => ({ id: typeId.get(item.externalId)!, externalId: item.externalId, name: item.name.slice(0, 120), scope: item.scope.slice(0, 40), sequence: item.sequence })),
     existing: existingTypes, key: item => item.externalId, same: (s, w) => s.name === w.name && (s.scope ?? "") === w.scope && s.sequence === w.sequence,
     insert: async rows => { await tx.insert(activityCodeTypes).values(rows.map(w => ({ ...common, id: w.id, externalId: w.externalId, name: w.name, scope: w.scope || null, sequence: w.sequence }))); },
@@ -174,6 +183,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   const existingValues = new Map((await tx.select().from(activityCodeValues).where(mine(activityCodeValues))).map(row => [row.externalId, row]));
   const valueId = new Map(model.codeValues.map(item => [item.externalId, existingValues.get(item.externalId)?.id ?? randomUUID()]));
   counts.codeValues = await sync({
+    created: (createdIds.codeValues = []),
     desired: model.codeValues.filter(item => typeId.has(item.typeExternalId)).map(item => ({ id: valueId.get(item.externalId)!, externalId: item.externalId, typeId: typeId.get(item.typeExternalId)!, parentId: item.parentExternalId ? valueId.get(item.parentExternalId) ?? null : null, shortName: item.shortName.slice(0, 80), name: item.name.slice(0, 255), sequence: item.sequence })),
     existing: existingValues, key: item => item.externalId, same: (s, w) => s.codeTypeId === w.typeId && (s.parentId ?? null) === w.parentId && s.shortName === w.shortName && s.name === w.name && s.sequence === w.sequence,
     insert: async rows => { await tx.insert(activityCodeValues).values(rows.map(w => ({ ...common, id: w.id, externalId: w.externalId, codeTypeId: w.typeId, parentId: w.parentId, shortName: w.shortName, name: w.name, sequence: w.sequence }))); },
@@ -188,6 +198,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     const key = `${activity}|${type}`; wantedCodeAssignments.set(key, { id: existingCodeAssignments.get(key)?.id ?? randomUUID(), activityId: activity, typeId: type, valueId: value });
   }
   counts.codeAssignments = await sync({
+    created: (createdIds.codeAssignments = []),
     desired: Array.from(wantedCodeAssignments.values()), existing: existingCodeAssignments, key: item => `${item.activityId}|${item.typeId}`, same: (s, w) => s.codeValueId === w.valueId,
     insert: async rows => { await tx.insert(activityCodeAssignments).values(rows.map(w => ({ ...common, id: w.id, activityId: w.activityId, codeTypeId: w.typeId, codeValueId: w.valueId }))); },
     update: bulk(activityCodeAssignments, { codeValueId: activityCodeAssignments.codeValueId, updatedAt: activityCodeAssignments.updatedAt }, (_s, w: { valueId: string }) => ({ codeValueId: w.valueId, updatedAt: now })),
@@ -200,7 +211,7 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
     await tx.insert(dataImports).values({
       id: importId, ...common, moduleCode: "p6", templateCode: "p6_v1", sourceFormat: "xer", fileName: source.name, fileKey: source.key, fileHash, status: "completed",
       totalRows: model.activities.length, validRows: model.activities.length, invalidRows: 0, createdRows: counts.activities.create, updatedRows: counts.activities.update, skippedRows: counts.activities.unchanged,
-      summaryJson: JSON.stringify({ p6: { header: model.header, counts, summary, currency } }), createdByUserId: input.userId, progressPercent: 100, completedAt: now,
+      summaryJson: JSON.stringify({ p6: { header: model.header, counts, summary, currency, created: createdIds } }), createdByUserId: input.userId, progressPercent: 100, completedAt: now,
     });
     await tx.insert(dataImportSources).values({ importId, ...common, sourceKey: source.key, sourceName: source.name, detectedKind: "xer", sheetName: null, mappingJson: JSON.stringify({ tables: Object.fromEntries(ENTITIES.map(name => [name, counts[name]])) }), mergedCellsFilled: 0 });
     let rowNumber = 0;

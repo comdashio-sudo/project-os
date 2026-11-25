@@ -7,7 +7,9 @@ name: Readiness journey
 # compared with what was entered, screenshots at 390 and 1280. At the end the password is taken away. Nothing outside its own company is read or written.
 #   run      the journey (scripts/readiness/journey.mjs); the checks and the screenshots in the run's summary and artifact
 #   disable  only takes the invented person's password away
-# Secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD (the launch button's). Variable (optional): PRODUCTION_URL.
+# Secret: SUPABASE_DB_PASSWORD only — the connection the automatic release uses (scripts/bootstrap/run.ts direct): the project is fixed in the code and the
+# password opens only its pooler; no Supabase access token is read (the first run, 20-11, stopped at «401 Invalid access token» before any connection).
+# Variables (optional): PRODUCTION_URL, SUPABASE_POOLER_HOST.
 
 on:
   workflow_dispatch:
@@ -28,13 +30,13 @@ concurrency:
 jobs:
   readiness:
     name: readiness journey
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.56 has no chromium build for ubuntu-26.04 (ubuntu-latest since 2026-11)
     timeout-minutes: 30
     env:
       PLAYWRIGHT_VERSION: 1.56.1
       READINESS_BASE_URL: ${{ vars.PRODUCTION_URL || 'https://dashio-lovat.vercel.app' }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_POOLER_HOST: ${{ vars.SUPABASE_POOLER_HOST }}
     steps:
       - uses: actions/checkout@v4
       - name: State file path
@@ -45,8 +47,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Connection to the one intended project (guarded; changes nothing)
-        run: node --import tsx scripts/bootstrap/run.ts database
+      - name: Connection to the one intended project — the password alone, as the automatic release (changes nothing)
+        run: node --import tsx scripts/bootstrap/run.ts direct
       - name: Throw-away signing value (the script loads the server code, which asks for one; no session is minted here)
         run: |
           value="$(openssl rand -hex 32)"

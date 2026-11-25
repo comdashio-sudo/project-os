@@ -148,15 +148,16 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
   }, 60_000);
 
   // ---- D-4 (#153), review items 2 and 4
-  it("a confirmed P6 import cannot be rolled back: refused as PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED (even for project.manage), and no activity goes", async () => {
+  it("Q-23: an XER import that updated rows, or that a later import followed, is not undone — refused, and nothing goes (negative)", async () => {
     const manager = callerFor(users.manager, "p6x-manager");
-    const [record] = await one<{ id: string }>("SELECT id FROM data_imports WHERE tenantId = ? AND projectId = ? AND moduleCode = 'p6' AND status = 'completed' LIMIT 1", [T, P]);
-    expect(record?.id).toBeTruthy();
+    const records = await one<{ id: string }>("SELECT id FROM data_imports WHERE tenantId = ? AND projectId = ? AND moduleCode = 'p6' AND status = 'completed' ORDER BY createdAt", [T, P]);
+    expect(records.length).toBe(2); // the first full import, then the newer export that updated by the source's keys
     const before = await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ?", [T, P]);
     expect(before).toBe(611);
-    await expect(manager.dataImports.rollback({ ...scope, importId: record.id })).rejects.toThrow("PROJECT_OS_IMPORT_ROLLBACK_MODULE_UNSUPPORTED");
+    await expect(manager.dataImports.rollback({ ...scope, importId: records[1].id })).rejects.toThrow("PROJECT_OS_IMPORT_ROLLBACK_HAS_UPDATES");
+    await expect(manager.dataImports.rollback({ ...scope, importId: records[0].id })).rejects.toThrow("PROJECT_OS_SCHEDULE_ROLLBACK_NOT_LATEST");
     expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ? AND projectId = ?", [T, P])).toBe(before);
-    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE id = ? AND status = 'completed'", [record.id])).toBe(1);
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ? AND projectId = ? AND moduleCode = 'p6' AND status = 'completed'", [T, P])).toBe(2);
   }, 60_000);
 
   it("isolation between companies: a user who holds every schedule permission in ANOTHER company can neither analyse nor confirm on this project, and nothing is written", async () => {
@@ -238,4 +239,48 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("a Primavera P6 export th
     await crossing("UPDATE activity_code_values SET parentId = ? WHERE id = ?", [valueA.id, valueB.id], "ACTIVITY_CODE_VALUE_CROSS_PROJECT");
     expect(await n("SELECT COUNT(*) AS n FROM activity_code_values WHERE id = ? AND parentId IS NULL", [valueB.id])).toBe(1);
   }, 60_000);
+
+  it("Q-23: project B's XER import created everything and is its latest — undone exactly: all nine tables of B are empty, A is untouched, the import is marked, audited and snapshotted; an import without the list of what it created is refused first", async () => {
+    const manager = callerFor(users.manager, "p6x-manager");
+    const nine = ["wbs_items", "activities", "schedule_calendars", "project_resources", "activity_resource_assignments", "activity_relationships", "activity_code_types", "activity_code_values", "activity_code_assignments"];
+    const countsOf = async (projectId: string) => Promise.all(nine.map(table => n(`SELECT COUNT(*) AS n FROM ${table} WHERE tenantId = ? AND projectId = ?`, [T, projectId])));
+    const aBefore = await countsOf(P);
+    const bBefore = await countsOf(PB);
+    expect(bBefore.every(count => count > 0)).toBe(true);
+    const [record] = await one<{ id: string; summaryJson: string }>("SELECT id, summaryJson FROM data_imports WHERE tenantId = ? AND projectId = ? AND moduleCode = 'p6' AND status = 'completed'", [T, PB]);
+    // NEGATIVE: an import made before the list of created rows was kept (simulated by removing it) is refused, and nothing goes
+    const summary = JSON.parse(record.summaryJson); const { created, ...withoutList } = summary.p6;
+    // the earlier test added one relationship of its own between two of B's activities: the import did not create it, so it is not in the list
+    const listed = new Set((created as Record<string, string[]>).relationships);
+    const extra = (await one<{ id: string }>("SELECT id FROM activity_relationships WHERE tenantId = ? AND projectId = ?", [T, PB])).filter(row => !listed.has(row.id));
+    expect(extra.length).toBe(1);
+    expect(Object.values(created as Record<string, string[]>).reduce((sum, ids) => sum + ids.length, 0)).toBe(bBefore.reduce((sum, count) => sum + count, 0) - 1);
+    await connection.query("UPDATE data_imports SET summaryJson = ? WHERE id = ?", [JSON.stringify({ ...summary, p6: withoutList }), record.id]);
+    await expect(manager.dataImports.rollback({ tenantId: T, projectId: PB, importId: record.id })).rejects.toThrow("PROJECT_OS_IMPORT_ROLLBACK_INCOMPLETE_RECORD");
+    expect(await countsOf(PB)).toEqual(bBefore);
+    await connection.query("UPDATE data_imports SET summaryJson = ? WHERE id = ?", [record.summaryJson, record.id]);
+    // NEGATIVE: a row the import did not create now depends on its activities — the whole undo is refused, nothing goes
+    await expect(manager.dataImports.rollback({ tenantId: T, projectId: PB, importId: record.id })).rejects.toThrow("PROJECT_OS_IMPORT_ROLLBACK_IN_USE");
+    expect(await countsOf(PB)).toEqual(bBefore);
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE id = ? AND status = 'completed'", [record.id])).toBe(1);
+    await connection.query("DELETE FROM activity_relationships WHERE id = ?", [extra[0].id]);
+    // POSITIVE
+    const done = await manager.dataImports.rollback({ tenantId: T, projectId: PB, importId: record.id });
+    expect(done.rolledBack).toBe(true);
+    expect(await countsOf(PB)).toEqual(nine.map(() => 0));
+    expect(await countsOf(P)).toEqual(aBefore);
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE id = ? AND status = 'cancelled'", [record.id])).toBe(1);
+    expect(await n("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action = 'data_import_rolled_back'", [T, record.id])).toBe(1);
+    expect(await n("SELECT COUNT(*) AS n FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND source = 'p6_rollback'", [T, PB])).toBe(1);
+    await expect(manager.dataImports.rollback({ tenantId: T, projectId: PB, importId: record.id })).rejects.toThrow("PROJECT_OS_IMPORT_ROLLBACK_NOT_COMPLETED");
+    // the baseline (review of #497): the undone import's snapshot is no longer it, the p6_rollback snapshot is not it, and the NEXT import of B becomes it
+    expect(await n("SELECT COUNT(*) AS n FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND isBaseline = true", [T, PB])).toBe(0);
+    expect(await n("SELECT COUNT(*) AS n FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND importId = ?", [T, PB, record.id])).toBeGreaterThanOrEqual(2); // kept as a record
+    const target = await manager.smartImport.createUpload({ tenantId: T, projectId: PB, fileName: "b2.xer" });
+    expect((await fetch(target.uploadUrl, { method: "PUT", headers: target.headers, body: Buffer.from(buildP6Xer({ nameSuffix: " (B2)" }).bytes) })).ok).toBe(true);
+    const plan = (await manager.smartImport.analyze({ tenantId: T, projectId: PB, uploadKey: target.uploadKey, fileName: "b2.xer" })).p6Plan!;
+    await manager.smartImport.confirm({ tenantId: T, projectId: PB, uploadKey: target.uploadKey, fileName: "b2.xer", kind: "xer", forced: {} as never, approvedHash: plan.fileHash });
+    const [next] = await one<{ id: string }>("SELECT id FROM data_imports WHERE tenantId = ? AND projectId = ? AND moduleCode = 'p6' AND status = 'completed'", [T, PB]);
+    expect(await n("SELECT COUNT(*) AS n FROM schedule_snapshots WHERE tenantId = ? AND projectId = ? AND importId = ? AND isBaseline = true", [T, PB, next.id])).toBe(1);
+  }, 120_000);
 });

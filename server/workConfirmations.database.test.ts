@@ -25,7 +25,7 @@ async function clear() {
   for (const slug of [SLUG, SLUG_B]) {
     const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [slug]);
     for (const { id } of companies) {
-      for (const table of ["audit_logs", "subcontract_work_confirmation_lines", "subcontract_work_confirmations", "subcontract_contracts", "boq_items", "pmc_qc_receipts", "pmc_unit_activity_progress", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
+      for (const table of ["audit_logs", "subcontract_activity_boq_links", "subcontract_work_confirmation_lines", "subcontract_work_confirmations", "subcontract_contracts", "boq_items", "pmc_qc_receipts", "pmc_unit_activity_progress", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
       await connection.query("DELETE FROM membership_roles WHERE membershipId IN (SELECT id FROM memberships WHERE tenantId = ?)", [id]);
       await connection.query("DELETE FROM role_permissions WHERE roleId IN (SELECT id FROM roles WHERE tenantId = ?)", [id]);
       for (const table of ["role_template_removals", "roles", "memberships", "tenant_entitlements", "tenant_licenses", "subscriptions", "projects"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
@@ -237,5 +237,115 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-43: subcontractor work
     const other = await create("site", "WC-W4", subA, [{ kind: "unit", pmcUnitId: X, pmcActivityDefinitionId: ACT[0], percent: 10 }]);
     expect(other.id).toBeTruthy();
     expect((await linesOf("WC-W4"))[0]).toMatchObject({ previousApproved: 0, warnings: [] });
+  });
+  it("PULL POSITIVE (batch 5): approved quantity confirmations become one certificate line per BOQ item — a correction counted with its sign, the rate from BOQ, each confirmation linked once and named in the audit", async () => {
+    const owner = callerFor("owner");
+    const { id: pipe } = await owner.boq.create({ ...scope(), code: "Q43-PIPE", description: "Synthetic pipe", unitOfMeasure: "m", quantity: 200, unitRate: 40 });
+    const first = await create("site", "WC-Q1", subA, [{ kind: "quantity", boqItemId: pipe, quantity: 30 }]);
+    await approve(first.id);
+    const second = await create("site", "WC-Q2", subA, [{ kind: "quantity", boqItemId: pipe, quantity: 20 }]);
+    await approve(second.id);
+    const firstLine = (await linesOf("WC-Q1"))[0];
+    const fix = await create("site", "WC-Q3", subA, [{ kind: "quantity", boqItemId: pipe, quantity: -5, correctsLineId: firstLine.id }]);
+    await approve(fix.id);
+    const finance = callerFor("finance");
+    await finance.subcontracts.createCertificate({ ...scope(), subcontractId: subA, certificateNumber: "Q43-C1", periodStart: new Date("2026-11-01"), periodEnd: new Date("2026-11-15"), lines: [], confirmationIds: [first.id, second.id, fix.id] });
+    const [certificate] = await owner.subcontracts.listCertificates({ ...scope(), subcontractId: subA });
+    expect(certificate.lines.map(line => [line.boqItemId, Number(line.currentQuantity), Number(line.unitRate), Number(line.currentAmount)])).toEqual([[pipe, 45, 40, 1800]]);
+    const [linked] = await connection.query<{ certificateId: string | null }[]>("SELECT certificate_id AS \"certificateId\" FROM subcontract_work_confirmations WHERE id IN (?, ?, ?)", [first.id, second.id, fix.id]);
+    expect(linked.map(row => row.certificateId)).toEqual([certificate.id, certificate.id, certificate.id]);
+    expect((await list("site")).filter(item => ["WC-Q1", "WC-Q2", "WC-Q3"].includes(item.number)).map(item => item.certificateId)).toEqual([certificate.id, certificate.id, certificate.id]);
+    const [[audit]] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'project.subcontract_certificate_created' AND entityId = ?", [tenantId, certificate.id]);
+    expect(JSON.parse(audit.metadata)).toMatchObject({ confirmationIds: [first.id, second.id, fix.id], pulledLines: [{ boqItemId: pipe, currentQuantity: 45 }] });
+    // NEGATIVE: pulled once — never into a second certificate
+    expect(await code(finance.subcontracts.createCertificate({ ...scope(), subcontractId: subA, certificateNumber: "Q43-C2", periodStart: new Date("2026-11-16"), periodEnd: new Date("2026-11-30"), lines: [], confirmationIds: [first.id] }))).toBe("PROJECT_OS_WORK_CONFIRMATION_ALREADY_PULLED");
+  });
+
+  it("PULL NEGATIVE (batch 5): not approved, historical, a unit line, another subcontract's, the same item typed and pulled, nothing to pull, no money permission — each refused, no certificate written", async () => {
+    const owner = callerFor("owner"); const finance = callerFor("finance");
+    const { id: cable } = await owner.boq.create({ ...scope(), code: "Q43-CABLE", description: "Synthetic cable", unitOfMeasure: "m", quantity: 300, unitRate: 12 });
+    const draft = await create("site", "WC-QN1", subB, [{ kind: "quantity", boqItemId: cable, quantity: 3 }]);
+    const historical = await create("site", "WC-QN2", subB, [{ kind: "quantity", boqItemId: cable, quantity: 4, historical: true }]);
+    await approve(historical.id);
+    const villa = "43aa0000-0000-4000-8000-0000000000af";
+    await connection.query("INSERT INTO pmc_units (id, tenantId, projectId, blockId, unitNumber, modelCode, saleStatus, unitWeight) VALUES (?, ?, ?, 'q43-b', 99, 'MDL-A', 'available', 1)", [villa, tenantId, P]);
+    const units = await create("site", "WC-QN3", subB, [{ kind: "unit", pmcUnitId: villa, pmcActivityDefinitionId: ACT[1], percent: 20 }]);
+    await approve(units.id);
+    const good = await create("site", "WC-QN4", subB, [{ kind: "quantity", boqItemId: cable, quantity: 6 }]);
+    await approve(good.id);
+    const pull = (confirmationIds: string[], lines: Array<{ boqItemId: string; currentQuantity: number }> = [], key: Key = "finance") => code(callerFor(key).subcontracts.createCertificate({ ...scope(), subcontractId: subB, certificateNumber: "Q43-CN", periodStart: new Date("2026-11-01"), periodEnd: new Date("2026-11-15"), lines, confirmationIds }));
+    expect(await pull([draft.id])).toBe("PROJECT_OS_WORK_CONFIRMATION_NOT_APPROVED");
+    expect(await pull([historical.id])).toBe("PROJECT_OS_WORK_CONFIRMATION_HISTORICAL");
+    expect(await pull([units.id, good.id])).toBe("PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED");
+    const subAConfirmation = (await list()).find(item => item.number === "WC-Q1")!;
+    expect(await pull([subAConfirmation.id])).toBe("PROJECT_OS_WORK_CONFIRMATION_NOT_FOUND");
+    expect(await pull([good.id], [{ boqItemId: cable, currentQuantity: 6 }])).toBe("PROJECT_OS_CERTIFICATE_LINE_TWICE");
+    expect(await pull([])).toContain("PROJECT_OS_WORK_CONFIRMATION_NOTHING_TO_PULL");
+    expect(await pull([good.id], [], "site")).not.toBe("no error");
+    expect(await owner.subcontracts.listCertificates({ ...scope(), subcontractId: subB })).toEqual([]);
+    const [unlinked] = await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM subcontract_work_confirmations WHERE subcontract_id = ? AND certificate_id IS NOT NULL", [subB]);
+    expect(unlinked[0].n).toBe(0);
+    // and the good one alone is pulled
+    expect(await pull([good.id])).toBe("no error");
+  });
+
+  it("PULL UNIT (batch 6, G45 option (b)): a unit line is priced through the subcontract's link of its activity to a BOQ item — percent × the item's quantity in one villa, the rate from BOQ; no link, no price", async () => {
+    const owner = callerFor("owner"); const finance = callerFor("finance");
+    await owner.subcontracts.create({ ...scope(), code: "Q43-U", title: "Synthetic painters", subcontractorName: "Synthetic Painters", contractValue: 90000 });
+    const subU = (await owner.subcontracts.list(scope())).find(item => item.code === "Q43-U")!.id;
+    const { id: paint } = await owner.boq.create({ ...scope(), code: "Q43-PAINT", description: "Synthetic wall paint", unitOfMeasure: "m2", quantity: 4000, unitRate: 25 });
+    const villa = "43aa0000-0000-4000-8000-0000000000ae";
+    await connection.query("INSERT INTO pmc_units (id, tenantId, projectId, blockId, unitNumber, modelCode, saleStatus, unitWeight) VALUES (?, ?, ?, 'q43-b', 98, 'MDL-A', 'available', 1)", [villa, tenantId, P]);
+    const confirmation = await create("site", "WC-QU1", subU, [{ kind: "unit", pmcUnitId: villa, pmcActivityDefinitionId: ACT[0], percent: 25 }, { kind: "quantity", boqItemId: paint, quantity: 10 }]);
+    await approve(confirmation.id);
+    const pull = (number: string) => code(finance.subcontracts.createCertificate({ ...scope(), subcontractId: subU, certificateNumber: number, periodStart: new Date("2026-11-01"), periodEnd: new Date("2026-11-15"), lines: [], confirmationIds: [confirmation.id] }));
+    // NEGATIVE: no link for the activity — refused, nothing written
+    expect(await pull("Q43-CU0")).toBe("PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED");
+    // NEGATIVE: the site engineer sets no links (no commitment.manage); an activity twice or a zero quantity is refused
+    expect(await code(callerFor("site").workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subU, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }] }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subU, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }, { pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 41 }] }))).toBe("PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
+    expect(await code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subU, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 0 }] }))).toBe("PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
+    expect(await code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subOther, links: [] }))).toBe("PROJECT_OS_SUBCONTRACT_NOT_FOUND");
+    // POSITIVE: 40 m2 of paint in one villa; 25% of one villa = 10 m2, plus the 10 m2 measured — 20 m2 × 25 = 500, the rate from BOQ
+    await finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subU, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }] });
+    expect(await finance.workConfirmations.activityBoqLinks({ ...scope(), subcontractId: subU })).toMatchObject([{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }]);
+    expect(await pull("Q43-CU1")).toBe("no error");
+    const [certificate] = await owner.subcontracts.listCertificates({ ...scope(), subcontractId: subU });
+    expect(certificate.lines.map(line => [line.boqItemId, Number(line.currentQuantity), Number(line.unitRate), Number(line.currentAmount)])).toEqual([[paint, 20, 25, 500]]);
+    const [[audit]] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'project.subcontract_activity_boq_links_set' AND entityId = ?", [tenantId, subU]);
+    expect(JSON.parse(audit.metadata)).toMatchObject({ before: [], after: [{ pmcActivityDefinitionId: ACT[0], boqItemId: paint, quantityPerUnit: 40 }] });
+  });
+
+  it("PULL UNIT over the BOQ and two saves at once (review of #499): a unit-priced quantity never takes an item past its BOQ quantity; two simultaneous link saves both succeed, one after the other", async () => {
+    const owner = callerFor("owner"); const finance = callerFor("finance");
+    await owner.subcontracts.create({ ...scope(), code: "Q43-V", title: "Synthetic tilers", subcontractorName: "Synthetic Tilers", contractValue: 90000 });
+    const subV = (await owner.subcontracts.list(scope())).find(item => item.code === "Q43-V")!.id;
+    const { id: tiny } = await owner.boq.create({ ...scope(), code: "Q43-TINY", description: "Synthetic small item", unitOfMeasure: "m2", quantity: 50, unitRate: 10 });
+    const villa = "43aa0000-0000-4000-8000-0000000000c7";
+    await connection.query("INSERT INTO pmc_units (id, tenantId, projectId, blockId, unitNumber, modelCode, saleStatus, unitWeight) VALUES (?, ?, ?, 'q43-b', 96, 'MDL-A', 'available', 1)", [villa, tenantId, P]);
+    const confirmation = await create("site", "WC-QV1", subV, [{ kind: "unit", pmcUnitId: villa, pmcActivityDefinitionId: ACT[0], percent: 100 }]);
+    await approve(confirmation.id);
+    const pull = (number: string) => code(finance.subcontracts.createCertificate({ ...scope(), subcontractId: subV, certificateNumber: number, periodStart: new Date("2026-11-01"), periodEnd: new Date("2026-11-15"), lines: [], confirmationIds: [confirmation.id] }));
+    const certificates = async () => (await owner.subcontracts.listCertificates({ ...scope(), subcontractId: subV })).length;
+    // NEGATIVE: a link of 400 m2 per villa on an item of 50 m2 — 100% of one villa would certify 400; refused, nothing written
+    await finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subV, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: tiny, quantityPerUnit: 400 }] });
+    expect(await pull("Q43-CV0")).toBe("PROJECT_OS_WORK_CONFIRMATION_UNIT_OVER_BOQ");
+    expect(await certificates()).toBe(0);
+    // NEGATIVE: a quantity that rounds to zero (3 decimals, as stored) is refused in words, not by the database
+    expect(await code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subV, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: tiny, quantityPerUnit: 0.0004 }] }))).toBe("PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
+    // POSITIVE: two saves of the same set at the same moment — both answer, the second replaces the first, one link stays (without the lock the second
+    // collided on the unique (subcontract, activity) and returned the raw statement)
+    const save = (quantityPerUnit: number) => code(finance.workConfirmations.setActivityBoqLinks({ ...scope(), subcontractId: subV, links: [{ pmcActivityDefinitionId: ACT[0], boqItemId: tiny, quantityPerUnit }] }));
+    for (let round = 0; round < 5; round++) expect(await Promise.all([save(30), save(40)])).toEqual(["no error", "no error"]);
+    const links = await finance.workConfirmations.activityBoqLinks({ ...scope(), subcontractId: subV });
+    expect(links).toHaveLength(1);
+    expect([30, 40]).toContain(links[0].quantityPerUnit);
+    // POSITIVE: within the item, the pull goes through — 100% × the link's quantity, at the BOQ rate
+    expect(await pull("Q43-CV1")).toBe("no error");
+    const [certificate] = await owner.subcontracts.listCertificates({ ...scope(), subcontractId: subV });
+    expect(certificate.lines.map(line => [Number(line.currentQuantity), Number(line.currentAmount)])).toEqual([[links[0].quantityPerUnit, links[0].quantityPerUnit * 10]]);
+    // the audit keeps the same key before and after
+    const [rows] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'project.subcontract_activity_boq_links_set' AND entityId = ? ORDER BY createdAt DESC LIMIT 1", [tenantId, subV]);
+    expect(Object.keys(JSON.parse(rows[0].metadata).before[0])).toEqual(["pmcActivityDefinitionId", "boqItemId", "quantityPerUnit"]);
   });
 });

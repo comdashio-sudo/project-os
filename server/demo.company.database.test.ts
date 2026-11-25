@@ -21,22 +21,31 @@ describe.skipIf(!run)("the demonstration company", () => {
     const [[row]] = await connection.query<{ id: number; openId: string; name: string; email: string }[]>("SELECT id, openId, name, email FROM users WHERE email = ?", [email]);
     return routers.appRouter.createCaller({ user: { ...row, loginMethod: "email", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} }, res: {} } as never);
   };
-  let tenantId = ""; let projectId = ""; let warehouseId = "";
+  let tenantId = ""; let projectId = ""; let warehouseId = ""; let project2Id = ""; let reportsMode: { reports: number; weeks: string[]; wirs: number; rfis: number; days: string[] } | undefined; let weightsMode: { imports: Array<{ newlyReceived: number }> } | undefined;
   const count = async (table: string, extra = "") => Number(((await connection.query<{ n: number }[]>(`SELECT count(*)::int AS n FROM ${table} WHERE tenantId = ? ${extra}`, [tenantId]))[0][0]).n);
 
+  // a storage service for the whole suite (the S3 test server, loopback): the consultant's exports and the photos are files, and an import record points at its file
+  let s3: import("./testing/fakeS3").FakeS3 | undefined; let savedEnv: Record<string, unknown> = {};
   beforeAll(async () => {
+    const { startFakeS3 } = await import("./testing/fakeS3"); const { ENV } = await import("./_core/env");
+    s3 = await startFakeS3(); savedEnv = { ...ENV };
+    Object.assign(ENV, { storageS3Endpoint: s3.endpoint, storageS3Region: "local", storageS3AccessKeyId: "AKIALOCALTEST", storageS3SecretAccessKey: "local-test-only-secret", storageBucket: s3.bucket });
     connection = await fixtureDb.createConnection(ownerUrl!);
     seed = await import("../scripts/demo/demoCompany");
     routers = await import("./routers");
     await seed.deleteDemoCompany({ ownerEmail: OWNER }).catch(() => undefined); // a leftover from an interrupted run
   }, 120_000);
-  afterAll(async () => { await seed.deleteDemoCompany({ ownerEmail: OWNER }).catch(() => undefined); await connection.end(); }, 120_000);
+  afterAll(async () => {
+    await seed.deleteDemoCompany({ ownerEmail: OWNER }).catch(() => undefined); await connection.end();
+    const { ENV } = await import("./_core/env"); Object.assign(ENV, savedEnv); await s3?.close();
+  }, 120_000);
 
   it("is built once, with everything a presentation needs", async () => {
     const [before] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM companies WHERE slug <> 'demo-show-company'");
     const result = await seed.seedDemoCompany({ ownerEmail: OWNER });
     expect(result.created).toBe(true);
     tenantId = result.tenantId; projectId = result.projectId!;
+    if (result.created) { project2Id = result.project2Id; reportsMode = result.reportsMode; weightsMode = result.weightsMode; }
     const [[wh]] = await connection.query<{ id: string }[]>("SELECT id FROM project_warehouses WHERE tenantId = ? AND code = 'WH-MAIN'", [tenantId]); warehouseId = wh.id;
     expect(await count("pmc_units")).toBe(500 + 24);
     expect(await count("site_daily_reports")).toBeGreaterThanOrEqual(55);
@@ -58,7 +67,10 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect(await count("employee_attendance")).toBeGreaterThanOrEqual(150);
     expect(await count("knowledge_articles", "AND status = 'published'")).toBe(5);
     const photos = await count("site_daily_report_photos");
-    if (!process.env.STORAGE_S3_ENDPOINT) expect(photos, "no storage service here: no photo row may exist without its file").toBe(0);
+    // with a storage service every stored-file row points at a file that is there (photos, the consultant's exports)
+    expect(photos).toBeGreaterThan(0);
+    const [keys] = await connection.query<{ k: string }[]>("SELECT storageKey AS k FROM site_daily_report_photos WHERE tenantId = ? UNION ALL SELECT fileKey AS k FROM data_imports WHERE tenantId = ? AND fileKey IS NOT NULL", [tenantId, tenantId]);
+    for (const { k } of keys) expect(s3!.objects.has(k), `${k} among ${Array.from(s3!.objects.keys()).slice(0, 3).join(" , ")}`).toBe(true);
     const [[linked]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM employees WHERE tenantId = ? AND linkedUserId IS NOT NULL", [tenantId]);
     expect(Number(linked.n)).toBe(10);
     for (const email of ["site.engineer.1@show.example.test", "site.engineer.2@show.example.test", "quality.manager@show.example.test"]) {
@@ -70,14 +82,121 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect(after[0].n).toBe(before[0].n); // no other company was created, changed or removed
   }, 180_000);
 
+  // Q-55 batch 2: the second project is the «reports mode» demonstration — three weeks of approved daily reports, each week's and the month's report
+  // computed from them by the platform's own period engine (what the report says = what the dailies add up to), and the day's export opens
+  it("Q-55 (2): the reports-mode project — every working day of three weeks approved, and the week and month the engine computes are the dailies' own sums", async () => {
+    expect(reportsMode, "the seed reports what it built").toBeDefined();
+    const { days, weeks } = reportsMode!;
+    expect(days.length).toBeGreaterThanOrEqual(14); // three weeks of Sunday-to-Thursday, today left out
+    const p2 = (sql: string) => `${sql} AND projectId = '${project2Id}'`;
+    expect(await count("site_daily_reports", p2("AND status = 'approved'"))).toBe(days.length);
+    expect(await count("site_daily_reports", p2("AND status <> 'approved'"))).toBe(0);
+    for (const table of ["site_daily_report_labour", "site_daily_report_equipment", "site_daily_report_hse", "site_daily_report_tomorrow"]) expect(await count(table, p2("")), table).toBeGreaterThanOrEqual(days.length);
+    expect(await count("site_daily_report_materials", p2(""))).toBeGreaterThan(0);
+    expect(await count("site_daily_report_obstacles", p2(""))).toBeGreaterThan(0);
+    expect(await count("project_companies", p2(""))).toBe(3); // the main contractor and two subcontractors
+    expect(await count("weekly_reports", p2(""))).toBe(weeks.length);
+    const pm = await asPerson("project.manager@show.example.test");
+    for (const weekStart of weeks) {
+      expect(new Date(`${weekStart}T00:00:00Z`).getUTCDay(), `${weekStart} is the Saturday the weekly page opens on`).toBe(6);
+      const week = await pm.reportPeriods.get({ tenantId, projectId: project2Id, kind: "week", anchor: weekStart });
+      const { start, end } = week.period;
+      const inWeek = days.filter(day => day >= start && day <= end);
+      expect(week.reports.map(report => report.date).sort(), weekStart).toEqual(inWeek);
+      expect(week.missingWorkingDays.filter(day => day >= days[0] && day <= days[days.length - 1]), `no working day missing in ${weekStart}`).toEqual([]);
+      const [[labour]] = await connection.query<{ n: number }[]>("SELECT coalesce(sum(l.headcount), 0)::int AS n FROM site_daily_report_labour l JOIN site_daily_reports r ON r.id = l.reportId WHERE r.tenantId = ? AND r.projectId = ? AND r.status = 'approved' AND r.reportDate BETWEEN ? AND ?", [tenantId, project2Id, start, end]);
+      expect(week.labour.period.direct + week.labour.period.indirect, `labour ${weekStart}`).toBe(Number(labour.n));
+      const [[wir]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM pmc_inspection_requests WHERE tenantId = ? AND projectId = ? AND ((requestedAt AT TIME ZONE 'UTC') + interval '3 hours')::date BETWEEN ? AND ?", [tenantId, project2Id, start, end]);
+      expect(week.quality.wir.A + week.quality.wir.B + week.quality.wir.C + week.quality.wir.pending, `WIR ${weekStart}`).toBe(Number(wir.n));
+      const [[nearMiss]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM site_daily_report_hse h JOIN site_daily_reports r ON r.id = h.reportId WHERE r.tenantId = ? AND r.projectId = ? AND r.status = 'approved' AND h.kind = 'near_miss' AND r.reportDate BETWEEN ? AND ?", [tenantId, project2Id, start, end]);
+      expect(week.safety.near_miss, `near misses ${weekStart}`).toBe(Number(nearMiss.n));
+      expect(week.equipment.length, `plant ${weekStart}`).toBeGreaterThan(0);
+      // the activity table: each of the project's three activities has a planned and an actual for the week, equal to its approved lines' sums
+      const [activitySums] = await connection.query<{ id: string; planned: string; actual: string }[]>("SELECT l.pmcActivityDefinitionId AS id, sum(l.plannedQuantity)::text AS planned, sum(l.actualQuantity)::text AS actual FROM site_daily_report_lines l JOIN site_daily_reports r ON r.id = l.reportId WHERE r.tenantId = ? AND r.projectId = ? AND r.status = 'approved' AND l.pmcActivityDefinitionId IS NOT NULL AND r.reportDate BETWEEN ? AND ? GROUP BY 1", [tenantId, project2Id, start, end]);
+      expect(activitySums.length, `activities ${weekStart}`).toBe(3);
+      for (const row of activitySums) {
+        const figure = week.activities.find(activity => activity.activityId === row.id)!;
+        expect([figure.period.planned, figure.period.actual], `activity ${row.id} ${weekStart}`).toEqual([Number(row.planned), Number(row.actual)]);
+      }
+      // the narrative the manager wrote over that week
+      expect((await pm.reportPeriods.weekly({ tenantId, projectId: project2Id, weekStart })).report?.summary, weekStart).toMatch(/\(عرض\)/);
+    }
+    // the month of the latest report: every approved report of that month, no more and no fewer
+    const month = days[days.length - 1].slice(0, 7);
+    const monthly = await pm.reportPeriods.monthly({ tenantId, projectId: project2Id, month });
+    expect(monthly.reports.map(report => report.date).sort()).toEqual(days.filter(day => day.startsWith(month)));
+    // the dailies were prepared by the site engineer and approved by the project manager, through the chain
+    const [chain] = await connection.query<{ preparer: string; reviewer: string }[]>("SELECT DISTINCT p.email AS preparer, v.email AS reviewer FROM site_daily_reports r JOIN users p ON p.id = r.preparedByUserId JOIN users v ON v.id = r.reviewedByUserId WHERE r.tenantId = ? AND r.projectId = ?", [tenantId, project2Id]);
+    expect(chain).toEqual([{ preparer: "site.engineer.2@show.example.test", reviewer: "project.manager@show.example.test" }]);
+  }, 120_000);
+
+  it("Q-55 (1): the weights-mode project — two languages, QC receipts, the site's list linked, two consultant exports, and a comparison that is the cells' own difference", async () => {
+    const pm = await asPerson("project.manager@show.example.test");
+    const scope = { tenantId, projectId };
+    // the catalogue in two languages, a WIR number on every activity
+    expect(await count("pmc_activity_definitions", `AND projectId = '${projectId}' AND (nameEn IS NULL OR wirCode IS NULL)`)).toBe(0);
+    expect(await count("pmc_activity_groups", `AND projectId = '${projectId}' AND nameEn IS NULL`)).toBe(0);
+    // QC receipts: some, and only on work the site has completed
+    expect(await count("pmc_qc_receipts", `AND projectId = '${projectId}'`)).toBeGreaterThan(500);
+    const [[orphanReceipts]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM pmc_qc_receipts r LEFT JOIN pmc_unit_activity_progress p ON p.unitId = r.unitId AND p.activityDefinitionId = r.activityDefinitionId WHERE r.tenantId = ? AND (p.status IS NULL OR p.status <> 'COMPLETE')", [tenantId]);
+    expect(Number(orphanReceipts.n)).toBe(0);
+    // two exports imported a week apart, the second bringing new receipts; the two columns whose WIR differs were matched by the owner
+    const [imports] = await connection.query<{ summaryJson: string }[]>("SELECT summaryJson FROM data_imports WHERE tenantId = ? AND projectId = ? AND moduleCode = 'pmcConsultant' ORDER BY createdAt", [tenantId, projectId]);
+    expect(imports).toHaveLength(2);
+    expect(weightsMode!.imports[1].newlyReceived).toBeGreaterThan(0);
+    const columns = await pm.pmcSite.consultantColumns(scope);
+    expect(columns).toHaveLength(12);
+    expect(columns.filter(column => column.linkMethod === "owner")).toHaveLength(2);
+    // the comparison the screen shows is the difference of the stored cells: site done (done, inspection requested, QC approved) against the consultant's latest state
+    const comparison = await pm.pmcSite.comparison({ ...scope, limit: 1 });
+    expect(comparison.notCompared).toBe(0);
+    const [[expected]] = await connection.query<{ siteDone: number; received: number }[]>(
+      `SELECT count(*) FILTER (WHERE s.status IN ('DONE','INSPECTION_REQUESTED','QC_APPROVED') AND COALESCE(c.status, 'NOT_RECEIVED') = 'NOT_RECEIVED')::int AS "siteDone",
+              count(*) FILTER (WHERE c.status = 'RECEIVED' AND (s.status IS NULL OR s.status NOT IN ('DONE','INSPECTION_REQUESTED','QC_APPROVED')))::int AS "received"
+       FROM pmc_units u CROSS JOIN pmc_site_activities a
+       JOIN pmc_site_activity_links l ON l.siteActivityId = a.id AND l.confirmed
+       JOIN pmc_consultant_columns k ON k.projectId = u.projectId AND k.activityCode = l.activityCode
+       LEFT JOIN pmc_site_cells s ON s.unitId = u.id AND s.siteActivityId = a.id
+       LEFT JOIN pmc_consultant_cells c ON c.unitId = u.id AND c.columnId = k.id
+       WHERE u.tenantId = ? AND u.projectId = ? AND a.projectId = u.projectId`, [tenantId, projectId]);
+    expect(comparison.totals).toEqual({ siteDoneNotReceived: Number(expected.siteDone), receivedNotDone: Number(expected.received) });
+    expect(comparison.totals.siteDoneNotReceived).toBeGreaterThan(0);
+    expect(comparison.totals.receivedNotDone).toBeGreaterThan(0);
+    // at least five villas the stall rule calls stalled
+    const stalled = await pm.pmc.stalledUnits(scope);
+    expect(stalled.counts.stalled + stalled.counts.long).toBeGreaterThanOrEqual(5);
+    // NEGATIVE: a consultant column left unmatched is not compared (never guessed), and the count of what is not compared says so
+    const owner = await asPerson(OWNER);
+    const matched = columns.find(column => column.linkMethod === "owner")!;
+    await owner.pmcSite.linkConsultantColumns({ ...scope, links: [{ columnId: matched.id, activityCode: null }] });
+    expect((await pm.pmcSite.comparison({ ...scope, limit: 1 })).notCompared).toBeGreaterThan(0);
+    await owner.pmcSite.linkConsultantColumns({ ...scope, links: [{ columnId: matched.id, activityCode: matched.activityCode }] });
+    expect((await pm.pmcSite.comparison({ ...scope, limit: 1 })).totals).toEqual(comparison.totals);
+  });
+
+  it("Q-55 (2): the latest report of the reports-mode project exports as Word, with its parties and its sections", async () => {
+    const { startFakeS3 } = await import("./testing/fakeS3"); const { ENV } = await import("./_core/env"); const JSZip = (await import("jszip")).default;
+    const s3 = await startFakeS3();
+    const saved = { ...ENV };
+    Object.assign(ENV, { storageS3Endpoint: s3.endpoint, storageS3Region: "local", storageS3AccessKeyId: "AKIALOCALTEST", storageS3SecretAccessKey: "local-test-only-secret", storageBucket: s3.bucket });
+    try {
+      const [[latest]] = await connection.query<{ id: string }[]>("SELECT id FROM site_daily_reports WHERE tenantId = ? AND projectId = ? ORDER BY reportDate DESC LIMIT 1", [tenantId, project2Id]);
+      const file = await (await asPerson("project.manager@show.example.test")).siteReports.export({ tenantId, projectId: project2Id, reportId: latest.id, format: "docx", locale: "ar" });
+      const zip = await JSZip.loadAsync(Buffer.from(await (await fetch(file.url)).arrayBuffer()));
+      const text = (await zip.file("word/document.xml")!.async("string")).replace(/<[^>]+>/g, "");
+      for (const phrase of ["التقرير اليومي", "مالك المبنى (عرض)", "استشاري العرض أ", "شركة العرض — المقاول الرئيسي", "مقاول الكهروميكانيك (عرض)", "العمالة", "المعدات", "السلامة والصحة المهنية", "خطة الغد", "RPT-"]) expect(text, phrase).toContain(phrase);
+    } finally { Object.assign(ENV, saved); await s3.close(); }
+  }, 60_000);
+
   it("a second run changes nothing: still one company, the same rows", async () => {
-    const rows = await count("pmc_units"); const reports = await count("site_daily_reports");
+    const rows = await count("pmc_units"); const reports = await count("site_daily_reports"); const labour = await count("site_daily_report_labour"); const weekly = await count("weekly_reports");
     const again = await seed.seedDemoCompany({ ownerEmail: OWNER });
     expect(again.created).toBe(false);
     expect(again.tenantId).toBe(tenantId);
     const [companies] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM companies WHERE slug = 'demo-show-company'");
     expect(companies[0].n).toBe(1);
     expect(await count("pmc_units")).toBe(rows); expect(await count("site_daily_reports")).toBe(reports);
+    expect(await count("site_daily_report_labour")).toBe(labour); expect(await count("weekly_reports")).toBe(weekly); // Q-55 (2): the reports-mode project is not built twice
   }, 60_000);
 
   it("each level sees its own answers, and the figures agree with each other", async () => {

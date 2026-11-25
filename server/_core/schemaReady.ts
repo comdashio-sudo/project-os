@@ -95,6 +95,16 @@ export const REQUIRED_SCHEMA = [
   { migration: "0045_employee_reports_to", kind: "column", table: "employees", column: "reports_to_employee_id" },
   // 0046 adds a catalogue row only (Q-53): ready when the permission exists; the code that checks it would otherwise refuse every profitability read
   { migration: "0046_profit_read_permission", kind: "permission", table: "permissions", column: "project.profit.read" },
+  { migration: "0047_strategy_assumptions", kind: "table", table: "strategy_assumptions" },
+  { migration: "0047_strategy_assumptions", kind: "table", table: "strategy_assumption_changes" },
+  { migration: "0048_strategy_market", kind: "column", table: "strategy_assumptions", column: "evidence" },
+  { migration: "0049_strategy_competitors_swot", kind: "table", table: "strategy_competitors" },
+  { migration: "0049_strategy_competitors_swot", kind: "table", table: "strategy_swot_items" },
+  { migration: "0050_strategy_opportunities", kind: "table", table: "strategy_opportunities" },
+  { migration: "0051_strategy_goals_variances", kind: "table", table: "strategy_goals" },
+  { migration: "0051_strategy_goals_variances", kind: "table", table: "strategy_initiatives" },
+  { migration: "0051_strategy_goals_variances", kind: "table", table: "strategy_variances" },
+  { migration: "0052_subcontract_activity_boq_links", kind: "table", table: "subcontract_activity_boq_links" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;

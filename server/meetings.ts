@@ -1,13 +1,21 @@
 // Q-25 (P-113): project meetings and their minutes. A meeting has a type, a time and place, the people who attended (members of the company, or named guests
 // such as the consultant), the minutes item by item (topic, discussion, decision), and the actions it raised — ordinary `actions` rows with meeting_id, so
 // each one appears in its owner's «مهامي» (Q-45 c). The minutes are recorded by whoever records the project's decisions (the project manager, the PMO on
-// this project, the company manager: assertDecisionRecorder) and read by whoever reads the project. «Issued» minutes are final: nothing is added after.
+// this project, the company manager: assertDecisionRecorder) and read by whoever reads the project — or records its minutes (batch 2, B's review of #413: a
+// PMO lead with pmo.write but no project.read wrote minutes it could not open). «Issued» minutes are final: nothing is added after.
+// Batch 2: the minutes as Word or PDF (exportProjectMeeting), from the same reads, written to storage with a signed link back and an audit row.
 // Carry-over: a meeting shows the actions of the project's EARLIER meetings that are still open — the closed ones stay where they were («ترحيل المفتوح فقط»).
 import { TRPCError } from "@trpc/server";
+import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { actions, auditLogs, memberships, projectMeetingAttendees, projectMeetingItems, projectMeetings, users } from "../drizzle/schema";
 import { assertActiveMember, assertDecisionRecorder, assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
+import { buildMeetingMinutesDocument } from "./reportExport/meetingMinutesModel";
+import { renderDailyReportDocx } from "./reportExport/dailyReportDocx";
+import { renderDailyReportPdf } from "./reportExport/dailyReportPdf";
+import { storageDelete, storageGetSignedUrl, storagePut } from "./storage";
+import type { ExportLocale } from "../shared/exportLocale";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -20,7 +28,11 @@ async function access(input: Scope, write: boolean): Promise<Db> {
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
   if (write) assertDecisionRecorder(snapshot, input.tenantId, input.projectId);
-  else assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: ["project.read", "project.manage"], scope: { type: "project", id: input.projectId } });
+  else {
+    // a reader of the project, or whoever records its minutes: who writes the minutes reads them (the refusal given is the reader's)
+    try { assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: ["project.read", "project.manage"], scope: { type: "project", id: input.projectId } }); }
+    catch (refusal) { try { assertDecisionRecorder(snapshot, input.tenantId, input.projectId); } catch { throw refusal; } }
+  }
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   return db;
 }
@@ -115,4 +127,21 @@ export async function issueProjectMeeting(input: Scope & { meetingId: string }) 
     await audit(tx, input, "project.meeting_issued", meeting.id, {});
     return { id: meeting.id, status: "issued" as const };
   });
+}
+
+/** Q-25 batch 2: the minutes as Word or PDF, for whoever may read them (the same gate as getProjectMeeting), written to storage under the company's prefix and
+ *  handed back as a signed link; no file without its audit row (if the row cannot be written the stored file is removed and the export fails). */
+export const MINUTES_EXPORT_FORMATS = ["docx", "pdf"] as const;
+const CONTENT_TYPE = { docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pdf: "application/pdf" } as const;
+export async function exportProjectMeeting(input: Scope & { meetingId: string; format: (typeof MINUTES_EXPORT_FORMATS)[number]; locale: ExportLocale }) {
+  const read = await getProjectMeeting(input); // tenant, project, the meeting of this project and the read permission are checked here
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const model = await buildMeetingMinutesDocument(db, input, read, input.locale);
+  const bytes = input.format === "pdf" ? await renderDailyReportPdf(model) : await renderDailyReportDocx(model);
+  const name = `minutes-${new Date(read.meeting.heldAt).toISOString().slice(0, 10)}-${read.meeting.id.slice(0, 8)}.${input.format}`;
+  const stored = await storagePut(`tenants/${input.tenantId}/projects/${input.projectId}/exports/meetings/${read.meeting.id}/${randomUUID()}-${name}`, bytes, CONTENT_TYPE[input.format]);
+  try { await db.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.meeting_exported", entityType: "project_meeting", entityId: read.meeting.id, metadata: JSON.stringify({ projectId: input.projectId, format: input.format, locale: input.locale, status: read.meeting.status, bytes: bytes.length }) }); }
+  catch (error) { await storageDelete(stored.key).catch(() => undefined); throw error; }
+  return { fileName: name, url: await storageGetSignedUrl(stored.key), bytes: bytes.length };
 }
