@@ -5,8 +5,8 @@
 // obeys the company's quality policy like any other path to COMPLETE.
 import { REPORT_RANGE_CAP } from "../shared/siteReportRange";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { auditLogs, memberships, pmcInspectionRequests, projectReportApprovers, rfis, pmcActivityDefinitions, pmcBlocks, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportCounters, consultantSubmittals, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportTomorrow, siteDailyReportLines, siteDailyReportPhotos, siteDailyReports } from "../drizzle/schema";
+import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
+import { auditLogs, consultantSubmittals, membershipRoles, memberships, permissions, pmcActivityDefinitions, pmcBlocks, pmcInspectionRequests, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportApprovers, projectReportCounters, rfis, rolePermissions, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportLines, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportPhotos, siteDailyReportTomorrow, siteDailyReports, users } from "../drizzle/schema";
 import { siteToday } from "./wo22Shared";
 import { violates } from "./projectProfile";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb, getTenantAccessSnapshot } from "./db";
@@ -216,7 +216,7 @@ export async function submitSiteDailyReportForTenant(input: Scope & { reportId: 
 }
 
 export type AppliedCell = { unitId: string; activityDefinitionId: string; from: PmcUnitActivityStatus | null; to: PmcUnitActivityStatus };
-export type SkippedCell = { unitId: string; activityDefinitionId: string; reason: "NOT_FORWARD"; current: PmcUnitActivityStatus; reported: PmcUnitActivityStatus };
+export type SkippedCell = { unitId: string; activityDefinitionId: string; reason: "NOT_FORWARD" | "QC_NOT_ACCEPTED"; current: PmcUnitActivityStatus; reported: PmcUnitActivityStatus };
 
 /** What approving would do, and what the company's quality policy says about it. Nothing is written. */
 async function planApproval(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: Scope, reportId: string) {
@@ -235,10 +235,10 @@ async function planApproval(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, 
   }
   const completing = moving.filter(cell => cell.status === "COMPLETE");
   const gate = await qcCompletionGate(db, input.tenantId, completing.map(cell => ({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId })));
-  return { moving, skipped, gate };
+  return { moving, skipped, gate, current: (cell: { unitId: string; activityDefinitionId: string }) => currentOf.get(`${cell.unitId}:${cell.activityDefinitionId}`) ?? ("NOT_STARTED" as PmcUnitActivityStatus) };
 }
 
-export async function reviewSiteDailyReportForTenant(input: Scope & { reportId: string; decision: "approve" | "reject"; note?: string; dryRun?: boolean }) {
+export async function reviewSiteDailyReportForTenant(input: Scope & { reportId: string; decision: "approve" | "reject"; note?: string; dryRun?: boolean; leaveNotAccepted?: boolean }) {
   const db = await authorize(input, "project.manage");
   const report = await ownReport(db, input);
   if (report.status !== "submitted") throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_NOT_SUBMITTED");
@@ -259,6 +259,15 @@ export async function reviewSiteDailyReportForTenant(input: Scope & { reportId: 
     return { id: report.id, status: "rejected" as const, applied: [] as AppliedCell[], skipped: [] as SkippedCell[], warnings: [] as CellWarning[], notAccepted: [] };
   }
   const plan = await planApproval(db, input, report.id);
+  // Q-56 (4b): the approver may approve the report and leave the villas QC has not accepted where they are — they stay out of the move, listed as skipped
+  // («QC_NOT_ACCEPTED»), and the quality policy is untouched (nothing reaches COMPLETE without its receipt)
+  if (input.leaveNotAccepted && plan.gate.mode === "block" && plan.gate.notAccepted.length) {
+    const held = new Set(plan.gate.notAccepted.map(cell => `${cell.unitId}:${cell.activityDefinitionId}`));
+    const left = plan.moving.filter(cell => held.has(`${cell.unitId}:${cell.activityDefinitionId}`));
+    plan.moving = plan.moving.filter(cell => !held.has(`${cell.unitId}:${cell.activityDefinitionId}`));
+    plan.skipped.push(...left.map(cell => ({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId, reason: "QC_NOT_ACCEPTED" as const, current: plan.current(cell), reported: cell.status })));
+    plan.gate = { ...plan.gate, notAccepted: [] };
+  }
   if (plan.moving.length) {
     await ensureDefaultCommercialCatalog(db);
     await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.manage", featureCode: "PMC", scope: { type: "project", id: input.projectId } });
@@ -278,11 +287,30 @@ export async function reviewSiteDailyReportForTenant(input: Scope & { reportId: 
       if (result.changed) applied.push({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId, from: result.from as PmcUnitActivityStatus | null, to: cell.status });
       warnings.push(...result.warnings);
     }
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.approved", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: report.reportDate, applied: applied.length, skipped: plan.skipped.length, warnings: warnings.length }) });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.approved", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: report.reportDate, applied: applied.length, skipped: plan.skipped.length, warnings: warnings.length, leftForQc: plan.skipped.filter(cell => cell.reason === "QC_NOT_ACCEPTED").map(cell => ({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId })) }) });
     await emitWebhookEvent(tx, input.tenantId, "daily_report.approved", { reportId: report.id, projectId: input.projectId, reportDate: report.reportDate, cellsMoved: applied.length });
   });
   kickWebhookDelivery();
   return { id: report.id, status: "approved" as const, applied, skipped: plan.skipped, warnings, notAccepted: [] as typeof plan.gate.notAccepted };
+}
+
+/**
+ * Q-56 (4a): who may approve this project's daily reports, by name — what the report's readers need to know where a report goes, and that the preparer is never
+ * one of them for their own report (the client leaves them out). The same rule the approval applies: an active member on the project (company-wide or on this
+ * project) holding project.manage, or — when the project names who approves — that person alone. Names only; no e-mail address, no role.
+ */
+export async function listSiteReportApproversForTenant(input: Scope) {
+  const db = await authorize(input, READ_PERMISSIONS);
+  const chain = await chainOf(db, input);
+  const rows = await db.selectDistinct({ userId: memberships.userId, name: users.name }).from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .innerJoin(membershipRoles, eq(membershipRoles.membershipId, memberships.id))
+    .innerJoin(rolePermissions, eq(rolePermissions.roleId, membershipRoles.roleId))
+    .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
+    .where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.status, "active"), eq(permissions.code, "project.manage"),
+      or(eq(membershipRoles.scopeType, "company"), and(eq(membershipRoles.scopeType, "project"), eq(membershipRoles.scopeId, input.projectId)))));
+  const people = (chain.approve !== null ? rows.filter(row => row.userId === chain.approve) : rows).map(row => ({ userId: row.userId, name: row.name }));
+  return { named: chain.approve !== null, reviewFirst: chain.review !== null, people: people.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")) };
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------ photos
