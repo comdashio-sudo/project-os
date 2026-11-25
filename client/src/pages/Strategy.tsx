@@ -10,6 +10,7 @@ import { pickLanguage, type Language } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { AssumptionActions, NewAssumption } from "./StrategyAssumptionActions";
 import { DecideVariance, NewGoal, NewInitiative, RecordVariance } from "./StrategyGoalActions";
+import StrategyScenarios from "./StrategyScenarios";
 
 const TEXT = {
   ar: {
@@ -178,6 +179,7 @@ export default function Strategy() {
     </header>
     {/* each section stands alone: one that throws shows its own notice and leaves the others (G-100) */}
     <SectionErrorBoundary title={t.assumptions} isArabic={language === "ar"}><Assumptions tenantId={tenantId} t={t} language={language} /></SectionErrorBoundary>
+    <SectionErrorBoundary title={t.assumptions} isArabic={language === "ar"}><StrategyScenarios tenantId={tenantId} language={language} /></SectionErrorBoundary>
     <SectionErrorBoundary title={t.pipeline} isArabic={language === "ar"}><Pipeline tenantId={tenantId} t={t} language={language} /></SectionErrorBoundary>
     <SectionErrorBoundary title={t.goals} isArabic={language === "ar"}><Goals tenantId={tenantId} t={t} language={language} /></SectionErrorBoundary>
     <SectionErrorBoundary title={t.variances} isArabic={language === "ar"}><Variances tenantId={tenantId} t={t} language={language} /></SectionErrorBoundary>
