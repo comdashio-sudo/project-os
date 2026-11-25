@@ -2980,12 +2980,15 @@ export const siteDailyReports = pgTable(
     reportNumber: varchar("report_number", { length: 40 }),
     wind: varchar("wind", { length: 24 }),
     workHours: numeric("work_hours", { precision: 4, scale: 1 }),
+    // Q-58 (1), 0053: several reports of one day are told apart by this (shift, area or contractor)
+    label: varchar("label", { length: 120 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  // one report per engineer per project per day — and, since work order 22, per contractor of that day (the old sheet held one row per contractor per day)
+  // Q-58 (1), 0053: no longer one report per engineer per day (the owner's decision); the reads by day use the plain index
   table => [
-    uniqueIndex("site_daily_reports_project_date_preparer_unique").on(table.projectId, table.reportDate, table.preparedByUserId, sql`coalesce(${table.contractorId}, '')`), index("site_daily_reports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status),
+    index("site_daily_reports_project_date_idx").on(table.projectId, table.reportDate),
+index("site_daily_reports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status),
     uniqueIndex("site_daily_reports_project_number_unique").on(table.projectId, table.reportNumber).where(sql`${table.reportNumber} IS NOT NULL`),
     unique("site_daily_reports_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId),
     check("site_daily_reports_work_hours_check", sql`${table.workHours} IS NULL OR (${table.workHours} >= 0 AND ${table.workHours} <= 24)`),

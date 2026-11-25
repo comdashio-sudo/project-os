@@ -1264,6 +1264,16 @@ export const projectErrorMessages = {
     en: "A company, labour role or machine in the report is not in this project's lists.",
     ur: "رپورٹ میں کوئی کمپنی، مزدور کردار یا مشین اس پروجیکٹ کی فہرستوں میں نہیں ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_DATE_FIXED: {
+    ar: "يوم التقرير لا يتغير بعد حفظه. لتقرير يوم آخر أنشئ تقريرًا جديدًا.",
+    en: "A saved report's day does not change. For another day, start a new report.",
+    ur: "محفوظ رپورٹ کا دن نہیں بدلتا۔ کسی اور دن کے لیے نئی رپورٹ شروع کریں۔",
+  },
+  PROJECT_OS_SITE_REPORT_COPY_WHICH: {
+    ar: "لليوم السابق أكثر من تقرير: اختر التقرير الذي تنسخ منه.",
+    en: "The previous day has more than one report: choose the one to copy from.",
+    ur: "پچھلے دن کی ایک سے زیادہ رپورٹس ہیں: وہ رپورٹ منتخب کریں جس سے نقل کرنی ہے۔",
+  },
   PROJECT_OS_SITE_REPORT_EXISTS: {
     ar: "لك تقرير لهذا اليوم بالفعل، فلا يُنسخ فوقه. افتح التقرير الموجود.",
     en: "You already have a report for this day, so nothing is copied over it. Open the existing report.",

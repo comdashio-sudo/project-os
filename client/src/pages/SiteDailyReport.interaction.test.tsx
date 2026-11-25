@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
     // D-45 (c): what the server reads for the day, and the chain as it stands
     inspections: { wir: { submitted: 3, approved: 1, rejected: 1, pending: 1, items: [{ id: "w1", code: "WIR-001", state: "approved" }, { id: "w2", code: "WIR-002", state: "rejected" }, { id: "w3", code: "WIR-003", state: "pending" }] }, rfi: { submitted: 0, approved: 0, rejected: 0, pending: 0, items: [] as Array<{ id: string; number: string; state: string }> } },
     approval: { prepare: { holder: 5 as number | null, by: 5 as number | null, at: "2026-10-20T08:00:00Z" as string | null }, review: { holder: 7 as number | null, by: null as number | null, at: null as string | null, note: null as string | null }, approve: { holder: null as number | null, by: null as number | null, at: null as string | null } } },
-  me: { id: 7 }, check: vi.fn(), copy: vi.fn(), companiesError: null as unknown,
+  me: { id: 7 }, check: vi.fn(), copy: vi.fn(), copyError: null as null | { message: string }, companiesError: null as unknown,
   companies: [{ id: "c-main", name: "Main Contractor Co.", active: true }, { id: "c-old", name: "Gone Sub Co.", active: false }],
   dryRun: { applied: [{ unitId: "u12", activityDefinitionId: "a-walls", from: null, to: "IN_PROGRESS" }], skipped: [{ unitId: "u13", activityDefinitionId: "a-walls" }], notAccepted: [{ unitId: "u12", activityDefinitionId: "a-walls" }] },
   // Q-56 (4a): who may approve the project's reports (siteReports.approvers), and a refusal the next approval meets (4b)
@@ -54,17 +54,48 @@ vi.mock("@/lib/trpc", () => {
       get: { useQuery: (_input: unknown, config: { enabled: boolean }) => ({ data: config.enabled ? { ...h.detail, photos: h.detail.photos } : undefined, error: null, refetch: vi.fn() }) },
       save: mutation("save"), submit: mutation("submit"), review: mutation("review"), attachPhoto: mutation("attachPhoto"),
       export: { useMutation: () => ({ mutateAsync: vi.fn(async () => ({ url: "https://files.example.test/x.xlsx", fileName: "x.xlsx" })), isPending: false, error: null }) },
-      copyFromYesterday: { useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { h.copy(input); config.onSuccess?.({ id: "r-copy" }, input); }, isPending: false, error: null }) },
+      copyFromYesterday: { useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void; onError?: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { h.copy(input); if (h.copyError && !(input as { sourceReportId?: string }).sourceReportId) { config.onError?.(h.copyError, input); return; } config.onSuccess?.({ id: "r-copy" }, input); }, isPending: false, error: null }) },
       check: { useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { h.check(input); config.onSuccess?.({}, input); }, isPending: false, error: null }) },
     },
   } };
 });
 
-beforeEach(() => { h.reviewError = null; h.approvers = { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }, { userId: 9, name: "Manager Nine" }] }; h.check.mockReset(); h.copy.mockReset(); h.companiesError = null; h.me = { id: 7 }; h.language = "en"; h.submittalsError = null; h.detail.report.status = "rejected"; h.detail.materials = []; h.detail.hse = []; h.detail.obstacleItems = []; h.detail.tomorrow = []; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
+beforeEach(() => { h.copyError = null; h.reviewError = null; h.approvers = { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }, { userId: 9, name: "Manager Nine" }] }; h.check.mockReset(); h.copy.mockReset(); h.companiesError = null; h.me = { id: 7 }; h.language = "en"; h.submittalsError = null; h.detail.report.status = "rejected"; h.detail.materials = []; h.detail.hse = []; h.detail.obstacleItems = []; h.detail.tomorrow = []; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
   h.roles = [{ id: "r-mason", name: "Masons", category: "direct", active: true }, { id: "r-old", name: "Retired trade", category: "direct", active: false }];
   h.machines = [{ id: "e-mix", equipmentType: "Mixer", model: null, plateOrSize: null, active: true }, { id: "e-old", equipmentType: "Crane", model: "C-9", plateOrSize: "50 t", active: false }]; for (const key of ["save", "submit", "review", "attach", "upload"] as const) h[key].mockReset(); h.upload.mockResolvedValue("uploads/key-0123456789"); });
 afterEach(cleanup);
 const type = (label: string | RegExp, value: string, index = 0) => fireEvent.change(screen.getAllByLabelText(label)[index]!, { target: { value } });
+
+describe("SiteDailyReport — several reports of one day (Q-58 1)", () => {
+  it("a save after opening a report names it; a new report is unnamed; the label goes with the save", async () => {
+    h.reports = [{ id: "r9", reportDate: "2026-10-20", status: "draft", weather: "clear" }];
+    h.detail.report.status = "draft";
+    render(<SiteDailyReport />);
+    fireEvent.change(screen.getByLabelText(/Shift \/ area \/ contractor/), { target: { value: "Zone B night" } });
+    fireEvent.click(screen.getByText("Save draft"));
+    expect(h.save.mock.calls[0]![0]).toMatchObject({ label: "Zone B night" });
+    expect(h.save.mock.calls[0]![0]).not.toHaveProperty("reportId");
+    fireEvent.click(screen.getAllByText("Edit")[0]!);
+    await waitFor(() => expect(screen.getByText("New report")).toBeTruthy());
+    fireEvent.click(screen.getByText("Save draft"));
+    expect(h.save.mock.calls.at(-1)![0]).toMatchObject({ reportId: "r9", reportDate: "2026-10-20" });
+  });
+
+  it("«copy from yesterday» meets two reports there: it asks which, and copies the one chosen", () => {
+    h.copyError = { message: "PROJECT_OS_SITE_REPORT_COPY_WHICH" };
+    h.reports = [
+      { id: "y1", reportDate: "2026-10-19", status: "approved", weather: null, preparedByUserId: 7, reportNumber: "DR-0003", label: "Zone A" },
+      { id: "y2", reportDate: "2026-10-19", status: "approved", weather: null, preparedByUserId: 7, reportNumber: "DR-0004", label: "Zone B" },
+      { id: "o1", reportDate: "2026-10-19", status: "approved", weather: null, preparedByUserId: 99, reportNumber: "DR-0005", label: "Someone else" },
+    ] as never;
+    render(<SiteDailyReport />);
+    fireEvent.click(screen.getByText("Copy from yesterday"));
+    const which = document.querySelector("[data-copy-which]") as HTMLElement;
+    expect(within(which).getAllByRole("button").map(button => button.textContent)).toEqual(["DR-0003 · Zone A", "DR-0004 · Zone B"]); // mine only
+    fireEvent.click(within(which).getByText("DR-0004 · Zone B"));
+    expect(h.copy).toHaveBeenLastCalledWith(expect.objectContaining({ sourceReportId: "y2" }));
+  });
+});
 
 describe("SiteDailyReport — the engineer's side", () => {
   it("builds a report from labour, equipment and a work line, refuses a work line that names no real unit or activity, and saves what the server takes", () => {
