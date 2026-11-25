@@ -18,7 +18,7 @@ import { DailyReportDocument, ReportExports } from "@/components/dailyReport/Dai
 import { ApprovalChain, InspectionsSection, PhotoPlace, photoPlaceText } from "@/components/dailyReport/ApprovalSections";
 import { OwnReportNote, WhoApproves } from "@/components/dailyReport/ApprovalWho";
 import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
-import { formatWeekday } from "@/components/ds";
+import { formatDateTime, formatWeekday } from "@/components/ds";
 import { SectionOnlyReport, useReportSections } from "@/components/dailyReport/SectionOnlyReport";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
@@ -436,7 +436,7 @@ export default function SiteDailyReport() {
             // the save bar stays in reach of the thumb while the site engineer scrolls the sections
             // Q-58 (2): one bar for the whole report, fixed to a phone's screen and held at the bottom of a desk's view while the sections scroll
             <div data-save-bar className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t bg-background p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] lg:sticky lg:px-0 lg:shadow-none">
-              <p className="col-span-2 text-xs text-muted-foreground" role="status" data-autosaved={autoSavedAt ? "" : undefined}>{autoSavedAt ? layout.autosaved(autoSavedAt.toLocaleTimeString(language === "ar" ? "ar-SA-u-nu-latn" : language, { hour: "2-digit", minute: "2-digit" })) : layout.autosaveHint}</p>
+              <p className="col-span-2 text-xs text-muted-foreground" role="status" data-autosaved={autoSavedAt ? "" : undefined}>{autoSavedAt ? layout.autosaved(formatDateTime(autoSavedAt, language)) : layout.autosaveHint}</p>
               <Button type="submit" variant="outline" className={`${tap} text-base`} disabled={problems.length > 0 || save.isPending}>{save.isPending ? t.saving : t.save}</Button>
               <Button type="button" className={`${tap} text-base`} disabled={!reportId || problems.length > 0 || submit.isPending} onClick={() => { setMessage(null); if (reportId) submit.mutate({ ...scope, reportId }); }}>{submit.isPending ? t.submitting : t.submit}</Button>
             </div>
