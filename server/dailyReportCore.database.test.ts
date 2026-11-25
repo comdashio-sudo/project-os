@@ -75,7 +75,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
   it("a full report is saved with a system number; the totals read back equal the sum of its rows; a second save keeps the number", async () => {
     const saved = await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", weather: "sunny", wind: "NW 15 km/h", workHours: 10, lines: [{ lineType: "work", description: "Block work, zone 1", plannedQuantity: 120, actualQuantity: 95.5 }], labour: labour(), equipment: equipment() });
     expect(saved.reportNumber).toBe("DRX-0001");
-    const again = await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", weather: "sunny", wind: "N 10 km/h", workHours: 9, lines: [{ lineType: "work", description: "Block work, zone 1", plannedQuantity: 120, actualQuantity: 95.5 }], labour: labour(), equipment: equipment() });
+    const again = await callers.engineer.siteReports.save({ ...at(), reportId: saved.id, reportDate: "2026-11-01", weather: "sunny", wind: "N 10 km/h", workHours: 9, lines: [{ lineType: "work", description: "Block work, zone 1", plannedQuantity: 120, actualQuantity: 95.5 }], labour: labour(), equipment: equipment() });
     expect(again).toMatchObject({ id: saved.id, reportNumber: "DRX-0001" });
     const read = await callers.viewer.siteReports.get({ ...at(), reportId: saved.id });
     expect(read.report).toMatchObject({ reportNumber: "DRX-0001", wind: "N 10 km/h", workHours: 9 });
@@ -88,13 +88,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
     expect(read.lines[0]).toMatchObject({ plannedQuantity: 120, actualQuantity: 95.5, variance: -24.5 });
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_labour WHERE reportId = ?", [saved.id])).toBe(4); // the second save replaced, not added
     // a save without the lists leaves them as they are; an empty list clears that list only
-    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", weather: "windy", lines: [{ lineType: "work", description: "Block work, zone 1", plannedQuantity: 120, actualQuantity: 95.5 }] });
+    await callers.engineer.siteReports.save({ ...at(), reportId: saved.id, reportDate: "2026-11-01", weather: "windy", lines: [{ lineType: "work", description: "Block work, zone 1", plannedQuantity: 120, actualQuantity: 95.5 }] });
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_labour WHERE reportId = ?", [saved.id])).toBe(4);
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_equipment WHERE reportId = ?", [saved.id])).toBe(2);
-    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", lines: [], equipment: [] });
+    await callers.engineer.siteReports.save({ ...at(), reportId: saved.id, reportDate: "2026-11-01", lines: [], equipment: [] });
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_equipment WHERE reportId = ?", [saved.id])).toBe(0);
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_labour WHERE reportId = ?", [saved.id])).toBe(4);
-    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-11-01", weather: "sunny", wind: "N 10 km/h", workHours: 9, lines: [{ lineType: "work", description: "Block work, zone 1", plannedQuantity: 120, actualQuantity: 95.5 }], labour: labour(), equipment: equipment() });
+    await callers.engineer.siteReports.save({ ...at(), reportId: saved.id, reportDate: "2026-11-01", weather: "sunny", wind: "N 10 km/h", workHours: 9, lines: [{ lineType: "work", description: "Block work, zone 1", plannedQuantity: 120, actualQuantity: 95.5 }], labour: labour(), equipment: equipment() });
   });
 
   it("numbers are sequential with no duplicate when reports are saved at the same moment", async () => {
@@ -116,22 +116,23 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_equipment WHERE reportId = ? AND ((equipmentId = ? AND count = 1 AND hours = 8) OR (equipmentId = ? AND count = 2 AND hours = 6.5))", [copied.id, lists.crane, lists.loader])).toBe(2);
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_report_lines WHERE reportId = ?", [copied.id])).toBe(0);
     expect(await count("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'site_report.copied' AND entityId = ?", [tenantId, copied.id])).toBe(1);
-    // over an existing report of the day, before any report, and without the permission: refused, nothing written
-    expect(await code(callers.engineer.siteReports.copyFromYesterday({ ...at(), reportDate: "2026-11-02" }))).toBe("PROJECT_OS_SITE_REPORT_EXISTS");
+    // Q-58 (1): a day may hold several reports — a second copy into a day that has one is a second report of that day (from the same source, the last earlier day)
+    const second = await callers.engineer.siteReports.copyFromYesterday({ ...at(), reportDate: "2026-11-02" });
+    expect(second).toMatchObject({ reportNumber: "DRX-0006", from: source.id, labour: 4 });
+    // before any report, and without the permission: refused, nothing written
     expect(await code(callers.engineer2.siteReports.copyFromYesterday({ ...at(), reportDate: "2026-10-01" }))).toBe("PROJECT_OS_SITE_REPORT_NOTHING_TO_COPY");
     expect(await code(callers.viewer.siteReports.copyFromYesterday({ ...at(), reportDate: "2026-11-03" }))).toBe("PROJECT_OS_PERMISSION_DENIED");
-    expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ?", [tenantId])).toBe(5);
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ?", [tenantId])).toBe(6);
   });
 
-  it("five copies or five saves of the same day at the same moment: one report, the others get «a report for this day exists», never a server error; no gap in the numbers", async () => {
+  it("Q-58 (1): five copies or five new saves of the same day at the same moment: five reports of that day, each its own number, never a server error; no gap in the numbers", async () => {
     const copies = await Promise.all(Array.from({ length: 5 }, () => code(callers.engineer2.siteReports.copyFromYesterday({ ...at(), reportDate: "2026-11-04" }))));
-    expect(copies.filter(result => result === "no error")).toHaveLength(1);
-    expect(copies.filter(result => result === "PROJECT_OS_SITE_REPORT_EXISTS")).toHaveLength(4);
-    expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate = '2026-11-04'", [tenantId, ids.engineer2])).toBe(1);
+    expect(copies).toEqual(["no error", "no error", "no error", "no error", "no error"]);
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate = '2026-11-04'", [tenantId, ids.engineer2])).toBe(5);
     const saves = await Promise.all(Array.from({ length: 5 }, (_v, i) => code(callers.engineer2.siteReports.save({ ...at(), reportDate: "2026-10-25", workHours: i + 1, lines: [], labour: [labour()[0]] }))));
-    expect(saves.every(result => result === "no error" || result === "PROJECT_OS_SITE_REPORT_EXISTS"), saves.join(", ")).toBe(true);
-    expect(saves).toContain("no error");
-    expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate = '2026-10-25'", [tenantId, ids.engineer2])).toBe(1);
+    expect(saves).toEqual(["no error", "no error", "no error", "no error", "no error"]);
+    expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate = '2026-10-25'", [tenantId, ids.engineer2])).toBe(5);
+    expect(await count("SELECT COUNT(DISTINCT reportNumber) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate IN ('2026-10-25', '2026-11-04')", [tenantId, ids.engineer2])).toBe(10);
     // the losers' counter bumps were rolled back with them: the counter equals the number of numbered reports, and the numbers run 1..n without a hole
     const numbered = await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND projectId = ? AND reportNumber IS NOT NULL", [tenantId, A]);
     expect(await count("SELECT lastNumber AS n FROM project_report_counters WHERE tenantId = ? AND projectId = ? AND kind = 'daily'", [tenantId, A])).toBe(numbered);
@@ -202,17 +203,19 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
   // Q-24 (P-120): a report kept on the phone while offline is not sent over a report saved after it was kept — refused, shown, the newer one stands;
   // one kept after the last save goes through, once (the same identifier again answers the stored result).
   it("Q-24: a report kept offline before a newer save of the same day is refused (CHANGED_SINCE) and the newer stands; one kept after it is saved, once", async () => {
-    await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "sunny", lines: [] });
+    // Q-58 (1): a save of an existing report names it (reportId) — several reports of one day are allowed, so the day alone no longer finds it
+    const first = await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "sunny", lines: [] });
     await new Promise(resolve => setTimeout(resolve, 20));
     const keptAt = new Date().toISOString();
     await new Promise(resolve => setTimeout(resolve, 20));
-    const newer = await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "windy", lines: [] });
-    expect(await code(callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "rainy", lines: [], queuedAt: keptAt, clientRequestId: crypto.randomUUID() }))).toBe("PROJECT_OS_SITE_REPORT_CHANGED_SINCE");
+    const newer = await callers.engineer.siteReports.save({ ...at(), reportId: first.id, reportDate: "2026-10-15", weather: "windy", lines: [] });
+    expect(newer.id).toBe(first.id);
+    expect(await code(callers.engineer.siteReports.save({ ...at(), reportId: first.id, reportDate: "2026-10-15", weather: "rainy", lines: [], queuedAt: keptAt, clientRequestId: crypto.randomUUID() }))).toBe("PROJECT_OS_SITE_REPORT_CHANGED_SINCE");
     expect((await callers.engineer.siteReports.get({ ...at(), reportId: newer.id })).report.weather).toBe("windy");
     await new Promise(resolve => setTimeout(resolve, 20));
     const queuedAt = new Date().toISOString(); const clientRequestId = crypto.randomUUID();
-    const sent = await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "rainy", lines: [], queuedAt, clientRequestId });
-    expect(await callers.engineer.siteReports.save({ ...at(), reportDate: "2026-10-15", weather: "rainy", lines: [], queuedAt, clientRequestId })).toEqual(sent);
+    const sent = await callers.engineer.siteReports.save({ ...at(), reportId: first.id, reportDate: "2026-10-15", weather: "rainy", lines: [], queuedAt, clientRequestId });
+    expect(await callers.engineer.siteReports.save({ ...at(), reportId: first.id, reportDate: "2026-10-15", weather: "rainy", lines: [], queuedAt, clientRequestId })).toEqual(sent);
     expect((await callers.engineer.siteReports.get({ ...at(), reportId: newer.id })).report.weather).toBe("rainy");
   });
 });
