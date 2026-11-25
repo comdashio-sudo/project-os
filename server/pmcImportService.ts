@@ -114,6 +114,19 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
   if (input.kind === "weights") {
     const models = (await db.selectDistinct({ modelCode: pmcUnits.modelCode }).from(pmcUnits).where(mine(pmcUnits, scope))).map(row => row.modelCode).sort();
     const translated = weightsToCatalogRows(parsed.rows, models, parsed.notes?.fileTotals ?? []);
+    // Q-56 (5): a file with no activity-code column names its activities by their names, and the codes made from those names are not the codes an
+    // earlier file saved (the owner's original carries «WIR.3.1.1»…, his edited copy none) — so every saved activity read as «omitted» and the whole file
+    // was refused. Such a row takes the saved code of the activity of the same model with the same name (only where exactly one has it): a re-import
+    // updates the activities instead of dropping them. A file that writes its codes is read as written; an activity with no saved twin is new.
+    if (!parsed.rows.some(row => String(row.cells.activityCode ?? "").trim())) {
+      const saved = await db.select({ modelCode: pmcActivityDefinitions.modelCode, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, scope));
+      const byName = new Map<string, string[]>();
+      for (const definition of saved) { const key = `${definition.modelCode}\u0000${definition.name.trim()}`; byName.set(key, [...(byName.get(key) ?? []), definition.code]); }
+      for (const row of translated.rows) {
+        const codes = byName.get(`${String(row.cells.modelCode ?? "")}\u0000${String(row.cells.activityName ?? "").trim()}`);
+        if (codes?.length === 1) row.cells.activityCode = codes[0];
+      }
+    }
     // Q-50 batch 5a: the file's own totals line against the sum read (said in the report, never a block: the 100% rule per model decides)
     const extra = { ignoredZeroWeight: translated.ignoredZeroWeight, scaledFromFractions: translated.scaledFromFractions, models, ...(translated.totalChecks.length ? { totalChecks: translated.totalChecks } : {}) };
     if (translated.errors.length) return { report: report("weights", fileHash, total, translated.errors, { create: 0, update: 0, unchanged: 0 }, extra), apply: null };
