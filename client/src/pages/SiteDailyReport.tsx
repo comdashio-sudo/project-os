@@ -1,3 +1,4 @@
+import { DailyRangeExport } from "@/components/dailyReport/DailyRangeExport";
 import { Button } from "@/components/ui/button";
 import { CameraCapture, Select } from "@/components/ds";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
@@ -368,6 +369,7 @@ export default function SiteDailyReport() {
         </>
       )}
 
+      {list.data && <DailyRangeExport tenantId={tenantId} projectId={projectId} />}
       <section className="space-y-2" aria-label={t.recent}>
         <h2 className="text-base font-semibold">{t.recent}</h2>
         {reports.length === 0 && <p className="text-sm text-muted-foreground">{t.noReports}</p>}

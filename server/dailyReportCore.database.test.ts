@@ -168,6 +168,26 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
     expect(await code(callers.owner.siteReports.get({ ...at(B), reportId: report.id }))).toBe("PROJECT_OS_SITE_REPORT_NOT_FOUND");
   });
 
+  // Q-57 (4): the period export reads the list between two dates (inclusive) through the same gate as the list itself
+  it("Q-57: siteReports.list with from/to returns only the days inside the bounds (inclusive), reads past the 60 most recent, and keeps the permission and isolation gates", async () => {
+    const all = await callers.owner.siteReports.list(at());
+    expect(all.length).toBeGreaterThan(1);
+    const days = Array.from(new Set(all.map(row => row.reportDate))).sort();
+    expect(days.length).toBeGreaterThan(1);
+    const [first, last] = [days[0], days[days.length - 1]];
+    const one = await callers.owner.siteReports.list({ ...at(), from: first, to: first });
+    expect(one.length).toBeGreaterThan(0);
+    expect(one.every(row => row.reportDate === first)).toBe(true);
+    expect((await callers.owner.siteReports.list({ ...at(), from: first, to: last })).length).toBe(all.length);
+    expect(await callers.owner.siteReports.list({ ...at(), from: "2999-01-01", to: "2999-12-31" })).toEqual([]);
+    expect((await callers.owner.siteReports.list({ ...at(), from: "2000-01-01", to: "2000-01-02" }))).toEqual([]);
+    // negative: a role without the report permission and another company are refused with a range too
+    expect(await code(callers.manager.siteReports.list({ ...at(B), from: first, to: last }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callers.otherOwner.siteReports.list({ ...at(), from: first, to: last }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    // a malformed bound is refused by the input check, not turned into a query
+    await expect(callers.owner.siteReports.list({ ...at(), from: "yesterday" } as never)).rejects.toThrow();
+  });
+
   // Q-24 (P-120): a report kept on the phone while offline is not sent over a report saved after it was kept — refused, shown, the newer one stands;
   // one kept after the last save goes through, once (the same identifier again answers the stored result).
   it("Q-24: a report kept offline before a newer save of the same day is refused (CHANGED_SINCE) and the newer stands; one kept after it is saved, once", async () => {

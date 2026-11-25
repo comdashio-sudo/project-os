@@ -8,6 +8,7 @@ import { useCan } from "@/lib/permissions";
 import { PAGE_NAMES, PROJECT_SUBPAGE_NAMES } from "@shared/pageNames";
 import { Briefcase, ClipboardList, FileBarChart, FolderKanban, Gauge, HardHat, Handshake, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, UsersRound, Wallet, Warehouse, type LucideIcon } from "lucide-react";
 import { InShellProvider } from "@/components/pageFrame";
+import { PageActions, PrintHeader } from "@/components/PageActions";
 import React from "react";
 import { useLocation } from "wouter";
 
@@ -126,6 +127,10 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   else if (subpage) crumbs.push({ label: pickLanguage(language, PAGE_NAMES[subpage]) });
   else if (active) crumbs.push({ label: active.label });
 
+  // Q-57: what the printed sheet and the exported file say about where they came from
+  const companyName = (tenants.data ?? []).find(item => item.tenantId === tenantId)?.legalName;
+  const projectName = currentProject ? `${currentProject.code} · ${currentProject.name}` : undefined;
+  const pageTitle = crumbs[crumbs.length - 1]?.label ?? "";
   const companies = (tenants.data ?? []).map(item => ({ value: item.tenantId, label: item.legalName }));
   const projectOptions = (projects.data ?? []).map(item => ({ value: item.id, label: `${item.code} · ${item.name}` }));
 
@@ -142,6 +147,8 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
         project={projectId ?? ""}
         onProject={value => setLocation(projectSwitchHref(location, tenantId, projectId, value))}
         breadcrumbs={crumbs}
+        actions={<PageActions company={companyName} project={projectName} pageTitle={pageTitle} />}
+        printHeader={<PrintHeader company={companyName} project={projectName} pageTitle={pageTitle} user={user?.name ?? undefined} />}
         user={{ name: user?.name ?? "", email: user?.email ?? "" }}
         onSignOut={() => { void logout(); }}
         onMyCompanies={() => setLocation(`/companies/${tenantId}`)}
