@@ -6,6 +6,7 @@ import React, { useState } from "react";
 import { useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, MetricCard, Segmented, Select, TextInput, type BadgeTone } from "@/components/ds";
 import { formatAmount, formatDate, formatDateTime } from "@/components/ds/format";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { PageHeader, PageMain } from "@/components/pageFrame";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -121,6 +122,12 @@ function Incidents({ incidents, t, tenantId, projectId, onChanged }: { incidents
   return (
     <section aria-label={t.incidents} className="flex flex-col gap-3">
       <WriteGate permission={WRITERS} projectId={projectId}>{!adding ? <div><Button onClick={() => setAdding(true)}>{t.record}</Button></div> : <IncidentForm t={t} tenantId={tenantId} projectId={projectId} onDone={() => { setAdding(false); onChanged(); }} onCancel={() => setAdding(false)} />}</WriteGate>
+      <div><ExportExcelButton fileName="safety-incidents" sheetName={t.incidents} title={t.incidents} rows={incidents} columns={[
+        { header: t.number, value: row => row.incidentNumber }, { header: t.date, kind: "date", value: row => (row.occurredOn ? new Date(`${String(row.occurredOn).slice(0, 10)}T12:00:00Z`) : null) },
+        { header: t.kind, value: row => t.kinds[row.kind] }, { header: t.title, value: row => row.title }, { header: t.description, value: row => row.description },
+        { header: t.location, value: row => row.location ?? "" }, { header: t.people, kind: "number", value: row => row.peopleInvolved }, { header: t.lostDays, kind: "number", value: row => row.lostDays },
+        { header: t.rootCause, value: row => row.rootCause ?? "" }, { header: t.correctiveAction, value: row => row.correctiveAction ?? "" }, { header: t.reportedBy, value: row => row.reportedBy ?? "" },
+      ]} /></div>
       {!incidents.length ? <p className="text-sm text-muted-foreground">{t.noIncidents}</p> : null}
       {incidents.map(incident => (
         <Card key={incident.id} data-incident={incident.incidentNumber}><CardBody className="flex flex-col gap-2 text-sm">
@@ -194,6 +201,12 @@ function Permits({ permits, t, tenantId, projectId, onChanged }: { permits: Perm
   return (
     <section aria-label={t.permits} className="flex flex-col gap-3">
       <WriteGate permission={WRITERS} projectId={projectId}>{!adding ? <div><Button onClick={() => setAdding(true)}>{t.issue}</Button></div> : <PermitForm t={t} tenantId={tenantId} projectId={projectId} onDone={() => { setAdding(false); onChanged(); }} onCancel={() => setAdding(false)} />}</WriteGate>
+      <div><ExportExcelButton fileName="work-permits" sheetName={t.permits} title={t.permits} rows={permits} columns={[
+        { header: t.number, value: row => row.permitNumber }, { header: t.permitType, value: row => t.permitTypes[row.permitType] }, { header: t.description, value: row => row.description },
+        { header: t.location, value: row => row.location ?? "" }, { header: t.responsible, value: row => row.responsibleParty ?? "" },
+        { header: t.validFrom, kind: "date", value: row => new Date(row.validFrom) }, { header: t.validTo, kind: "date", value: row => new Date(row.validTo) },
+        { header: pickLanguage(language, { ar: "الحالة", en: "Status", ur: "حالت" }), value: row => t.states[row.state] }, { header: t.note, value: row => row.closeNote ?? "" },
+      ]} /></div>
       {!permits.length ? <p className="text-sm text-muted-foreground">{t.noPermits}</p> : null}
       {permits.map(permit => (
         <Card key={permit.id} data-permit={permit.permitNumber}><CardBody className="flex flex-col gap-2 text-sm">
