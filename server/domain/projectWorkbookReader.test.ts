@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { buildProjectWorkbook, FIRST_DATA_ROW, projectWorkbookSheets } from "./projectWorkbook";
-import { readProjectWorkbook } from "./projectWorkbookReader";
+import { readProjectWorkbook, WORKBOOK_MAX_ROWS } from "./projectWorkbookReader";
 
 // Q-51 batch 2a: reading the workbook back. Built with buildProjectWorkbook, filled as a company would, read with readProjectWorkbook. Synthetic data only.
 const sheets = projectWorkbookSheets();
@@ -73,5 +73,10 @@ describe("Q-51 batch 2a: reading the project workbook", () => {
       const ws = book.getWorksheet(spec("units").en)!; ws.getCell(1, 3).value = "Something else"; ws.getCell(2, 3).value = "Something else";
     }));
     expect(renamed.units).toMatchObject({ status: "errors", rows: [], errors: [{ code: "WORKBOOK_HEADERS_CHANGED", row: 1 }] });
+  });
+  it("review of #527 — NEGATIVE: a sheet declaring more rows than the cap is refused with its own error, before its rows are walked", async () => {
+    const read = await report(await workbook("en", {}, book => { book.getWorksheet(spec("units").en)!.getCell(FIRST_DATA_ROW + WORKBOOK_MAX_ROWS + 5, 2).value = "B9"; }));
+    expect(read.units).toMatchObject({ status: "errors", rows: [], errors: [{ code: "WORKBOOK_TOO_MANY_ROWS" }] });
+    expect(read.models.status).toBe("empty");
   });
 });

@@ -6,7 +6,10 @@
 import ExcelJS from "exceljs";
 import { FIRST_DATA_ROW, PROJECT_WORKBOOK_VERSION, projectWorkbookSheets, type WorkbookSheet } from "./projectWorkbook";
 
-export type WorkbookError = { sheet: string; row: number; field: string; code: "WORKBOOK_KEY_MISSING" | "WORKBOOK_KEY_DUPLICATE" | "WORKBOOK_REQUIRED_MISSING" | "WORKBOOK_HEADERS_CHANGED" };
+export type WorkbookError = { sheet: string; row: number; field: string; code: "WORKBOOK_KEY_MISSING" | "WORKBOOK_KEY_DUPLICATE" | "WORKBOOK_REQUIRED_MISSING" | "WORKBOOK_HEADERS_CHANGED" | "WORKBOOK_TOO_MANY_ROWS" };
+/** Review of #527: the most rows a sheet may declare. A small compressed file can declare hundreds of thousands of empty formatted rows; past this the sheet
+ *  is refused with its own error, before any row is walked. */
+export const WORKBOOK_MAX_ROWS = 20_000;
 export type WorkbookSheetReport = { key: string; status: "empty" | "complete" | "errors"; rows: Array<{ row: number; cells: Record<string, string> }>; errors: WorkbookError[] };
 export type WorkbookReading = { recognised: true; sheets: WorkbookSheetReport[] } | { recognised: false; code: "WORKBOOK_NOT_RECOGNISED" };
 
@@ -35,6 +38,7 @@ function readSheet(ws: ExcelJS.Worksheet | undefined, sheet: WorkbookSheet): Wor
   const en = sheet.columns.map((_, index) => normalize(text(ws.getCell(2, index + 2).value)));
   const changed = sheet.columns.findIndex((column, index) => ar[index] !== normalize(column.ar) && en[index] !== normalize(column.en));
   if (changed >= 0) return { key: sheet.key, status: "errors", rows: [], errors: [{ sheet: sheet.key, row: 1, field: sheet.columns[changed].key, code: "WORKBOOK_HEADERS_CHANGED" }] };
+  if (ws.rowCount - (FIRST_DATA_ROW - 3) > WORKBOOK_MAX_ROWS) return { key: sheet.key, status: "errors", rows: [], errors: [{ sheet: sheet.key, row: ws.rowCount, field: "", code: "WORKBOOK_TOO_MANY_ROWS" }] };
   const rows: WorkbookSheetReport["rows"] = []; const errors: WorkbookError[] = []; const seen = new Map<string, number>();
   for (let row = FIRST_DATA_ROW - 2; row <= ws.rowCount; row++) {
     if (EXAMPLE.has(normalize(text(ws.getCell(row, 1).value)))) continue;

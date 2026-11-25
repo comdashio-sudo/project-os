@@ -25,6 +25,11 @@ async function workbook(fill: Record<string, Array<Record<string, string | numbe
   return Buffer.from(await book.xlsx.writeBuffer()).toString("base64");
 }
 const count = async (table: string) => Number(((await connection.query<{ n: number }[]>(`SELECT COUNT(*)::int AS n FROM ${table} WHERE tenantId = ? AND projectId = ?`, [tenantId, P]))[0] as Array<{ n: number }>)[0].n);
+/** As the screen does: preview, then save the very file previewed with its fingerprint. */
+const previewThenApply = async (key: (typeof KEYS)[number], fileBase64: string) => {
+  const preview = await caller(key).dataImports.projectWorkbookPreview({ tenantId, projectId: P, fileBase64 });
+  return caller(key).dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64, approvedHash: preview.fileHash });
+};
 const byKey = (result: { sheets: Array<{ key: string }> }) => Object.fromEntries(result.sheets.map(sheet => [sheet.key, sheet]));
 
 const FULL = {
@@ -65,26 +70,39 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-51 batch 2a: applying 
   }, 120_000);
   afterAll(async () => { if (connection) { await clear(); await connection.end(); } });
 
+  it("review of #527 — PREVIEW: says what each sheet would do, computed as the save would (later sheets see earlier ones), and writes nothing; the save refuses another file than the one previewed", async () => {
+    const before = [await count("pmc_units"), await count("pmc_activity_definitions"), await count("pmc_inspection_requests")];
+    const file = await workbook(FULL);
+    const preview = await caller("owner").dataImports.projectWorkbookPreview({ tenantId, projectId: P, fileBase64: file });
+    const sheets = byKey(preview);
+    for (const key of ["units", "activities", "baseline", "status", "requests"]) expect(sheets[key], key).toMatchObject({ status: "will_apply", errors: [] });
+    expect(sheets.units).toMatchObject({ counts: { create: 2 } });
+    expect([await count("pmc_units"), await count("pmc_activity_definitions"), await count("pmc_inspection_requests")]).toEqual(before); // nothing written
+    // NEGATIVE: a fingerprint that is not the previewed file's is refused, and nothing is written
+    await expect(caller("owner").dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64: await workbook({ units: FULL.units }), approvedHash: preview.fileHash })).rejects.toThrow("PROJECT_OS_PMC_IMPORT_FILE_CHANGED");
+    expect([await count("pmc_units"), await count("pmc_activity_definitions"), await count("pmc_inspection_requests")]).toEqual(before);
+  });
+
   it("POSITIVE: one upload writes the PMC sheets in order; the same upload again updates and duplicates nothing", async () => {
     const file = await workbook(FULL);
-    const first = byKey(await caller("owner").dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64: file }));
+    const first = byKey(await previewThenApply("owner", file));
     for (const key of ["units", "activities", "baseline", "status", "requests"]) expect(first[key], key).toMatchObject({ status: "applied", errors: [] });
     expect(first.units).toMatchObject({ counts: { create: 2, update: 0 } });
     expect(first.models).toMatchObject({ status: "not_applied_yet" }); // its models are read through the units and activities sheets
     expect(first.budget).toMatchObject({ status: "empty" });
     expect([await count("pmc_units"), await count("pmc_activity_definitions"), await count("pmc_inspection_requests")]).toEqual([2, 3, 1]);
-    const again = byKey(await caller("owner").dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64: file }));
+    const again = byKey(await previewThenApply("owner", file));
     expect(again.units).toMatchObject({ status: "applied", counts: { create: 0, update: 0, unchanged: 2 } });
     expect([await count("pmc_units"), await count("pmc_activity_definitions"), await count("pmc_inspection_requests")]).toEqual([2, 3, 1]);
   });
 
   it("NEGATIVE: a sheet with an error writes nothing and says where (sheet, row, field); the sound sheets are applied; a composite key left half-empty is refused before any write", async () => {
     const before = await count("pmc_inspection_requests");
-    const result = byKey(await caller("owner").dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64: await workbook({
+    const result = byKey(await previewThenApply("owner", await workbook({
       ...FULL,
       requests: [{ requestCode: "WIR-Q51-2", activityCode: "A-01", unitNumbers: "999", requestedAt: "2027-02-10" }], // a villa the project does not have
       status: [{ unitNumber: 101, status: "COMPLETE" }], // the activity part of the key is missing
-    }) }));
+    })));
     expect(result.units).toMatchObject({ status: "applied" });
     expect(result.requests).toMatchObject({ status: "refused" });
     expect(result.requests.errors[0]).toMatchObject({ sheet: "requests", rowNumber: FIRST_DATA_ROW, code: "PMC_UNIT_NOT_FOUND" });
@@ -94,9 +112,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-51 batch 2a: applying 
 
   it("NEGATIVE: a file that is not a Dashio workbook is refused; another company cannot apply into this project", async () => {
     const plain = new ExcelJS.Workbook(); plain.addWorksheet("Sheet1").addRow(["x"]);
-    await expect(caller("owner").dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64: Buffer.from(await plain.xlsx.writeBuffer()).toString("base64") })).rejects.toThrow("PROJECT_OS_WORKBOOK_NOT_RECOGNISED");
+    await expect(previewThenApply("owner", Buffer.from(await plain.xlsx.writeBuffer()).toString("base64"))).rejects.toThrow("PROJECT_OS_WORKBOOK_NOT_RECOGNISED");
     const units = await count("pmc_units");
-    await expect(caller("outsider").dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64: await workbook(FULL) })).rejects.toThrow();
+    await expect(caller("outsider").dataImports.projectWorkbookPreview({ tenantId, projectId: P, fileBase64: await workbook(FULL) })).rejects.toThrow();
+    await expect(caller("outsider").dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64: await workbook(FULL), approvedHash: "0".repeat(64) })).rejects.toThrow();
     expect(await count("pmc_units")).toBe(units);
   });
 });
