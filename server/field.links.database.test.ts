@@ -99,7 +99,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report, submit
     // an engineer cannot approve; the person who wrote it cannot either (here a PM who prepared their own report)
     await expect(callers.engineer.siteReports.submit({ ...scope(), reportId: saved.id })).resolves.toMatchObject({ status: "submitted" });
     await expect(callers.engineer.siteReports.review({ ...scope(), reportId: saved.id, decision: "approve" })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
-    await expect(callers.engineer.siteReports.save({ ...scope(), reportDate: daysAgo(1), lines: [] })).rejects.toThrow("PROJECT_OS_SITE_REPORT_LOCKED");
+    await expect(callers.engineer.siteReports.save({ ...scope(), reportId: saved.id, reportDate: daysAgo(1), lines: [] })).rejects.toThrow("PROJECT_OS_SITE_REPORT_LOCKED");
     const own = await callers.pm.siteReports.save({ ...scope(), reportDate: daysAgo(1), summary: "PM's own", lines: [] });
     await callers.pm.siteReports.submit({ ...scope(), reportId: own.id });
     await expect(callers.pm.siteReports.review({ ...scope(), reportId: own.id, decision: "approve" })).rejects.toThrow("PROJECT_OS_SITE_REPORT_SELF_REVIEW");
@@ -132,7 +132,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report, submit
     const second = await callers.engineer.siteReports.save({ ...scope(), reportDate: daysAgo(3), summary: "Rainy day", lines: [] });
     await callers.engineer.siteReports.submit({ ...scope(), reportId: second.id });
     await callers.pm.siteReports.review({ ...scope(), reportId: second.id, decision: "reject", note: "Add the labour count" });
-    const again = await callers.engineer.siteReports.save({ ...scope(), reportDate: daysAgo(3), summary: "Rainy day", lines: [{ lineType: "labour", label: "Masons", quantity: 0.5 }] });
+    const again = await callers.engineer.siteReports.save({ ...scope(), reportId: second.id, reportDate: daysAgo(3), summary: "Rainy day", lines: [{ lineType: "labour", label: "Masons", quantity: 0.5 }] });
     expect(again.id).toBe(second.id); // the same report, back to draft
     await expect(callers.engineer.siteReports.submit({ ...scope(), reportId: second.id })).resolves.toMatchObject({ status: "submitted" });
   });

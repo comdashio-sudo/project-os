@@ -5,6 +5,7 @@ import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { useCan, usePermissionsLoading, WriteGate } from "@/lib/permissions";
+import { projectErrorCode } from "@/lib/errorCode";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { useDirectUpload } from "@/lib/useDirectUpload";
@@ -30,6 +31,12 @@ import { useParams } from "wouter";
 // computes progress: the server moves the cells when the report is approved, and says which lines it left alone and why.
 // "None" in a list: the custom list (Radix) cannot hold an empty value, so it carries this one and the screen reads it as empty.
 const NONE = "__none";
+// Q-58 (1): several reports of one day — the label that tells them apart, and «copy from which report?» when the previous day holds two or more
+const manyText = {
+  ar: { label: "الوردية / المنطقة / المقاول (اختياري)", labelHint: "يميّز تقارير اليوم الواحد.", copyWhich: "لليوم السابق أكثر من تقرير: من أيّها تنسخ؟", noLabel: "بلا وصف" },
+  en: { label: "Shift / area / contractor (optional)", labelHint: "Tells reports of the same day apart.", copyWhich: "The previous day has more than one report: copy from which one?", noLabel: "No label" },
+  ur: { label: "شفٹ / علاقہ / ٹھیکیدار (اختیاری)", labelHint: "ایک دن کی رپورٹس میں فرق کرتا ہے۔", copyWhich: "پچھلے دن کی ایک سے زیادہ رپورٹس ہیں: کس سے نقل کریں؟", noLabel: "بغیر وضاحت" },
+};
 const text = {
   ar: {
     keptOffline: "حُفظ التقرير على هذا الهاتف وسيُرسل عند عودة الاتصال.", notKept: "تعذّر حفظ التقرير على الهاتف (مساحة ممتلئة أو محظورة). أعد الحفظ عند الاتصال.",
@@ -99,6 +106,7 @@ export default function SiteDailyReport() {
   const { language } = useLanguage();
   const isArabic = language === "ar";
   const t = pickLanguage(language, text);
+  const many = pickLanguage(language, manyText);
   const scope = { tenantId, projectId };
   const enabled = Boolean(tenantId && projectId);
   const utils = trpc.useUtils();
@@ -118,6 +126,10 @@ export default function SiteDailyReport() {
   const seedRoles = trpc.projects.labourRoles.seedDefaults.useMutation({ onSuccess: () => { setMessage(t.seeded); void roles.refetch(); } });
 
   const [reportId, setReportId] = useState<string | null>(null);
+  const [label, setLabel] = useState("");
+  // Q-58 (1): the id of the report this form will create — chosen here, so a save sent twice (or kept offline twice) changes it instead of making a second one
+  const [newReportId, setNewReportId] = useState(() => crypto.randomUUID());
+  const [copyChoices, setCopyChoices] = useState<Array<{ id: string; reportNumber: string | null; label: string | null }> | null>(null);
   const [locked, setLocked] = useState(false);
   const [rejectedNote, setRejectedNote] = useState<string | null>(null);
   const [date, setDate] = useState(today());
@@ -140,7 +152,15 @@ export default function SiteDailyReport() {
   const [workHours, setWorkHours] = useState("");
   const [labourCells, setLabourCells] = useState<LabourCells>({});
   const [dayEquipment, setDayEquipment] = useState<EquipmentRows>({});
-  const copy = trpc.siteReports.copyFromYesterday.useMutation({ onSuccess: result => { void utils.siteReports.list.invalidate(); void openReport(result.id); } });
+  const copy = trpc.siteReports.copyFromYesterday.useMutation({
+    onSuccess: result => { setCopyChoices(null); void utils.siteReports.list.invalidate(); void openReport(result.id); },
+    // Q-58 (1): the previous day holds two or more of my reports — the server asks which; the choices are that day's reports of mine
+    onError: error => {
+      if (projectErrorCode(error) !== "PROJECT_OS_SITE_REPORT_COPY_WHICH") return;
+      const earlier = (list.data ?? []).filter(row => row.preparedByUserId === me.data?.id && row.reportDate < date).map(row => row.reportDate).sort().pop();
+      setCopyChoices((list.data ?? []).filter(row => row.preparedByUserId === me.data?.id && row.reportDate === earlier).map(row => ({ id: row.id, reportNumber: (row as { reportNumber?: string | null }).reportNumber ?? null, label: (row as { label?: string | null }).label ?? null })));
+    },
+  });
   // Q-9 (c): the report as a document, for the PDF and Word exports; the labour sheet is the server's (D-47 a)
   const documentRef = useRef<HTMLElement | null>(null);
   const exportSheet = trpc.siteReports.export.useMutation();
@@ -177,7 +197,8 @@ export default function SiteDailyReport() {
   }).concat(sectionProblems(sections), labourProblems(labourCells), equipmentProblems(dayEquipment), workHours.trim() !== "" && !(Number(workHours) >= 0 && Number(workHours) <= 24) ? ["workHours"] : []), [lines, units, sections, labourCells, dayEquipment, workHours]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const body = () => ({
-    ...scope, reportDate: date, weather: weather || undefined, temperatureC: num(temperature), summary: summary.trim() || undefined, obstacles: obstacles.trim() || undefined,
+    // Q-58 (1): an opened report is named (several reports of one day are allowed); none is a new report
+    ...scope, reportDate: date, ...(reportId ? { reportId } : { newReportId }), ...(label.trim() ? { label: label.trim() } : {}), weather: weather || undefined, temperatureC: num(temperature), summary: summary.trim() || undefined, obstacles: obstacles.trim() || undefined,
     lines: lines.map(line => ({
       lineType: line.lineType, label: line.lineType === "work" ? undefined : line.label.trim(), quantity: line.lineType === "work" ? undefined : num(line.quantity), hours: line.lineType === "labour" ? num(line.hours) : undefined,
       description: line.description.trim() || undefined, pmcUnitId: line.lineType === "work" ? unitOf(line.unitNumber)?.id : undefined,
@@ -191,11 +212,11 @@ export default function SiteDailyReport() {
     ...(machines.data ? { equipment: equipmentBody(dayEquipment) } : {}),
   });
 
-  const startNew = () => { setReportId(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setSections(emptySections()); setWind(""); setWorkHours(""); setLabourCells({}); setDayEquipment({}); setMessage(null); setPhotoMessage(null); };
+  const startNew = () => { setReportId(null); setNewReportId(crypto.randomUUID()); setLabel(""); setCopyChoices(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setSections(emptySections()); setWind(""); setWorkHours(""); setLabourCells({}); setDayEquipment({}); setMessage(null); setPhotoMessage(null); };
   const openReport = async (id: string) => {
     const full = await utils.siteReports.get.fetch({ ...scope, reportId: id });
     const unitNumber = (unitId: string | null) => String(units.find(unit => unit.id === unitId)?.number ?? "");
-    setReportId(id); setDate(full.report.reportDate); setWeather(full.report.weather ?? ""); setTemperature(full.report.temperatureC === null || full.report.temperatureC === undefined ? "" : String(full.report.temperatureC));
+    setReportId(id); setLabel((full.report as { label?: string | null }).label ?? ""); setDate(full.report.reportDate); setWeather(full.report.weather ?? ""); setTemperature(full.report.temperatureC === null || full.report.temperatureC === undefined ? "" : String(full.report.temperatureC));
     setSummary(full.report.summary ?? ""); setObstacles(full.report.obstacles ?? ""); setSections(sectionsFrom(full));
     setWind(full.report.wind ?? ""); setWorkHours(full.report.workHours === null || full.report.workHours === undefined ? "" : String(full.report.workHours));
     setLabourCells(labourFrom(full.labour ?? [])); setDayEquipment(equipmentFrom(full.equipment ?? []));
@@ -293,6 +314,12 @@ export default function SiteDailyReport() {
             <div className="space-y-1 rounded-xl border bg-card p-3" data-copy-yesterday>
               <Button type="button" variant="outline" className={tap} disabled={copy.isPending} onClick={() => { setMessage(null); copy.mutate({ ...scope, reportDate: date }); }}>{coreText.copy}</Button>
               <p className="text-xs text-muted-foreground">{coreText.copyHint}</p>
+              {copyChoices && copyChoices.length > 0 && (
+                <div role="group" aria-label={many.copyWhich} data-copy-which className="space-y-2">
+                  <p className="text-sm font-semibold">{many.copyWhich}</p>
+                  {copyChoices.map(choice => <Button key={choice.id} type="button" variant="outline" className={`${tap} w-full justify-start`} disabled={copy.isPending} onClick={() => { setMessage(null); copy.mutate({ ...scope, reportDate: date, sourceReportId: choice.id }); }}>{[choice.reportNumber, choice.label ?? many.noLabel].filter(Boolean).join(" · ")}</Button>)}
+                </div>
+              )}
             </div>
           )}
           {reportId && <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">{showDate(date, language)}</span><Button type="button" variant="outline" className={tap} onClick={startNew}>{t.newReport}</Button></div>}
@@ -303,6 +330,7 @@ export default function SiteDailyReport() {
             <ReportSection number={0} title={t.header} summary={showDate(date, language)}>
               <label className="block text-sm font-medium">{t.day}<input className={`${fieldInput} mt-1`} type="date" value={date} max={today()} disabled={locked || Boolean(reportId)} onChange={event => setDate(event.target.value)} /></label>
               <p className="text-sm"><span className="text-muted-foreground">{t.weekday}: </span>{formatWeekday(date, language)}</p>
+              <label className="block text-sm font-medium">{many.label}<input className={`${fieldInput} mt-1`} value={label} maxLength={120} disabled={locked} onChange={event => setLabel(event.target.value)} /><span className="mt-1 block text-xs font-normal text-muted-foreground">{many.labelHint}</span></label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block text-sm font-medium">{t.weather}
                   <Select className="mt-1" value={weather || NONE} disabled={locked} onValueChange={value => setWeather(value === NONE ? "" : value)}
@@ -379,7 +407,7 @@ export default function SiteDailyReport() {
         <ul className="space-y-2">
           {reports.slice(0, 15).map(report => (
             <li key={report.id} className="flex items-center justify-between gap-2 rounded-xl border bg-card p-3" data-report-status={report.status}>
-              <span><span className="block text-sm font-semibold">{showDate(report.reportDate, language)}</span><span className="block text-xs text-muted-foreground">{statusName(report.status)}{report.weather ? ` · ${weatherName[report.weather] ?? report.weather}` : ""}</span></span>
+              <span><span className="block text-sm font-semibold">{showDate(report.reportDate, language)}{(report as { reportNumber?: string | null }).reportNumber ? <span className="ms-2 font-normal text-muted-foreground" dir="ltr">{(report as { reportNumber?: string | null }).reportNumber}</span> : null}</span>{(report as { label?: string | null }).label ? <span className="block text-xs">{(report as { label?: string | null }).label}</span> : null}<span className="block text-xs text-muted-foreground">{statusName(report.status)}{report.weather ? ` · ${weatherName[report.weather] ?? report.weather}` : ""}</span></span>
               <Button type="button" variant="outline" className={tap} onClick={() => { void openReport(report.id); }}>{canWrite && (report.status === "draft" || report.status === "rejected") ? t.edit : t.view}</Button>
             </li>
           ))}
@@ -406,7 +434,7 @@ function ReviewPanel({ scope, waiting, me, t, language, isArabic, onDone }: { sc
       setPreview(null); setDone(variables.decision === "approve" ? t.approvedDone : t.rejectedDone); onDone();
     },
     // Q-56 (4b): a refusal for QC opens the list of what holds it, with the way to approve without moving those villas
-    onError: (error, variables) => { if (error.message === "PROJECT_OS_QC_NOT_ACCEPTED" && !variables.dryRun) review.mutate({ ...variables, dryRun: true }); },
+    onError: (error, variables) => { if (projectErrorCode(error) === "PROJECT_OS_QC_NOT_ACCEPTED" && !variables.dryRun) review.mutate({ ...variables, dryRun: true }); },
   });
   const cellName = (cell: Cell) => {
     const unit = options.data?.units.find(item => item.id === cell.unitId); const activity = options.data?.activities.find(item => item.id === cell.activityDefinitionId);
@@ -417,7 +445,7 @@ function ReviewPanel({ scope, waiting, me, t, language, isArabic, onDone }: { sc
       <h2 className="text-base font-semibold">{t.review}</h2>
       <p className="text-sm text-muted-foreground">{t.reviewHint}</p>
       {done && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{done}</p>}
-      {review.error && !(review.error.message === "PROJECT_OS_QC_NOT_ACCEPTED" && preview) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(review.error, isArabic)}</p>}
+      {review.error && !(projectErrorCode(review.error) === "PROJECT_OS_QC_NOT_ACCEPTED" && preview) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(review.error, isArabic)}</p>}
       {waiting.length === 0 && <p className="text-sm text-muted-foreground">{t.nothingToReview}</p>}
       <ul className="space-y-3">
         {waiting.map(report => (
