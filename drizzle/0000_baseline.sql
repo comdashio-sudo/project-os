@@ -2460,6 +2460,7 @@ CREATE TABLE "site_daily_reports" (
 	"report_number" varchar(40),
 	"wind" varchar(24),
 	"work_hours" numeric(4, 1),
+	"label" varchar(120),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "site_daily_reports_id_tenant_project_unique" UNIQUE("id","tenant_id","project_id"),
@@ -4122,7 +4123,7 @@ CREATE INDEX "site_daily_report_obstacles_report_idx" ON "site_daily_report_obst
 CREATE INDEX "site_daily_report_photos_report_idx" ON "site_daily_report_photos" USING btree ("report_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_report_photos_key_unique" ON "site_daily_report_photos" USING btree ("storage_key");--> statement-breakpoint
 CREATE INDEX "site_daily_report_tomorrow_report_idx" ON "site_daily_report_tomorrow" USING btree ("report_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "site_daily_reports_project_date_preparer_unique" ON "site_daily_reports" USING btree ("project_id","report_date","prepared_by_user_id",coalesce("contractor_id", ''));--> statement-breakpoint
+CREATE INDEX "site_daily_reports_project_date_idx" ON "site_daily_reports" USING btree ("project_id","report_date");--> statement-breakpoint
 CREATE INDEX "site_daily_reports_tenant_project_status_idx" ON "site_daily_reports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_reports_project_number_unique" ON "site_daily_reports" USING btree ("project_id","report_number") WHERE "site_daily_reports"."report_number" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "smart_reading_usage_tenant_month_unique" ON "smart_reading_usage" USING btree ("tenant_id","month");--> statement-breakpoint

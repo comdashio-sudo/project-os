@@ -26,7 +26,7 @@ export const ledgerColumns: Record<LedgerModule, LedgerColumn[]> = {
   // Actual costs (cost_entries, entry type "actual"). Each row names the WBS item it belongs to, or a budget line that is linked to one.
   costs: [
     { key: "wbsCode", required: false, ar: "رمز WBS", en: "WBS Code", ur: "WBS کوڈ", example: "1.1" },
-    { key: "costCode", required: false, ar: "رمز بند الميزانية", en: "Budget Cost Code", ur: "بجٹ لاگت کوڈ", aliases: ["cost code", "رمز التكلفة"], example: "CIVIL" },
+    { key: "costCode", required: false, ar: "رمز بند الميزانية", en: "Budget Cost Code", ur: "بجٹ لاگت کوڈ", aliases: ["cost code", "رمز التكلفة"], example: "" }, // Q-56 (6): empty in the template — the WBS code links the example row; a budget line made by the budget template has no WBS, so «CIVIL» was refused (COST_BUDGET_LINE_WITHOUT_WBS)
     { key: "category", required: false, ar: "الفئة", en: "Category", ur: "زمرہ", list: ["materials", "labour", "subcontract", "other"], example: "materials" },
     { key: "incurredAt", required: true, ar: "تاريخ التكلفة", en: "Cost Date", ur: "لاگت کی تاریخ", aliases: ["date", "التاريخ"], example: "2026-09-15" },
     { key: "amount", required: true, ar: "المبلغ (ريال)", en: "Amount (SAR)", ur: "رقم (ریال)", aliases: ["amount", "المبلغ"], example: "12500.00" },
