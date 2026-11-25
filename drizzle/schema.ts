@@ -4096,6 +4096,33 @@ export const subcontractWorkConfirmationLines = pgTable(
   ],
 );
 
+// Q-43 batch 6 (G45, option (b), the adviser not having decided within two hours — Q-30 (3)): how a unit line of a work confirmation (villa × activity ×
+// percent) is priced. Per subcontract, an activity points to the BOQ item it is paid under and the quantity of that item in one villa; pulled into a
+// certificate, a unit line becomes percent ÷ 100 × that quantity of the item, priced from BOQ in the certificate code as every other line. No rate here.
+export const subcontractActivityBoqLinks = pgTable(
+  "subcontract_activity_boq_links",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    subcontractId: varchar("subcontract_id", { length: 36 }).notNull(),
+    pmcActivityDefinitionId: varchar("pmc_activity_definition_id", { length: 36 }).notNull(),
+    boqItemId: varchar("boq_item_id", { length: 36 }).notNull(),
+    quantityPerUnit: numeric("quantity_per_unit", { precision: 18, scale: 3 }).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("subcontract_activity_boq_links_unique").on(table.subcontractId, table.pmcActivityDefinitionId),
+    foreignKey({ name: "activity_boq_links_subcontract_fk", columns: [table.subcontractId], foreignColumns: [subcontractContracts.id] }),
+    foreignKey({ name: "activity_boq_links_activity_fk", columns: [table.pmcActivityDefinitionId], foreignColumns: [pmcActivityDefinitions.id] }),
+    foreignKey({ name: "activity_boq_links_boq_fk", columns: [table.boqItemId], foreignColumns: [boqItems.id] }),
+    index("subcontract_activity_boq_links_tenant_project_idx").on(table.tenantId, table.projectId),
+    check("subcontract_activity_boq_links_quantity_positive", sql`${table.quantityPerUnit} > 0`),
+  ],
+);
+
 // Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (no project). The values it holds for the three scenarios are the ones the
 // financial model (server/domain/strategyModel.ts) reads, and only once approved: a draft or a pending assumption moves no number. An approved assumption is
 // changed only through a change request (proposed_* + change_reason) that someone other than the requester approves; every approval, change, refusal and

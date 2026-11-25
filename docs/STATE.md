@@ -2273,6 +2273,21 @@
 | اختبار كان يبحث عن `bg-red-50` صار يبحث عن `bg-danger-soft` (`ProjectControls.resilience.test.tsx`) | `PROVEN` | 25/25 |
 | البوابات: `pnpm check` 0؛ `pnpm test` 4204/0؛ `pnpm build` ناجح | `PROVEN` | 2026-11-19 |
 
+### Q-43 (P2-06) الدفعة 6: تسعير أسطر الوحدات عبر ربط النشاط ببند BOQ (2026-11-20، المبرمج ب، ترحيلة 0052، الخيار (ب) في G45 بـQ-30 (3))
+
+سؤال المستشار في E45 (تسعير أسطر الوحدات) لم يُحسم خلال ساعتين من المقترح المصحَّح (G45، 17:25)، فنُفّذ الخيار (ب): لا يُمس جدول أسطر المستخلص.
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| الترحيلة `0052_subcontract_activity_boq_links.sql`: جدول توسعة فارغ، رابط واحد لكل عقد × نشاط، كمية موجبة (CHECK)، **بلا سعر ولا مبلغ**؛ الرجوع في رأسها | `PROVEN` | `pnpm db:baseline:check` يطابق 52 ترحيلة |
+| `workConfirmations.setActivityBoqLinks` / `activityBoqLinks` (بـ`project.commitment.manage`): المجموعة كاملة كل مرة، العقد والنشاط والبند من المشروع نفسه، سطر تدقيق بالقبل والبعد في المعاملة نفسها | `PROVEN` | `workConfirmations.database.test.ts` › «PULL UNIT (batch 6)» |
+| السحب: سطر الوحدة = النسبة ÷ 100 × كمية البند في الفيلا الواحدة، يُجمع مع أسطر الكمية لكل بند ويُسعَّر من BOQ في المسار القائم؛ نشاط بلا ربط ← `UNIT_NOT_PRICED` (لا تخمين) | `PROVEN` | الاختبار نفسه: 25% × 40 م² + 10 م² = 20 م² × 25 = 500 |
+| السالب: بلا ربط ← رفض بلا كتابة؛ مهندس الموقع لا يضبط الروابط؛ نشاط مكرر أو كمية صفر ← `ACTIVITY_BOQ_LINKS_INVALID`؛ عقد مشروع آخر ← غير موجود | `PROVEN` | الاختبار نفسه |
+| **مراجعتا أ وج (🔴):** (1) كمية جاءت من أسطر الوحدات لا تتجاوز بالبند كميته في BOQ مع ما صُدِّق قبلًا ← `PROJECT_OS_WORK_CONFIRMATION_UNIT_OVER_BOQ` بلا كتابة (أسطر الكمية محمية بـ`OVER_BOQ` عند الإدخال)؛ (2) `setActivityBoqLinks` يقفل العقد `FOR UPDATE` أول المعاملة (القفل الذي يأخذه المستخلص) فيتسلسل حفظان متزامنان بدل نص الاستعلام الخام؛ وملاحظتا د: مفتاح التدقيق واحد قبل وبعد (`pmcActivityDefinitionId`)، والكمية تُفحص بعد التقريب إلى 3 منازل | `PROVEN` | `workConfirmations.database.test.ts` «PULL UNIT over the BOQ and two saves at once»: سالب (ربط 400 للفيلا على بند كميته 50 ← رفض ولا مستخلص؛ 0.0004 ← `ACTIVITY_BOQ_LINKS_INVALID`) وموجب (5 جولات × حفظان متزامنان كلاهما بلا خطأ ويبقى رابط واحد؛ السحب ضمن البند ينجح بسعر BOQ)؛ مع `commercial_chain` 22/22 بحساب `project_os_app` (2026-11-25)؛ وبلا الإصلاح يسقط الاختبار `expected 'no error' to be '…UNIT_OVER_BOQ'` |
+| الفحوص بعد إصلاح المراجعتين ودمج main (`dae7448`) | `PROVEN` | 2026-11-25: `pnpm check` ناجح؛ `pnpm build` ناجح؛ `pnpm test` 4440/0؛ `coverage:trpc` ناجح؛ `db:baseline:check` ناجح؛ `test:db` 983/0؛ الرحلات الثلاث 42/0 |
+| شاشة ضبط الروابط في لوحة المستخلصات | `OPEN` | دفعة لاحقة |
+| الفحوص | `PROVEN` | 2026-11-20 (بعد دمج main مع #404): `pnpm check` ناجح؛ `pnpm build` ناجح؛ `pnpm test` 4430/0 (فحص طول المعرّفات أسقط تشغيلًا أول بأسماء مفاتيح أجنبية تتجاوز 63 حرفًا فسُمّيت صراحةً)؛ `test:db` 975/0؛ الرحلات الثلاث 42/0؛ `coverage:trpc` ناجح |
+
 ### Q-43 (P2-06) الدفعة 5أ (الخادم): سحب إثباتات الكميات المعتمدة إلى مستخلص (2026-11-20، المبرمج ب، بلا ترحيلة: `certificate_id` من الدفعة 2)
 
 التصور `docs/proposals/subcontractor-progress.md` §5 «السحب إلى مستخلص» و§8. الكود `createSubcontractCertificateForTenant` في `server/db.ts`.
