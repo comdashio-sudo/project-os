@@ -1,5 +1,5 @@
 import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
-import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions } from "./workConfirmations";
+import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions , listActivityBoqLinks, setActivityBoqLinks} from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, exportProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES, MINUTES_EXPORT_FORMATS } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getOperationsOverview } from "./operationsOverview";
@@ -978,6 +978,11 @@ export const appRouter = router({
       ])).min(1).max(500),
     })).mutation(({ ctx, input }) => createWorkConfirmation({ userId: ctx.user.id, ...input })),
     transition: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), confirmationId: z.string().uuid(), nextStatus: z.enum(["submitted", "approved", "rejected", "cancelled"]), reason: z.string().trim().max(500).nullish() })).mutation(({ ctx, input }) => transitionWorkConfirmation({ userId: ctx.user.id, ...input })),
+    // batch 6: how a unit line is priced — per subcontract, an activity → its BOQ item and the item's quantity in one villa (commitment managers; no rate)
+    activityBoqLinks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid() })).query(({ ctx, input }) => listActivityBoqLinks({ userId: ctx.user.id, ...input })),
+    setActivityBoqLinks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), subcontractId: z.string().uuid(),
+      links: z.array(z.object({ pmcActivityDefinitionId: z.string().uuid(), boqItemId: z.string().uuid(), quantityPerUnit: z.number().finite() })).max(500) }))
+      .mutation(({ ctx, input }) => setActivityBoqLinks({ userId: ctx.user.id, ...input })),
   }),
   // Q-21 (a), batch 1: the strategy centre's register of assumptions, company-wide (server/strategyAssumptions.ts).
   strategy: router({

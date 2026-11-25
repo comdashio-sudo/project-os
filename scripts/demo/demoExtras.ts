@@ -36,7 +36,7 @@ type Person = { id: number; name: string; key: string };
 export async function seedDemoExtras(input: {
   client: PoolClient; tenantId: string; projectId: string; ownerId: number; reviewerId: number; people: Person[];
   approvedReports: Array<{ id: string; preparedBy: number }>; day: (n: number) => Date; now: Date; bulk: (client: PoolClient, table: string, columns: string[], rows: unknown[][]) => Promise<void>;
-  storagePut?: (key: string, data: Buffer, contentType: string) => Promise<unknown>; log: (line: string) => void;
+  storagePut?: (key: string, data: Buffer, contentType: string) => Promise<{ key: string }>; log: (line: string) => void;
 }) {
   const { client, tenantId, projectId, ownerId, reviewerId, people, bulk } = input;
   // 1. employees: every demonstration person has a record linked to their account (that is what makes "my indicators" open), plus the site workforce
@@ -57,9 +57,10 @@ export async function seedDemoExtras(input: {
   if (input.storagePut) {
     const photoRows: unknown[][] = [];
     for (const [index, report] of input.approvedReports.slice(-12).entries()) {
-      const key = `tenants/${tenantId}/demo/site-photo-${index + 1}.png`;
       const bytes = await syntheticSitePhoto(index);
-      try { await input.storagePut(key, bytes, "image/png"); } catch { input.log("site photos skipped: the storage service refused the upload"); break; }
+      // the storage service stores under the key it RETURNS (it adds a suffix): the row keeps that key, or the picture points at nothing
+      let key: string;
+      try { ({ key } = await input.storagePut(`tenants/${tenantId}/demo/site-photo-${index + 1}.png`, bytes, "image/png")); } catch { input.log("site photos skipped: the storage service refused the upload"); break; }
       photoRows.push([randomUUID(), tenantId, projectId, report.id, key, `site-photo-${index + 1}.png`, "image/png", bytes.length, "صورة تركيبية مولَّدة للعرض (ليست من موقع حقيقي)", report.preparedBy]);
     }
     if (photoRows.length) await bulk(client, "site_daily_report_photos", ["id", "tenant_id", "project_id", "report_id", "storage_key", "file_name", "content_type", "size_bytes", "caption", "created_by_user_id"], photoRows);

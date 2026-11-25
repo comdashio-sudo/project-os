@@ -49,13 +49,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-21 (c): the forecast o
     for (const key of KEYS) ids[key] = rows.find(row => row.openId === `q21f-${key}`)!.id;
     ({ tenantId } = await callerFor("owner").tenant.create({ legalName: "Q21 Forecast Co.", slug: SLUG, packageCode: "ALL-IN-ONE" }));
     ({ tenantId: tenantB } = await callerFor("ownerB").tenant.create({ legalName: "Q21 Forecast Other Co.", slug: SLUG_B, packageCode: "ALL-IN-ONE" }));
-    // active: 12,000,000 + 1,000,000 approved change (a rejected 500,000 ignored) − 3,000,000 issued (a 2,000,000 draft ignored) = 10,000,000, finishing in 9 months
+    // active: 12,000,000 + 1,000,000 approved change (a rejected 500,000 ignored) − 3,000,000 issued BEFORE VAT (its 450,000 VAT is not contract value; a 2,000,000 draft ignored) = 10,000,000, finishing in 9 months
     // on hold, no planned finish: 4,000,000 left, unscheduled. Closed: never backlog. Another company's active project: never seen.
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status, contractValue, plannedFinishAt) VALUES (?, ?, 'Q21F-A', 'Forecast active', 'villas', 'SAR', 'active', 12000000, ?), (?, ?, 'Q21F-H', 'Forecast on hold', 'villas', 'SAR', 'on_hold', 4000000, NULL), (?, ?, 'Q21F-C', 'Forecast closed', 'villas', 'SAR', 'closed', 50000000, ?), (?, ?, 'Q21F-X', 'Other company', 'villas', 'SAR', 'active', 90000000, ?)",
       [P_ACTIVE, tenantId, plannedFinish(9), P_OPEN, tenantId, P_CLOSED, tenantId, plannedFinish(6), P_OTHER, tenantB, plannedFinish(6)]);
     await connection.query("INSERT INTO change_requests (id, tenantId, projectId, changeNumber, title, description, status, contractValueImpact, createdByUserId) VALUES (gen_random_uuid(), ?, ?, 'CR-1', 'Synthetic', 'Synthetic', 'approved', 1000000, ?), (gen_random_uuid(), ?, ?, 'CR-2', 'Synthetic', 'Synthetic', 'rejected', 500000, ?)",
       [tenantId, P_ACTIVE, ids.owner, tenantId, P_ACTIVE, ids.owner]);
-    await connection.query("INSERT INTO project_commercial_invoices (id, tenantId, projectId, invoiceNumber, invoiceDate, clientName, amount, vatAmount, totalAmount, status, createdByUserId) VALUES (gen_random_uuid(), ?, ?, 'INV-1', '2026-06-30', 'Synthetic client', 3000000, 0, 3000000, 'issued', ?), (gen_random_uuid(), ?, ?, 'INV-2', '2026-07-31', 'Synthetic client', 2000000, 0, 2000000, 'draft', ?)",
+    await connection.query("INSERT INTO project_commercial_invoices (id, tenantId, projectId, invoiceNumber, invoiceDate, clientName, amount, vatAmount, totalAmount, status, createdByUserId) VALUES (gen_random_uuid(), ?, ?, 'INV-1', '2026-06-30', 'Synthetic client', 3000000, 450000, 3450000, 'issued', ?), (gen_random_uuid(), ?, ?, 'INV-2', '2026-07-31', 'Synthetic client', 2000000, 0, 2000000, 'draft', ?)",
       [tenantId, P_ACTIVE, ids.owner, tenantId, P_ACTIVE, ids.owner]);
     const owner = callerFor("owner");
     const templateRole = async (roleCode: string) => (await connection.query<{ id: string }[]>("SELECT id FROM roles WHERE tenantId = ? AND code = ?", [tenantId, roleCode]))[0][0]!.id;

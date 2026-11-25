@@ -240,8 +240,10 @@ export async function getStrategyAssumptionRisks(input: Caller & { horizonMonths
 /**
  * Q-21 (c): the forecast the strategy centre and the board pack show — server/domain/strategyModel.ts run on this company's APPROVED assumptions (the
  * model ignores the rest) and its backlog (server/domain/strategyBacklog.ts: active or on-hold projects, the adjusted contract value less issued or paid
- * invoices, on a straight line to the planned finish). Company-wide under strategy.read; the backlog is returned only as totals (how many contracts and
- * how much), never per project, so a reader without a project's money permission learns no project's contract value from here.
+ * invoices BEFORE VAT — the contract value excludes VAT and the model adds VAT on what it earns — on a straight line to the planned finish). Company-wide under strategy.read; the backlog is returned only as totals (how many contracts and
+ * how much), never per project. With a single scheduled project the total IS that project's remaining value: strategy.read is a company-level
+ * permission held by its management, so this is accepted and said in STATE, not hidden. Values are summed as stored, in each project's own currency
+ * (no conversion — a declared limit).
  */
 export async function getStrategyForecast(input: Caller & { horizonMonths?: number }) {
   const db = await authorized(input, "strategy.read");
@@ -256,7 +258,7 @@ export async function getStrategyForecast(input: Caller & { horizonMonths?: numb
   const [changeRows, invoiceRows] = ids.length ? await Promise.all([
     db.select({ projectId: changeRequests.projectId, status: changeRequests.status, contractValueImpact: changeRequests.contractValueImpact }).from(changeRequests)
       .where(and(eq(changeRequests.tenantId, input.tenantId), inArray(changeRequests.projectId, ids), eq(changeRequests.status, "approved"))),
-    db.select({ projectId: projectCommercialInvoices.projectId, total: sql<string>`COALESCE(SUM(${projectCommercialInvoices.totalAmount}), 0)` }).from(projectCommercialInvoices)
+    db.select({ projectId: projectCommercialInvoices.projectId, total: sql<string>`COALESCE(SUM(${projectCommercialInvoices.amount}), 0)` }).from(projectCommercialInvoices)
       .where(and(eq(projectCommercialInvoices.tenantId, input.tenantId), inArray(projectCommercialInvoices.projectId, ids), inArray(projectCommercialInvoices.status, ["issued", "paid"])))
       .groupBy(projectCommercialInvoices.projectId),
   ]) : [[], []];
