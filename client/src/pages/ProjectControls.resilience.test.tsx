@@ -179,6 +179,25 @@ describe("ProjectControls section resilience", () => {
     window.history.replaceState(null, "", "/");
   });
 
+  it("Q-56 (2): «Planning» and «Supply» are pages of their own — their title, their level's groups open, and nothing of the board's other levels or head", () => {
+    render(<ProjectControls focus="supply" />);
+    expect(document.querySelector("[data-focus-title]")!.textContent).toBe("Warehouses and procurement");
+    expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["supply"]);
+    expect((document.getElementById("manager-supply") as HTMLDetailsElement).open).toBe(true);
+    expect(document.getElementById("manager-commercial")).toBeNull();
+    expect(document.getElementById("manager-oversight")).toBeNull();
+    cleanup();
+    render(<ProjectControls focus="planning" />);
+    expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["planning"]);
+    expect((document.getElementById("manager-schedule") as HTMLDetailsElement).open).toBe(true);
+    expect((document.getElementById("manager-assurance") as HTMLDetailsElement).open).toBe(true);
+    // NEGATIVE: the board itself is unchanged — every level, no focus title
+    cleanup();
+    render(<ProjectControls />);
+    expect(document.querySelector("[data-focus-title]")).toBeNull();
+    expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["planning", "site", "supply", "contracts"]);
+  });
+
   it("Q-36 (step 3): no PMC tab inside the page — one link to the PMC page; the old address controls#pmc goes there; no link without PMC access", () => {
     const navigate = vi.fn(); state.navigate = navigate;
     render(<ProjectControls />);
