@@ -99,7 +99,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-3: the weights table a
     const table = await weights(fullTable);
     const report = await run("weights", table);
     expect(report.errorCount).toBe(0);
-    expect(report.details).toMatchObject({ ignoredZeroWeight: 1, scaledFromFractions: true, models: ["A", "B"] });
+    expect(report.details).toMatchObject({ ignoredZeroWeight: 1, scaledFromFractions: true, unitModels: ["A", "B"] });
     expect(report.counts).toEqual({ create: 6, update: 0, unchanged: 0 }); // 3 activities x 2 models
     await manager().pmc.confirmImport({ ...scope, kind: "weights", format: "xlsx", base64: table, approvedHash: report.fileHash });
     const [rows] = await connection.query<{ modelCode: string; weightPercent: string }[]>("SELECT modelCode, weightPercent FROM pmc_activity_definitions WHERE tenantId = ? ORDER BY modelCode, weightPercent", [T]);

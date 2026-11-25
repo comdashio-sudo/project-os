@@ -370,6 +370,13 @@ const PROGRESS_GROUP_SAMPLES = 5;
 async function progressView(db: Db, record: Awaited<ReturnType<typeof readRecord>> | { id: string; status: string; progressPercent: number; progressStage: string | null; failureReason: string | null; totalRows: number; validRows: number; invalidRows: number; createdRows: number; updatedRows: number; skippedRows: number }, input: JobIdentity) {
   const view = { id: record.id, status: record.status, progressPercent: record.progressPercent, progressStage: record.progressStage, failureReason: record.failureReason, totalRows: record.totalRows, validRows: record.validRows, invalidRows: record.invalidRows, createdRows: record.createdRows, updatedRows: record.updatedRows, skippedRows: record.skippedRows };
   // Once the analysis is done the screen needs what the old synchronous answer carried: the file's columns, the detected mapping and the validation errors.
+  // Q-56 (5): a completed PMC / master-plan import keeps the report it was confirmed on (activities per model, their total, what was skipped and why),
+  // so the screen can say what was saved; read only, nothing to confirm. The general importer has no report and gets null as before.
+  if (record.status === "completed") {
+    const [saved] = await db.select({ summaryJson: dataImports.summaryJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+    const report = parseJson<{ report?: Record<string, unknown> }>(saved?.summaryJson, {}).report;
+    return { ...view, analysis: null, external: report ? { report, canConfirm: false } : null, suggestedTemplate: null };
+  }
   if (record.status !== "uploaded" && record.status !== "validated") return { ...view, analysis: null, external: null, suggestedTemplate: null };
   const [stored] = await db.select({ mappingJson: dataImports.mappingJson, summaryJson: dataImports.summaryJson, moduleCode: dataImports.moduleCode }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
   const errors = await db.select({ rowNumber: dataImportErrors.rowNumber, code: dataImportErrors.code, field: dataImportErrors.suggestedFix }).from(dataImportErrors).where(and(eq(dataImportErrors.importId, input.importId), eq(dataImportErrors.severity, "error"))).orderBy(dataImportErrors.rowNumber).limit(PROGRESS_ERRORS_LIMIT);

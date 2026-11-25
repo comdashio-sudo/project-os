@@ -128,7 +128,7 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
       }
     }
     // Q-50 batch 5a: the file's own totals line against the sum read (said in the report, never a block: the 100% rule per model decides)
-    const extra = { ignoredZeroWeight: translated.ignoredZeroWeight, scaledFromFractions: translated.scaledFromFractions, models, ...(translated.totalChecks.length ? { totalChecks: translated.totalChecks } : {}) };
+    const extra = { ignoredZeroWeight: translated.ignoredZeroWeight, scaledFromFractions: translated.scaledFromFractions, unitModels: models, ...(translated.totalChecks.length ? { totalChecks: translated.totalChecks } : {}) };
     if (translated.errors.length) return { report: report("weights", fileHash, total, translated.errors, { create: 0, update: 0, unchanged: 0 }, extra), apply: null };
     // Q-47 (owner decision 18-11): a weights total of 99.99–100.01 (rounded for display) is accepted as 100, and the report names those models
     const prepared = await prepareRows(db, { ...input, kind: "catalog", totalTolerance: 0.01 }, { headers: parsed.headers, rows: translated.rows, errors: [] }, fileHash);

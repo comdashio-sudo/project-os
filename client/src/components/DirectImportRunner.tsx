@@ -34,6 +34,8 @@ type Props = {
   showErrors?: boolean;
   /** What the importer would do, shown between the verdict and the confirm button. */
   renderReport?: (view: DirectImportView) => React.ReactNode;
+  /** Q-56 (5): what a completed import saved, under the «done» line (the PMC importer keeps its report). */
+  renderResult?: (view: DirectImportView) => React.ReactNode;
   onCompleted?: (view: DirectImportView) => void;
   /** D-84 (b): the design system's drop area instead of the browser's own file input (which spills past a narrow card); a screen opts in, the others keep their input. */
   dropzone?: boolean;
@@ -71,7 +73,7 @@ const text = {
  * The file travels browser → Storage by a signed URL (no request body carries it, so the host's 4.5 MB ceiling does not apply, up to 50 MB), then a background job
  * analyses it and, after confirmation, writes it; this component shows that progress. It is the PMC and master-plan screens' counterpart of the general importer's screen.
  */
-export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, withDiff = false, fieldLabel, errorLabel, showErrors = true, renderReport, onCompleted, dropzone = false, templates = false }: Props) {
+export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, withDiff = false, fieldLabel, errorLabel, showErrors = true, renderReport, renderResult, onCompleted, dropzone = false, templates = false }: Props) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   const t = text[lang];
   const [file, setFile] = useState<File | null>(null);
@@ -159,6 +161,7 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
         {templates && view.status === "validated" && <SaveTemplateForm key={view.id} tenantId={tenantId} projectId={projectId} importId={view.id} language={lang} />}
       </div>}
       {view?.status === "completed" && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{t.done}: {t.created} {view.createdRows} · {t.updated} {view.updatedRows} · {t.skipped} {view.skippedRows}</p>}
+      {view?.status === "completed" && renderResult?.(view)}
       {confirm.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(confirm.error, lang)}</p>}
       {progress.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(progress.error, lang)}</p>}
     </div>
