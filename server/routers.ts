@@ -9,7 +9,7 @@ import { approveStocktake, getStocktake, listStocktakes, openStocktake, recordSt
 import { createStrategyGoal, createStrategyInitiative, decideStrategyVariance, listStrategyGoals, listStrategyInitiatives, listStrategyVariances, recordStrategyVariance, updateStrategyGoal, updateStrategyInitiative } from "./strategyGoals";
 import { createStrategyOpportunity, decideStrategyOpportunity, getStrategyPipelineSummary, listStrategyOpportunities, updateStrategyOpportunity } from "./strategyOpportunities";
 import { createStrategyCompetitor, createStrategySwot, listStrategyCompetitors, listStrategySwot, updateStrategyCompetitor, updateStrategySwot } from "./strategyCompetitors";
-import { createStrategyAssumption, getStrategyAssumptionRisks, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
+import { createStrategyAssumption, getStrategyAssumptionRisks, getStrategyForecast, decideStrategyAssumption, decideStrategyAssumptionChange, getStrategyAssumptionChanges, listStrategyAssumptions, requestStrategyAssumptionChange, retireStrategyAssumption, submitStrategyAssumption, updateStrategyAssumptionDraft } from "./strategyAssumptions";
 import { getReportPeriod } from "./reportPeriods";
 import { getWeeklyReport, MAX_WEEKLY_PHOTOS, saveWeeklyReport, WEEKLY_TEXTS } from "./weeklyReports";
 import { getMonthlyReport } from "./monthlyReport";
@@ -1023,6 +1023,8 @@ export const appRouter = router({
     swot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), includeArchived: z.boolean().optional(), competitorId: z.string().uuid().optional() })).query(({ ctx, input }) => listStrategySwot({ userId: ctx.user.id, ...input })),
     createSwot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), ...strategySwotFields })).mutation(({ ctx, input }) => createStrategySwot({ userId: ctx.user.id, ...input })),
     updateSwot: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), swotId: z.string().uuid(), archived: z.boolean().optional(), ...strategySwotFields })).mutation(({ ctx, input }) => updateStrategySwot({ userId: ctx.user.id, ...input })),
+    // Q-21 (c): the model on the approved assumptions and the backlog (server/strategyAssumptions.ts getStrategyForecast)
+    forecast: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), horizonMonths: z.number().int().min(12).max(60).optional() })).query(({ ctx, input }) => getStrategyForecast({ userId: ctx.user.id, ...input })),
     retireAssumption: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), assumptionId: z.string().uuid(), reason: z.string().trim().min(1).max(500) })).mutation(({ ctx, input }) => retireStrategyAssumption({ userId: ctx.user.id, ...input })),
   }),
   // G-104 (D-32 part 2): the stocktake document — open, count, approve (server/stocktakes.ts).
