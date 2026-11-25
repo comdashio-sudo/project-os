@@ -11,7 +11,7 @@
 // never pulled into a certificate: the pulling batch reads the flag). A negative figure without corrects_line_id is still refused. Pulling comes later.
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
-import { auditLogs, boqItems, pmcActivityDefinitions, pmcBlocks, pmcQcReceipts, pmcUnitActivityProgress, pmcUnits, subcontractContracts, subcontractWorkConfirmationLines, subcontractWorkConfirmations } from "../drizzle/schema";
+import { auditLogs, boqItems, pmcActivityDefinitions, pmcBlocks, pmcQcReceipts, pmcUnitActivityProgress, pmcUnits, subcontractActivityBoqLinks, subcontractContracts, subcontractWorkConfirmationLines, subcontractWorkConfirmations } from "../drizzle/schema";
 import { assertTenantAccess } from "./domain/authorization";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 
@@ -253,4 +253,49 @@ export async function workConfirmationOptions(input: Scope) {
       .from(boqItems).where(own(boqItems, input)).orderBy(asc(boqItems.code)),
   ]);
   return { subcontracts, activities, units, boqItems: items.map(item => ({ ...item, quantity: Number(item.quantity) })) };
+}
+
+// ---- Q-43 batch 6: pricing a unit line (G45, option (b)) — per subcontract, an activity → the BOQ item it is paid under and its quantity in one villa
+
+export type ActivityBoqLink = { pmcActivityDefinitionId: string; boqItemId: string; quantityPerUnit: number };
+
+/** The links of one subcontract (the commitment manager's view: BOQ items and quantities, no rate — the rate stays on the BOQ item). */
+export async function listActivityBoqLinks(input: Scope & { subcontractId: string }) {
+  const db = await authorized(input, APPROVE);
+  const rows = await db.select().from(subcontractActivityBoqLinks).where(and(own(subcontractActivityBoqLinks, input), eq(subcontractActivityBoqLinks.subcontractId, input.subcontractId)));
+  return rows.map(row => ({ id: row.id, pmcActivityDefinitionId: row.pmcActivityDefinitionId, boqItemId: row.boqItemId, quantityPerUnit: Number(row.quantityPerUnit) }));
+}
+
+/**
+ * Sets the links of a subcontract — the whole set each time (a link left out is removed), in one transaction with one audit row carrying before and after.
+ * The subcontract, every activity and every BOQ item must be of this project; an activity appears once; a quantity is positive.
+ */
+export async function setActivityBoqLinks(input: Scope & { subcontractId: string; links: ActivityBoqLink[] }) {
+  const db = await authorized(input, APPROVE);
+  const activityIds = input.links.map(link => link.pmcActivityDefinitionId);
+  if (new Set(activityIds).size !== activityIds.length || input.links.some(link => !(Number.isFinite(link.quantityPerUnit) && Number(link.quantityPerUnit.toFixed(3)) > 0))) throw fail("BAD_REQUEST", "PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
+  const [subcontract] = await db.select({ id: subcontractContracts.id }).from(subcontractContracts).where(and(eq(subcontractContracts.id, input.subcontractId), own(subcontractContracts, input))).limit(1);
+  if (!subcontract) throw fail("NOT_FOUND", "PROJECT_OS_SUBCONTRACT_NOT_FOUND");
+  if (activityIds.length) {
+    const activities = await db.select({ id: pmcActivityDefinitions.id }).from(pmcActivityDefinitions).where(and(own(pmcActivityDefinitions, input), inArray(pmcActivityDefinitions.id, activityIds)));
+    const boqIds = Array.from(new Set(input.links.map(link => link.boqItemId)));
+    const items = await db.select({ id: boqItems.id }).from(boqItems).where(and(own(boqItems, input), inArray(boqItems.id, boqIds)));
+    if (activities.length !== activityIds.length || items.length !== boqIds.length) throw fail("NOT_FOUND", "PROJECT_OS_ACTIVITY_BOQ_LINKS_INVALID");
+  }
+  await db.transaction(async tx => {
+    // the subcontract is locked first (the lock a certificate takes too): two saves of the same set run one after the other, the second replaces
+    // the first instead of colliding on the unique (subcontract, activity) and leaking the raw statement; «before» is then exactly what is replaced
+    await tx.execute(sql`SELECT id FROM subcontract_contracts WHERE id = ${input.subcontractId} AND tenant_id = ${input.tenantId} FOR UPDATE`);
+    const before = await tx.select().from(subcontractActivityBoqLinks).where(and(own(subcontractActivityBoqLinks, input), eq(subcontractActivityBoqLinks.subcontractId, input.subcontractId)));
+    await tx.delete(subcontractActivityBoqLinks).where(and(own(subcontractActivityBoqLinks, input), eq(subcontractActivityBoqLinks.subcontractId, input.subcontractId)));
+    if (input.links.length) await tx.insert(subcontractActivityBoqLinks).values(input.links.map(link => ({
+      id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, subcontractId: input.subcontractId, pmcActivityDefinitionId: link.pmcActivityDefinitionId,
+      boqItemId: link.boqItemId, quantityPerUnit: link.quantityPerUnit.toFixed(3), createdByUserId: input.userId,
+    })));
+    await tx.insert(auditLogs).values({
+      id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.subcontract_activity_boq_links_set", entityType: "subcontract_contract", entityId: input.subcontractId,
+      metadata: JSON.stringify({ projectId: input.projectId, before: before.map(row => ({ pmcActivityDefinitionId: row.pmcActivityDefinitionId, boqItemId: row.boqItemId, quantityPerUnit: Number(row.quantityPerUnit) })), after: input.links }),
+    });
+  });
+  return { subcontractId: input.subcontractId, links: input.links.length };
 }

@@ -61,26 +61,26 @@ export const MONEY = {
 };
 
 // ---------------------------------------------------------------------------------------------------------------- the work breakdown and the unit activities
-export type DemoActivity = { code: string; name: string; group: string; weight: number; wbs: string; days: number; after: string[] };
+export type DemoActivity = { code: string; name: string; nameEn: string; group: string; weight: number; wbs: string; days: number; after: string[] };
 export const GROUPS = [
-  { code: "STR", name: "الهيكل الإنشائي" },
-  { code: "ARC", name: "الأعمال المعمارية" },
-  { code: "MEP", name: "الأعمال الكهروميكانيكية" },
+  { code: "STR", name: "الهيكل الإنشائي", nameEn: "Division 03 — Concrete and structure", csi: "03" },
+  { code: "ARC", name: "الأعمال المعمارية", nameEn: "Division 09 — Finishes", csi: "09" },
+  { code: "MEP", name: "الأعمال الكهروميكانيكية", nameEn: "Division 22/26 — Plumbing and electrical", csi: "22" },
 ] as const;
 /** weights add up to 100 per model; `days` is the typical duration on one villa; `after` are the activities that must finish first */
 export const ACTIVITIES: readonly DemoActivity[] = [
-  { code: "EXC", name: "الحفر", group: "STR", weight: 4, wbs: "1", days: 4, after: [] },
-  { code: "FND", name: "الأساسات", group: "STR", weight: 8, wbs: "2", days: 12, after: ["EXC"] },
-  { code: "SLB", name: "البلاطة الأرضية", group: "STR", weight: 6, wbs: "3", days: 6, after: ["FND"] },
-  { code: "COL", name: "الأعمدة والأسقف", group: "STR", weight: 14, wbs: "3", days: 26, after: ["SLB"] },
-  { code: "BLK", name: "أعمال البلوك", group: "ARC", weight: 10, wbs: "4", days: 22, after: ["COL"] },
-  { code: "PLS", name: "اللياسة", group: "ARC", weight: 8, wbs: "5", days: 18, after: ["BLK"] },
-  { code: "TIL", name: "البلاط والأرضيات", group: "ARC", weight: 9, wbs: "6", days: 12, after: ["PLS"] },
-  { code: "PNT", name: "الدهان", group: "ARC", weight: 8, wbs: "5", days: 12, after: ["TIL"] },
-  { code: "DWS", name: "الأبواب والنوافذ", group: "ARC", weight: 6, wbs: "7", days: 8, after: ["PNT"] },
-  { code: "ELR", name: "التمديدات الكهربائية", group: "MEP", weight: 9, wbs: "8", days: 16, after: ["BLK"] },
-  { code: "PLR", name: "التمديدات الصحية", group: "MEP", weight: 8, wbs: "9", days: 16, after: ["BLK"] },
-  { code: "MEF", name: "التجهيزات النهائية", group: "MEP", weight: 10, wbs: "10", days: 12, after: ["DWS", "ELR", "PLR"] },
+  { code: "EXC", nameEn: "Excavation", name: "الحفر", group: "STR", weight: 4, wbs: "1", days: 4, after: [] },
+  { code: "FND", nameEn: "Foundations", name: "الأساسات", group: "STR", weight: 8, wbs: "2", days: 12, after: ["EXC"] },
+  { code: "SLB", nameEn: "Ground slab", name: "البلاطة الأرضية", group: "STR", weight: 6, wbs: "3", days: 6, after: ["FND"] },
+  { code: "COL", nameEn: "Columns and slabs", name: "الأعمدة والأسقف", group: "STR", weight: 14, wbs: "3", days: 26, after: ["SLB"] },
+  { code: "BLK", nameEn: "Blockwork", name: "أعمال البلوك", group: "ARC", weight: 10, wbs: "4", days: 22, after: ["COL"] },
+  { code: "PLS", nameEn: "Plaster", name: "اللياسة", group: "ARC", weight: 8, wbs: "5", days: 18, after: ["BLK"] },
+  { code: "TIL", nameEn: "Tiles and flooring", name: "البلاط والأرضيات", group: "ARC", weight: 9, wbs: "6", days: 12, after: ["PLS"] },
+  { code: "PNT", nameEn: "Painting", name: "الدهان", group: "ARC", weight: 8, wbs: "5", days: 12, after: ["TIL"] },
+  { code: "DWS", nameEn: "Doors and windows", name: "الأبواب والنوافذ", group: "ARC", weight: 6, wbs: "7", days: 8, after: ["PNT"] },
+  { code: "ELR", nameEn: "Electrical rough-in", name: "التمديدات الكهربائية", group: "MEP", weight: 9, wbs: "8", days: 16, after: ["BLK"] },
+  { code: "PLR", nameEn: "Plumbing rough-in", name: "التمديدات الصحية", group: "MEP", weight: 8, wbs: "9", days: 16, after: ["BLK"] },
+  { code: "MEF", nameEn: "Final fixtures", name: "التجهيزات النهائية", group: "MEP", weight: 10, wbs: "10", days: 12, after: ["DWS", "ELR", "PLR"] },
 ];
 export const WBS_ITEMS = [
   { code: "1", name: "الأعمال الترابية" },

@@ -97,6 +97,7 @@ import {
   subcontractCertificateLines,
   subcontractWorkConfirmations,
   subcontractWorkConfirmationLines,
+  subcontractActivityBoqLinks,
   subcontractCertificates,
   subcontractContracts,
   suppliers,
@@ -4538,14 +4539,28 @@ async function confirmationQuantities(db: NonNullable<Awaited<ReturnType<typeof 
   if (headers.length !== input.confirmationIds.length || headers.some(header => header.subcontractId !== input.subcontractId)) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_WORK_CONFIRMATION_NOT_FOUND" });
   if (headers.some(header => header.status !== "approved")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WORK_CONFIRMATION_NOT_APPROVED" });
   if (headers.some(header => header.certificateId)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WORK_CONFIRMATION_ALREADY_PULLED" });
-  const lines = await db.select({ kind: subcontractWorkConfirmationLines.kind, boqItemId: subcontractWorkConfirmationLines.boqItemId, quantity: subcontractWorkConfirmationLines.quantity, historical: subcontractWorkConfirmationLines.historical })
+  const lines = await db.select({ kind: subcontractWorkConfirmationLines.kind, boqItemId: subcontractWorkConfirmationLines.boqItemId, quantity: subcontractWorkConfirmationLines.quantity, historical: subcontractWorkConfirmationLines.historical, activityId: subcontractWorkConfirmationLines.pmcActivityDefinitionId, percent: subcontractWorkConfirmationLines.percent })
     .from(subcontractWorkConfirmationLines)
     .where(and(eq(subcontractWorkConfirmationLines.tenantId, input.tenantId), eq(subcontractWorkConfirmationLines.projectId, input.projectId), inArray(subcontractWorkConfirmationLines.confirmationId, input.confirmationIds)));
   if (lines.some(line => line.historical)) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WORK_CONFIRMATION_HISTORICAL" });
-  if (lines.some(line => line.kind !== "quantity")) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED" });
+  // Q-43 batch 6 (G45, option (b)): a unit line (villa × activity × percent) is priced through this subcontract's link of the activity to a BOQ item:
+  // percent ÷ 100 × the item's quantity in one villa. An activity with no link is refused, never guessed (the units are then added by hand on their item)
+  const unitActivities = Array.from(new Set(lines.filter(line => line.kind === "unit").map(line => line.activityId!)));
+  const links = unitActivities.length ? await db.select().from(subcontractActivityBoqLinks).where(and(eq(subcontractActivityBoqLinks.tenantId, input.tenantId), eq(subcontractActivityBoqLinks.projectId, input.projectId),
+    eq(subcontractActivityBoqLinks.subcontractId, input.subcontractId), inArray(subcontractActivityBoqLinks.pmcActivityDefinitionId, unitActivities))) : [];
+  const linkOf = new Map(links.map(link => [link.pmcActivityDefinitionId, link]));
+  if (unitActivities.some(activityId => !linkOf.has(activityId))) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_WORK_CONFIRMATION_UNIT_NOT_PRICED" });
   const byItem = new Map<string, number>();
-  for (const line of lines) byItem.set(line.boqItemId!, Math.round(((byItem.get(line.boqItemId!) ?? 0) + Number(line.quantity)) * 1000) / 1000);
-  return Array.from(byItem.entries()).filter(([, quantity]) => quantity !== 0).map(([boqItemId, currentQuantity]) => ({ boqItemId, currentQuantity }));
+  const fromUnits = new Set<string>();
+  for (const line of lines) {
+    const link = line.kind === "unit" ? linkOf.get(line.activityId!)! : null;
+    const item = link ? link.boqItemId : line.boqItemId!;
+    const quantity = link ? (Number(line.percent) / 100) * Number(link.quantityPerUnit) : Number(line.quantity);
+    byItem.set(item, (byItem.get(item) ?? 0) + quantity);
+    if (link) fromUnits.add(item);
+  }
+  for (const [item, quantity] of Array.from(byItem)) byItem.set(item, Math.round(quantity * 1000) / 1000);
+  return Array.from(byItem.entries()).filter(([, quantity]) => quantity !== 0).map(([boqItemId, currentQuantity]) => ({ boqItemId, currentQuantity, fromUnits: fromUnits.has(boqItemId) }));
 }
 
 export async function createSubcontractCertificateForTenant(input: { userId: number; tenantId: string; projectId: string; subcontractId: string; certificateNumber: string; periodStart: Date; periodEnd: Date; lines: { boqItemId: string; currentQuantity: number }[]; confirmationIds?: string[] }) {
@@ -4593,6 +4608,9 @@ export async function createSubcontractCertificateForTenant(input: { userId: num
       if (!boq) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_REQUEST_FAILED" });
       const prevQty = prevQtyMap.get(line.boqItemId) ?? 0;
       const cumulativeQty = prevQty + line.currentQuantity;
+      // Q-43 batch 6 (review of #499): a quantity that came from unit lines (percent × the linked quantity per villa) is computed, not typed and seen
+      // by a person before the pull — so it may not take the item past its BOQ quantity; refused, nothing written (a quantity line has OVER_BOQ at entry)
+      if ((line as { fromUnits?: boolean }).fromUnits && Math.round(cumulativeQty * 1000) > Math.round(Number(boq.quantity) * 1000)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_WORK_CONFIRMATION_UNIT_OVER_BOQ" });
       const amount = line.currentQuantity * Number(boq.unitRate);
       grossAmount += amount;
       return { id: crypto.randomUUID(), certificateId, boqItemId: line.boqItemId, previousQuantity: String(prevQty), currentQuantity: String(line.currentQuantity), cumulativeQuantity: String(cumulativeQty), unitRate: boq.unitRate, currentAmount: String(amount) };
