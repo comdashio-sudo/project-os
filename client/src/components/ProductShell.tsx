@@ -6,7 +6,7 @@ import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { useCan } from "@/lib/permissions";
 import { PAGE_NAMES, PROJECT_SUBPAGE_NAMES } from "@shared/pageNames";
-import { Briefcase, ClipboardList, FileBarChart, FolderKanban, Gauge, HardHat, Handshake, Layers, LayoutPanelTop, Settings, SlidersHorizontal, Target, Users, UsersRound, Wallet, Warehouse, type LucideIcon } from "lucide-react";
+import { Activity, AlertTriangle, BookOpen, Briefcase, CalendarClock, CalendarRange, CheckCircle2, ClipboardCheck, ClipboardList, Compass, FileBarChart, FileInput, FileSignature, FileText, FolderInput, FolderKanban, Gauge, GitCompare, HardHat, Handshake, Layers, LayoutGrid, LayoutPanelTop, PauseCircle, PieChart, Settings, ShieldAlert, ShieldCheck, SlidersHorizontal, Target, TrendingUp, Users, UsersRound, Wallet, Warehouse, type LucideIcon } from "lucide-react";
 import { InShellProvider } from "@/components/pageFrame";
 import React from "react";
 import { useLocation } from "wouter";
@@ -48,6 +48,25 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   "project-team": UsersRound,
   "my-performance": Target,
   "tenant-administration": Settings,
+};
+// Q-59 (1): the new items — each page under its one name (shared/pageNames.ts), with its own icon
+const MORE_ICONS: Record<string, LucideIcon> = {
+  "project-daily-report": FileText, "project-progress": TrendingUp, "project-qc": CheckCircle2, "project-stalled": PauseCircle,
+  "project-quality": ClipboardCheck, "project-submittals": FileSignature, "project-safety": ShieldCheck,
+  "project-schedule": CalendarClock, "project-pmc": LayoutGrid, "project-risks": AlertTriangle, "project-meetings": CalendarRange,
+  "project-weekly-report": Activity, "project-monthly-report": PieChart, "project-site-consultant": GitCompare,
+  "project-profitability": TrendingUp, "project-baseline": FolderInput, "project-import": FileInput, "project-guide": BookOpen,
+  "operations": ShieldAlert, "strategy": Compass,
+};
+/** The sections of the side menu (server/domain/navigation.ts NavigationSection), named here; each folds and remembers it */
+const SECTION_TITLES: Record<string, { ar: string; en: string; ur: string }> = {
+  overview: { ar: "نظرة عامة", en: "Overview", ur: "جائزہ" },
+  site: { ar: "الموقع اليومي", en: "Daily site", ur: "روزانہ سائٹ" },
+  quality: { ar: "الجودة والسلامة", en: "Quality and safety", ur: "معیار اور حفاظت" },
+  planning: { ar: "التخطيط والتحكم", en: "Planning and control", ur: "منصوبہ بندی اور کنٹرول" },
+  reports: { ar: "التقارير", en: "Reports", ur: "رپورٹس" },
+  supply: { ar: "التوريد والمال", en: "Supply and money", ur: "سپلائی اور مالیات" },
+  setup: { ar: "الإعداد", en: "Setup", ur: "ترتیب" },
 };
 const WORKSPACE = { ar: "مساحة العمل", en: "Workspace", ur: "ورک اسپیس" };
 // Q-36 (step 2): the two groups of the side menu, the open project's first
@@ -92,8 +111,9 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
   const projectTitle = (() => { const named = projectId ? (projects.data ?? []).find(item => item.id === projectId) : undefined; const word = pickLanguage(language, GROUP_TITLES.project); return named ? `${word}: ${named.code} · ${named.name}` : word; })();
   const nav: NavItem[] = (navigation.data ?? []).map(item => ({
     id: item.id,
-    label: MODULE_LABELS[item.labelKey] ? pickLanguage(language, MODULE_LABELS[item.labelKey]) : item.id,
-    icon: MODULE_ICONS[item.id] ?? LayoutPanelTop,
+    label: MODULE_LABELS[item.labelKey] ? pickLanguage(language, MODULE_LABELS[item.labelKey]) : item.labelKey.startsWith("page.") && item.labelKey.slice(5) in PAGE_NAMES ? pickLanguage(language, PAGE_NAMES[item.labelKey.slice(5) as keyof typeof PAGE_NAMES]) : item.id,
+    icon: MODULE_ICONS[item.id] ?? MORE_ICONS[item.id] ?? LayoutPanelTop,
+    section: "section" in item && typeof item.section === "string" && SECTION_TITLES[item.section] ? { key: item.section, title: pickLanguage(language, SECTION_TITLES[item.section]) } : undefined,
     href: item.href,
     group: "group" in item && item.group === "project" ? projectTitle : pickLanguage(language, GROUP_TITLES.company),
   }));

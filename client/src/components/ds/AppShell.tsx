@@ -12,8 +12,13 @@ import { Select, type SelectOption } from "./Select";
 import { DIRECTIONS, useDirection, type Mode } from "./direction";
 import { useDsText } from "./strings";
 
-/** `group`: the heading of the group the item belongs to (Q-36); a heading is drawn where it changes. */
-export type NavItem = { id: string; label: string; icon: LucideIcon; href?: string; group?: string };
+/** `group`: the heading of the group the item belongs to (Q-36); a heading is drawn where it changes. `section` (Q-59 1): a part of the group that
+ *  folds — its title is a button, the person's choice is remembered on this device, and the section holding the open page is always open. */
+export type NavItem = { id: string; label: string; icon: LucideIcon; href?: string; group?: string; section?: { key: string; title: string } };
+
+const FOLDED_KEY = "dashio.nav.folded";
+function readFolded(): string[] { try { const value = JSON.parse(window.localStorage.getItem(FOLDED_KEY) ?? "[]"); return Array.isArray(value) ? value.filter((key): key is string => typeof key === "string") : []; } catch { return []; } }
+function writeFolded(keys: string[]) { try { window.localStorage.setItem(FOLDED_KEY, JSON.stringify(keys)); } catch { /* storage refused: the choice lasts for this visit */ } }
 
 type Props = {
   nav: NavItem[]; activeId: string; onNavigate?: (item: NavItem) => void;
@@ -55,18 +60,31 @@ export function SidebarSwitcher({ label, options, value, onValueChange }: { labe
 
 function NavList({ nav, activeId, onNavigate, collapsed }: Pick<Props, "nav" | "activeId" | "onNavigate"> & { collapsed?: boolean }) {
   const text = useDsText();
+  const [folded, setFolded] = useState<string[]>(() => (typeof window === "undefined" ? [] : readFolded()));
+  const activeSection = nav.find(item => item.id === activeId)?.section?.key;
+  const isFolded = (key: string) => folded.includes(key) && key !== activeSection;
+  const toggle = (key: string) => setFolded(current => { const next = current.includes(key) ? current.filter(item => item !== key) : [...current, key]; writeFolded(next); return next; });
   return (
     <nav aria-label={text.navigation}>
       <ul className="flex flex-col gap-1">
-        {nav.map((item, index) => { const active = item.id === activeId; const Icon = item.icon; const heading = item.group && item.group !== nav[index - 1]?.group ? item.group : null; return (
+        {nav.map((item, index) => { const active = item.id === activeId; const Icon = item.icon; const heading = item.group && item.group !== nav[index - 1]?.group ? item.group : null;
+          const section = item.section; const sectionStart = section && (heading || section.key !== nav[index - 1]?.section?.key) ? section : null;
+          // a folded section shows its title only (in the narrow menu, where titles are hidden, nothing folds)
+          if (section && isFolded(section.key) && !collapsed && !sectionStart) return null;
+          return (
           <li key={item.id}>
             {heading ? <p className={cn("truncate px-3 pb-1.5 text-[11px] font-medium tracking-wide text-sidebar-foreground/60", index > 0 && "mt-4", collapsed && "sr-only")} data-nav-group>{heading}</p> : null}
+            {sectionStart && !collapsed ? <button type="button" data-nav-section={sectionStart.key} aria-expanded={!isFolded(sectionStart.key)} onClick={() => toggle(sectionStart.key)}
+              className="mt-1 flex min-h-11 w-full items-center justify-between gap-2 rounded-[var(--radius)] px-3 text-start text-xs font-semibold text-sidebar-foreground/80 hover:bg-sidebar-accent/60">
+              <span className="truncate">{sectionStart.title}</span><ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isFolded(sectionStart.key) && "-rotate-90 rtl:rotate-90")} aria-hidden="true" />
+            </button> : null}
+            {section && isFolded(section.key) && !collapsed ? null : <>
             <a href={item.href ?? "#"} aria-current={active ? "page" : undefined} title={collapsed ? item.label : undefined} onClick={event => { if (onNavigate) { event.preventDefault(); onNavigate(item); } }}
               className={cn("flex min-h-11 items-center gap-3 rounded-[var(--radius)] px-3 text-sm font-medium transition-colors", collapsed && "justify-center px-0", active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground")}>
               <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
               <span className={collapsed ? "sr-only" : ""}>{item.label}</span>
               {active && !collapsed ? <span aria-hidden="true" data-nav-active-mark className="ms-auto h-2 w-2 shrink-0 rounded-full bg-sidebar-mark" /> : null}
-            </a>
+            </a></>}
           </li>); })}
       </ul>
     </nav>
