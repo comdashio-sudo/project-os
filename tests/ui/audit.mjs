@@ -59,6 +59,8 @@ const ROUTE_FILTER = String(process.env.ROUTE_FILTER ?? "").split(",").map(item 
 const PMC_TABS = ["approvals", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages", "editors", "import"];
 const ROUTES = [...new Set([...APP_SOURCE.matchAll(/path="([^"]+)"/g)].map(match => match[1]))]
   .flatMap(pattern => (pattern.endsWith("/pmc") ? [pattern, ...PMC_TABS.map(tab => `${pattern}?tab=${tab}`)] : [pattern]))
+  // Q-56 (1): each kind of import is a page of its own (client/src/pages/ProjectImportKind.tsx)
+  .flatMap(pattern => (pattern.endsWith("/import/:kind") ? ["programme", "operational", "reference", "master-plan"].map(kind => pattern.replace(":kind", kind)) : [pattern]))
   .map(pattern => pattern.replace(":tenantId", TENANT_ID).replace(":projectId", PROJECT_ID).replace(":unitNumber", "101"))
   .filter(route => !ROUTE_FILTER.length || ROUTE_FILTER.some(fragment => route.includes(fragment)));
 

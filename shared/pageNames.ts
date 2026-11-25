@@ -41,6 +41,7 @@ export const PROJECT_SUBPAGE_NAMES: Record<string, PageNameKey> = {
   controls: "board", baseline: "baseline", team: "team", pmc: "pmc", stalled: "stalled", profitability: "profitability", commercial: "commercial",
   quality: "quality", submittals: "submittals", "site-consultant": "siteConsultant", guide: "guide", "weekly-report": "weeklyReport",
   "monthly-report": "monthlyReport", "my-performance": "myPerformance", meetings: "meetings", risks: "risks", safety: "safety", schedule: "liveSchedule", site: "site", reports: "reports", import: "imports",
+  planning: "planning", supply: "supply",
 };
 
 /** Names a page no longer goes by (Arabic), and the page they belonged to. The client test fails if any of them is shown again. */
