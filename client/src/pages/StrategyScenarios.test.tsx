@@ -29,6 +29,9 @@ describe("Q-21 (b): the scenarios section", () => {
     const { container } = render(<StrategyScenarios tenantId="t" language="en" />);
     const rows = Array.from(container.querySelectorAll("[data-strategy-scenarios] tbody tr")).map(row => Array.from(row.querySelectorAll("td")).map(cell => cell.textContent));
     expect(rows).toEqual(scenarioRows(forecast, "en"));
+    // the phone's stacked list carries the same three values per figure (the sideways-scrolling table hid two scenarios at 390px)
+    const stacked = Array.from(container.querySelectorAll("[data-strategy-scenarios-stacked] > div")).map(block => [block.querySelector("dt")!.textContent, ...Array.from(block.querySelectorAll("dd bdi")).map(cell => cell.textContent)]);
+    expect(stacked).toEqual(scenarioRows(forecast, "en"));
     expect(container.querySelector("[data-strategy-backlog]")!.textContent).toContain("1,500,000");
     expect(container.querySelector("[data-strategy-backlog]")!.textContent).toContain("4,000,000");
     expect(container.querySelector("[data-strategy-missing]")!.textContent).toContain("overheadsMonthly");

@@ -41,7 +41,14 @@ export default function StrategyScenarios({ tenantId, language }: { tenantId: st
       <SourceNotice query={assumptions} isArabic={language === "ar"} title={p.assumptions} />
       {data ? <>
         <p className="text-xs text-muted-foreground">{p.asOf} <bdi dir="ltr">{data.asOf}</bdi> · {p.horizon} <bdi dir="ltr">{formatNumber(data.horizonMonths)}</bdi> {p.months}</p>
-        <div className="overflow-x-auto" data-strategy-scenarios>
+        {/* a phone stacks each figure with its three scenario values (a 4-column table would hide two scenarios behind a sideways scroll); the table from sm up */}
+        <dl className="grid gap-2 sm:hidden" data-strategy-scenarios-stacked>
+          {scenarioRows(data, language).map(row => <div key={row[0]} className="rounded-[var(--radius-md)] border border-border px-3 py-2">
+            <dt className="text-sm text-muted-foreground">{row[0]}</dt>
+            {[p.conservative, p.base, p.optimistic].map((head, index) => <dd key={head} className="flex justify-between gap-2 text-sm"><span>{head}</span><bdi className="font-semibold">{row[index + 1]}</bdi></dd>)}
+          </div>)}
+        </dl>
+        <div className="hidden overflow-x-auto sm:block" data-strategy-scenarios>
           <table className="w-full min-w-[34rem] text-sm">
             <thead><tr className="text-muted-foreground">{[p.figure, p.conservative, p.base, p.optimistic].map(head => <th key={head} className="px-2 py-1 text-start font-medium">{head}</th>)}</tr></thead>
             <tbody>{scenarioRows(data, language).map(row => <tr key={row[0]} className="border-t border-border">{row.map((cell, index) => <td key={index} className={index === 0 ? "px-2 py-1" : "px-2 py-1 font-semibold"}><bdi>{cell}</bdi></td>)}</tr>)}</tbody>
