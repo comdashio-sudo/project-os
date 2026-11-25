@@ -203,6 +203,40 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     await waitFor(() => expect(state.imports.confirm).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", importId: IMPORT }));
   });
 
+  it("Q-56 (5): after saving, says what was saved — activities and their total per model, the rows not saved and why — and opens «Activities»", async () => {
+    state.imports.progress = view({ status: "completed", createdRows: 10, analysis: null, external: external(pmcReport({ kind: "weights", canConfirm: false, details: { models: [{ modelCode: "A", activities: 5, totalWeight: 100 }, { modelCode: "B", activities: 5, totalWeight: 100 }], skippedTotals: 1, ignoredZeroWeight: 2 } })) });
+    render(<ProjectPmc />);
+    await choose("weights.xlsx");
+    fireEvent.click(screen.getByText("Check the file"));
+    const result = await screen.findByTestId("import-result");
+    const rows = [...result.querySelectorAll("[data-import-result-models] tbody tr")].map(row => [...row.querySelectorAll("td")].map(cell => cell.textContent));
+    expect(rows).toEqual([["A", "5", "100%"], ["B", "5", "100%"]]);
+    const skipped = result.querySelector("[data-import-result-skipped]")!.textContent!;
+    expect(skipped).toContain("Totals lines skipped: 1");
+    expect(skipped).toContain("Rows skipped because their weight is zero or empty: 2");
+    expect(screen.queryByText("Save the approved file")).toBeNull(); // saved: nothing to confirm again
+    fireEvent.click(screen.getByText("Open «Activities» to check"));
+    expect(screen.getByRole("tab", { name: "Activities" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("Q-56 (5) NEGATIVE: a completed import with nothing skipped says so; one without a saved report shows only the counts, no invented result", async () => {
+    state.imports.progress = view({ status: "completed", createdRows: 4, analysis: null, external: external(pmcReport({ kind: "locations", canConfirm: false })) });
+    const { unmount } = render(<ProjectPmc />);
+    await choose("units.xlsx");
+    fireEvent.click(screen.getByText("Check the file"));
+    const result = await screen.findByTestId("import-result");
+    expect(result.textContent).toContain("No row was skipped.");
+    expect(result.querySelector("[data-import-result-models]")).toBeNull();
+    expect(screen.queryByText("Open «Activities» to check")).toBeNull();
+    unmount();
+    state.imports.progress = view({ status: "completed", createdRows: 4, analysis: null, external: null });
+    render(<ProjectPmc />);
+    await choose("units.xlsx");
+    fireEvent.click(screen.getByText("Check the file"));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("4"));
+    expect(screen.queryByTestId("import-result")).toBeNull();
+  });
+
   it("says plainly when the file matches what is already stored", async () => {
     state.imports.progress = view({ external: external(pmcReport({ kind: "locations", totalRows: 500, counts: { create: 0, update: 0, unchanged: 500 }, canConfirm: false })) });
     render(<ProjectPmc />);
