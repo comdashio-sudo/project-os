@@ -170,20 +170,20 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
 
   // Q-57 (4): the period export reads the list between two dates (inclusive) through the same gate as the list itself
   it("Q-57: siteReports.list with from/to bounds the days (inclusive, either bound alone, with status), reads past the 60 most recent, and keeps the gates", async () => {
-    // its own days, so the test does not lean on what other tests seeded: three days in 2031, two reports on the middle one
-    const days = ["2031-03-01", "2031-03-02", "2031-03-03"];
+    // its own days, so the test does not lean on what other tests seeded: three days in 2025, two reports on the middle one
+    const days = ["2025-03-01", "2025-03-02", "2025-03-03"];
     for (const day of days) await callers.owner.siteReports.save({ ...at(), reportDate: day, lines: [], labour: [] });
     const inWindow = (rows: Array<{ reportDate: string }>) => rows.map(row => row.reportDate).sort();
-    expect(inWindow(await callers.owner.siteReports.list({ ...at(), from: "2031-03-01", to: "2031-03-03" }))).toEqual(days);
-    expect(inWindow(await callers.owner.siteReports.list({ ...at(), from: "2031-03-02", to: "2031-03-02" }))).toEqual(["2031-03-02"]); // inclusive both ends, the middle day only
-    expect(inWindow(await callers.owner.siteReports.list({ ...at(), from: "2031-03-02" })).filter(day => day.startsWith("2031"))).toEqual(["2031-03-02", "2031-03-03"]); // from alone
-    expect(inWindow(await callers.owner.siteReports.list({ ...at(), to: "2031-03-02" })).filter(day => day.startsWith("2031"))).toEqual(["2031-03-01", "2031-03-02"]); // to alone
-    expect(await callers.owner.siteReports.list({ ...at(), from: "2031-03-03", to: "2031-03-01" })).toEqual([]); // reversed bounds: nothing, no error
+    expect(inWindow(await callers.owner.siteReports.list({ ...at(), from: "2025-03-01", to: "2025-03-03" }))).toEqual(days);
+    expect(inWindow(await callers.owner.siteReports.list({ ...at(), from: "2025-03-02", to: "2025-03-02" }))).toEqual(["2025-03-02"]); // inclusive both ends, the middle day only
+    expect(inWindow(await callers.owner.siteReports.list({ ...at(), from: "2025-03-02" })).filter(day => day.startsWith("2025"))).toEqual(["2025-03-02", "2025-03-03"]); // from alone
+    expect(inWindow(await callers.owner.siteReports.list({ ...at(), to: "2025-03-02" })).filter(day => day.startsWith("2025"))).toEqual(["2025-03-01", "2025-03-02"]); // to alone
+    expect(await callers.owner.siteReports.list({ ...at(), from: "2025-03-03", to: "2025-03-01" })).toEqual([]); // reversed bounds: nothing, no error
     expect(await callers.owner.siteReports.list({ ...at(), from: "2999-01-01", to: "2999-12-31" })).toEqual([]);
-    expect((await callers.owner.siteReports.list({ ...at(), from: "2031-03-01", to: "2031-03-03", status: "approved" })).length).toBe(0); // status combines with the range (these are drafts)
-    expect((await callers.owner.siteReports.list({ ...at(), from: "2031-03-01", to: "2031-03-03", status: "draft" })).length).toBe(3);
+    expect((await callers.owner.siteReports.list({ ...at(), from: "2025-03-01", to: "2025-03-03", status: "approved" })).length).toBe(0); // status combines with the range (these are drafts)
+    expect((await callers.owner.siteReports.list({ ...at(), from: "2025-03-01", to: "2025-03-03", status: "draft" })).length).toBe(3);
     // past the 60 most recent: the plain list stops at 60, the bounded one does not
-    for (let offset = 0; offset < 62; offset++) await callers.owner.siteReports.save({ ...at(), reportDate: new Date(Date.UTC(2033, 0, 1 + offset)).toISOString().slice(0, 10), lines: [], labour: [] });
+    for (let offset = 0; offset < 62; offset++) await callers.owner.siteReports.save({ ...at(), reportDate: new Date(Date.UTC(2024, 0, 1 + offset)).toISOString().slice(0, 10), lines: [], labour: [] });
     const plain = await callers.owner.siteReports.list(at());
     const bounded = await callers.owner.siteReports.list({ ...at(), from: "2000-01-01", to: "2999-12-31" });
     expect(plain.length).toBe(60);
