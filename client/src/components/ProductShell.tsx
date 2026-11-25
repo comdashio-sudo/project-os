@@ -52,7 +52,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
 };
 // Q-59 (1): the new items — each page under its one name (shared/pageNames.ts), with its own icon
 const MORE_ICONS: Record<string, LucideIcon> = {
-  "project-daily-report": FileText, "project-progress": TrendingUp, "project-qc": CheckCircle2, "project-stalled": PauseCircle,
+  "project-daily-report": FileText, "project-field-records": ClipboardList, "project-contracts": Handshake, "project-progress": TrendingUp, "project-qc": CheckCircle2, "project-stalled": PauseCircle,
   "project-quality": ClipboardCheck, "project-submittals": FileSignature, "project-safety": ShieldCheck,
   "project-schedule": CalendarClock, "project-pmc": LayoutGrid, "project-risks": AlertTriangle, "project-meetings": CalendarRange,
   "project-weekly-report": Activity, "project-monthly-report": PieChart, "project-site-consultant": GitCompare,
