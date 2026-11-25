@@ -60,7 +60,7 @@ const WEATHER = ["صافٍ", "غائم جزئيًا", "حار", "مغبر", "ر�
 export async function seedReportsModeProject(input: {
   client: PoolClient; tenantId: string; projectId: string; now: Date; owner: Person; siteEngineer: Person; manager: Person;
   callerFor: (person: Person) => Caller; roleIds: Map<string, string>;
-  storagePut?: (key: string, data: Buffer, contentType: string) => Promise<unknown>; log: (line: string) => void;
+  storagePut?: (key: string, data: Buffer, contentType: string) => Promise<{ key: string }>; log: (line: string) => void;
 }) {
   const { client, tenantId, projectId, now, log } = input;
   const at = { tenantId, projectId };
@@ -147,9 +147,9 @@ export async function seedReportsModeProject(input: {
   let photos = 0;
   if (input.storagePut) {
     for (const [index, reportId] of reportIds.slice(-6).entries()) {
-      const key = `tenants/${tenantId}/demo/reports-mode-photo-${index + 1}.png`;
       const bytes = await syntheticSitePhoto(100 + index);
-      try { await input.storagePut(key, bytes, "image/png"); } catch { log("reports-mode photos skipped: the storage service refused the upload"); break; }
+      let key: string; // the key the storage service returns (it adds a suffix), never the one asked for
+      try { ({ key } = await input.storagePut(`tenants/${tenantId}/demo/reports-mode-photo-${index + 1}.png`, bytes, "image/png")); } catch { log("reports-mode photos skipped: the storage service refused the upload"); break; }
       await client.query("INSERT INTO site_daily_report_photos (id, tenant_id, project_id, report_id, storage_key, file_name, content_type, size_bytes, caption, zone, created_by_user_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
         [randomUUID(), tenantId, projectId, reportId, key, `reports-mode-photo-${index + 1}.png`, "image/png", bytes.length, "صورة تركيبية مولَّدة للعرض (ليست من موقع حقيقي)", "المبنى الرئيسي", input.siteEngineer.id]);
       photos++;
