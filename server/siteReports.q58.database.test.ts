@@ -69,14 +69,16 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-58 (1): several daily 
   const mixer = () => [{ equipmentId: machineId, count: 1, hours: 8 }];
   const crew = (headcount: number) => [{ companyId, labourRoleId: roleId, shift: "day" as const, headcount }];
 
-  it("two reports of one day by one engineer, each its number and label; both approved; the week counts the day once and the labour of both", async () => {
+  it("two reports of one day by one engineer, each its number and label; both approved; the week counts the day once, the labour of both and the quantities of both", async () => {
     const day = daysAgo(2);
-    const morning = await callers.engineer.siteReports.save({ ...scope(), reportDate: day, label: "Zone A — day shift (synthetic)", summary: "Zone A", lines: [], labour: crew(10), equipment: mixer() });
-    const evening = await callers.engineer.siteReports.save({ ...scope(), reportDate: day, label: "Zone B — night shift (synthetic)", summary: "Zone B", lines: [], labour: crew(6) });
+    // each report plans and does its own shift's share of the walls (review of #523: the week adds them — two shifts, two plans — never one report's twice)
+    const walls = (planned: number, actual: number) => [{ lineType: "work" as const, description: "Walls (synthetic)", pmcActivityDefinitionId: WALLS, plannedQuantity: planned, actualQuantity: actual }];
+    const morning = await callers.engineer.siteReports.save({ ...scope(), newReportId: crypto.randomUUID(), reportDate: day, label: "Zone A — day shift (synthetic)", summary: "Zone A", lines: walls(10, 8), labour: crew(10), equipment: mixer() });
+    const evening = await callers.engineer.siteReports.save({ ...scope(), newReportId: crypto.randomUUID(), reportDate: day, label: "Zone B — night shift (synthetic)", summary: "Zone B", lines: walls(5, 4), labour: crew(6) });
     expect(evening.id).not.toBe(morning.id);
     expect(evening.reportNumber).not.toBe(morning.reportNumber);
     // a save names the report it changes: the other one is untouched
-    await callers.engineer.siteReports.save({ ...scope(), reportId: morning.id, reportDate: day, label: "Zone A — day shift (synthetic)", summary: "Zone A, corrected", lines: [], labour: crew(11), equipment: mixer() });
+    await callers.engineer.siteReports.save({ ...scope(), reportId: morning.id, reportDate: day, label: "Zone A — day shift (synthetic)", summary: "Zone A, corrected", lines: walls(10, 8), labour: crew(11), equipment: mixer() });
     expect((await callers.engineer.siteReports.get({ ...scope(), reportId: morning.id })).report.summary).toBe("Zone A, corrected");
     expect((await callers.engineer.siteReports.get({ ...scope(), reportId: evening.id })).report).toMatchObject({ summary: "Zone B", label: "Zone B — night shift (synthetic)" });
     const listed = (await callers.engineer.siteReports.list(scope())).filter(row => row.reportDate === day);
@@ -91,9 +93,10 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-58 (1): several daily 
     expect(week.period.workingDays.filter(workingDay => workingDay === day).length).toBeLessThanOrEqual(1);
     const dayLabour = week.labour.daily.find(row => row.date === day)!;
     expect(dayLabour.direct + dayLabour.indirect).toBe(17); // 11 + 6: every approved report of the day, each once
+    expect(week.activities.find(activity => activity.code === "WALLS")?.period).toMatchObject({ planned: 15, actual: 12 }); // 10 + 5 planned, 8 + 4 done
   });
 
-  it("a saved report keeps its day; another person's report cannot be named; a save kept offline by an older screen (no report id) goes to the day's only report", async () => {
+  it("a saved report keeps its day; another person's report cannot be named; a save from an older screen (no id) goes to the day's only report, and is refused when there are two", async () => {
     const day = daysAgo(4);
     const report = await callers.engineer.siteReports.save({ ...scope(), reportDate: day, summary: "Only one (synthetic)", lines: [] });
     await expect(callers.engineer.siteReports.save({ ...scope(), reportId: report.id, reportDate: daysAgo(5), lines: [] })).rejects.toThrow("PROJECT_OS_SITE_REPORT_DATE_FIXED");
@@ -101,9 +104,23 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-58 (1): several daily 
     const legacy = await callers.engineer.siteReports.save({ ...scope(), reportDate: day, summary: "Kept offline (synthetic)", lines: [], queuedAt: new Date().toISOString() });
     expect(legacy.id).toBe(report.id);
     expect((await callers.engineer.siteReports.get({ ...scope(), reportId: report.id })).report.summary).toBe("Kept offline (synthetic)");
-    // a new save without an id and without «kept offline» is a new report of that day
-    const another = await callers.engineer.siteReports.save({ ...scope(), reportDate: day, summary: "A second one (synthetic)", lines: [] });
-    expect(another.id).not.toBe(report.id);
+    // a cached page of before this change, pressing «save» again: still the day's only report, not a second one (review of #523, note 1)
+    expect((await callers.engineer.siteReports.save({ ...scope(), reportDate: day, summary: "Cached page (synthetic)", lines: [] })).id).toBe(report.id);
+    // the screen's «new report» carries the id it chose: its first save creates it, a second save of it (sent twice, kept offline twice) changes it
+    const newId = crypto.randomUUID();
+    const another = await callers.engineer.siteReports.save({ ...scope(), newReportId: newId, reportDate: day, summary: "A second one (synthetic)", lines: [] });
+    expect(another.id).toBe(newId);
+    expect((await callers.engineer.siteReports.save({ ...scope(), newReportId: newId, reportDate: day, summary: "A second one, again (synthetic)", lines: [], queuedAt: new Date().toISOString() })).id).toBe(newId);
+    const ofDay = async () => (await callers.engineer.siteReports.list(scope())).filter(row => row.reportDate === day);
+    expect(await ofDay()).toHaveLength(2);
+    // with two reports that day, a save that names none is refused — no third report, no guess (note 2), whether kept offline or not
+    await expect(callers.engineer.siteReports.save({ ...scope(), reportDate: day, summary: "Which? (synthetic)", lines: [], queuedAt: new Date().toISOString() })).rejects.toThrow("PROJECT_OS_SITE_REPORT_SAVE_WHICH");
+    await expect(callers.engineer.siteReports.save({ ...scope(), reportDate: day, summary: "Which? (synthetic)", lines: [] })).rejects.toThrow("PROJECT_OS_SITE_REPORT_SAVE_WHICH");
+    expect(await ofDay()).toHaveLength(2);
+    // a chosen id that is another person's report is not taken over; one of another day keeps its day
+    await expect(callers.pm.siteReports.save({ ...scope(), newReportId: newId, reportDate: day, lines: [] })).rejects.toThrow("PROJECT_OS_SITE_REPORT_NOT_FOUND");
+    await expect(callers.engineer.siteReports.save({ ...scope(), newReportId: newId, reportDate: daysAgo(5), lines: [] })).rejects.toThrow("PROJECT_OS_SITE_REPORT_DATE_FIXED");
+    expect((await callers.engineer.siteReports.get({ ...scope(), reportId: newId })).report.summary).toBe("A second one, again (synthetic)");
   });
 
   it("«copy from yesterday»: one report there is copied as before; with two, the screen must say which, and the one named is copied", async () => {

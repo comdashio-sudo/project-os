@@ -127,6 +127,8 @@ export default function SiteDailyReport() {
 
   const [reportId, setReportId] = useState<string | null>(null);
   const [label, setLabel] = useState("");
+  // Q-58 (1): the id of the report this form will create — chosen here, so a save sent twice (or kept offline twice) changes it instead of making a second one
+  const [newReportId, setNewReportId] = useState(() => crypto.randomUUID());
   const [copyChoices, setCopyChoices] = useState<Array<{ id: string; reportNumber: string | null; label: string | null }> | null>(null);
   const [locked, setLocked] = useState(false);
   const [rejectedNote, setRejectedNote] = useState<string | null>(null);
@@ -196,7 +198,7 @@ export default function SiteDailyReport() {
 
   const body = () => ({
     // Q-58 (1): an opened report is named (several reports of one day are allowed); none is a new report
-    ...scope, reportDate: date, ...(reportId ? { reportId } : {}), ...(label.trim() ? { label: label.trim() } : {}), weather: weather || undefined, temperatureC: num(temperature), summary: summary.trim() || undefined, obstacles: obstacles.trim() || undefined,
+    ...scope, reportDate: date, ...(reportId ? { reportId } : { newReportId }), ...(label.trim() ? { label: label.trim() } : {}), weather: weather || undefined, temperatureC: num(temperature), summary: summary.trim() || undefined, obstacles: obstacles.trim() || undefined,
     lines: lines.map(line => ({
       lineType: line.lineType, label: line.lineType === "work" ? undefined : line.label.trim(), quantity: line.lineType === "work" ? undefined : num(line.quantity), hours: line.lineType === "labour" ? num(line.hours) : undefined,
       description: line.description.trim() || undefined, pmcUnitId: line.lineType === "work" ? unitOf(line.unitNumber)?.id : undefined,
@@ -210,7 +212,7 @@ export default function SiteDailyReport() {
     ...(machines.data ? { equipment: equipmentBody(dayEquipment) } : {}),
   });
 
-  const startNew = () => { setReportId(null); setLabel(""); setCopyChoices(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setSections(emptySections()); setWind(""); setWorkHours(""); setLabourCells({}); setDayEquipment({}); setMessage(null); setPhotoMessage(null); };
+  const startNew = () => { setReportId(null); setNewReportId(crypto.randomUUID()); setLabel(""); setCopyChoices(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setSections(emptySections()); setWind(""); setWorkHours(""); setLabourCells({}); setDayEquipment({}); setMessage(null); setPhotoMessage(null); };
   const openReport = async (id: string) => {
     const full = await utils.siteReports.get.fetch({ ...scope, reportId: id });
     const unitNumber = (unitId: string | null) => String(units.find(unit => unit.id === unitId)?.number ?? "");

@@ -262,8 +262,10 @@ describe("SiteDailyReport — the frame of sections 0 to 10 (D-46, part 1)", () 
     fireEvent.click(screen.getByText("Save draft"));
     // Q-24: plus the request identifier the phone keeps it under if the connection drops (the server answers a resend of it with the first answer)
     expect((h.save.mock.calls[0]![0] as { clientRequestId?: string }).clientRequestId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(Object.keys(h.save.mock.calls[0]![0]).filter(key => key !== "clientRequestId").sort()).toEqual(["equipment", "hse", "labour", "lines", "materials", "obstacleItems", "obstacles", "projectId", "reportDate", "summary", "temperatureC", "tenantId", "tomorrow", "weather", "wind", "workHours"]);
+    expect(Object.keys(h.save.mock.calls[0]![0]).filter(key => key !== "clientRequestId").sort()).toEqual(["equipment", "hse", "labour", "lines", "materials", "newReportId", "obstacleItems", "obstacles", "projectId", "reportDate", "summary", "temperatureC", "tenantId", "tomorrow", "weather", "wind", "workHours"]);
     expect(h.save.mock.calls[0]![0].lines).toEqual([expect.objectContaining({ lineType: "labour", label: "Masons", quantity: 6 })]);
+    // Q-58 (1): a new report carries the id the screen chose for it (a second save of it changes it, never makes another)
+    expect(h.save.mock.calls[0]![0].newReportId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it("an empty role list offers the default list to the project manager only", () => {

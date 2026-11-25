@@ -1274,6 +1274,11 @@ export const projectErrorMessages = {
     en: "The previous day has more than one report: choose the one to copy from.",
     ur: "پچھلے دن کی ایک سے زیادہ رپورٹس ہیں: وہ رپورٹ منتخب کریں جس سے نقل کرنی ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_SAVE_WHICH: {
+    ar: "لك أكثر من تقرير لهذا اليوم، والحفظ لم يحدّد أيّها. حدّث الصفحة وافتح التقرير المقصود من «تقارير حديثة» ثم احفظه.",
+    en: "You have more than one report for this day and the save did not say which. Reload the page, open the report from «Recent reports» and save it.",
+    ur: "اس دن کی آپ کی ایک سے زیادہ رپورٹس ہیں اور محفوظ کرتے وقت یہ نہیں بتایا گیا کہ کون سی۔ صفحہ دوبارہ لوڈ کریں، «حالیہ رپورٹس» سے مطلوبہ رپورٹ کھولیں اور محفوظ کریں۔",
+  },
   PROJECT_OS_SITE_REPORT_EXISTS: {
     ar: "لك تقرير لهذا اليوم بالفعل، فلا يُنسخ فوقه. افتح التقرير الموجود.",
     en: "You already have a report for this day, so nothing is copied over it. Open the existing report.",
