@@ -351,6 +351,8 @@ export async function buildDataExportFile(input: { moduleCode: ExportModuleCode;
   return { bytes, fileName: `${input.moduleCode}-export.${extension}`, contentType: input.format === "csv" ? "text/csv;charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
 }
 
+/** Q-51: the importer's own field table of a module (key, required, the headers it accepts) — the project workbook is built from it, not from a copy. */
+export const importModuleFields = (moduleCode: ImportModuleCode) => templates[moduleCode].map(field => ({ key: field.key, required: Boolean(field.required), aliases: [...field.aliases] }));
 // X-1: the import template is generated from the SAME field table the importer reads (`templates`), so a column added to an import appears in its template with no second edit.
 const templateExamples: Record<ImportModuleCode, Record<"ar" | "en", string[][]>> = {
   wbs: { ar: [["1.1", "الأعمال التمهيدية", "100000"]], en: [["1.1", "Preliminaries", "100000"]] },
