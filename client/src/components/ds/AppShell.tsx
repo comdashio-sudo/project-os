@@ -24,6 +24,10 @@ type Props = {
   nav: NavItem[]; activeId: string; onNavigate?: (item: NavItem) => void;
   companies: SelectOption[]; company: string; onCompany: (value: string) => void;
   projects: SelectOption[]; project: string; onProject: (value: string) => void;
+  /** Q-57: the page's buttons (export, print), drawn beside the breadcrumb and left off the paper. */
+  actions?: React.ReactNode;
+  /** Q-57: drawn on paper only, above the page. */
+  printHeader?: React.ReactNode;
   breadcrumbs: Crumb[]; user: { name: string; email: string }; onSignOut?: () => void; onMyCompanies?: () => void;
   mode?: Mode; onModeChange?: (mode: Mode) => void;
   children: React.ReactNode;
@@ -109,8 +113,8 @@ export function AppShell(props: Props) {
   const initials = props.user.name.split(" ").map(part => part[0]).slice(0, 2).join("").toUpperCase();
   const canDark = DIRECTIONS[direction].darkMode;
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-card px-3 md:px-4">
+    <div className="flex min-h-screen flex-col bg-background text-foreground print:block print:min-h-0">
+      <header className="sticky top-0 z-30 print:hidden flex h-14 items-center gap-2 border-b border-border bg-card px-3 md:px-4">
         <Dialog.Root open={drawer} onOpenChange={setDrawer}>
           <Dialog.Trigger asChild><button type="button" aria-label={text.menu} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-muted md:hidden"><MenuIcon className="h-5 w-5" aria-hidden="true" /></button></Dialog.Trigger>
           <Dialog.Portal>
@@ -151,7 +155,7 @@ export function AppShell(props: Props) {
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
-        <aside className={cn("hidden shrink-0 border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] md:block", collapsed ? "w-[4.5rem]" : "w-60")}>
+        <aside data-app-sidebar className={cn("hidden shrink-0 print:!hidden border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] md:block", collapsed ? "w-[4.5rem]" : "w-60")}>
           <div className="sticky top-14 flex h-[calc(100vh-3.5rem)] flex-col justify-between gap-3 p-3">
             <div className="flex min-h-0 flex-col gap-4 overflow-y-auto [&>*]:shrink-0">{/* Q-54: in a scrolling column the head must not shrink (it did, and the project heading drew over the company switcher) */}
               {/* Q-19 (2): the logo on dark and the company switcher head the dark menu */}
@@ -169,7 +173,11 @@ export function AppShell(props: Props) {
             </button>
           </div>
         </aside>
-        <main className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7"><div className="mx-auto flex max-w-5xl flex-col gap-5 [&>*]:min-w-0"><Breadcrumbs items={props.breadcrumbs} onNavigate={href => props.onNavigate?.({ id: href, label: href, icon: MenuIcon, href })} />{props.children}</div></main>
+        <main className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7 print:p-0"><div className="mx-auto flex max-w-5xl flex-col gap-5 print:max-w-none [&>*]:min-w-0">
+          {props.printHeader}
+          <div className="flex flex-wrap items-center justify-between gap-3 print:hidden" data-page-toolbar-row><Breadcrumbs items={props.breadcrumbs} onNavigate={href => props.onNavigate?.({ id: href, label: href, icon: MenuIcon, href })} />{props.actions}</div>
+          <div data-page-content className="flex min-w-0 flex-col gap-5 [&>*]:min-w-0">{props.children}</div>
+        </div></main>
       </div>
     </div>
   );

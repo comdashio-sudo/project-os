@@ -168,6 +168,37 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
     expect(await code(callers.owner.siteReports.get({ ...at(B), reportId: report.id }))).toBe("PROJECT_OS_SITE_REPORT_NOT_FOUND");
   });
 
+  // Q-57 (4): the period export reads the list between two dates (inclusive) through the same gate as the list itself
+  it("Q-57: siteReports.list with from/to bounds the days (inclusive, either bound alone, with status), reads past the 60 most recent, and keeps the gates", async () => {
+    // its own days, so the test does not lean on what other tests seeded: three days in 2025, two reports on the middle one
+    const days = ["2025-03-01", "2025-03-02", "2025-03-03"];
+    for (const day of days) await callers.owner.siteReports.save({ ...at(), reportDate: day, lines: [], labour: [] });
+    const inWindow = (rows: Array<{ reportDate: string }>) => rows.map(row => row.reportDate).sort();
+    expect(inWindow(await callers.owner.siteReports.list({ ...at(), from: "2025-03-01", to: "2025-03-03" }))).toEqual(days);
+    expect(inWindow(await callers.owner.siteReports.list({ ...at(), from: "2025-03-02", to: "2025-03-02" }))).toEqual(["2025-03-02"]); // inclusive both ends, the middle day only
+    expect(inWindow(await callers.owner.siteReports.list({ ...at(), from: "2025-03-02" })).filter(day => day.startsWith("2025"))).toEqual(["2025-03-02", "2025-03-03"]); // from alone
+    expect(inWindow(await callers.owner.siteReports.list({ ...at(), to: "2025-03-02" })).filter(day => day.startsWith("2025"))).toEqual(["2025-03-01", "2025-03-02"]); // to alone
+    expect(await callers.owner.siteReports.list({ ...at(), from: "2025-03-03", to: "2025-03-01" })).toEqual([]); // reversed bounds: nothing, no error
+    expect(await callers.owner.siteReports.list({ ...at(), from: "2999-01-01", to: "2999-12-31" })).toEqual([]);
+    expect((await callers.owner.siteReports.list({ ...at(), from: "2025-03-01", to: "2025-03-03", status: "approved" })).length).toBe(0); // status combines with the range (these are drafts)
+    expect((await callers.owner.siteReports.list({ ...at(), from: "2025-03-01", to: "2025-03-03", status: "draft" })).length).toBe(3);
+    // past the 60 most recent: the plain list stops at 60, the bounded one does not
+    for (let offset = 0; offset < 62; offset++) await callers.owner.siteReports.save({ ...at(), reportDate: new Date(Date.UTC(2024, 0, 1 + offset)).toISOString().slice(0, 10), lines: [], labour: [] });
+    const plain = await callers.owner.siteReports.list(at());
+    const bounded = await callers.owner.siteReports.list({ ...at(), from: "2000-01-01", to: "2999-12-31" });
+    expect(plain.length).toBe(60);
+    expect(bounded.length).toBeGreaterThanOrEqual(65); // 62 + the three days above + whatever the other tests wrote
+    // negatives: a role without the report permission and another company are refused with a range too
+    const first = days[0];
+    expect(await code(callers.manager.siteReports.list({ ...at(B), from: first, to: days[2] }))).toBe("PROJECT_OS_PERMISSION_DENIED");
+    expect(await code(callers.otherOwner.siteReports.list({ ...at(), from: first, to: days[2] }))).toBe("PROJECT_OS_TENANT_ACCESS_DENIED");
+    // a malformed or impossible day is refused by the input check (BAD_REQUEST), never turned into a query that fails in the database
+    for (const bad of ["yesterday", "2026-02-31", "2026-13-01", "2026-1-1"]) {
+      await expect(callers.owner.siteReports.list({ ...at(), from: bad })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(callers.owner.siteReports.list({ ...at(), to: bad })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    }
+  });
+
   // Q-24 (P-120): a report kept on the phone while offline is not sent over a report saved after it was kept — refused, shown, the newer one stands;
   // one kept after the last save goes through, once (the same identifier again answers the stored result).
   it("Q-24: a report kept offline before a newer save of the same day is refused (CHANGED_SINCE) and the newer stands; one kept after it is saved, once", async () => {
