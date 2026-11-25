@@ -300,7 +300,7 @@ function filledColumns(sheet: ExcelJS.Worksheet, headerRow: number) {
 }
 
 /** The fields of a kind (key and whether it is required): what a column-mapping screen offers. */
-export const pmcImportFields = (kind: PmcImportKind) => FIELDS[kind].map(field => ({ key: field.key, required: field.required }));
+export const pmcImportFields = (kind: PmcImportKind) => FIELDS[kind].map(field => ({ key: field.key, required: field.required, aliases: [...field.aliases] }));
 
 /**
  * A person's choice of columns (field key → the header as the file writes it) replaces what was found for those fields. An EMPTY header clears a field the
