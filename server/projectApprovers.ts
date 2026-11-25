@@ -10,7 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { auditLogs, membershipInvitations, membershipRoles, memberships, permissions, projectReportApprovers, rolePermissions, roles, users } from "../drizzle/schema";
 import { projectInviteRoleRefusal, SETS_UP_PROJECTS } from "./domain/operationalRoles";
 import { projectGate, violates } from "./projectProfile";
-import { getTenantAccessSnapshot } from "./db";
+import { assertTenantManager, getTenantAccessSnapshot } from "./db";
 import { holdsPermission } from "./domain/authorization";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -51,16 +51,25 @@ export async function listProjectInvitations(input: Scope) {
 }
 
 /** Q-12 (c): the roles a project invitation may give — the company's roles that pass projectInviteRoleRefusal (a project role, nothing company-wide, no onward
- *  invitation, no staff or pay data). The same rule the server applies to a project inviter; offered to the company manager on this page too. */
+ *  invitation, no staff or pay data). The same rule the server applies to a project inviter (createMembershipInvitation).
+ *  Q-58 (3): the company manager (tenant.manage for the whole company — the same test createMembershipInvitation makes) may invite any of the company's roles,
+ *  so this page offers him all of them, each with the scope its invitation takes: «project» (this project) for a role that passes the rule above, «company»
+ *  for one that carries a company-wide permission (the planning engineer sets projects up for the company: project.create at company scope). A project
+ *  inviter still gets only the project roles, scope «project». Each role carries its code, so the screen names it in the reader's language. */
 export async function listInvitableProjectRoles(input: Scope) {
   const db = await projectGate(input, ["project.team.invite"]);
   const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
   const setsUpProjects = Boolean(snapshot && holdsPermission(snapshot, SETS_UP_PROJECTS.permission, SETS_UP_PROJECTS.scope));
-  const rows = await db.select({ id: roles.id, name: roles.name, productCode: roles.productCode, code: permissions.code })
+  const managesCompany = await assertTenantManager(input.userId, input.tenantId).then(() => true, () => false);
+  const rows = await db.select({ id: roles.id, code: roles.code, name: roles.name, productCode: roles.productCode, permission: permissions.code })
     .from(roles).leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id)).leftJoin(permissions, eq(permissions.id, rolePermissions.permissionId)).where(eq(roles.tenantId, input.tenantId));
-  const byRole = new Map<string, { id: string; name: string; productCode: string | null; codes: string[] }>();
-  for (const row of rows) { const role = byRole.get(row.id) ?? { id: row.id, name: row.name, productCode: row.productCode, codes: [] }; if (row.code) role.codes.push(row.code); byRole.set(row.id, role); }
-  return Array.from(byRole.values()).filter(role => role.codes.length && projectInviteRoleRefusal(role, role.codes, { setsUpProjects }) === null).map(role => ({ id: role.id, name: role.name })).sort((a, b) => a.name.localeCompare(b.name));
+  const byRole = new Map<string, { id: string; code: string; name: string; productCode: string | null; codes: string[] }>();
+  for (const row of rows) { const role = byRole.get(row.id) ?? { id: row.id, code: row.code, name: row.name, productCode: row.productCode, codes: [] }; if (row.permission) role.codes.push(row.permission); byRole.set(row.id, role); }
+  return Array.from(byRole.values()).filter(role => role.codes.length).flatMap(role => {
+    const projectRole = projectInviteRoleRefusal(role, role.codes, { setsUpProjects }) === null;
+    if (!projectRole && !managesCompany) return [];
+    return [{ id: role.id, code: role.code, name: role.name, scope: projectRole ? "project" as const : "company" as const }];
+  }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getReportApprovers(input: Scope) {

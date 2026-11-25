@@ -60,6 +60,14 @@ describe("Field", () => {
 });
 
 describe("Select (custom list, not the browser's)", () => {
+  it("Q-58 (3): options with a group are listed under its label; options without one stay as before", async () => {
+    inApp(<Select aria-label="Role" onValueChange={vi.fn()} options={[{ value: "p", label: "Site engineer", group: "For this project" }, { value: "c", label: "Planning engineer", group: "Company-wide" }]} />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole("combobox", { name: "Role" }), { key: "ArrowDown" }); });
+    await screen.findByRole("option", { name: "Planning engineer" });
+    const groups = Array.from(document.querySelectorAll("[data-select-group]")).map(group => [group.getAttribute("data-select-group"), Array.from(group.querySelectorAll('[role="option"]')).map(option => option.textContent)]);
+    expect(groups).toEqual([["For this project", ["Site engineer"]], ["Company-wide", ["Planning engineer"]]]);
+  });
+
   it("opens a listbox, chooses with the keyboard, and never puts a native select in the page", async () => {
     const onChange = vi.fn();
     inApp(<Select aria-label="Type" value="a" onValueChange={onChange} options={[{ value: "a", label: "Residential" }, { value: "b", label: "Commercial" }]} />);
