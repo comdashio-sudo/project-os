@@ -11,16 +11,16 @@ import type { PageKey } from "@shared/pageAccess";
 type Text = { ar: string; en: string; ur: string };
 /** Each kind of file, what it holds, and the page that imports it (the same screens as before: no import moved, none was added). */
 const KINDS: ReadonlyArray<{ key: string; icon: LucideIcon; page: PageKey; path: string; title: Text; files: Text }> = [
-  { key: "programme", icon: CalendarClock, page: "controls", path: "controls#manager-assurance",
+  { key: "programme", icon: CalendarClock, page: "controls", path: "import/programme",
     title: { ar: "البرنامج الزمني والتكلفة", en: "Programme and cost", ur: "پروگرام اور لاگت" },
     files: { ar: "ملف Primavera (XER) أو Excel للأنشطة وWBS والميزانية.", en: "A Primavera file (XER) or Excel for the activities, the WBS and the budget.", ur: "Primavera فائل (XER) یا سرگرمیوں، WBS اور بجٹ کے لیے Excel۔" } },
-  { key: "operational", icon: FileSpreadsheet, page: "controls", path: "controls#manager-assurance",
+  { key: "operational", icon: FileSpreadsheet, page: "controls", path: "import/operational",
     title: { ar: "البيانات التشغيلية", en: "Operational data", ur: "آپریشنل ڈیٹا" },
     files: { ar: "Excel للتكاليف الفعلية وأوامر الشراء والموظفين والساعات.", en: "Excel for actual costs, purchase orders, employees and hours.", ur: "اصل لاگت، خریداری آرڈرز، ملازمین اور گھنٹوں کے لیے Excel۔" } },
-  { key: "reference", icon: ListChecks, page: "controls", path: "controls#manager-assurance",
+  { key: "reference", icon: ListChecks, page: "controls", path: "import/reference",
     title: { ar: "القوائم المرجعية", en: "Reference lists", ur: "حوالہ جاتی فہرستیں" },
     files: { ar: "العمالة والمعدات والأنشطة، وملف Tracker القديم.", en: "Labour, equipment and activities, and the old Tracker file.", ur: "افرادی قوت، آلات اور سرگرمیاں، اور پرانی Tracker فائل۔" } },
-  { key: "masterPlan", icon: MapIcon, page: "controls", path: "controls#manager-assurance",
+  { key: "masterPlan", icon: MapIcon, page: "controls", path: "import/master-plan",
     title: { ar: "مخطط الماستر بلان", en: "Master plan drawing", ur: "ماسٹر پلان کا نقشہ" },
     files: { ar: "صورة أو PDF أو DXF للمخطط.", en: "An image, PDF or DXF of the plan.", ur: "نقشے کی تصویر، PDF یا DXF۔" } },
   { key: "pmc", icon: LayoutGrid, page: "pmc", path: "pmc?tab=import",

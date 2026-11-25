@@ -143,10 +143,16 @@ describe("Q-36 (step 2 c): «التقارير»", () => {
 
 describe("Q-36 (step 4 b): the board's levels in the menu", () => {
   const nav = (codes: string[], scopeId = "p") => buildTenantNavigation({ tenantId: "t", projectId: "p", snapshot: { tenantId: "t", membershipStatus: "active", entitledProducts: ["PROJECT"], permissionCodes: codes, scopes: [{ scopeType: "project", scopeId }] } });
-  it("POSITIVE: whoever opens the project board gets «Planning and control» and «Warehouses and procurement», each to its section of the board", () => {
+  it("POSITIVE (Q-56 2): whoever opens the project board gets «Planning and control» and «Warehouses and procurement», each a page of its own", () => {
     const items = nav(["project.read"]);
-    expect(items.find(item => item.id === "project-planning")).toMatchObject({ group: "project", href: "/projects/t/p/controls#planning" });
-    expect(items.find(item => item.id === "project-supply")).toMatchObject({ group: "project", href: "/projects/t/p/controls#supply" });
+    expect(items.find(item => item.id === "project-planning")).toMatchObject({ group: "project", href: "/projects/t/p/planning" });
+    expect(items.find(item => item.id === "project-supply")).toMatchObject({ group: "project", href: "/projects/t/p/supply" });
+  });
+  it("Q-56 (2): no item of the menu is a place inside another page (no «#»): each opens its own address", () => {
+    const items = nav(["project.read", "project.pmc.read", "project.manage", "project.performance.read_own", "pmo.read", "executive.read", "tenant.manage"]);
+    expect(items.length).toBeGreaterThan(5);
+    expect(items.filter(item => item.href.includes("#")).map(item => item.href)).toEqual([]);
+    const hrefs = items.map(item => item.href); expect(new Set(hrefs).size).toBe(hrefs.length);
   });
   it("NEGATIVE: not without the board's own permission (the board's gate, shared/pageAccess.ts), nor on another project", () => {
     expect(nav(["project.pmc.read"]).map(item => item.id)).not.toEqual(expect.arrayContaining(["project-planning"]));
