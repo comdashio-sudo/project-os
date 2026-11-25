@@ -77,7 +77,14 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-56 (5): the owner's tw
     const run = await directImport("pmc.weights", "original.xlsx", await ownerOriginalWeights({ totalIn: "serial" }));
     expect(run.analysed.status).toBe("validated");
     expect(reportOf(run.analysed)?.errors).toEqual([]);
-    expect((await run.confirm()).status).toBe("completed");
+    const done = await run.confirm();
+    expect(done.status).toBe("completed");
+    expect(await activitiesOf()).toEqual(["A:5:100", "B:5:100"]);
+    // Q-56 (5) result page: the completed import still carries the report it was saved on — activities and total per model, the totals line skipped —
+    // and offers nothing to confirm (before, a completed import returned no report and the screen could say only «created 10»)
+    expect(done.external?.canConfirm).toBe(false);
+    expect((reportOf(done) as unknown as { details?: { models?: unknown; skippedTotals?: number } })?.details).toMatchObject({ models: [{ modelCode: "A", activities: 5, totalWeight: 100 }, { modelCode: "B", activities: 5, totalWeight: 100 }], skippedTotals: 1 });
+    await expect(owner().dataImports.confirm({ tenantId, projectId: P, importId: done.id })).rejects.toThrow();
     expect(await activitiesOf()).toEqual(["A:5:100", "B:5:100"]);
   });
 

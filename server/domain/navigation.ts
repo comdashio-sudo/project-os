@@ -1,8 +1,14 @@
 import { holdsPermission, type ScopeType, type TenantAccessSnapshot } from "./authorization";
 import type { ProductCode } from "../../drizzle/schema";
-import { PAGE_ACCESS, REPORTS_HUB_READERS, SITE_HUB_READERS } from "../../shared/pageAccess";
+import { PAGE_ACCESS, REPORTS_HUB_READERS, SITE_HUB_READERS, pageAllowed, type PageKey } from "../../shared/pageAccess";
 
-export type NavigationItem = { id: string; level: "EXECUTIVE" | "PMO" | "PROJECT" | "ADMIN"; group: "project" | "company"; labelKey: string; href: string; product: ProductCode; permission: string | readonly string[]; scope: { type: ScopeType; id?: string }; visible?: (snapshot: TenantAccessSnapshot) => boolean };
+/**
+ * Q-59 (1): the project's items sit in sections that fold (overview, the daily site, quality and safety, planning and control, reports, supply and money,
+ * setup); the company's items in one more. `section` is the section's key; the client names it and remembers which are folded.
+ */
+export type NavigationSection = "overview" | "site" | "quality" | "planning" | "reports" | "supply" | "setup" | "company";
+export const NAVIGATION_SECTIONS: readonly NavigationSection[] = ["overview", "site", "quality", "planning", "reports", "supply", "setup", "company"];
+export type NavigationItem = { id: string; level: "EXECUTIVE" | "PMO" | "PROJECT" | "ADMIN"; group: "project" | "company"; section: NavigationSection; labelKey: string; href: string; product: ProductCode; permission: string | readonly string[]; scope: { type: ScopeType; id?: string }; visible?: (snapshot: TenantAccessSnapshot) => boolean };
 
 /**
  * The levels entry (work order 16, G-193 to G-195). A person can enter the levels when the snapshot holds one of the permissions that opens a level,
@@ -37,29 +43,57 @@ export function buildTenantNavigation(input: { snapshot: TenantAccessSnapshot; t
   const t = input.tenantId; const company = { type: "company" as const, id: t };
   const items: NavigationItem[] = [];
   if (input.projectId) {
-    const p = input.projectId; const project = { type: "project" as const, id: p };
+    const p = input.projectId; const project = { type: "project" as const, id: p }; const base = `/projects/${t}/${p}`;
+    // an item for a page with its own gate (shared/pageAccess.ts, client/src/App.tsx gatedPage): shown only to whoever that gate lets in, on this project
+    const page = (id: string, section: NavigationSection, labelKey: string, href: string, gate: PageKey): NavigationItem => ({
+      id, level: "PROJECT", group: "project", section, labelKey, href, product: "PROJECT", permission: PAGE_ACCESS[gate][0], scope: project,
+      visible: snapshot => snapshot.membershipStatus === "active" && snapshot.entitledProducts.includes("PROJECT") && pageAllowed(gate, codes => holdsPermission(snapshot, codes, project)),
+    });
+    // an item whose page has no gate of its own: the permissions its server read accepts
+    const read = (id: string, section: NavigationSection, labelKey: string, href: string, permission: string | readonly string[]): NavigationItem => ({ id, level: "PROJECT", group: "project", section, labelKey, href, product: "PROJECT", permission, scope: project });
     items.push(
-      { id: "project-controls", level: "PROJECT", group: "project", labelKey: "navigation.projectControls", href: `/projects/${t}/${p}/controls`, product: "PROJECT", permission: "project.read", scope: project },
-      // Q-36 (4 b), Q-56 (2): two levels whose groups live on the project board, each opened as a page of its own (/planning, /supply) — the board's own gate
-      { id: "project-planning", level: "PROJECT", group: "project", labelKey: "navigation.projectPlanning", href: `/projects/${t}/${p}/planning`, product: "PROJECT", permission: PAGE_ACCESS.controls[0], scope: project },
-      // Q-36 (2 b): the site's entry page, for whoever may open at least one of its four pages (shared/pageAccess.ts SITE_HUB_READERS)
-      { id: "project-site", level: "PROJECT", group: "project", labelKey: "navigation.projectSite", href: `/projects/${t}/${p}/site`, product: "PROJECT", permission: SITE_HUB_READERS, scope: project },
-      { id: "project-supply", level: "PROJECT", group: "project", labelKey: "navigation.projectSupply", href: `/projects/${t}/${p}/supply`, product: "PROJECT", permission: PAGE_ACCESS.controls[0], scope: project },
-      { id: "project-commercial", level: "PROJECT", group: "project", labelKey: "navigation.projectCommercial", href: `/projects/${t}/${p}/commercial`, product: "PROJECT", permission: "project.read", scope: project },
-      // Q-36 (2 c): the reports' entry page, for whoever may open one of them (shared/pageAccess.ts REPORTS_HUB_READERS)
-      { id: "project-reports", level: "PROJECT", group: "project", labelKey: "navigation.projectReports", href: `/projects/${t}/${p}/reports`, product: "PROJECT", permission: REPORTS_HUB_READERS, scope: project },
-      { id: "project-team", level: "PROJECT", group: "project", labelKey: "navigation.projectTeam", href: `/projects/${t}/${p}/team`, product: "PROJECT", permission: ["project.manage", "project.team.invite"], scope: project },
-      { id: "my-performance", level: "PROJECT", group: "project", labelKey: "navigation.myPerformance", href: `/projects/${t}/${p}/my-performance`, product: "PROJECT", permission: "project.performance.read_own", scope: project },
+      page("project-controls", "overview", "navigation.projectControls", `${base}/controls`, "controls"),
+      read("my-performance", "overview", "navigation.myPerformance", `${base}/my-performance`, "project.performance.read_own"),
+      // Q-36 (2 b, 2 c): the site's and the reports' entry pages stay, each heading its section
+      read("project-site", "site", "navigation.projectSite", `${base}/site`, SITE_HUB_READERS),
+      page("project-daily-report", "site", "page.dailyReport", `/m/${t}/${p}/report`, "dailyReport"),
+      page("project-progress", "site", "page.progress", `/m/${t}/${p}/progress`, "progress"),
+      page("project-qc", "site", "page.qcReceipt", `/m/${t}/${p}/qc`, "qc"),
+      page("project-stalled", "site", "page.stalled", `${base}/stalled`, "stalled"),
+      page("project-quality", "quality", "page.quality", `${base}/quality`, "quality"),
+      // consultantSubmittals.list (server/consultantSubmittals.ts READ)
+      read("project-submittals", "quality", "page.submittals", `${base}/submittals`, ["project.read", "project.field.manage", "project.design.manage", "project.design.approve", "project.manage"]),
+      page("project-safety", "quality", "page.safety", `${base}/safety`, "safety"),
+      page("project-planning", "planning", "navigation.projectPlanning", `${base}/planning`, "controls"),
+      page("project-schedule", "planning", "page.liveSchedule", `${base}/schedule`, "schedule"),
+      page("project-pmc", "planning", "page.pmc", `${base}/pmc`, "pmc"),
+      page("project-risks", "planning", "page.risks", `${base}/risks`, "risks"),
+      page("project-meetings", "planning", "page.meetings", `${base}/meetings`, "meetings"),
+      read("project-reports", "reports", "navigation.projectReports", `${base}/reports`, REPORTS_HUB_READERS),
+      page("project-weekly-report", "reports", "page.weeklyReport", `${base}/weekly-report`, "weeklyReport"),
+      page("project-monthly-report", "reports", "page.monthlyReport", `${base}/monthly-report`, "monthlyReport"),
+      page("project-site-consultant", "reports", "page.siteConsultant", `${base}/site-consultant`, "siteConsultant"),
+      page("project-supply", "supply", "navigation.projectSupply", `${base}/supply`, "controls"),
+      page("project-commercial", "supply", "navigation.projectCommercial", `${base}/commercial`, "commercial"),
+      page("project-profitability", "supply", "page.profitability", `${base}/profitability`, "profitability"),
+      page("project-baseline", "setup", "page.baseline", `${base}/baseline`, "baseline"),
+      // the import entry opens for whoever may open one of its pages (client/src/App.tsx ImportHubGate, IMPORT_HUB_READERS)
+      read("project-import", "setup", "page.imports", `${base}/import`, ["project.read", "project.pmc.read", "project.manage"]),
+      page("project-team", "setup", "navigation.projectTeam", `${base}/team`, "team"),
+      read("project-guide", "setup", "page.guide", `${base}/guide`, "project.read"),
     );
   }
   items.push(
-    { id: "tenant-administration", level: "ADMIN", group: "company", labelKey: "navigation.tenantAdministration", href: `/tenants/${t}/administration`, product: "EXECUTIVE", permission: "tenant.manage", scope: company },
-    { id: "project-registry", level: "PROJECT", group: "company", labelKey: "navigation.projectRegistry", href: `/projects/${t}`, product: "PROJECT", permission: "project.read", scope: company },
-    { id: "pmo-dashboard", level: "PMO", group: "company", labelKey: "navigation.pmoDashboard", href: `/pmo/${t}`, product: "PMO", permission: "pmo.read", scope: company },
-    { id: "employee-registry", level: "PROJECT", group: "company", labelKey: "navigation.employeeRegistry", href: `/people/${t}`, product: "PROJECT", permission: "project.hr.manage", scope: company },
-    { id: "payroll", level: "PROJECT", group: "company", labelKey: "navigation.payroll", href: `/payroll/${t}`, product: "PROJECT", permission: ["project.payroll.structure", "project.payroll.run", "project.payroll.approve", "project.payroll.sensitive.read"], scope: company },
-    { id: "executive-dashboard", level: "EXECUTIVE", group: "company", labelKey: "navigation.executiveDashboard", href: `/executive/${t}`, product: "EXECUTIVE", permission: "executive.read", scope: company },
-    { id: "levels", level: "PROJECT", group: "company", labelKey: "navigation.levels", href: `/levels/${t}`, product: "PROJECT", permission: "project.read", scope: company, visible: canEnterLevels },
+    // operations.overview answers over the projects the person reads (server/operationsOverview.ts: project.read at any scope)
+    { id: "operations", level: "PROJECT", group: "company", section: "company", labelKey: "page.operations", href: `/operations/${t}`, product: "PROJECT", permission: "project.read", scope: company, visible: snapshot => snapshot.membershipStatus === "active" && snapshot.entitledProducts.includes("PROJECT") && holdsPermission(snapshot, "project.read") },
+    { id: "pmo-dashboard", level: "PMO", group: "company", section: "company", labelKey: "navigation.pmoDashboard", href: `/pmo/${t}`, product: "PMO", permission: "pmo.read", scope: company },
+    { id: "executive-dashboard", level: "EXECUTIVE", group: "company", section: "company", labelKey: "navigation.executiveDashboard", href: `/executive/${t}`, product: "EXECUTIVE", permission: "executive.read", scope: company },
+    { id: "strategy", level: "EXECUTIVE", group: "company", section: "company", labelKey: "page.strategy", href: `/strategy/${t}`, product: "EXECUTIVE", permission: "strategy.read", scope: company },
+    { id: "project-registry", level: "PROJECT", group: "company", section: "company", labelKey: "navigation.projectRegistry", href: `/projects/${t}`, product: "PROJECT", permission: "project.read", scope: company },
+    { id: "employee-registry", level: "PROJECT", group: "company", section: "company", labelKey: "navigation.employeeRegistry", href: `/people/${t}`, product: "PROJECT", permission: "project.hr.manage", scope: company },
+    { id: "payroll", level: "PROJECT", group: "company", section: "company", labelKey: "navigation.payroll", href: `/payroll/${t}`, product: "PROJECT", permission: ["project.payroll.structure", "project.payroll.run", "project.payroll.approve", "project.payroll.sensitive.read"], scope: company },
+    { id: "levels", level: "PROJECT", group: "company", section: "company", labelKey: "navigation.levels", href: `/levels/${t}`, product: "PROJECT", permission: "project.read", scope: company, visible: canEnterLevels },
+    { id: "tenant-administration", level: "ADMIN", group: "company", section: "company", labelKey: "navigation.tenantAdministration", href: `/tenants/${t}/administration`, product: "EXECUTIVE", permission: "tenant.manage", scope: company },
   );
   // `visible` is a rule for the server, not part of what the sidebar receives.
   return items.filter(item => isVisible(input.snapshot, item)).map(({ visible: _rule, ...item }) => item);

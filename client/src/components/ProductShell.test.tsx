@@ -201,3 +201,33 @@ describe("which routes are framed", () => {
   });
 });
 
+
+describe("Q-59 (1): the project's items in sections that fold", () => {
+  const navItems = [
+    { id: "project-controls", level: "PROJECT", group: "project", section: "overview", labelKey: "navigation.projectControls", href: "/projects/t1/p1/controls" },
+    { id: "project-daily-report", level: "PROJECT", group: "project", section: "site", labelKey: "page.dailyReport", href: "/m/t1/p1/report" },
+    { id: "project-stalled", level: "PROJECT", group: "project", section: "site", labelKey: "page.stalled", href: "/projects/t1/p1/stalled" },
+    { id: "project-pmc", level: "PROJECT", group: "project", section: "planning", labelKey: "page.pmc", href: "/projects/t1/p1/pmc" },
+  ];
+  afterEach(() => { try { window.localStorage.clear(); } catch { /* none */ } });
+
+  it("POSITIVE: each section has a title button; folding hides its items, is remembered, and the section of the open page never folds", () => {
+    state.nav = navItems as never; state.location = "/projects/t1/p1/pmc";
+    render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    const navigation = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(navigation).getByRole("link", { name: "Daily report" }).getAttribute("href")).toBe("/m/t1/p1/report");
+    const site = navigation.querySelector('[data-nav-section="site"]') as HTMLButtonElement;
+    expect(site.textContent).toContain("Daily site");
+    fireEvent.click(site);
+    expect(site.getAttribute("aria-expanded")).toBe("false");
+    expect(within(navigation).queryByRole("link", { name: "Daily report" })).toBeNull();
+    expect(within(navigation).queryByRole("link", { name: "Stalled units" })).toBeNull();
+    // remembered: drawn again, still folded
+    cleanup(); render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    expect(within(screen.getByRole("navigation", { name: "Main navigation" })).queryByRole("link", { name: "Stalled units" })).toBeNull();
+    // NEGATIVE: the section holding the open page does not fold, even when the person folds it
+    const planning = screen.getByRole("navigation", { name: "Main navigation" }).querySelector('[data-nav-section="planning"]') as HTMLButtonElement;
+    fireEvent.click(planning);
+    expect(within(screen.getByRole("navigation", { name: "Main navigation" })).getByRole("link", { name: "Project controls (PMC)" }).getAttribute("aria-current")).toBe("page");
+  });
+});
