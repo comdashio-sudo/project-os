@@ -68,15 +68,15 @@ export function SectionOnlyReport({ tenantId, projectId, access }: { tenantId: s
       {reportId && <SourceNotice query={detail} isArabic={isArabic} title={t.pick} />}
       {locked && writer && <p role="note" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{t.locked}</p>}
       {detail.data && access.edit.includes("hse") && (
-        <ReportSection number={6} title={t.hse}>
+        <ReportSection sectionKey="hse" number={7} title={t.hse}>
           <HseSection title={t.hse} rows={sections.hse} onChange={put("hse")} locked={locked} />
           {!locked && <Button type="button" className={`${tap} w-full`} disabled={invalid || save.isPending} onClick={() => send("hse")}>{save.isPending ? t.saving : t.save}</Button>}
         </ReportSection>
       )}
       {detail.data && access.edit.includes("qc") && (
         <>
-          <ReportSection number={4} title={t.inspections} defaultOpen={false}><InspectionsSection inspections={detail.data.inspections} /></ReportSection>
-          <ReportSection number={5} title={t.qc}>
+          <ReportSection sectionKey="inspections" number={6} title={t.inspections} defaultOpen={false}><InspectionsSection inspections={detail.data.inspections} /></ReportSection>
+          <ReportSection sectionKey="materials" number={5} title={t.qc}>
             <SourceNotice query={submittals} isArabic={isArabic} title={sectionText.approval} />
             <MaterialsSection title={t.qc} rows={sections.materials} onChange={put("materials")} locked={locked} submittals={submittals.data ?? []} />
             {!locked && <Button type="button" className={`${tap} w-full`} disabled={invalid || save.isPending} onClick={() => send("qc")}>{save.isPending ? t.saving : t.save}</Button>}
