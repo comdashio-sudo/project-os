@@ -1876,6 +1876,11 @@ export const projectErrorMessages = {
     en: "This source of entry is not known in the progress log.",
     ur: "پیش رفت لاگ میں اندراج کا یہ ذریعہ معلوم نہیں۔",
   },
+  PROJECT_OS_COMPLETION_FILTER_INVALID: {
+    ar: "تصفية تقرير الإنجاز غير صالحة: اكتب رقم الفيلا رقمًا، واختر الحالة من القائمة.",
+    en: "The completion report's filter is not valid: write the villa as a number and choose the status from the list.",
+    ur: "تکمیل رپورٹ کا فلٹر درست نہیں: ولا نمبر کے طور پر لکھیں اور حالت فہرست سے منتخب کریں۔",
+  },
   PROJECT_OS_STALL_THRESHOLD_INVALID: {
     ar: "حد التوقف عدد أيام عمل من 1 إلى 60.",
     en: "The stall threshold is a number of working days from 1 to 60.",
