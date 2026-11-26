@@ -1847,9 +1847,9 @@ export const projectErrorMessages = {
     ur: "اکائی کی لاگت صفر سے زیادہ عدد ہونی چاہیے۔",
   },
   PROJECT_OS_IMPORT_DUPLICATE_DETECTED: {
-    ar: "هذا الملف مستورد سابقًا في هذا المشروع.",
-    en: "This file was already imported into this project.",
-    ur: "یہ فائل اس پروجیکٹ میں پہلے ہی درآمد ہو چکی ہے۔",
+    ar: "هذا الملف نفسه مستورد سابقًا في هذا المشروع بنوع الاستيراد نفسه. الملف نفسه بنوع استيراد آخر أو في مشروع آخر مقبول.",
+    en: "This same file was already imported into this project with this same kind of import. The same file with another kind of import, or into another project, is accepted.",
+    ur: "یہی فائل اس پروجیکٹ میں اسی قسم کی درآمد کے ساتھ پہلے درآمد ہو چکی ہے۔ یہی فائل کسی دوسری قسم کی درآمد یا دوسرے پروجیکٹ میں قبول ہے۔",
   },
   PROJECT_OS_CONSULTANT_EXPORT_NOT_RECOGNISED: {
     ar: "لم نتعرّف على هذا الملف كتصدير من نظام الاستشاري (نبحث عن صف فيه Zone وBlock وUnit وVilla Type، ثم الأنشطة ورقم WIR لكل نشاط).",

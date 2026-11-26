@@ -6,5 +6,16 @@
   "regions": [
     "sin1"
   ],
-  "ignoreCommand": "bash scripts/ci/vercel-ignore.sh"
+  "ignoreCommand": "bash scripts/ci/vercel-ignore.sh",
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "**": false,
+      "main": true,
+      "production": true
+    }
+  },
+  "github": {
+    "silent": true
+  }
 }
