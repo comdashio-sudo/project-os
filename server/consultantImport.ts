@@ -14,6 +14,9 @@ import { readGrid } from "./domain/smartImport/sheetReader";
 import { nameScore } from "./domain/pmcActivityMatch";
 import { assertNotImportedYet, chunks, pmcGate, siteToday, unitsByVilla, villaKey, type Db, type Scope } from "./wo22Shared";
 
+// Q-62: this importer's kind in the import log (data_imports.module_code) — the duplicate guard is per kind
+const importModule = "pmcConsultant";
+
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type ConsultantPlan = {
   fileHash: string; exportDate: string | null; observedOn: string; project: string | null;
@@ -155,7 +158,7 @@ export async function confirmConsultantImport(input: Scope & { bytes: Uint8Array
   const { model, fileHash } = await readConsultantExport(input.bytes);
   if (input.approvedHash && input.approvedHash !== fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
   const db = await pmcGate(input, "project.pmc.manage");
-  await assertNotImportedYet(db, { tenantId: input.tenantId, fileHash });
+  await assertNotImportedYet(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: importModule, fileHash });
   const plan = await inTransaction(input, model, fileHash, input.source, true);
   if (!plan.canConfirm || !(plan as { importId?: string }).importId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED", cause: plan.warnings });
   return plan;
