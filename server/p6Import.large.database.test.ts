@@ -9,8 +9,8 @@ import { buildLargeP6Xer, LARGE_P6_COUNTS } from "./domain/smartImport/p6LargeFi
 // Q-61 (1): a Primavera file with the table sizes of a large villa schedule — 16,469 activities, 46,592 relationships, 181,148 activity-code lines, 1,413 WBS nodes, over 10.5 MB —
 // goes to Storage on a signed URL (never inside a request body), is read back by its upload key, analysed and written in full. A SYNTHETIC file: nothing real in it.
 // On the code before this batch the write failed with «Maximum call stack size exceeded» (the ids of 181,148 new rows were spread into one push call).
-const T = "79000000-0000-4000-8000-0000000000d1";
-const P = "79000000-0000-4000-8000-0000000000d2";
+const T = "79000000-0000-4000-8000-00000000061a";
+const P = "79000000-0000-4000-8000-00000000061b";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
 let connection: fixtureDb.Connection; let s3: FakeS3; let userId = 0;
 const scope = { tenantId: T, projectId: P };
