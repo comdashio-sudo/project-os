@@ -2,7 +2,7 @@
 // the named PMC permission and the PMC licence feature before it touches a row,
 // and every write leaves an audit row. The arithmetic is domain/pmc.ts.
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   auditLogs,
   pmcActivityDefinitions,
@@ -156,6 +156,9 @@ export async function applyCellStatus(tx: Tx, input: Scope & { unitId: string; a
  */
 export async function applyCellStatuses(tx: Tx, input: Scope & { status: PmcUnitActivityStatus; note: string }, targets: ReadonlyArray<{ unitId: string; activityDefinitionId: string }>, now: Date) {
   const key = (unitId: string, activityDefinitionId: string) => `${unitId}/${activityDefinitionId}`;
+  // review of #557 (C, note 2): FOR UPDATE locks only the rows that exist, so two saves that create the same missing cell would both insert and the second
+  // fail on the unique index; one project-wide lock for the transaction runs the bulk saves of a project one after the other
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`pmc-cells:${input.projectId}`}))`);
   const existing = new Map<string, typeof pmcUnitActivityProgress.$inferSelect>();
   for (let index = 0; index < targets.length; index += 500) {
     const unitIds = Array.from(new Set(targets.slice(index, index + 500).map(target => target.unitId)));
@@ -164,11 +167,13 @@ export async function applyCellStatuses(tx: Tx, input: Scope & { status: PmcUnit
   }
   const moving = targets.filter(target => existing.get(key(target.unitId, target.activityDefinitionId))?.status !== input.status);
   const warnings: CellWarning[] = [];
+  const notAccepted = new Set<string>(); // review of #557 (C, note 3): the warning goes on the audit rows of the cells QC did not accept, not on every cell
   if (input.status === "COMPLETE" && moving.length) {
     const gate = await qcCompletionGate(tx, input.tenantId, moving);
     if (gate.notAccepted.length) {
       if (gate.mode === "block") throw refuse("CONFLICT", "PROJECT_OS_QC_NOT_ACCEPTED");
       warnings.push({ code: "QC_NOT_ACCEPTED" });
+      for (const cell of gate.notAccepted) notAccepted.add(key(cell.unitId, cell.activityDefinitionId));
     }
   }
   const updates: string[] = []; const inserts: Array<typeof pmcUnitActivityProgress.$inferInsert> = []; const history: Array<typeof pmcUnitActivityHistory.$inferInsert> = []; const audits: Array<typeof auditLogs.$inferInsert> = [];
@@ -180,7 +185,7 @@ export async function applyCellStatuses(tx: Tx, input: Scope & { status: PmcUnit
     else inserts.push({ id: progressId, tenantId: input.tenantId, projectId: input.projectId, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, status: input.status, verificationStatusId, lastChangedByUserId: input.userId, lastChangedAt: now });
     const from = row?.status ?? null;
     history.push({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: progressId, fromStatus: from, toStatus: input.status, changedByUserId: input.userId, changedAt: now, note: input.note });
-    audits.push({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.unit_activity_changed", entityType: "pmc_unit_activity_progress", entityId: progressId, metadata: JSON.stringify({ projectId: input.projectId, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, from, to: input.status, verificationStatusId, ...(warnings.length ? { warnings: warnings.map(item => item.code) } : {}) }) });
+    audits.push({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.unit_activity_changed", entityType: "pmc_unit_activity_progress", entityId: progressId, metadata: JSON.stringify({ projectId: input.projectId, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, from, to: input.status, verificationStatusId, ...(notAccepted.has(key(target.unitId, target.activityDefinitionId)) ? { warnings: ["QC_NOT_ACCEPTED"] } : {}) }) });
   }
   for (let index = 0; index < updates.length; index += 500) await tx.update(pmcUnitActivityProgress).set({ status: input.status, lastChangedByUserId: input.userId, lastChangedAt: now }).where(and(eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId), inArray(pmcUnitActivityProgress.id, updates.slice(index, index + 500))));
   for (let index = 0; index < inserts.length; index += 500) await tx.insert(pmcUnitActivityProgress).values(inserts.slice(index, index + 500));
