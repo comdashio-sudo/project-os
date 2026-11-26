@@ -3,7 +3,7 @@ import { AwaitingApprovalNote } from "@/components/dailyReport/ApprovalWho";
 import { ActivityNameToggle, hasEnglishNames, useActivityLabel, useActivityNameLanguage } from "@/lib/activityNames";
 import { Link, useParams } from "wouter";
 import { Button, Card, CardBody, CardHeader, CardTitle, Field, TableScroll, TextArea, TextInput, formatDate, formatNumber, formatPercent } from "@/components/ds";
-import { PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { ReportPeriodTabs } from "@/components/ReportPeriodTabs";
 import { SectionFailed } from "@/components/ScreenStates";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -91,14 +91,12 @@ export default function WeeklyReport() {
   const data = figures.data;
   return (
     <PageMain className="mx-auto flex max-w-6xl flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col gap-2"><ReportPeriodTabs tenantId={tenantId} projectId={projectId} current="weekly" /><h1 className="text-xl font-semibold">{t.title}</h1></div>
-        <div className="flex flex-wrap items-end gap-2">
+      {/* Q-59 (4): the template's head — the period tabs, the title, the period's controls in the filter bar */}
+      <PageTitle eyebrow={<ReportPeriodTabs tenantId={tenantId} projectId={projectId} current="weekly" />} title={t.title} filters={<>
           <Button variant="secondary" onClick={() => setWeekStart(shift(weekStart, -7))}>{t.previous}</Button>
           <Field label={t.week}>{props => <TextInput {...props} type="date" value={weekStart} onChange={event => setWeekStart(event.target.value)} />}</Field>
           <Button variant="secondary" onClick={() => setWeekStart(shift(weekStart, 7))}>{t.next}</Button>
-        </div>
-      </div>
+      </>} />
       {figures.error ? <SectionFailed title={t.figures} error={figures.error} isArabic={language === "ar"} onRetry={() => figures.refetch()} /> : data ? (
         <>
         {/* Q-56 (4a): the figures count approved reports only — say how many of the period's reports still wait for an approver */}
