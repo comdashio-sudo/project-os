@@ -94,4 +94,20 @@ describe("PlanningControlCenter (Q-64)", () => {
     }
     expect(planningHeadline(ownerProject(), "SAR", "en")).toBe("31 activities, 3 started (9.7%), 2 past their planned finish.");
   });
+
+  it("Q-64 batch 2: the next two weeks are two lists (start, finish) with the dates and a «and N more» line; the sentence carries the planned-to-date; and nothing is drawn when there is nothing in the window", () => {
+    const dated = Array.from({ length: 8 }, (_unused, index) => ({ id: `n${index}`, code: `N${index}`, name: `Next ${index}`, status: "not_started", plannedStartAt: `2026-06-${String(2 + index).padStart(2, "0")}`, plannedFinishAt: "2026-09-01" }));
+    const result = calculatePlanningControl(input({ activities: dated }));
+    const { unmount } = render(<PlanningControlCenter result={result} currency="SAR" activities={dated} plan={{ planned: 40, actual: 35.5 }} />);
+    expect(document.querySelector("[data-planning-headline]")!.textContent).toContain("المخطط حتى اليوم 40%، والفعلي 35.5%.");
+    const start = document.querySelector("[data-upcoming='start']")!;
+    expect(start.textContent).toContain("تبدأ");
+    expect(start.querySelectorAll("li")).toHaveLength(6);
+    expect(start.textContent).toContain("و2 أخرى");
+    expect(start.textContent).toContain("2026-06-02");
+    expect(document.querySelector("[data-upcoming='finish']")).toBeNull(); // nothing finishes within the window
+    unmount();
+    render(<PlanningControlCenter result={result} currency="SAR" activities={[]} />);
+    expect(document.querySelector("[data-planning-upcoming]")).toBeNull();
+  });
 });
