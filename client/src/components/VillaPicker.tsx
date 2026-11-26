@@ -4,6 +4,8 @@
 import React from "react";
 import { Button, Checkbox, Field, Segmented, Select, TextInput, formatNumber } from "@/components/ds";
 import { SearchCombobox, type ComboOption } from "@/components/SearchCombobox";
+import { VillaMap } from "@/components/VillaMap";
+import type { VillaShape } from "@/lib/villaMap";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { filterVillas, summarizeSelection, villasOf, type PickerVilla, type SelectionSummary, type VillaChoice } from "@/lib/villaPicker";
@@ -15,6 +17,7 @@ const ALL = "__all";
 
 const text = {
   ar: {
+    how: "طريقة الاختيار", fromList: "اختر من القائمة", fromMap: "اختر من الخريطة",
     mode: "اختيار الفلل", modes: { phase: "مرحلة", block: "بلوك", model: "نموذج", range: "نطاق", list: "فلل محددة" }, villas: (n: number) => `${formatNumber(n)} فيلا`,
     phase: "المرحلة", block: "البلوكات", model: "النموذج", from: "من فيلا", to: "إلى فيلا", choosePhase: "اختر المرحلة", chooseBlock: "اختر بلوكًا أو أكثر", chooseModel: "اختر النموذج", chooseVilla: "اختر الفيلا",
     search: "ابحث برقم الفيلا", all: "الكل", chooseAll: (n: number) => `اختر الكل ضمن التصفية (${formatNumber(n)})`, clearAll: "إلغاء الكل", more: (n: number) => `و${formatNumber(n)} فيلا أخرى — ضيّق البحث أو التصفية`,
@@ -24,6 +27,7 @@ const text = {
     villa: "فيلا", status: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل" } as Record<string, string>,
   },
   en: {
+    how: "How to choose", fromList: "Choose from the list", fromMap: "Choose from the map",
     mode: "Choose the villas", modes: { phase: "Phase", block: "Block", model: "Model", range: "Range", list: "Chosen villas" }, villas: (n: number) => `${formatNumber(n)} villas`,
     phase: "Phase", block: "Blocks", model: "Model", from: "From villa", to: "To villa", choosePhase: "Choose the phase", chooseBlock: "Choose one block or more", chooseModel: "Choose the model", chooseVilla: "Choose the villa",
     search: "Search by villa number", all: "All", chooseAll: (n: number) => `Choose all in the filter (${formatNumber(n)})`, clearAll: "Clear all", more: (n: number) => `and ${formatNumber(n)} more villas — narrow the search or the filter`,
@@ -33,6 +37,7 @@ const text = {
     villa: "Villa", status: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" } as Record<string, string>,
   },
   ur: {
+    how: "انتخاب کا طریقہ", fromList: "فہرست سے منتخب کریں", fromMap: "نقشے سے منتخب کریں",
     mode: "ولاز کا انتخاب", modes: { phase: "مرحلہ", block: "بلاک", model: "ماڈل", range: "رینج", list: "منتخب ولاز" }, villas: (n: number) => `${formatNumber(n)} ولاز`,
     phase: "مرحلہ", block: "بلاکس", model: "ماڈل", from: "ولا سے", to: "ولا تک", choosePhase: "مرحلہ منتخب کریں", chooseBlock: "ایک یا زیادہ بلاک منتخب کریں", chooseModel: "ماڈل منتخب کریں", chooseVilla: "ولا منتخب کریں",
     search: "ولا نمبر سے تلاش کریں", all: "سب", chooseAll: (n: number) => `فلٹر میں سب منتخب کریں (${formatNumber(n)})`, clearAll: "سب صاف کریں", more: (n: number) => `اور ${formatNumber(n)} مزید ولاز — تلاش یا فلٹر محدود کریں`,
@@ -47,16 +52,29 @@ export type PickerMode = VillaChoice["mode"];
 export const emptyChoice = (mode: PickerMode): VillaChoice =>
   mode === "list" ? { mode, villas: [] } : mode === "range" ? { mode, from: "", to: "" } : mode === "block" ? { mode, blocks: [] } : mode === "phase" ? { mode, phases: [] } : { mode, models: [] };
 
-export function VillaPicker({ data, choice, onChoice }: { data: PickerData; choice: VillaChoice; onChoice: (choice: VillaChoice) => void }) {
+/** Q-67 (6): with a linked master plan (`map`), «choose from the list» and «choose from the map» side by side, the same choice in both: the map works on the
+ * chosen villas themselves, so a list choice (a phase, blocks…) becomes those villas when the map is opened, and the map's villas show in «chosen villas». */
+export function VillaPicker({ data, choice, onChoice, map, models = null }: { data: PickerData; choice: VillaChoice; onChoice: (choice: VillaChoice) => void; map?: { shapes: VillaShape[]; yUp: boolean } | null; models?: string[] | null }) {
   const { language } = useLanguage();
   const t = pickLanguage(language, text);
+  const [onMap, setOnMap] = React.useState(false);
+  const hasMap = Boolean(map?.shapes.length);
   const groupOptions = (groups: Group[]): ComboOption[] => groups.map(group => ({ value: group.code, label: group.code, description: t.villas(group.villas) }));
   const villaOptions = React.useMemo<ComboOption[]>(() => data.villas.map(villa => ({ value: villa.villa, label: villa.villa, description: [villa.block, villa.phase, villa.model].filter(Boolean).join(" · ") })), [data.villas]);
   const modes: PickerMode[] = data.phases.length ? ["phase", "block", "model", "range", "list"] : ["block", "model", "range", "list"];
   if (!data.villas.length) return <p className="text-sm text-muted-foreground" data-picker-empty>{t.noVillas}</p>;
 
+  const chosenNow = villasOf(data.villas, choice).map(villa => villa.villa);
+  const how = hasMap ? <Segmented label={t.how} value={onMap ? "map" : "list"} onValueChange={value => { const toMap = value === "map"; setOnMap(toMap); if (toMap) onChoice({ mode: "list", villas: chosenNow }); }} options={[{ value: "list", label: t.fromList }, { value: "map", label: t.fromMap }]} /> : null;
+  if (hasMap && onMap) return (
+    <div className="flex flex-col gap-3" data-villa-picker="map">
+      {how}
+      <VillaMap shapes={map!.shapes} yUp={map!.yUp} villas={data.villas} models={models} chosen={chosenNow} onChosen={villas => onChoice({ mode: "list", villas })} />
+    </div>
+  );
   return (
     <div className="flex flex-col gap-3" data-villa-picker={choice.mode}>
+      {how}
       <Segmented label={t.mode} value={choice.mode} onValueChange={value => onChoice(emptyChoice(value as PickerMode))} options={modes.map(mode => ({ value: mode, label: t.modes[mode] }))} />
       {choice.mode === "phase" && <Field label={t.phase} required>{props => <SearchCombobox id={props.id} data-combobox="phase" multiple options={groupOptions(data.phases)} values={choice.phases} onChangeMany={phases => onChoice({ mode: "phase", phases })} placeholder={t.choosePhase} />}</Field>}
       {choice.mode === "block" && <Field label={t.block} required>{props => <SearchCombobox id={props.id} data-combobox="block" multiple options={groupOptions(data.blocks)} values={choice.blocks} onChangeMany={blocks => onChoice({ mode: "block", blocks })} placeholder={t.chooseBlock} />}</Field>}

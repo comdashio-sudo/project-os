@@ -5,8 +5,8 @@
 // (from, to, who, when) and its audit row — all in ONE transaction; the villa's and the project's progress are then read from the weights and returned.
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcBlocks, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { auditLogs, masterPlanDrawingLinks, masterPlanDrawingPolygons, masterPlanDrawings, pmcActivityDefinitions, pmcActivityGroups, pmcBlocks, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
 import { applyCellStatuses, authorize, getPmcProgress, mine, type Scope } from "./pmcService";
 import { expandVillaRange } from "./pmcSiteService";
 import { siteToday, villaKey } from "./wo22Shared";
@@ -63,6 +63,40 @@ export async function listProgressPicker(input: Scope & { activityCode?: string 
     return Array.from(counts.entries()).sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true })).map(([code, villas]) => ({ code, villas }));
   };
   return { villas, blocks: count(villa => villa.block || null), phases: count(villa => villa.phase), models: count(villa => villa.model) };
+}
+
+/**
+ * Q-67 (6): the project's master plan as the field screens choose villas on it — the shapes of the saved drawing (#567) that are linked to a PMC villa, each
+ * with its villa key; nothing when the project has no linked drawing (the screen then offers the list only). When several drawings carry links, the one with
+ * the most linked villas is shown. Read with project.pmc.read; every table filtered by the company and the project. Read only.
+ */
+export async function listProgressMapShapes(input: Scope) {
+  const db = await authorize(input, "project.pmc.read");
+  const scoped = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
+  const links = await db.select({ drawingId: masterPlanDrawingLinks.drawingId, polygonId: masterPlanDrawingLinks.polygonId, unitId: masterPlanDrawingLinks.pmcUnitId })
+    .from(masterPlanDrawingLinks).innerJoin(masterPlanDrawings, and(eq(masterPlanDrawings.id, masterPlanDrawingLinks.drawingId), scoped(masterPlanDrawings)))
+    .where(and(scoped(masterPlanDrawingLinks), isNotNull(masterPlanDrawingLinks.pmcUnitId)));
+  if (!links.length) return { shapes: [] as Array<{ villa: string; points: Array<{ x: number; y: number }> }>, yUp: false };
+  const perDrawing = new Map<string, number>();
+  for (const link of links) perDrawing.set(link.drawingId, (perDrawing.get(link.drawingId) ?? 0) + 1);
+  const drawingId = Array.from(perDrawing.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+  const chosen = links.filter(link => link.drawingId === drawingId);
+  const [polygons, units, [drawing]] = await Promise.all([
+    db.select({ id: masterPlanDrawingPolygons.id, points: masterPlanDrawingPolygons.points }).from(masterPlanDrawingPolygons).where(and(scoped(masterPlanDrawingPolygons), eq(masterPlanDrawingPolygons.drawingId, drawingId))),
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel }).from(pmcUnits).where(mine(pmcUnits, input)),
+    db.select({ background: masterPlanDrawings.background }).from(masterPlanDrawings).where(and(scoped(masterPlanDrawings), eq(masterPlanDrawings.id, drawingId))).limit(1),
+  ]);
+  const pointsOf = new Map(polygons.map(polygon => [polygon.id, polygon.points]));
+  const villaOf = new Map(units.map(unit => [unit.id, villaKey(unit.villaLabel ?? unit.unitNumber)]));
+  const shapes: Array<{ villa: string; points: Array<{ x: number; y: number }> }> = [];
+  for (const link of chosen) {
+    const villa = villaOf.get(link.unitId!); const points = pointsOf.get(link.polygonId);
+    if (!villa || !points) continue;
+    try { const parsed = JSON.parse(points) as Array<{ x: number; y: number }>; if (Array.isArray(parsed) && parsed.length >= 3) shapes.push({ villa, points: parsed.map(point => ({ x: Number(point.x), y: Number(point.y) })) }); }
+    catch { /* a shape that cannot be read is left off the map, never guessed */ }
+  }
+  // a drawing read from a picture (an image or a PDF page) has its y downwards like the screen; a DXF has it upwards (the drawing screen flips it the same way)
+  return { shapes, yUp: !drawing?.background };
 }
 
 export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; modelCode?: string; phase?: string; status: ProgressStatus; date: string; queuedAt?: string; confirmCount?: number };
