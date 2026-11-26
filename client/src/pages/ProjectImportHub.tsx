@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useParams } from "wouter";
 import { CalendarClock, FileSpreadsheet, FolderInput, LayoutGrid, ListChecks, Map as MapIcon, type LucideIcon } from "lucide-react";
 import { PageHeader, PageMain } from "@/components/pageFrame";
+import { ProjectWorkbookPanel } from "@/components/ProjectWorkbookPanel";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { useCanPage } from "@/lib/permissions";
@@ -61,6 +62,8 @@ export default function ProjectImportHub() {
           ))}
         </ul>
       ) : <p role="note" className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground ring-1 ring-border">{pickLanguage(language, text.nothing)}</p>}
+      {/* Q-51: the whole project in one workbook — saved through the PMC importer's permission, so offered to whoever opens the PMC pages */}
+      {can.pmc ? <ProjectWorkbookPanel tenantId={tenantId} projectId={projectId} /> : null}
     </PageMain>
   );
 }

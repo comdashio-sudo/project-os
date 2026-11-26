@@ -232,3 +232,6 @@ export async function writePlannedLabourAudited(db: GateDb, input: Scope, rows: 
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "project.planned_labour_saved", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ source, rows: rows.length, peak }) });
   });
 }
+
+/** Review of #531: the permission each base-file save asks, so the project workbook's preview refuses a sheet its reader may not save before it says the sheet would be saved. */
+export const baselineSheetPermission = { project: WRITE, boq: BOQ_WRITE } as const;

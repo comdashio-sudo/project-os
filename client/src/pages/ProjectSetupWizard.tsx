@@ -1,4 +1,5 @@
 import React from "react";
+import { ProjectWorkbookDownload } from "@/components/ProjectWorkbookPanel";
 import { Link, useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, FileDropzone, Select, Stepper, TextInput } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
@@ -102,6 +103,8 @@ export default function ProjectSetupWizard() {
     <PageMain className="py-2 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-3xl space-y-4">
         <PageHeader><h1 className="text-2xl font-semibold">{t.title}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+        {/* Q-51: the project workbook — fill everything in one Excel file and upload it from the import page */}
+        <ProjectWorkbookDownload />
         <Stepper label={t.title} current={step} steps={t.steps.map((label, index) => ({ id: String(index), label }))} onSelect={index => { if (projectId || index === 0) setStep(index); }} />
         <Card>
           <CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>{t.steps[step]}</CardTitle>{projectId ? <Badge tone="success">{t.saved}</Badge> : null}</div></CardHeader>
