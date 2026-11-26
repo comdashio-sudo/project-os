@@ -1996,6 +1996,11 @@ export const projectErrorMessages = {
     en: "The difference preview is not available until the file passes validation.",
     ur: "فائل کی توثیق کامیاب ہونے تک فرق کا پیش نظارہ دستیاب نہیں ہے۔",
   },
+  PROJECT_OS_WORKBOOK_NOT_RECOGNISED: {
+    ar: "هذا الملف ليس كراسة بيانات المشروع من داشيو (أو من إصدار آخر). نزّل الكراسة من المنصة واملأها ثم ارفعها.",
+    en: "This file is not the Dashio project workbook (or is from another version). Download the workbook from the platform, fill it in and upload it.",
+    ur: "یہ فائل Dashio کی پروجیکٹ ورک بک نہیں ہے (یا کسی اور ورژن کی ہے)۔ پلیٹ فارم سے ورک بک ڈاؤن لوڈ کریں، بھریں اور اپ لوڈ کریں۔",
+  },
   PROJECT_OS_IMPORT_FILE_INVALID: {
     ar: "الملف غير صالح أو غير مقروء.",
     en: "The file is invalid or unreadable.",
