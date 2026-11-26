@@ -1085,9 +1085,11 @@ CREATE TABLE "master_plan_drawing_links" (
 	"project_id" varchar(36) NOT NULL,
 	"drawing_id" varchar(36) NOT NULL,
 	"polygon_id" varchar(36) NOT NULL,
-	"entity_id" varchar(36) NOT NULL,
+	"entity_id" varchar(36),
+	"pmc_unit_id" varchar(36),
 	"confirmed_by_user_id" integer NOT NULL,
-	"confirmed_at" timestamp with time zone DEFAULT now() NOT NULL
+	"confirmed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "master_plan_drawing_links_one_unit_check" CHECK (("master_plan_drawing_links"."entity_id" IS NULL) <> ("master_plan_drawing_links"."pmc_unit_id" IS NULL))
 );
 --> statement-breakpoint
 CREATE TABLE "master_plan_drawing_polygons" (
@@ -1609,6 +1611,20 @@ CREATE TABLE "pmc_qc_receipts" (
 	"updated_by_user_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "pmc_schedule_stage_links" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"group_id" varchar(36) NOT NULL,
+	"stage_codes_json" text NOT NULL,
+	"anchor" varchar(8) DEFAULT 'span' NOT NULL,
+	"suggested_score" numeric(5, 4),
+	"updated_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "pmc_schedule_stage_links_anchor_check" CHECK ("pmc_schedule_stage_links"."anchor" IN ('span', 'start', 'end'))
 );
 --> statement-breakpoint
 CREATE TABLE "pmc_site_activities" (
@@ -3353,6 +3369,7 @@ ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_tenant_id_co
 ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_source_document_id_project_documents_id_fk" FOREIGN KEY ("source_document_id") REFERENCES "public"."project_documents"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_published_by_user_id_users_id_fk" FOREIGN KEY ("published_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_pmc_unit_fk" FOREIGN KEY ("pmc_unit_id","tenant_id","project_id") REFERENCES "public"."pmc_units"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_drawing_fk" FOREIGN KEY ("drawing_id") REFERENCES "public"."master_plan_drawings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3492,6 +3509,10 @@ ALTER TABLE "pmc_qc_receipts" ADD CONSTRAINT "pmc_qc_receipts_project_id_project
 ALTER TABLE "pmc_qc_receipts" ADD CONSTRAINT "pmc_qc_receipts_unit_id_pmc_units_id_fk" FOREIGN KEY ("unit_id") REFERENCES "public"."pmc_units"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_qc_receipts" ADD CONSTRAINT "pmc_qc_receipts_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_qc_receipts" ADD CONSTRAINT "pmc_qc_receipts_activity_fk" FOREIGN KEY ("activity_definition_id") REFERENCES "public"."pmc_activity_definitions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_schedule_stage_links" ADD CONSTRAINT "pmc_schedule_stage_links_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_schedule_stage_links" ADD CONSTRAINT "pmc_schedule_stage_links_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_schedule_stage_links" ADD CONSTRAINT "pmc_schedule_stage_links_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pmc_schedule_stage_links" ADD CONSTRAINT "pmc_stage_links_group_fk" FOREIGN KEY ("group_id") REFERENCES "public"."pmc_activity_groups"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_site_activities" ADD CONSTRAINT "pmc_site_activities_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_site_activities" ADD CONSTRAINT "pmc_site_activities_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pmc_site_activity_links" ADD CONSTRAINT "pmc_site_activity_links_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3941,6 +3962,7 @@ CREATE UNIQUE INDEX "issues_project_code_unique" ON "issues" USING btree ("proje
 CREATE INDEX "issues_tenant_project_status_idx" ON "issues" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "kba_document_unique" ON "knowledge_articles" USING btree ("source_document_id");--> statement-breakpoint
 CREATE INDEX "kba_tenant_status_idx" ON "knowledge_articles" USING btree ("tenant_id","status","updated_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "master_plan_drawing_links_drawing_pmc_unit_unique" ON "master_plan_drawing_links" USING btree ("drawing_id","pmc_unit_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "master_plan_drawing_links_polygon_unique" ON "master_plan_drawing_links" USING btree ("polygon_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "master_plan_drawing_links_drawing_entity_unique" ON "master_plan_drawing_links" USING btree ("drawing_id","entity_id");--> statement-breakpoint
 CREATE INDEX "master_plan_drawing_links_tenant_project_drawing_idx" ON "master_plan_drawing_links" USING btree ("tenant_id","project_id","drawing_id");--> statement-breakpoint
@@ -4024,6 +4046,8 @@ CREATE INDEX "pmc_qc_receipt_events_tenant_project_changed_idx" ON "pmc_qc_recei
 CREATE INDEX "pmc_qc_receipt_events_batch_idx" ON "pmc_qc_receipt_events" USING btree ("tenant_id","project_id","batch_id") WHERE "pmc_qc_receipt_events"."batch_id" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_qc_receipts_unit_activity_unique" ON "pmc_qc_receipts" USING btree ("tenant_id","project_id","unit_id","activity_definition_id");--> statement-breakpoint
 CREATE INDEX "pmc_qc_receipts_tenant_project_activity_idx" ON "pmc_qc_receipts" USING btree ("tenant_id","project_id","activity_definition_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "pmc_schedule_stage_links_group_unique" ON "pmc_schedule_stage_links" USING btree ("project_id","group_id");--> statement-breakpoint
+CREATE INDEX "pmc_schedule_stage_links_tenant_project_idx" ON "pmc_schedule_stage_links" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_site_activities_project_code_unique" ON "pmc_site_activities" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "pmc_site_activities_tenant_project_idx" ON "pmc_site_activities" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_site_links_activity_code_unique" ON "pmc_site_activity_links" USING btree ("site_activity_id","activity_code");--> statement-breakpoint

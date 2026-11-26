@@ -46,4 +46,21 @@ describe("linking a P6 schedule to the project's villas (Q-61 (2))", () => {
     const links = linkScheduleToVillas({ wbs, activities: stray, villas });
     expect(links.mismatches.filter(row => row.unitNumber === 606)).toEqual([{ unitNumber: 606, field: "block", schedule: "B26", project: "25", activities: 5 }]); // 3 of 5 say B26; 3 of 4 say C
   });
+
+  it("review of #549: a broad code name («Type», «Item») is read only without the explicit one; a tie that includes the project's value is not a difference", () => {
+    const v = [{ unitNumber: 801, modelCode: "C", blockCode: "30" }];
+    const w = [{ id: "r", parentId: null, code: "V801", name: "Villa 801" }];
+    // «Villa Type» C wins over a «Type» D on the same activity; «Q Item» Q02 wins over «Item» X
+    const both = linkScheduleToVillas({ wbs: w, villas: v, activities: [act("b1", "V801.010", "r", { "Villa Type": "type C", Type: "D", "Q Item": "Q02", Item: "X" })] });
+    expect(both.mismatches).toEqual([]);
+    expect(both.villas[0].qItems).toEqual(["Q02"]);
+    // only the broad name present: it is read
+    const broad = linkScheduleToVillas({ wbs: w, villas: v, activities: [act("b2", "V801.010", "r", { Type: "D", Item: "Q06" })] });
+    expect(broad.mismatches).toEqual([{ unitNumber: 801, field: "model", schedule: "D", project: "C", activities: 1 }]);
+    expect(broad.villas[0].qItems).toEqual(["Q06"]);
+    // one says C, one says D: a tie with the project's own C is not reported
+    const tie = linkScheduleToVillas({ wbs: w, villas: v, activities: [act("b3", "V801.010", "r", { "Villa Type": "D" }), act("b4", "V801.020", "r", { "Villa Type": "C" })] });
+    expect(tie.mismatches).toEqual([]);
+  });
 });
+
