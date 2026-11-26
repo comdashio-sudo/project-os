@@ -4898,4 +4898,6 @@
 | البند | الحالة | الدليل |
 |---|---|---|
 | `lockProjectCells(tx, projectId)` في `server/pmcService.ts`: القفل الاستشاري للمشروع (`pmc-cells:<project>`) دالة واحدة يأخذها كل كاتب لخلايا المشروع **قبل** أن يقفل أي صف خلية: الحفظ الجماعي (`applyCellStatuses`)، والخلية الواحدة (`applyCellStatus`: تعديل خلية، اعتماد تقرير يومي)، والتراجع (`pmcUndo.ts` قبل قفل صفوف الدفعة) — فلا تنتظر كتابتان بعضهما في حلقة. القفل قابل لإعادة الدخول في المعاملة نفسها | `PROVEN` | `pmcProgressBulkFollowups.database.test.ts` 3/3 (+1): ثلاث جولات، خلية واحدة وحفظ جماعي لـ60 خلية جديدة معًا ← كلاهما ينجح و60 خلية؛ على main يسقط (أحدهما مرفوض)؛ اختبارات التراجع `pmcUndo.database.test.ts` تمر |
+| ملاحظتا ج على #572: (1) حفظ «مرحلة كاملة» دون اتصال يسمّي مرحلته في ملخص الطابور (كما يسمّي النموذج منذ #570)، (2) رفض المرحلة والنموذج المجهولين بالأردية (`SITE_PHASE_UNKNOWN` و`SITE_MODEL_UNKNOWN`) بدل الرجوع إلى الإنجليزية | `PROVEN` | `PmcProgressUpdate.test.tsx` (+1) و`wo22Text.urdu.test.tsx` 2/2؛ الثلاثة تسقط على main |
+| البوابات قبل الدفع (2026-11-26، قبل ملاحظتي #572 ودمج main مع #572): `pnpm check` 0، `pnpm build` 0، `pnpm test` 4683 / 0، `pnpm coverage:trpc` 0، `db:baseline:check` 0، `pnpm test:db` 1062 / 0، الرحلات الثلاث 42 / 0 | `PROVEN` | — |
 

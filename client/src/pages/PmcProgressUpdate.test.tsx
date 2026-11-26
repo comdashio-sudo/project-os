@@ -78,6 +78,20 @@ describe("PmcProgressUpdate (Q-4)", () => {
     expect(h.mutate.mock.calls.at(-1)![0]).not.toHaveProperty("blockCode");
   });
 
+  it("review of #572 (C, note 1): a whole-phase save kept offline names its phase in the queue, so a refusal says which save it was", async () => {
+    render(<PmcProgressUpdate />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Activity" }), { target: { value: "FOOT" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Whole phase" }));
+    fireEvent.change(screen.getByLabelText(/^Phase/), { target: { value: "PH1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    act(() => { (h.options.onError as unknown as (error: unknown, variables: unknown) => void)(new TypeError("Failed to fetch"), h.mutate.mock.calls.at(-1)![0]); });
+    h.send.mockRejectedValueOnce(Object.assign(new Error("PROJECT_OS_SITE_UPDATE_CONFIRM_COUNT"), { data: { code: "BAD_REQUEST", issues: [{ code: "SITE_CONFIRM_COUNT", detail: "300" }] } }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Send now" })); });
+    const refused = document.querySelector("[data-offline-refused]")!;
+    expect(refused.textContent).toMatch(/FOOT · [^·]+ · PH1/);
+    fireEvent.click(screen.getByRole("button", { name: "Discard from the phone" }));
+  });
+
   it("Q-60 NEGATIVE: cancelling the count sends nothing more and gives the ordinary save back", () => {
     render(<PmcProgressUpdate />);
     fireEvent.change(screen.getByRole("combobox", { name: "Activity" }), { target: { value: "FOOT" } });
