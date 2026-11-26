@@ -40,6 +40,7 @@ vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false, error: null, data: null });
   return { trpc: {
     reportPeriods: { monthly: { useQuery: () => ({ data: undefined }) } },
+    schedule: { plannedCurve: { useQuery: () => ({ data: undefined, isLoading: false, error: null }) } }, // Q-64 batch 2: the planning sentence reads the baseline's curve
     siteReports: { list: { useQuery: () => ({ data: [] }) }, get: { useQuery: () => ({ data: undefined }) } }, // Q-54: the labour card beside the hero
     pmc: { stalledUnits: { useQuery: () => ({ data: { threshold: 3, longDays: 14, counts: { stalled: 2, long: 1, active: 4 }, rows: [] }, isError: false, error: null }) } },
     projects: {

@@ -79,7 +79,7 @@ export default function PmcProgressUpdate() {
     onSuccess: result => { setIssues([]); setConfirmCount(null); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setVillas(""); setRange(""); void history.refetch(); },
     onError: (error, variables) => {
       if (isNetworkError(error) && variables.clientRequestId) {
-        const kept = queue.keep({ id: variables.clientRequestId, kind: "pmcProgress", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${variables.activityCode} · ${c.statuses[variables.status] ?? variables.status} · ${variables.villas?.join(", ") ?? variables.range ?? variables.blockCode ?? variables.modelCode ?? ""}` });
+        const kept = queue.keep({ id: variables.clientRequestId, kind: "pmcProgress", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${variables.activityCode} · ${c.statuses[variables.status] ?? variables.status} · ${variables.villas?.join(", ") ?? variables.range ?? variables.blockCode ?? variables.modelCode ?? variables.phase ?? ""}` });
         if (kept) { setIssues([]); notify.success(c.keptOffline); setVillas(""); setRange(""); } else notify.error(c.notKept);
         return;
       }
