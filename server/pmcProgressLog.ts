@@ -40,7 +40,7 @@ export async function getPmcProgressLog(input: Scope & ProgressLogFilter) {
     input.byUserId ? eq(pmcQcReceiptEvents.changedByUserId, input.byUserId) : undefined,
     input.activityCode ? eq(pmcActivityDefinitions.code, input.activityCode) : undefined,
   );
-  const [history, qc, blocks, people] = await Promise.all([
+  const [history, qc, blocks, people, qcPeople, activityList] = await Promise.all([
     wantHistory ? db.select({ id: pmcUnitActivityHistory.id, at: pmcUnitActivityHistory.changedAt, note: pmcUnitActivityHistory.note, from: pmcUnitActivityHistory.fromStatus, to: pmcUnitActivityHistory.toStatus, byUserId: pmcUnitActivityHistory.changedByUserId, byName: users.name, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel, blockId: pmcUnits.blockId, activityCode: pmcActivityDefinitions.code, activityName: pmcActivityDefinitions.name })
       .from(pmcUnitActivityHistory)
       .innerJoin(pmcUnitActivityProgress, and(eq(pmcUnitActivityProgress.id, pmcUnitActivityHistory.unitActivityProgressId), mine(pmcUnitActivityProgress, scope)))
@@ -57,6 +57,10 @@ export async function getPmcProgressLog(input: Scope & ProgressLogFilter) {
       .where(qcWhere).orderBy(desc(pmcQcReceiptEvents.changedAt)).limit(PROGRESS_LOG_MAX_ROWS + 1) : Promise.resolve([]),
     db.select({ id: pmcBlocks.id, code: pmcBlocks.code }).from(pmcBlocks).where(mine(pmcBlocks, scope)),
     db.selectDistinct({ id: users.id, name: users.name }).from(pmcUnitActivityHistory).innerJoin(users, eq(users.id, pmcUnitActivityHistory.changedByUserId)).where(mine(pmcUnitActivityHistory, scope)),
+    // review of #569 (C, note 2): whoever made only QC receipts is a person of the log too, so the person list reads both
+    db.selectDistinct({ id: users.id, name: users.name }).from(pmcQcReceiptEvents).innerJoin(users, eq(users.id, pmcQcReceiptEvents.changedByUserId)).where(mine(pmcQcReceiptEvents, scope)),
+    // the activity list is the project's own, so choosing one never empties the list of the others (the filters run on the server)
+    db.selectDistinct({ code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, scope)),
   ]);
   const truncated = history.length > PROGRESS_LOG_MAX_ROWS || qc.length > PROGRESS_LOG_MAX_ROWS;
   const blockCode = new Map(blocks.map(block => [block.id, block.code]));
@@ -75,6 +79,10 @@ export async function getPmcProgressLog(input: Scope & ProgressLogFilter) {
   return {
     entries: entries.map(entry => ({ ...entry, at: entry.at.toISOString(), villaCount: entry.villas.length })),
     truncated, maxRows: PROGRESS_LOG_MAX_ROWS,
-    filters: { people: people.filter(person => person.name).sort((a, b) => String(a.name).localeCompare(String(b.name))), blocks: blocks.map(block => block.code).sort() },
+    filters: {
+      people: Array.from(new Map([...people, ...qcPeople].filter(person => person.name).map(person => [person.id, person])).values()).sort((a, b) => String(a.name).localeCompare(String(b.name))),
+      blocks: blocks.map(block => block.code).sort(),
+      activities: Array.from(new Map(activityList.map(item => [item.code, item])).values()).sort((a, b) => a.code.localeCompare(b.code, "en", { numeric: true })),
+    },
   };
 }

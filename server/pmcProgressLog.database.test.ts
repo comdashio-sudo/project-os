@@ -66,10 +66,23 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-70: the pr
     expect((await a.asOwner.pmc.progressLog({ ...scopeOf(a), to: "2000-01-01" })).entries).toEqual([]);
   });
 
+  it("review of #569 (C, note 2): someone who made only QC receipts is in the person list; the activity list is the project's own, not only what the log holds", async () => {
+    const qcOnly = a.people.qaqc.id;
+    const unit = (await client.query("SELECT id FROM pmc_units WHERE tenant_id = $1 AND unit_number = 702", [a.tenantId])).rows[0].id;
+    const act = (await client.query("SELECT id FROM pmc_activity_definitions WHERE tenant_id = $1 AND code = 'ACT01'", [a.tenantId])).rows[0].id;
+    const receipt = randomUUID();
+    await client.query("INSERT INTO pmc_qc_receipts (id, tenant_id, project_id, unit_id, activity_definition_id, received, received_on, updated_by_user_id) VALUES ($1, $2, $3, $4, $5, true, current_date, $6)", [receipt, a.tenantId, a.projectId, unit, act, qcOnly]);
+    await client.query("INSERT INTO pmc_qc_receipt_events (id, tenant_id, project_id, receipt_id, from_received, to_received, received_on, changed_by_user_id) VALUES ($1, $2, $3, $4, NULL, true, current_date, $5)", [randomUUID(), a.tenantId, a.projectId, receipt, qcOnly]);
+    const log = await a.asOwner.pmc.progressLog(scopeOf(a));
+    expect(log.filters.people.map(person => person.id)).toEqual(expect.arrayContaining([a.owner.id, qcOnly]));
+    expect(log.filters.activities).toEqual([{ code: "ACT01", name: "Excavation" }]);
+    expect((await a.asOwner.pmc.progressLog({ ...scopeOf(a), byUserId: qcOnly })).entries.map(entry => [entry.source, entry.villas])).toEqual([["qc", ["702"]]]);
+  });
+
   it("NEGATIVE: company isolation — B's entries never show in A's log, B cannot read A's project; a bad date and someone without the PMC read permission are refused", async () => {
     const log = await a.asOwner.pmc.progressLog(scopeOf(a));
     expect(log.entries.some(entry => entry.byUserId === b.owner.id)).toBe(false);
-    expect(log.entries.reduce((sum, entry) => sum + entry.villaCount, 0)).toBe(7); // 4 + 1 + 2 QC: nothing of B's 3
+    expect(log.entries.reduce((sum, entry) => sum + entry.villaCount, 0)).toBe(8); // 4 + 1 + 2 QC + 1 QC (the test above): nothing of B's 3
     await expect(b.asOwner.pmc.progressLog(scopeOf(a))).rejects.toThrow();
     await expect(b.asOwner.pmc.progressLog({ tenantId: b.tenantId, projectId: a.projectId })).rejects.toThrow();
     await expect(a.asOwner.pmc.progressLog({ ...scopeOf(a), from: "2026-13-01" })).rejects.toThrow("PROJECT_OS_PROGRESS_LOG_DATE_INVALID");
