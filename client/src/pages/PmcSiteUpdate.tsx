@@ -2,7 +2,10 @@
 // The server refuses the whole entry before writing anything when one villa is wrong, and says which; the entry is saved under the signed-in account, never a typed e-mail.
 import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
-import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, Select, SkeletonRows, TextInput, notify } from "@/components/ds";
+import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, SkeletonRows, TextInput, notify } from "@/components/ds";
+import { SearchCombobox, type ComboOption } from "@/components/SearchCombobox";
+import { SelectionSummaryNote, VillaPicker, emptyChoice } from "@/components/VillaPicker";
+import { summarizeSelection, villasOf, type VillaChoice } from "@/lib/villaPicker";
 import { FieldShell } from "@/components/FieldShell";
 import { PAGE_NAMES } from "@shared/pageNames";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -33,8 +36,13 @@ export default function PmcSiteUpdate() {
   const t = pickLanguage(language, wo22Text);
   const scope = { tenantId, projectId };
   const activities = trpc.pmcSite.activities.useQuery(scope, { enabled: Boolean(tenantId && projectId) });
-  const [search, setSearch] = useState("");
   const [activityId, setActivityId] = useState("");
+  // Q-67 (5): the villas from the project's own phases, blocks, models and villas (pmc.progressPicker), as in the progress update and the QC receipt; a person
+  // who may not read them, or a list that failed, keeps the typed list, range and block below
+  const picker = trpc.pmc.progressPicker.useQuery(scope, { enabled: Boolean(tenantId && projectId), retry: false });
+  const [choice, setChoice] = useState<VillaChoice>(emptyChoice("block"));
+  const usePicker = Boolean(picker.data?.villas.length) && !picker.isError;
+  const summary = useMemo(() => summarizeSelection(villasOf(picker.data?.villas ?? [], choice), null, "COMPLETE"), [picker.data?.villas, choice]);
   const [mode, setMode] = useState<Mode>("list");
   const [villas, setVillas] = useState("");
   const [range, setRange] = useState("");
@@ -45,11 +53,8 @@ export default function PmcSiteUpdate() {
   const [recent, setRecent] = useState<Array<{ activity: string; status: Status; date: string; villas: string[] }>>([]);
   const utils = trpc.useUtils();
 
-  const options = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return (activities.data ?? []).filter(item => !needle || `${item.name} ${item.subName ?? ""} ${item.csiName ?? ""}`.toLowerCase().includes(needle))
-      .map(item => ({ value: item.id, label: item.name, description: [item.csiName, item.subName].filter(Boolean).join(" · ") }));
-  }, [activities.data, search]);
+  // Q-67 (5): one searchable list of the site activities (by name, sub-name or CSI section, or part of a word), grouped by CSI section
+  const options = useMemo<ComboOption[]>(() => (activities.data ?? []).map(item => ({ value: item.id, label: item.name, group: item.csiName ?? undefined, description: item.subName ?? undefined, keywords: `${item.subName ?? ""} ${item.csiName ?? ""}` })), [activities.data]);
 
   const update = trpc.pmcSite.update.useMutation({
     onSuccess: (result, input) => {
@@ -57,7 +62,7 @@ export default function PmcSiteUpdate() {
       notify.success(t.update.saved(result.updated, result.unchanged));
       const activity = activities.data?.find(item => item.id === input.siteActivityId)?.name ?? "";
       setRecent(list => [{ activity, status: input.status, date: input.date, villas: result.villas }, ...list].slice(0, 5));
-      setVillas(""); setRange("");
+      setVillas(""); setRange(""); setChoice(emptyChoice(choice.mode));
       void utils.pmcSite.percentages.invalidate(scope);
     },
     onError: error => { const found = issuesOf(error); setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language)); },
@@ -65,7 +70,7 @@ export default function PmcSiteUpdate() {
 
   const submit = () => update.mutate({
     ...scope, siteActivityId: activityId, status, date,
-    ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : { blockCode: block.trim() }),
+    ...(usePicker ? { villas: summary.applicable } : mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : { blockCode: block.trim() }),
   });
 
   return (
@@ -78,7 +83,6 @@ export default function PmcSiteUpdate() {
             <SourceNotice query={activities} isArabic={language === "ar"} title={t.update.activity} />
             {activities.isLoading ? <SkeletonRows rows={3} /> : (
               <>
-                <Field label={t.update.activitySearch} optional>{props => <TextInput {...props} value={search} onChange={event => setSearch(event.target.value)} />}</Field>
                 {/* D-59: no site activities yet — the next step, not a dead «No options»: the import that brings them (the site workbook, PMC → import) */}
                 {activities.data && activities.data.length === 0 ? (
                   <div className="flex flex-col gap-2 rounded-[var(--radius)] bg-muted p-3 text-sm" data-empty-next>
@@ -86,13 +90,17 @@ export default function PmcSiteUpdate() {
                     <Link href={`/projects/${tenantId}/${projectId}/pmc?tab=import`} className="inline-flex min-h-11 items-center self-start rounded-[var(--radius)] border bg-card px-3 font-medium text-primary">{t.importSiteFile}</Link>
                   </div>
                 ) : null}
-                <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} options={options} value={activityId} onValueChange={setActivityId} placeholder={t.update.activity} disabled={activities.data?.length === 0} />}</Field>
+                <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <SearchCombobox id={props.id} data-combobox="activity" aria-describedby={props["aria-describedby"]} options={options} value={activityId} onChange={setActivityId} placeholder={t.update.activity} disabled={activities.data?.length === 0} />}</Field>
               </>
             )}
+            {usePicker ? <><VillaPicker data={picker.data!} choice={choice} onChoice={setChoice} /><SelectionSummaryNote summary={summary} /></> : (
+              <>
             <Segmented label={t.update.villasMode} value={mode} onValueChange={value => setMode(value as Mode)} options={[{ value: "list", label: t.update.modeList }, { value: "range", label: t.update.modeRange }, { value: "block", label: t.update.modeBlock }]} />
             {mode === "list" && <Field label={t.update.villas} hint={t.update.villasHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={villas} onChange={event => setVillas(event.target.value)} />}</Field>}
             {mode === "range" && <Field label={t.update.range} hint={t.update.rangeHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={range} onChange={event => setRange(event.target.value)} />}</Field>}
             {mode === "block" && <Field label={t.update.block} required>{props => <TextInput {...props} dir="ltr" value={block} onChange={event => setBlock(event.target.value)} />}</Field>}
+              </>
+            )}
             <Segmented label={t.update.status} value={status} onValueChange={value => setStatus(value as Status)} layout="grid" options={STATUSES.map(value => ({ value, label: t.statuses[value] }))} />
             <Field label={t.update.date} required>{props => <TextInput {...props} type="date" dir="ltr" max={siteTodayInBrowser()} value={date} onChange={event => setDate(event.target.value)} />}</Field>
             {issues.length > 0 && (
@@ -102,7 +110,7 @@ export default function PmcSiteUpdate() {
               </div>
             )}
           </CardBody>
-          <CardFooter><Button size="lg" className="w-full" loading={update.isPending} disabled={!activityId} onClick={submit}>{t.update.save}</Button></CardFooter>
+          <CardFooter><Button size="lg" className="w-full" loading={update.isPending} disabled={!activityId || (usePicker && !summary.applicable.length)} onClick={submit}>{t.update.save}</Button></CardFooter>
         </Card>
       </WriteGate>
       {recent.length > 0 && (

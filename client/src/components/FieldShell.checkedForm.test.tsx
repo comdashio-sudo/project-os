@@ -7,6 +7,8 @@ import { FieldShell } from "./FieldShell";
 
 // D-63: the unit-number box in the field screens' tab row checks itself in the page's language (Urdu here)
 const h = vi.hoisted(() => ({ navigate: vi.fn() }));
+// Q-67 (5): the field bar's villa list reads pmc.progressPicker; these tests keep the typed number it falls back to
+vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useLocation: () => ["/m/t/p/report", h.navigate] }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "ur", isRtl: true, setLanguage: vi.fn() }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
