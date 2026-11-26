@@ -57,7 +57,7 @@ async function sync<E extends Syncable, D extends Syncable>(input: { created?: s
     else if (input.same(stored, item)) unchanged += 1;
     else toUpdate.push({ stored, wanted: item });
   }
-  for (const batch of chunks(toCreate)) await input.insert(batch);
+  const t0 = performance.now(); for (const batch of chunks(toCreate)) await input.insert(batch); if (process.env.P6_TRACE) console.log(`P6TRACE insert ${toCreate.length} rows ${Math.round(performance.now() - t0)} ms`);
   if (input.created) for (const item of toCreate) input.created.push(item.id); // a loop, not push(...ids): a file with 181,000 code assignments overflowed the call stack (Q-61) // Q-23: what this import created, so it can be undone exactly (importAttempts.ts)
   for (const batch of chunks(toUpdate)) await input.update(batch);
   return { create: toCreate.length, update: toUpdate.length, unchanged, absent: Array.from(input.existing.keys()).filter(key => !seen.has(key)).length };
