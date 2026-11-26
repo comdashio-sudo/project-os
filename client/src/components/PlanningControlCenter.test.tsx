@@ -35,9 +35,10 @@ describe("PlanningControlCenter (Q-64)", () => {
   });
 
   it("with a budget: the cost section appears, with the amounts grouped and without padding zeros, and the sentence says what is spent", () => {
-    const result = calculatePlanningControl(input({ activities: activities(31, 3), budgets: [{ currentAmount: 12500000 }], costs: [{ amount: 3125000, status: "posted", wbsItemId: "w" }] }));
+    const result = calculatePlanningControl(input({ activities: activities(31, 3), budgets: [{ currentAmount: 12500000 }], costs: [{ amount: 3125000.44, status: "posted", wbsItemId: "w" }] }));
     render(<PlanningControlCenter result={result} currency="SAR" />);
     expect(screen.getByText("التكلفة")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/\.44/); // whole riyals from a thousand up: 3,125,000, not 3,125,000.44
     expect(screen.getAllByText(/12,500,000/).length).toBeGreaterThan(0);
     expect(document.querySelector("[data-planning-headline]")!.textContent).toContain("(25%)");
     expect(document.body.textContent).not.toMatch(/12,500,000\.00/);

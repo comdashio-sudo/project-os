@@ -79,13 +79,13 @@ export function calculatePlanningControl(input: PlanningControlInput) {
 export type PlanningControlResult = ReturnType<typeof calculatePlanningControl>;
 
 export function formatPlanningPercent(value: number | null) {
-  return value === null ? "—" : formatPercent(value * 100, 1);
+  return value === null ? "—" : `${formatAmount(value * 100, 1)}%`; // 37.5% and 100%, not 100.0%
 }
 
 /** V1 shows the riyal (see formatMoney): the stored code is ignored, and the label follows the language. */
 export function formatPlanningAmount(value: number, currency: string, language: Language | boolean = false) {
   void currency;
-  return formatAmount(value, 2) + ` ${riyalLabel(language)}`;
+  return formatAmount(value, Math.abs(value) >= 1000 ? 0 : 2) + ` ${riyalLabel(language)}`; // whole riyals from a thousand up: 294,155,558 not 294,155,558.44
 }
 
 export function planningControlLabel(code: string, language: Language | boolean) {
