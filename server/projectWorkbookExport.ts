@@ -4,7 +4,7 @@
 // permission (the person who will edit the file and upload it again), always by tenant and project. The other sheets stay blank until later batches.
 import { randomUUID } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcActivityStages, pmcBlocks, pmcUnits, pmcZones } from "../drizzle/schema";
+import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcActivityStages, pmcBlocks, pmcUnits, pmcZones, wbsItems } from "../drizzle/schema";
 import { buildProjectWorkbook, type WorkbookLocale } from "./domain/projectWorkbook";
 import { authorize } from "./pmcImportService";
 
@@ -17,8 +17,10 @@ export async function exportFilledProjectWorkbook(input: Scope & { locale: Workb
   const units = await db.select({ zoneCode: pmcZones.code, zoneName: pmcZones.name, blockCode: pmcBlocks.code, blockName: pmcBlocks.name, unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, saleStatus: pmcUnits.saleStatus, unitWeight: pmcUnits.unitWeight })
     .from(pmcUnits).innerJoin(pmcBlocks, and(eq(pmcBlocks.id, pmcUnits.blockId), eq(pmcBlocks.tenantId, pmcUnits.tenantId))).innerJoin(pmcZones, and(eq(pmcZones.id, pmcBlocks.zoneId), eq(pmcZones.tenantId, pmcBlocks.tenantId)))
     .where(mine(pmcUnits, input)).orderBy(asc(pmcUnits.unitNumber));
-  const activities = await db.select({ modelCode: pmcActivityDefinitions.modelCode, groupCode: pmcActivityGroups.code, groupName: pmcActivityGroups.name, groupNameEn: pmcActivityGroups.nameEn, stageCode: pmcActivityStages.code, stageName: pmcActivityStages.name, stageNameEn: pmcActivityStages.nameEn, activityCode: pmcActivityDefinitions.code, activityName: pmcActivityDefinitions.name, activityNameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent })
+  const activities = await db.select({ modelCode: pmcActivityDefinitions.modelCode, groupCode: pmcActivityGroups.code, groupName: pmcActivityGroups.name, groupNameEn: pmcActivityGroups.nameEn, stageCode: pmcActivityStages.code, stageName: pmcActivityStages.name, stageNameEn: pmcActivityStages.nameEn, activityCode: pmcActivityDefinitions.code, activityName: pmcActivityDefinitions.name, activityNameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent, wbsCode: wbsItems.code })
     .from(pmcActivityDefinitions).innerJoin(pmcActivityGroups, and(eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId), eq(pmcActivityGroups.tenantId, pmcActivityDefinitions.tenantId))).innerJoin(pmcActivityStages, and(eq(pmcActivityStages.id, pmcActivityDefinitions.stageId), eq(pmcActivityStages.tenantId, pmcActivityDefinitions.tenantId)))
+    // review of #534: the activity's WBS item, so the link comes back with the file (an empty cell would unlink it); optional, so a left join on the same company
+    .leftJoin(wbsItems, and(eq(wbsItems.id, pmcActivityDefinitions.wbsItemId), eq(wbsItems.tenantId, pmcActivityDefinitions.tenantId)))
     .where(mine(pmcActivityDefinitions, input)).orderBy(asc(pmcActivityDefinitions.modelCode), asc(pmcActivityDefinitions.code));
   const models = Array.from(new Set([...units.map(unit => unit.modelCode), ...activities.map(activity => activity.modelCode)])).sort().map(modelCode => ({ modelCode }));
   const file = await buildProjectWorkbook({ locale: input.locale, fill: {

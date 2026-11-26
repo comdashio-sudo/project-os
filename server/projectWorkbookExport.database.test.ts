@@ -112,4 +112,23 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-51 batch 3: the projec
     const read = await readFilled(filled.base64, "en");
     expect([read.models, read.units, read.activities]).toEqual([[], [], []]);
   });
+  it("review of #534 — an activity linked to a WBS item: the filled workbook carries its WBS code, and uploading it unchanged keeps the link (previews 0 updates, saves nothing changed)", async () => {
+    const wbsId = "51c00000-0000-4000-8000-0000000000aa";
+    await connection.query("INSERT INTO wbs_items (id, tenantId, projectId, code, name) VALUES (?, ?, ?, 'W-1', 'WBS item (synthetic)')", [wbsId, tenantId, P]);
+    await connection.query("UPDATE pmc_activity_definitions SET wbsItemId = ? WHERE tenantId = ? AND projectId = ? AND code = 'A-01'", [wbsId, tenantId, P]);
+    try {
+      const filled = await caller("owner").dataImports.projectWorkbookFilled({ tenantId, projectId: P, locale: "ar" });
+      const read = await readFilled(filled.base64);
+      expect(read.activities.find(row => row.activityCode === "A-01")?.wbsCode).toBe("W-1");
+      expect(read.activities.filter(row => row.activityCode !== "A-01").every(row => row.wbsCode === "")).toBe(true); // no link: an empty cell, as stored
+      const preview = byKey(await caller("owner").dataImports.projectWorkbookPreview({ tenantId, projectId: P, fileBase64: filled.base64 }));
+      expect(preview.activities).toMatchObject({ status: "will_apply", errors: [], counts: { create: 0, update: 0 } });
+      await previewThenApply("owner", filled.base64);
+      const [[row]] = await connection.query<{ wbsItemId: string | null }[]>("SELECT wbsItemId FROM pmc_activity_definitions WHERE tenantId = ? AND projectId = ? AND code = 'A-01'", [tenantId, P]);
+      expect(row.wbsItemId).toBe(wbsId);
+    } finally {
+      await connection.query("UPDATE pmc_activity_definitions SET wbsItemId = NULL WHERE tenantId = ? AND projectId = ?", [tenantId, P]);
+      await connection.query("DELETE FROM wbs_items WHERE id = ?", [wbsId]);
+    }
+  });
 });
