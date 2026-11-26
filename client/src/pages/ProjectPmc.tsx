@@ -78,6 +78,12 @@ export const PMC_TEXT = {
   },
 };
 const text = PMC_TEXT;
+// Q-66 (6): the note above the columns when a remembered choice was used
+const REMEMBERED_MAPPING = {
+  ar: (n: number) => `قُرئت الأعمدة بالربط الذي اختارته شركتك لملف بالشكل نفسه من قبل (${n} حقول). غيّره أدناه إن لزم.`,
+  en: (n: number) => `The columns were read with the choice your company made for a file of this shape before (${n} fields). Change it below if needed.`,
+  ur: (n: number) => `کالم اسی شکل کی فائل کے لیے آپ کی کمپنی کے پہلے کیے گئے انتخاب سے پڑھے گئے (${n} فیلڈز)۔ ضرورت ہو تو نیچے بدلیں۔`,
+};
 type T = typeof text.en;
 const TABS = ["latestUpdates", "approvals", "sitePlan", "programme", "inspections", "activities", "zones", "weekly", "monthly", "pending", "stages", "editors", "import"] as const;
 type Tab = (typeof TABS)[number];
@@ -295,7 +301,7 @@ function ImportPanel({ tenantId, projectId, t, isArabic, onOpenActivities }: { t
   // asked again every few seconds while an import is on its way, so «analysing» turns into «waiting for confirmation» or «import complete» by itself
   const importStatus = trpc.pmc.importStatus.useQuery({ tenantId, projectId }, { refetchInterval: query => (query.state.data?.some(row => row.state === "analyzing" || row.state === "pending") ? 5000 : false) });
   // The file goes browser → Storage on a signed URL (up to 50 MB), is analysed by a background job with a progress bar, and is written only after the person has read the report and confirmed.
-  type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number }; details?: { edits?: AppliedEdit[]; ignoredRows?: number[]; readRows?: number[]; preview?: PreviewRow[]; ignoredZeroWeight?: number; scaledFromFractions?: boolean; skippedTotals?: number; filledDown?: number; outlineHeadings?: number; ignoredColumns?: Array<{ header: string; samples: string[] }>; roundedTotals?: Array<{ modelCode: string; totalWeight: number }>; totalChecks?: Array<{ row: number; fileValue: number | null; readSum: number; status: "matches" | "differs" | "not_comparable" }>; columns?: PmcImportColumns; models?: Array<{ modelCode: string; activities: number; totalWeight: number }> } };
+  type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number }; details?: { rememberedMapping?: { name: string; fields: string[] }; edits?: AppliedEdit[]; ignoredRows?: number[]; readRows?: number[]; preview?: PreviewRow[]; ignoredZeroWeight?: number; scaledFromFractions?: boolean; skippedTotals?: number; filledDown?: number; outlineHeadings?: number; ignoredColumns?: Array<{ header: string; samples: string[] }>; roundedTotals?: Array<{ modelCode: string; totalWeight: number }>; totalChecks?: Array<{ row: number; fileValue: number | null; readSum: number; status: "matches" | "differs" | "not_comparable" }>; columns?: PmcImportColumns; models?: Array<{ modelCode: string; activities: number; totalWeight: number }> } };
   const renderReport = (view: DirectImportView) => {
     const report = (view.external?.report as { pmc?: Report } | undefined)?.pmc;
     if (!report) return null;
@@ -330,6 +336,8 @@ function ImportPanel({ tenantId, projectId, t, isArabic, onOpenActivities }: { t
         {/* Q-50 batch 4b: a rejected row corrected here (a cell, or the row left out) instead of in Excel — audited, and analysed again before anything is written */}
         {report.details?.columns && (report.errors.some(error => error.rowNumber > 0) || (report.details.edits ?? []).length > 0 || (report.details.ignoredRows ?? []).length > 0 || (report.details.preview ?? []).length > 0) && <PmcRowCorrections key={`${view.id}:corrections:${JSON.stringify([report.details.edits ?? [], report.details.ignoredRows ?? [], report.details.readRows ?? [], report.errors.map(error => error.rowNumber)])}`} tenantId={tenantId} projectId={projectId} importId={view.id} errors={report.errors} fields={report.details.columns.fields.filter(field => field.header).map(field => field.key)} applied={report.details.edits ?? []} ignoredRows={report.details.ignoredRows ?? []} readRows={report.details.readRows ?? []} preview={report.details.preview ?? []} language={language} />}
         {report.errorCount === 0 && view.external && !view.external.canConfirm && <p className="text-sm text-muted-foreground">{t.alreadyUpToDate}</p>}
+        {/* Q-66 (6): the columns were read with the choice this company made for a file of the same shape — said, and still changeable below */}
+        {report.details?.rememberedMapping && <p className="rounded-md bg-info-soft px-2 py-1 text-sm text-info-soft-foreground" data-remembered-mapping>{pickLanguage(language, REMEMBERED_MAPPING)(report.details.rememberedMapping.fields.length)}</p>}
         {/* Q-31 (P0-02): which column each field came from; a person can pick another one and analyse again (key: a new report resets the choice) */}
         {report.details?.columns && <PmcColumnMapping key={`${view.id}:${JSON.stringify(report.details.columns.fields)}`} tenantId={tenantId} projectId={projectId} importId={view.id} columns={report.details.columns} language={language} isArabic={isArabic} />}
       </div>
