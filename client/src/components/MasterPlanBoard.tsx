@@ -23,7 +23,8 @@ export function MasterPlanBoard({ tenantId, projectId, entities, selectedId, onS
   const shown = blockFilter === "all" ? blocks : blocks.filter(block => block.id === blockFilter);
   const selected = blocks.flatMap(block => block.units.map(unit => ({ unit, block }))).find(entry => entry.unit.id === selectedId) ?? null;
   if (!blocks.length) return <p data-master-plan-board="empty" className="mt-5 rounded-[18px] bg-muted p-4 text-sm text-muted-foreground">{t.empty}</p>;
-  const blockLabel = (code: string) => (code ? t.block(code) : t.ungrouped);
+  // a code that already says it is a block («BLK 33», «Block 7», «بلوك 3») is shown as it is, not «بلوك BLK 33» (Q-62)
+  const blockLabel = (code: string) => (!code ? t.ungrouped : /^(?:blk|block|بلوك|بلاک)(?:\s|-|\d|$)/i.test(code.trim()) ? code : t.block(code));
   const unitNumber = selected ? unitNumberOf(selected.unit.code) : null;
 
   return <div data-master-plan-board className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
