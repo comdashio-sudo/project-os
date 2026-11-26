@@ -9,7 +9,8 @@ import type ExcelJS from "exceljs";
 import { cellText, emptyVerticalMergeCover, readSpreadsheetSafely, worksheetToRows } from "./excelWorkbook";
 import { chooseSheet, type HeaderEvaluation, type TableRows } from "./importEngine/read";
 import { normalizeHeader } from "./smartImport/dictionary";
-import { parseNumber } from "./smartImport/numbers";
+import { parseNumber, toLatinDigits } from "./smartImport/numbers";
+import { inferDateOrder, parseDate, type DateOrder } from "./smartImport/dates";
 import { decodeCsv } from "./smartImport/sheetReader";
 
 export const PMC_IMPORT_LIMITS = { maxRows: 60_000, maxColumns: 20 } as const;
@@ -144,12 +145,26 @@ function wholeNumber(value: unknown): number | undefined {
   return parsed !== undefined && Number.isInteger(parsed) ? parsed : undefined;
 }
 
-function importDate(value: unknown): Date | undefined {
+/**
+ * Q-66 (4): a date as the owner's files write it — the smart reader's dates (smartImport/dates.ts): an Excel serial number, 2026-09-15, 15/09/2026, 15-9-26,
+ * Arabic-Indic digits, «15 سبتمبر 2026», a Hijri date (converted, approximate). Day and month are ordered for the WHOLE table (`order`, from
+ * inferDateOrder over its date columns), day first when nothing decides — «05/09/2026» is 5 September, never silently 9 May as the browser's own parser read it. A date with a
+ * time (2026-09-15T08:30, 2026-09-15 08:30) keeps its time as before.
+ */
+function importDate(value: unknown, order: DateOrder = "dmy"): Date | undefined {
   if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : undefined;
-  const source = text(value);
+  if (typeof value === "number") { const serial = parseDate(value); return serial ? new Date(`${serial.iso}T00:00:00Z`) : undefined; }
+  const source = toLatinDigits(text(value) ?? "");
   if (!source) return undefined;
-  const parsed = Date.parse(source.includes("T") ? source : source.replace(" ", "T"));
-  return Number.isFinite(parsed) ? new Date(parsed) : undefined;
+  if (/^\d{4}-\d{1,2}-\d{1,2}[T ]\d{1,2}:\d{2}/.test(source)) { const parsed = Date.parse(source.includes("T") ? source : source.replace(" ", "T")); return Number.isFinite(parsed) ? new Date(parsed) : undefined; }
+  const parsed = parseDate(source, order);
+  return parsed ? new Date(`${parsed.iso}T00:00:00Z`) : undefined;
+}
+/** The dates of a table's date columns, read with ONE day/month order decided from all their values (a file writes its dates one way: «12/25/2026» in the
+ * finish column settles «09/05/2026» in the start column as 5 September). */
+function dateColumns(rows: ParsedRow[], fields: string[]) {
+  const order = inferDateOrder(rows.flatMap(row => fields.map(field => (typeof row.cells[field] === "string" ? row.cells[field] : null))));
+  return (_field: string, value: unknown) => importDate(value, order);
 }
 
 /** "1-10, 15, 20-22" -> [1..10, 15, 20..22]; a reversed range is an error, not a silent swap (rule 6). */
@@ -687,6 +702,7 @@ export type StatusOperation = { unitId: string; unitNumber: number; activityDefi
 export type StatusPlan = { errors: PmcImportError[]; operations: StatusOperation[]; counts: PmcImportCounts };
 
 export function planStatus(rows: ParsedRow[], context: StatusContext): StatusPlan {
+  const dateOf = dateColumns(rows, ["changedAt"]);
   const errors: PmcImportError[] = [];
   const operations: StatusOperation[] = [];
   const seen = new Set<string>();
@@ -719,7 +735,7 @@ export function planStatus(rows: ParsedRow[], context: StatusContext): StatusPla
       if (engineerUserId === null) errors.push({ rowNumber, code: "PMC_ENGINEER_NOT_A_MEMBER", field: "engineerEmail" });
     }
     const changedRaw = text(cells.changedAt);
-    const changedAt = (changedRaw ? importDate(cells.changedAt) : null) ?? null;
+    const changedAt = (changedRaw ? dateOf("changedAt", cells.changedAt) : null) ?? null;
     if (changedRaw && changedAt === null) errors.push({ rowNumber, code: "PMC_DATE_INVALID", field: "changedAt" });
     if (unit && definitionId) {
       const key = `${unit.id}:${definitionId}`;
@@ -748,6 +764,7 @@ export type RequestOperation = { requestCode: string; activityDefinitionId: stri
 export type RequestsPlan = { errors: PmcImportError[]; creates: RequestOperation[]; replies: Array<{ id: string; requestCode: string; responseCode: "A" | "B" | "C" | "UR" }>; counts: PmcImportCounts };
 
 export function planRequests(rows: ParsedRow[], context: RequestsContext): RequestsPlan {
+  const dateOf = dateColumns(rows, ["requestedAt"]);
   const errors: PmcImportError[] = [];
   const creates: RequestOperation[] = [];
   const replies: RequestsPlan["replies"] = [];
@@ -760,7 +777,7 @@ export function planRequests(rows: ParsedRow[], context: RequestsContext): Reque
     required(errors, rowNumber, "requestCode", requestCode);
     required(errors, rowNumber, "activityCode", activityCode);
     if (requestCode && seen.has(requestCode)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "requestCode" });
-    const requestedAt = importDate(cells.requestedAt);
+    const requestedAt = dateOf("requestedAt", cells.requestedAt);
     if (!requestedAt) errors.push({ rowNumber, code: "PMC_DATE_INVALID", field: "requestedAt" });
     const list = parseUnitList(cells.unitNumbers);
     if (list.error) errors.push({ rowNumber, code: list.error, field: "unitNumbers" });
@@ -802,6 +819,7 @@ export type BaselinePlan = { errors: PmcImportError[]; creates: Array<{ activity
 export const monthStart = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 
 export function planBaseline(rows: ParsedRow[], context: BaselineContext): BaselinePlan {
+  const dateOf = dateColumns(rows, ["period"]);
   const errors: PmcImportError[] = [];
   const valid: Array<{ rowNumber: number; definitionId: string; period: Date; percent: number; label: string }> = [];
   const seen = new Set<string>();
@@ -811,7 +829,7 @@ export function planBaseline(rows: ParsedRow[], context: BaselineContext): Basel
     const activityCode = text(cells.activityCode);
     required(errors, rowNumber, "modelCode", modelCode);
     required(errors, rowNumber, "activityCode", activityCode);
-    const period = importDate(cells.period);
+    const period = dateOf("period", cells.period);
     if (!period) errors.push({ rowNumber, code: "PMC_DATE_INVALID", field: "period" });
     const percent = nonNegativeNumber(cells.plannedPercent);
     if (percent === undefined || percent > 100) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "plannedPercent" });
@@ -856,6 +874,7 @@ export function planBaseline(rows: ParsedRow[], context: BaselineContext): Basel
  * through exactly the checks a monthly file does, so the two formats can never disagree about what a baseline is.
  */
 export function planBaselineDates(rows: ParsedRow[], context: BaselineContext): BaselinePlan {
+  const dateOf = dateColumns(rows, ["startDate", "endDate"]);
   const errors: PmcImportError[] = [];
   const expanded: ParsedRow[] = [];
   const seen = new Set<string>();
@@ -867,8 +886,8 @@ export function planBaselineDates(rows: ParsedRow[], context: BaselineContext): 
     const activityCode = text(cells.activityCode);
     required(errors, rowNumber, "modelCode", modelCode);
     required(errors, rowNumber, "activityCode", activityCode);
-    const start = importDate(cells.startDate);
-    const end = importDate(cells.endDate);
+    const start = dateOf("startDate", cells.startDate);
+    const end = dateOf("endDate", cells.endDate);
     if (!start) errors.push({ rowNumber, code: "PMC_DATE_INVALID", field: "startDate" });
     if (!end) errors.push({ rowNumber, code: "PMC_DATE_INVALID", field: "endDate" });
     if (start && end && utcDay(end) < utcDay(start)) errors.push({ rowNumber, code: "PMC_BASELINE_END_BEFORE_START", field: "endDate", detail: `${modelCode}/${activityCode}` });
