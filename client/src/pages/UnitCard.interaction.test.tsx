@@ -18,6 +18,8 @@ const all = () => [
   event(4, "status_change", "— → IN_PROGRESS", { note: "Daily report 2026-10-20", activityDefinitionId: "a-walls" }),
   event(5, "submittal", "SD-1 r0", { submittalType: "shop_drawing", status: "replied", replyCode: "B", repliedAt: null }),
 ];
+// Q-67 (5): the field bar's villa list reads pmc.progressPicker; these tests keep the typed number it falls back to
+vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", h.navigate], useParams: () => ({ tenantId: "t", projectId: "p", unitNumber: h.unit }), useSearch: () => h.search, Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));

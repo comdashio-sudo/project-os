@@ -4,7 +4,9 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ update: vi.fn(), act: vi.fn(), saveNote: vi.fn(), updateError: null as unknown, canAct: true, noDifferences: false, noActivities: false, curve: null as unknown }));
+const state = vi.hoisted(() => ({ update: vi.fn(), act: vi.fn(), saveNote: vi.fn(), updateError: null as unknown, canAct: true, noDifferences: false, noActivities: false, curve: null as unknown, picker: undefined as unknown }));
+// Q-67 (5): the field bar's villa list reads pmc.progressPicker; these tests keep the typed number it falls back to
+vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", () => undefined], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
 vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>, useCan: () => state.canAct, useCanPage: () => true }));
@@ -17,6 +19,8 @@ const h = vi.hoisted(() => {
   return { ok, shares, row };
 });
 vi.mock("@/lib/trpc", () => ({ trpc: {
+  // Q-67 (5): the project's villas for the picker; undefined (the default here) keeps the typed list, range and block
+  pmc: { progressPicker: { useQuery: () => ({ data: state.picker, isLoading: false, isError: false, error: null }) } },
   useUtils: () => ({ pmcSite: new Proxy({}, { get: () => ({ invalidate: () => Promise.resolve() }) }) }),
   pmcSite: {
     activities: { useQuery: () => ({ isLoading: false, error: null, data: state.noActivities ? [] : [{ id: "00000000-0000-4000-8000-0000000000aa", code: "S-1", csiName: "Civil", subName: null, name: "Block walls", weight: 0.1, modelCodesJson: null, sortOrder: 1, modelCodes: null, links: [{ activityCode: "A1", score: 0.9, confirmed: false }] }] }) },
@@ -32,7 +36,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
 import PmcSiteUpdate, { issuesOf, siteTodayInBrowser } from "./PmcSiteUpdate";
 import PmcSiteConsultant, { curvePath, itemsForAction } from "./PmcSiteConsultant";
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); state.updateError = null; state.canAct = true; state.noDifferences = false; state.noActivities = false; state.curve = null; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); state.updateError = null; state.canAct = true; state.noDifferences = false; state.noActivities = false; state.curve = null; state.picker = undefined; });
 
 describe("site update from the phone", () => {
   it("reads the refusal details and the site's day", () => {
@@ -62,6 +66,19 @@ describe("site update from the phone", () => {
     expect((save as HTMLButtonElement).disabled).toBe(true);
   });
 
+
+  it("Q-67 (5): with the project's villas the site update chooses them like the progress update — blocks from the list with their counts, sent as the villas; no typed field", () => {
+    state.picker = { villas: [{ villa: "268", number: 268, block: "B1", phase: null, model: "A", status: null }, { villa: "269", number: 269, block: "B1", phase: null, model: "A", status: null }, { villa: "300", number: 300, block: "B2", phase: null, model: "A", status: null }], blocks: [{ code: "B1", villas: 2 }, { code: "B2", villas: 1 }], phases: [], models: [{ code: "A", villas: 3 }] };
+    render(<PmcSiteUpdate />);
+    expect(screen.queryByLabelText(/^Range/)).toBeNull();
+    expect(document.querySelector("[data-villa-picker]")!.getAttribute("data-villa-picker")).toBe("block");
+    fireEvent.click(screen.getByRole("radio", { name: "Chosen villas" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Villa 269" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Villa 300" }));
+    expect(document.querySelector("[data-selection-summary]")!.textContent).toContain("2 villas chosen");
+    // NEGATIVE: no activity chosen yet — nothing is sent
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+  });
 
   it("draws the five statuses as a grid of 44px choices, not one squeezed strip", () => {
     render(<PmcSiteUpdate />);

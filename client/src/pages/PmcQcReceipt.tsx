@@ -2,9 +2,12 @@
 // received» and the date; one save. Kept apart from the site's progress. The server refuses the whole entry before writing anything when one villa is wrong and
 // says which; a villa received while not complete on site is saved and named. Counters per activity, and the latest history.
 import { ActivityNameToggle, hasEnglishNames, useActivityLabel, useActivityNameLanguage } from "@/lib/activityNames";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "wouter";
-import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, Select, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
+import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
+import { SearchCombobox, type ComboOption } from "@/components/SearchCombobox";
+import { SelectionSummaryNote, VillaPicker, emptyChoice } from "@/components/VillaPicker";
+import { readRecentActivities, rememberActivity, summarizeSelection, villasOf, type VillaChoice } from "@/lib/villaPicker";
 import { FieldShell } from "@/components/FieldShell";
 import { UndoLastSave } from "@/components/UndoLastSave";
 import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
@@ -22,7 +25,6 @@ import { issuesOf, siteTodayInBrowser } from "./PmcSiteUpdate";
 
 const ANSWERS = ["received", "notReceived"] as const;
 type Answer = (typeof ANSWERS)[number];
-type Mode = "list" | "range" | "block";
 type Issue = { code: string; villa?: string; detail?: string };
 
 const copy = {
@@ -44,23 +46,26 @@ export default function PmcQcReceipt() {
   const activityLabel = useActivityLabel(nameLanguage, withEnglish);
   const history = trpc.pmc.qcHistory.useQuery({ ...scope, limit: 10 }, { enabled });
   const counters = trpc.pmc.qcCounters.useQuery(scope, { enabled });
-  const [search, setSearch] = useState("");
   const [activityCode, setActivityCode] = useState("");
-  const [mode, setMode] = useState<Mode>("list");
-  const [villas, setVillas] = useState("");
-  const [range, setRange] = useState("");
-  const [block, setBlock] = useState("");
+  // Q-67 (5): the same choice of villas as the progress update — from the project's own phases, blocks, models and villas
+  const [choice, setChoice] = useState<VillaChoice>(emptyChoice("block"));
+  const picker = trpc.pmc.progressPicker.useQuery({ ...scope, ...(activityCode ? { activityCode } : {}) }, { enabled, placeholderData: previous => previous });
+  useEffect(() => { if (picker.data?.phases.length && choice.mode === "block" && !choice.blocks.length) setChoice(emptyChoice("phase")); }, [picker.data?.phases.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [recent, setRecent] = useState<string[]>(() => readRecentActivities(projectId));
   const [answer, setAnswer] = useState<Answer>("received");
   const [date, setDate] = useState(siteTodayInBrowser());
   const [issues, setIssues] = useState<Issue[]>([]);
 
   const weightOf = (item: { minWeight: number; maxWeight: number }) => item.minWeight === item.maxWeight ? formatPercent(item.minWeight, 2) : `${formatPercent(item.minWeight, 2)}–${formatPercent(item.maxWeight, 2)}`;
-  const options = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    // Q-49: the search finds an activity by either of its names; the list shows the language chosen in the names switch
-    return (activities.data ?? []).filter(item => !needle || `${item.code} ${item.name} ${item.nameEn ?? ""} ${item.section} ${item.sectionEn ?? ""}`.toLowerCase().includes(needle))
-      .map(item => ({ value: item.code, label: activityLabel(item), description: `${activityLabel({ name: item.section, nameEn: item.sectionEn }, false)} · ${c.weight} ${weightOf(item)}` }));
-  }, [activities.data, search, c.weight, activityLabel]);
+  // Q-67 (5): the same searchable list of items as the progress update (by code, either name or part of a word; grouped by section; last used first)
+  const options = useMemo<ComboOption[]>(() => (activities.data ?? [])
+    .map(item => ({ value: item.code, code: item.code, label: activityLabel(item), group: `${item.sectionCode} — ${activityLabel({ name: item.section, nameEn: item.sectionEn }, false)}`, description: `${c.weight} ${weightOf(item)}`, keywords: `${item.name} ${item.nameEn ?? ""} ${item.section} ${item.sectionEn ?? ""}` })),
+  [activities.data, c.weight, activityLabel]);
+  const activityModels = useMemo(() => (activities.data ?? []).find(item => item.code === activityCode)?.models ?? null, [activities.data, activityCode]);
+  // a receipt moves no site status back: the summary names the chosen villas and those the item does not apply to
+  const summary = useMemo(() => summarizeSelection(villasOf(picker.data?.villas ?? [], choice), activityCode ? activityModels : null, "COMPLETE"), [picker.data?.villas, choice, activityCode, activityModels]);
+  const chooseActivity = (code: string) => { setActivityCode(code); setRecent(rememberActivity(projectId, code)); };
+  const describeVillas = (villas: string[]) => villas.length > 6 ? `${villas.slice(0, 6).join(", ")} … (${villas.length})` : villas.join(", ");
 
   const [lastSave, setLastSave] = useState<{ batchId: string; at: number; undone: boolean } | null>(null);
   // Q-24 (P-120): kept on this phone when the server cannot be reached, sent when the connection returns; a receipt kept before a newer one is refused, villa named
@@ -72,18 +77,18 @@ export default function PmcQcReceipt() {
   }, [client]);
   const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}:qcReceipt` : null, send);
   const update = trpc.pmc.updateQcReceipts.useMutation({
-    onSuccess: result => { setIssues([]); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setVillas(""); setRange(""); void history.refetch(); void counters.refetch(); },
+    onSuccess: result => { setIssues([]); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setChoice(emptyChoice(choice.mode)); void history.refetch(); void counters.refetch(); },
     onError: (error, variables) => {
       if (isNetworkError(error) && variables.clientRequestId) {
-        const kept = queue.keep({ id: variables.clientRequestId, kind: "qcReceipt", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${variables.activityCode} · ${variables.received ? "✓" : "✗"} · ${variables.villas?.join(", ") ?? variables.range ?? variables.blockCode ?? ""}` });
-        if (kept) { setIssues([]); notify.success(c.keptOffline); setVillas(""); setRange(""); } else notify.error(c.notKept);
+        const kept = queue.keep({ id: variables.clientRequestId, kind: "qcReceipt", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${variables.activityCode} · ${variables.received ? "✓" : "✗"} · ${describeVillas(variables.villas ?? [])}` });
+        if (kept) { setIssues([]); notify.success(c.keptOffline); setChoice(emptyChoice(choice.mode)); } else notify.error(c.notKept);
         return;
       }
       const found = issuesOf(error); setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language));
     },
   });
   const undo = trpc.pmc.undoQcReceiptBatch.useMutation({ onSuccess: () => { setLastSave(current => current ? { ...current, undone: true } : current); void history.refetch(); } });
-  const submit = () => update.mutate({ ...scope, clientRequestId: crypto.randomUUID(), activityCode, received: answer === "received", date, ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : { blockCode: block.trim() }) });
+  const submit = () => update.mutate({ ...scope, clientRequestId: crypto.randomUUID(), activityCode, received: answer === "received", date, villas: summary.applicable });
   const reason = (issue: Issue) => issue.code === "SITE_TOO_MANY_VILLAS" ? c.tooMany(issue.detail) : (t.issues[issue.code] ?? (() => issue.code))(issue.villa, issue.detail);
 
   return (
@@ -98,16 +103,14 @@ export default function PmcQcReceipt() {
             {activities.isLoading ? <SkeletonRows rows={3} /> : (
               <>
                 {withEnglish && <ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} />}
-                <Field label={t.update.activitySearch} optional>{props => <TextInput {...props} value={search} onChange={event => setSearch(event.target.value)} />}</Field>
-                <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} options={options} value={activityCode} onValueChange={setActivityCode} placeholder={t.update.activity} disabled={!options.length} />}</Field>
+                <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <SearchCombobox id={props.id} data-combobox="activity" aria-describedby={props["aria-describedby"]} options={options} value={activityCode} onChange={chooseActivity} recent={recent} placeholder={t.update.activity} disabled={!options.length} />}</Field>
               </>
             )}
-            <Segmented label={t.update.villasMode} value={mode} onValueChange={value => setMode(value as Mode)} options={[{ value: "list", label: t.update.modeList }, { value: "range", label: t.update.modeRange }, { value: "block", label: t.update.modeBlock }]} />
-            {mode === "list" && <Field label={t.update.villas} hint={t.update.villasHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={villas} onChange={event => setVillas(event.target.value)} />}</Field>}
-            {mode === "range" && <Field label={t.update.range} hint={t.update.rangeHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={range} onChange={event => setRange(event.target.value)} />}</Field>}
-            {mode === "block" && <Field label={t.update.block} required>{props => <TextInput {...props} dir="ltr" value={block} onChange={event => setBlock(event.target.value)} />}</Field>}
+            <SourceNotice query={picker} isArabic={language === "ar"} title={t.update.villas} />
+            {picker.isLoading ? <SkeletonRows rows={2} /> : picker.data ? <VillaPicker data={picker.data} choice={choice} onChoice={setChoice} /> : null}
             <Segmented label={c.answer} value={answer} onValueChange={value => setAnswer(value as Answer)} options={ANSWERS.map(value => ({ value, label: c.answers[value] }))} />
             <Field label={t.update.date} required>{props => <TextInput {...props} type="date" dir="ltr" max={siteTodayInBrowser()} value={date} onChange={event => setDate(event.target.value)} />}</Field>
+            <SelectionSummaryNote summary={summary} />
             {issues.length > 0 && (
               <div role="alert" className="rounded-md border border-destructive p-3 text-sm">
                 <p className="font-semibold text-destructive">{t.update.issuesTitle}</p>
@@ -116,7 +119,7 @@ export default function PmcQcReceipt() {
             )}
           </CardBody>
           {/* the save stays at the bottom of the screen on a phone, as in the owner's own tool */}
-          <CardFooter className="sticky bottom-0 bg-card"><Button size="lg" className="w-full" loading={update.isPending} disabled={!activityCode} onClick={submit}>{t.update.save}</Button></CardFooter>
+          <CardFooter className="sticky bottom-0 bg-card"><Button size="lg" className="w-full" loading={update.isPending} disabled={!activityCode || !summary.applicable.length} onClick={submit}>{t.update.save}</Button></CardFooter>
         </Card>
       </WriteGate>
       {lastSave && <UndoLastSave savedAt={lastSave.at} undone={lastSave.undone} pending={undo.isPending} error={undo.error ? getLocalizedProjectError(undo.error, language) : null} onUndo={() => undo.mutate({ ...scope, batchId: lastSave.batchId })} />}
