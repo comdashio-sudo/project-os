@@ -87,17 +87,17 @@ export default function CompletionReport() {
     } catch { setExportFailed(true); } finally { setExporting(null); }
   };
   const columns: Column<Row>[] = [
-    { key: "villa", header: t.villa, numeric: true, render: row => <bdi dir="ltr">{row.villa}</bdi> },
-    { key: "block", header: t.block, render: row => row.blockCode },
-    { key: "phase", header: t.phase, render: row => row.phase ?? t.unknown },
-    { key: "model", header: t.model, render: row => row.modelCode },
-    { key: "activity", header: t.activity, render: row => <span>{row.activityCode} — {row.activityName}</span> },
-    { key: "weight", header: t.weight, numeric: true, render: row => formatNumber(row.weightPercent, 2) },
-    { key: "status", header: t.status, render: row => <Badge tone={row.status === "COMPLETE" ? "success" : row.status === "IN_PROGRESS" ? "info" : "neutral"}>{statusLabel(row.status)}</Badge> },
-    { key: "started", header: t.started, render: row => <bdi dir="ltr">{row.startedOn ?? t.unknown}</bdi> },
-    { key: "completed", header: t.completed, render: row => <bdi dir="ltr">{row.completedOn ?? t.unknown}</bdi> },
-    { key: "qc", header: t.qc, render: row => qcLabel(row) },
-    { key: "lastBy", header: t.lastBy, render: row => <span title={row.lastAt ? formatDateTime(row.lastAt, language) : undefined}>{row.lastBy ?? t.unknown}</span> },
+    { key: "villa", header: t.villa, numeric: true, render: row => <span className="whitespace-nowrap">{<bdi dir="ltr">{row.villa}</bdi>}</span> },
+    { key: "block", header: t.block, render: row => <span className="whitespace-nowrap">{row.blockCode}</span> },
+    { key: "phase", header: t.phase, render: row => <span className="whitespace-nowrap">{row.phase ?? t.unknown}</span> },
+    { key: "model", header: t.model, render: row => <span className="whitespace-nowrap">{row.modelCode}</span> },
+    { key: "activity", header: t.activity, render: row => <span className="whitespace-nowrap">{<span>{row.activityCode} — {row.activityName}</span>}</span> },
+    { key: "weight", header: t.weight, numeric: true, render: row => <span className="whitespace-nowrap">{formatNumber(row.weightPercent, 2)}</span> },
+    { key: "status", header: t.status, render: row => <span className="whitespace-nowrap">{<Badge tone={row.status === "COMPLETE" ? "success" : row.status === "IN_PROGRESS" ? "info" : "neutral"}>{statusLabel(row.status)}</Badge>}</span> },
+    { key: "started", header: t.started, render: row => <span className="whitespace-nowrap">{<bdi dir="ltr">{row.startedOn ?? t.unknown}</bdi>}</span> },
+    { key: "completed", header: t.completed, render: row => <span className="whitespace-nowrap">{<bdi dir="ltr">{row.completedOn ?? t.unknown}</bdi>}</span> },
+    { key: "qc", header: t.qc, render: row => <span className="whitespace-nowrap">{qcLabel(row)}</span> },
+    { key: "lastBy", header: t.lastBy, render: row => <span className="whitespace-nowrap">{<span title={row.lastAt ? formatDateTime(row.lastAt, language) : undefined}>{row.lastBy ?? t.unknown}</span>}</span> },
   ];
   const total = query.data?.total ?? 0;
   const activeFilters = [block, phase, activity, status].filter(value => value !== ALL).length + (villa.trim() ? 1 : 0);
@@ -107,12 +107,12 @@ export default function CompletionReport() {
       <PageTitle title={t.title} description={t.intro} />
       <SourceNotice query={query} isArabic={isArabic} title={t.title} />
       <SourceNotice query={options} isArabic={isArabic} title={t.filters} />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
+      <div className="flex flex-col gap-4">
         <section className="flex min-w-0 flex-col gap-3" aria-label={t.title} data-completion-report>
           <div className="flex flex-wrap items-center justify-between gap-2">
             {query.data ? <Badge tone="neutral"><bdi dir="ltr">{formatNumber(total)}</bdi> {t.rows}</Badge> : <span />}
             <span className="inline-flex flex-col items-start gap-1">
-              <Button variant="secondary" size="sm" disabled={!total || exporting !== null} onClick={() => void exportAll()} data-export-all>{t.exportAll(formatNumber(total))}</Button>
+              <Button variant="secondary" className="min-h-11" disabled={!total || exporting !== null} onClick={() => void exportAll()} data-export-all>{t.exportAll(formatNumber(total))}</Button>
               {exporting ? <span role="status" className="text-xs text-muted-foreground">{t.exporting(formatNumber(exporting.done), formatNumber(exporting.all))}</span> : null}
               {exportFailed ? <span role="alert" className="text-xs text-danger-soft-foreground">{t.exportFailed}</span> : null}
             </span>
@@ -126,11 +126,11 @@ export default function CompletionReport() {
             </div>
           ) : null}
         </section>
-        {/* on a phone the filters fold into one line above the report; on a laptop they stand open beside it */}
-        <aside className="order-first lg:order-last">
+        {/* a wide table: the filters stand in one row above it on a laptop (the table keeps the whole width), and fold into one line on a phone */}
+        <aside className="order-first">
           <details open={filtersOpen} onToggle={event => setFiltersOpen((event.target as HTMLDetailsElement).open)} className="rounded-[var(--radius)] border border-border bg-card" data-report-filters>
             <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 px-4 py-2 font-semibold">{t.filters}{activeFilters ? <Badge tone="primary"><bdi dir="ltr">{activeFilters}</bdi></Badge> : null}</summary>
-            <div className="grid gap-3 border-t border-border p-4 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="grid gap-3 border-t border-border p-4 sm:grid-cols-2 lg:grid-cols-5">
               <Field label={t.villa}>{props => <TextInput {...props} dir="ltr" inputMode="numeric" value={villa} onChange={event => { setVilla(event.target.value); setOffset(0); }} />}</Field>
               <Field label={t.block}>{props => <Select id={props.id} options={[{ value: ALL, label: t.all }, ...(lists?.blocks ?? []).map(code => ({ value: code, label: code }))]} value={block} onValueChange={change(setBlock)} />}</Field>
               <Field label={t.phase}>{props => <Select id={props.id} options={[{ value: ALL, label: t.all }, ...(lists?.phases ?? []).map(code => ({ value: code, label: code }))]} value={phase} onValueChange={change(setPhase)} />}</Field>
