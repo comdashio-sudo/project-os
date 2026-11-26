@@ -207,7 +207,7 @@ export async function confirmSiteLegacyImport(input: Scope & { bytes: Uint8Array
   const { book, asOf, fileHash } = await read(input.bytes);
   if (input.approvedHash && input.approvedHash !== fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
   const db = await pmcGate(input, "project.pmc.manage");
-  await assertNotImportedYet(db, { tenantId: input.tenantId, fileHash });
+  await assertNotImportedYet(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: "pmcSiteLegacy", fileHash });
   const plan = await inTransaction(input, book, asOf, fileHash, input.source, true);
   if (plan.errors.length || !plan.canConfirm || !(plan as { importId?: string }).importId) throw new TRPCError({ code: "BAD_REQUEST", message: plan.errors[0]?.code === "SITE_LEGACY_ALREADY_IMPORTED" ? "PROJECT_OS_SITE_LEGACY_ALREADY_IMPORTED" : "PROJECT_OS_IMPORT_VALIDATION_FAILED", cause: plan.errors });
   return plan;

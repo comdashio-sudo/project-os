@@ -155,7 +155,7 @@ export async function confirmConsultantImport(input: Scope & { bytes: Uint8Array
   const { model, fileHash } = await readConsultantExport(input.bytes);
   if (input.approvedHash && input.approvedHash !== fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
   const db = await pmcGate(input, "project.pmc.manage");
-  await assertNotImportedYet(db, { tenantId: input.tenantId, fileHash });
+  await assertNotImportedYet(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: "pmcConsultant", fileHash });
   const plan = await inTransaction(input, model, fileHash, input.source, true);
   if (!plan.canConfirm || !(plan as { importId?: string }).importId) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED", cause: plan.warnings });
   return plan;

@@ -107,6 +107,7 @@ export const REQUIRED_SCHEMA = [
   { migration: "0052_subcontract_activity_boq_links", kind: "table", table: "subcontract_activity_boq_links" },
   { migration: "0053_site_reports_many_per_day", kind: "column", table: "site_daily_reports", column: "label" },
   { migration: "0054_strategy_changes_erasure", kind: "trigger", table: "strategy_assumption_changes", column: "strategy_assumption_changes_delete_on_erasure" },
+  { migration: "0057_import_duplicate_per_kind", kind: "unique-index-per-kind", table: "data_imports", column: "data_imports_tenant_file_hash_unique" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
@@ -139,6 +140,8 @@ export async function schemaReadiness(now = Date.now()): Promise<SchemaReadiness
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = ${item.table} AND e.enumlabel = ${item.column}) AS present`)).rows[0]?.present
         : item.kind === "unique-index-confirmed-only"
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${item.table} AND indexname = ${item.column} AND indexdef LIKE '%confirmed%importing%completed%') AS present`)).rows[0]?.present
+        : item.kind === "unique-index-per-kind"
+        ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${item.table} AND indexname = ${item.column} AND indexdef LIKE '%project_id, module_code, file_hash%') AS present`)).rows[0]?.present
         : item.kind === "trigger"
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = ${`public.${item.table}`}::regclass AND tgname = ${item.column} AND NOT tgisinternal) AS present`)).rows[0]?.present
         : item.kind === "permission"
