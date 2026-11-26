@@ -3,9 +3,9 @@
 // project (its work week: a Friday off is not counted), from the day after the movement up to today. Active ≤ threshold < stalled ≤ long < long-stalled.
 export type StallActivity = { id: string; code: string; name: string; order: number };
 export type StallCell = { activityDefinitionId: string; status: string; changedAt: Date };
-export type StallUnit = { unitId: string; villa: string; blockCode: string; modelCode: string; cells: StallCell[]; qcChangedAt: Date[] };
+export type StallUnit = { unitId: string; villa: string; blockCode: string; modelCode: string; phase?: string | null; cells: StallCell[]; qcChangedAt: Date[] };
 export type StallClass = "active" | "stalled" | "long";
-export type StallRow = { unitId: string; villa: string; blockCode: string; modelCode: string; lastMovedOn: string; workingDays: number; state: StallClass; lastActivity: { code: string; name: string } | null; nextActivity: { code: string; name: string } | null };
+export type StallRow = { unitId: string; villa: string; blockCode: string; modelCode: string; phase: string | null; lastMovedOn: string; workingDays: number; state: StallClass; lastActivity: { code: string; name: string } | null; nextActivity: { code: string; name: string } | null };
 
 export const DEFAULT_STALL_THRESHOLD = 3;
 export const LONG_STALL_DAYS = 14;
@@ -39,7 +39,7 @@ export function classifyStalledUnits(input: { units: StallUnit[]; activitiesByMo
     const lastDefinition = latestCell ? activities.find(activity => activity.id === latestCell.activityDefinitionId) : undefined;
     const next = activities.find(activity => statusOf.get(activity.id) !== "COMPLETE");
     rows.push({
-      unitId: unit.unitId, villa: unit.villa, blockCode: unit.blockCode, modelCode: unit.modelCode, lastMovedOn, workingDays,
+      unitId: unit.unitId, villa: unit.villa, blockCode: unit.blockCode, modelCode: unit.modelCode, phase: unit.phase ?? null, lastMovedOn, workingDays,
       state: workingDays > longDays ? "long" : workingDays > input.threshold ? "stalled" : "active",
       lastActivity: lastDefinition ? { code: lastDefinition.code, name: lastDefinition.name } : null,
       nextActivity: next ? { code: next.code, name: next.name } : null,

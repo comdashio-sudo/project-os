@@ -2,7 +2,7 @@
 // (V-04, V0004, B1-U-0004 → villa 4): the plan and the PMC table have no stored link, so the number is the rule, stated on the screen; a code with no
 // number, or a number with no villa, is «not matched» and shown as such, never guessed. Colours are the theme's tokens (so the key reads in dark mode).
 export type SiteStatus = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE" | "RECEIVED" | "NOT_RECEIVED";
-export type SiteUnit = { unitNumber: number; modelCode: string; blockCode: string; status: SiteStatus | null };
+export type SiteUnit = { unitNumber: number; modelCode: string; blockCode: string; status: SiteStatus | null; phase?: string | null };
 export type ColourKey = SiteStatus | "NOT_IN_MODEL" | "NOT_MATCHED";
 
 // Q-19: the progress states of the approved identity (index.css :root): darker = further along; not started is white in a border.
@@ -42,8 +42,9 @@ export function colourUnits(planCodes: string[], villas: SiteUnit[]): Colouring 
 }
 
 /** Whether a plan unit passes the block and model filters (an empty filter passes everything; a unit with no villa passes only empty filters). */
-export function passesFilter(villa: SiteUnit | null, block: string, model: string): boolean {
-  if (!block && !model) return true;
+/** Q-60 batch 2c: and the construction phase (PH1–PH4), when the villa register carried one */
+export function passesFilter(villa: SiteUnit | null, block: string, model: string, phase = ""): boolean {
+  if (!block && !model && !phase) return true;
   if (!villa) return false;
-  return (!block || villa.blockCode === block) && (!model || villa.modelCode === model);
+  return (!block || villa.blockCode === block) && (!model || villa.modelCode === model) && (!phase || (villa.phase ?? "") === phase);
 }
