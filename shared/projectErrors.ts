@@ -1875,6 +1875,7 @@ export const projectErrorMessages = {
     ar: "مصدر الإدخال غير معروف في سجل الإنجاز.",
     en: "This source of entry is not known in the progress log.",
     ur: "پیش رفت لاگ میں اندراج کا یہ ذریعہ معلوم نہیں۔",
+  },
   PROJECT_OS_COMPLETION_FILTER_INVALID: {
     ar: "تصفية تقرير الإنجاز غير صالحة: اكتب رقم الفيلا رقمًا، واختر الحالة من القائمة.",
     en: "The completion report's filter is not valid: write the villa as a number and choose the status from the list.",
