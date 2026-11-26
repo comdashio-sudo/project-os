@@ -5,7 +5,7 @@ import { buildProjectWorkbook } from "./domain/projectWorkbook";
 import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions , listActivityBoqLinks, setActivityBoqLinks} from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, exportProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES, MINUTES_EXPORT_FORMATS } from "./meetings";
-import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
+import { adoptScheduleBaseline, compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getScheduleVillaLinks } from "./scheduleVillaLinks";
 import { getScheduleStageMapping, saveScheduleStageMapping } from "./scheduleStageMapping";
 import { getPlannedCurve } from "./plannedCurveService";
@@ -535,7 +535,13 @@ export const appRouter = router({
         eacMethod: z.enum(["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]),
         manualEac: z.number().finite().nonnegative().optional(),
       }))
-      .query(({ input }) => calculateEvm(input)),
+      // a figure the rules refuse (EV above BAC, a zero CPI for a method that divides by it) is the person's input to fix, not a server fault: a BAD_REQUEST with a reason they can read
+      .query(({ input }) => {
+        try { return calculateEvm(input); } catch (error) {
+          if (!(error instanceof RangeError)) throw error;
+          throw new TRPCError({ code: "BAD_REQUEST", message: /EV cannot exceed BAC/.test(error.message) ? "PROJECT_OS_EVM_EV_EXCEEDS_BAC" : /CPI and SPI/.test(error.message) ? "PROJECT_OS_EVM_CPI_SPI_NOT_POSITIVE" : /CPI must be/.test(error.message) ? "PROJECT_OS_EVM_CPI_NOT_POSITIVE" : "PROJECT_OS_EVM_INVALID" });
+        }
+      }),
     saveEvmSnapshot: protectedProcedure
       .input(z.object({
         tenantId: z.string().uuid(), projectId: z.string().uuid(), periodAt: z.date(),
@@ -1146,6 +1152,8 @@ export const appRouter = router({
       links: z.array(z.object({ groupId: z.string().uuid(), stageCodes: z.array(z.string().trim().min(1).max(80)).max(20), anchor: z.enum(["span", "start", "end"]) })).min(1).max(200),
     })).mutation(({ ctx, input }) => saveScheduleStageMapping({ userId: ctx.user.id, ...input })),
     // Q-61 (4): the planned S-curve per villa / block / model / project from the baseline and the weights, against the site's actual (project.pmc.read)
+    // Q-61 (5): a later P6 import adopted as the new baseline — explicit, with a reason, audited (project.schedule.manage / project.manage)
+    adoptBaseline: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), snapshotId: z.string().uuid(), reason: z.string().max(500) })).mutation(({ ctx, input }) => adoptScheduleBaseline({ userId: ctx.user.id, ...input })),
     plannedCurve: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPlannedCurve({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
