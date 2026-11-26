@@ -38,7 +38,7 @@ describe("LiveSchedule (Q-23)", () => {
     render(<LiveSchedule />);
     expect(screen.getByText("Progress (computed from PMC)")).toBeTruthy();
     const a1 = document.querySelector('[data-computed-activity="id-A1"]')!;
-    expect(a1.textContent).toBe("87.5%"); expect(a1.getAttribute("title")).toBe("from groups W1");
+    expect(a1.textContent).toBe("87.50%"); expect(a1.getAttribute("title")).toBe("from groups W1");
     expect(document.querySelector('[data-computed-activity="id-A2"]')!.textContent).toBe("stage not linked");
     cleanup(); h.computed = undefined; h.computedError = { message: "PROJECT_OS_PERMISSION_DENIED" };
     render(<LiveSchedule />);

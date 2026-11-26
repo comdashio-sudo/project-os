@@ -5,7 +5,7 @@
 import React, { useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput } from "@/components/ds";
-import { formatDate } from "@/components/ds/format";
+import { formatDate, formatPercent } from "@/components/ds/format";
 import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -123,7 +123,7 @@ export default function LiveSchedule() {
                     <td className="p-2">{signed(row.startVarianceDays)}</td>
                     <td className={`p-2 ${(row.finishVarianceDays ?? 0) > 0 ? "font-semibold text-destructive" : ""}`}>{signed(row.finishVarianceDays)}</td>
                     <td className="p-2">{row.totalFloatHours === null ? t.na : <bdi dir="ltr">{row.totalFloatHours}</bdi>}</td>
-                    {computedOf.size > 0 && (() => { const c = computedOf.get(row.id); return <td className="p-2" data-computed-activity={row.id} title={c?.groupCodes.length ? `${ct.from} ${c.groupCodes.join("، ")}` : undefined}>{!c ? t.na : c.percent === null ? <span className="text-muted-foreground">{ct.reasons[c.reason ?? "NO_WEIGHT"]}</span> : <bdi dir="ltr" className="font-semibold">{c.percent}%</bdi>}</td>; })()}
+                    {computedOf.size > 0 && (() => { const c = computedOf.get(row.id); return <td className="p-2" data-computed-activity={row.id} title={c?.groupCodes.length ? `${ct.from} ${c.groupCodes.join(language === "en" ? ", " : "، ")}` : undefined}>{!c ? t.na : c.percent === null ? <span className="text-muted-foreground">{ct.reasons[c.reason ?? "NO_WEIGHT"]}</span> : <bdi dir="ltr" className="font-semibold">{formatPercent(c.percent)}</bdi>}</td>; })()}
                     <td className="p-2"><div dir="ltr" className="relative h-6 rounded bg-muted/40">
                       {base ? <span className="absolute top-4 h-1.5 rounded bg-muted-foreground/40" style={base} /> : null}
                       {forecast ? <span className={`absolute top-1 h-3 rounded ${row.critical ? "bg-destructive" : "bg-primary"}`} style={forecast} /> : null}
