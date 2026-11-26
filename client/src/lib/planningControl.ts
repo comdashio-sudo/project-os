@@ -63,6 +63,8 @@ export function calculatePlanningControl(input: PlanningControlInput) {
     onHandQuantity,
     overdueActivities: overdueActivities.length,
     blockedActivities: input.activities.filter(item => item.status === "blocked").length,
+    activityCount: input.activities.length,
+    startedActivities: input.activities.filter(item => item.status !== "not_started").length,
     undatedActivities: undatedActivities.length,
     unlinkedBoqLines: unlinkedBoq.length,
     unlinkedCosts: unlinkedCosts.length,
@@ -77,13 +79,13 @@ export function calculatePlanningControl(input: PlanningControlInput) {
 export type PlanningControlResult = ReturnType<typeof calculatePlanningControl>;
 
 export function formatPlanningPercent(value: number | null) {
-  return value === null ? "—" : formatPercent(value * 100, 1);
+  return value === null ? "—" : `${formatAmount(value * 100, 1)}%`; // 37.5% and 100%, not 100.0%
 }
 
 /** V1 shows the riyal (see formatMoney): the stored code is ignored, and the label follows the language. */
 export function formatPlanningAmount(value: number, currency: string, language: Language | boolean = false) {
   void currency;
-  return formatAmount(value, 2) + ` ${riyalLabel(language)}`;
+  return formatAmount(value, Math.abs(value) >= 1000 ? 0 : 2) + ` ${riyalLabel(language)}`; // whole riyals from a thousand up: 294,155,558 not 294,155,558.44
 }
 
 export function planningControlLabel(code: string, language: Language | boolean) {
@@ -95,4 +97,25 @@ export function planningControlLabel(code: string, language: Language | boolean)
     unlinked_actual_cost: { ar: "تكاليف فعلية بلا WBS", en: "Actual costs are not linked to WBS", ur: "اصل لاگتیں WBS سے نہیں جڑیں" },
   };
   return labels[code]?.[resolveLanguage(language)] ?? code;
+}
+
+/**
+ * Q-64: the planning page's one sentence, from the data and in a planner's words: how many activities there are, how many have started, how many are late
+ * and blocked, and — only when there is a budget the reader may see — what has been spent against it. With no activities it says what is missing, never a zero.
+ */
+export function planningHeadline(result: PlanningControlResult, currency: string, language: Language | boolean) {
+  const lang = resolveLanguage(language);
+  const amount = (value: number) => formatPlanningAmount(value, currency, language);
+  if (result.activityCount === 0) {
+    return { ar: "لا جدول زمني بعد: ارفع جدولك لترى التقدّم والأنشطة المتأخرة هنا.", en: "There is no schedule yet: upload yours to see progress and late activities here.", ur: "ابھی کوئی شیڈول نہیں: پیش رفت اور تاخیر والی سرگرمیاں دیکھنے کے لیے اپنا شیڈول اپ لوڈ کریں۔" }[lang];
+  }
+  const started = formatPlanningPercent(result.progressCoverage);
+  const spent = result.moneyVisible && result.budget > 0 && result.costUtilization !== null ? { ar: ` أُنفق ${amount(result.exposure)} من ميزانية ${amount(result.budget)} (${formatPercent(result.costUtilization * 100, 0)}).`, en: ` ${amount(result.exposure)} spent of a ${amount(result.budget)} budget (${formatPercent(result.costUtilization * 100, 0)}).`, ur: ` ${amount(result.budget)} کے بجٹ میں سے ${amount(result.exposure)} خرچ ہوئے (${formatPercent(result.costUtilization * 100, 0)})۔` }[lang] : "";
+  const n = formatAmount(result.activityCount, 0); const s = formatAmount(result.startedActivities, 0); const late = formatAmount(result.overdueActivities, 0); const blocked = formatAmount(result.blockedActivities, 0);
+  const text = {
+    ar: `${n} نشاطًا، بدأ منها ${s} (${started})، ${result.overdueActivities > 0 ? `${late} متأخرة عن موعدها` : "لا متأخر منها"}${result.blockedActivities > 0 ? `، و${blocked} متعثرة` : ""}.`,
+    en: `${n} activities, ${s} started (${started}), ${result.overdueActivities > 0 ? `${late} past their planned finish` : "none behind"}${result.blockedActivities > 0 ? `, ${blocked} blocked` : ""}.`,
+    ur: `${n} سرگرمیاں، ${s} شروع ہو چکی ہیں (${started})، ${result.overdueActivities > 0 ? `${late} طے شدہ تاریخ سے پیچھے` : "کوئی پیچھے نہیں"}${result.blockedActivities > 0 ? `، ${blocked} رکی ہوئی` : ""}۔`,
+  }[lang];
+  return text + spent;
 }
