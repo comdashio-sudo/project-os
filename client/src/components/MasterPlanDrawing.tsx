@@ -12,6 +12,7 @@ import { useMasterPlanDrawingLayout } from "@/lib/useMasterPlanDrawingLayout";
 import { SectionMessage } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
+import { getProjectError } from "@shared/projectErrors";
 import { matchDrawingToUnits, type ProjectUnit } from "@/lib/dxf/dxfMatch";
 import { readDxf, type DxfDrawing } from "@/lib/dxf/dxfReader";
 import { rasterKind, readPdfPage, readRasterImage } from "@/lib/raster/rasterFile";
@@ -55,7 +56,7 @@ const text = {
     title: "الماستر بلان",
     intro: "ارفع الرسم: صورة PNG أو JPG، أو PDF، أو DXF. كبّر وحرّك بالإصبعين أو بالأزرار. تُربط الأشكال بالوحدات تلقائيًا، ويجب أن تؤكد كل ربط قبل أن يُحسب.",
     upload: "اختيار ملف الرسم",
-    noUnits: "لا توجد وحدات في أحدث إصدار من الخطة الرئيسية. أضف الوحدات أولًا.",
+    noUnits: "لا توجد فلل لهذا المشروع بعد. استورد «قائمة الفلل» من صفحة الاستيراد، فتظهر هنا للربط بالرسم.",
     noPlan: "لا توجد خطة رئيسية لهذا المشروع بعد. أنشئ الخطة من «الخطة الرئيسية» أعلاه ثم احفظ الرسم فيها.",
     summary: (c: { confirmed: number; proposed: number; unlinked: number; unitsRemaining: number; unitsTotal: number }) =>
       `مؤكَّد: ${c.confirmed} · مقترح: ${c.proposed} · غير مربوط: ${c.unlinked} · وحدات متبقية: ${c.unitsRemaining} من ${c.unitsTotal}`,
@@ -92,7 +93,9 @@ const text = {
     save: "حفظ التخطيط",
     saved: "تم حفظ التخطيط.",
     savedVersion: (version: number, name: string) => `الرسم المحفوظ: النسخة ${version}، ${name}`,
-    saveFailed: "تعذر حفظ التخطيط. راجع الرسالة وحاول مجددًا.",
+    saveFailed: "تعذّر حفظ الرسم:",
+    saveReason: "السبب من الخادم:",
+    villasDenied: "فلل المشروع (PMC) لا تظهر لك: ربطها بالرسم يحتاج صلاحية قراءة PMC للمشروع. اطلبها من مدير الشركة.",
     readFailed: "تعذّرت قراءة الملف",
     unsupported: "نوع الملف غير مدعوم. ارفع ملف DXF أو PNG أو JPG أو PDF.",
     dwg: "ملفات DWG لا تُقرأ في المتصفح. افتح الرسم في برنامج التصميم واحفظه بصيغة DXF أو PDF ثم ارفعه.",
@@ -108,7 +111,7 @@ const text = {
     title: "Interactive master-plan drawing",
     intro: "Upload the drawing: a PNG or JPG image, a PDF, or a DXF. Zoom and move with two fingers or the buttons. Shapes are matched to units automatically, and each link must be confirmed before it counts.",
     upload: "Choose a drawing file",
-    noUnits: "The latest master-plan version has no units. Add units first.",
+    noUnits: "This project has no villas yet. Import the \u201cvilla list\u201d from the import page and they appear here to link to the drawing.",
     noPlan: "This project has no master plan yet. Create it under \u201cMaster plan\u201d above, then save the drawing into it.",
     summary: (c: { confirmed: number; proposed: number; unlinked: number; unitsRemaining: number; unitsTotal: number }) =>
       `Confirmed: ${c.confirmed} · Proposed: ${c.proposed} · Unlinked: ${c.unlinked} · Units remaining: ${c.unitsRemaining} of ${c.unitsTotal}`,
@@ -145,7 +148,9 @@ const text = {
     save: "Save layout",
     saved: "Layout saved.",
     savedVersion: (version: number, name: string) => `Saved drawing: version ${version}, ${name}`,
-    saveFailed: "The layout could not be saved. Check the message and try again.",
+    saveFailed: "The drawing could not be saved:",
+    saveReason: "Reason from the server:",
+    villasDenied: "The project's villas (PMC) are not shown to you: linking them to the drawing needs the PMC read permission on the project. Ask the company administrator.",
     readFailed: "The file could not be read",
     unsupported: "This file type is not supported. Upload a DXF, PNG, JPG or PDF file.",
     dwg: "DWG files cannot be read in the browser. Open the drawing in your design program, save it as DXF or PDF, then upload it.",
@@ -161,7 +166,7 @@ const text = {
     title: "ماسٹر پلان کی انٹرایکٹو ڈرائنگ",
     intro: "DXF ڈرائنگ اپ لوڈ کریں۔ شکلیں خودکار طور پر یونٹوں سے ملائی جاتی ہیں، اور ہر جوڑ کو شمار ہونے سے پہلے تصدیق کرنا ہوگا۔",
     upload: "ڈرائنگ کی فائل منتخب کریں",
-    noUnits: "ماسٹر پلان کے تازہ ترین ورژن میں کوئی یونٹ نہیں۔ پہلے یونٹ شامل کریں۔",
+    noUnits: "اس منصوبے میں ابھی کوئی ولا نہیں۔ امپورٹ صفحے سے «ولاز کی فہرست» امپورٹ کریں، پھر وہ ڈرائنگ سے جوڑنے کے لیے یہاں نظر آئیں گی۔",
     noPlan: "اس منصوبے کا ابھی کوئی ماسٹر پلان نہیں۔ اوپر «ماسٹر پلان» سے بنائیں، پھر ڈرائنگ اس میں محفوظ کریں۔",
     summary: (c: { confirmed: number; proposed: number; unlinked: number; unitsRemaining: number; unitsTotal: number }) =>
       `تصدیق شدہ: ${c.confirmed} · تجویز شدہ: ${c.proposed} · غیر جڑا ہوا: ${c.unlinked} · باقی یونٹ: ${c.unitsRemaining} از ${c.unitsTotal}`,
@@ -198,7 +203,9 @@ const text = {
     save: "خاکہ محفوظ کریں",
     saved: "خاکہ محفوظ ہو گیا۔",
     savedVersion: (version: number, name: string) => `محفوظ شدہ خاکہ: ورژن ${version}، ${name}`,
-    saveFailed: "خاکہ محفوظ نہیں ہو سکا۔ پیغام دیکھیں اور دوبارہ کوشش کریں۔",
+    saveFailed: "ڈرائنگ محفوظ نہیں ہو سکی:",
+    saveReason: "سرور کی وجہ:",
+    villasDenied: "منصوبے کے ولاز (PMC) آپ کو نظر نہیں آتے: انہیں ڈرائنگ سے جوڑنے کے لیے منصوبے پر PMC پڑھنے کی اجازت درکار ہے۔ کمپنی کے منتظم سے مانگیں۔",
     readFailed: "فائل پڑھی نہیں جا سکی",
     unsupported: "یہ فائل کی قسم معاون نہیں ہے۔ DXF، PNG، JPG یا PDF فائل اپ لوڈ کریں۔",
     dwg: "DWG فائلیں براؤزر میں نہیں پڑھی جا سکتیں۔ ڈرائنگ کو ڈیزائن پروگرام میں کھول کر DXF یا PDF کے طور پر محفوظ کریں، پھر اپ لوڈ کریں۔",
@@ -212,17 +219,6 @@ const text = {
   },
 };
 
-// Units of the newest version of the newest plan: the set a drawing is matched against.
-function latestUnits(data: { plans: { id: string }[]; versions: { id: string; masterPlanId: string; versionNumber: number }[]; entities: { id: string; masterPlanVersionId: string; entityType: string; code: string; name: string; status: string; progressPercent: string }[] } | undefined): PlanUnit[] {
-  const plan = data?.plans[0];
-  if (!plan || !data) return [];
-  const version = data.versions.filter(v => v.masterPlanId === plan.id).sort((a, b) => b.versionNumber - a.versionNumber)[0];
-  if (!version) return [];
-  return data.entities
-    .filter(entity => entity.masterPlanVersionId === version.id && entity.entityType === "unit")
-    .map(entity => ({ id: entity.id, code: entity.code, name: entity.name, status: entity.status, progressPercent: entity.progressPercent }));
-}
-
 // Map box: DXF y grows upward, SVG y grows downward, so each y is flipped inside the box.
 function mapGeometry(drawing: DxfDrawing) {
   const points = drawing.polygons.flatMap(polygon => polygon.points);
@@ -235,13 +231,26 @@ function mapGeometry(drawing: DxfDrawing) {
   return { x: minX - pad, y: minY - pad, width: maxX - minX + 2 * pad, height: maxY - minY + 2 * pad, flipY: (y: number) => minY + maxY - y };
 }
 
+/** Q-62: «could not save» says why — the server's own sentence for a known refusal, else the code — never the bare sentence alone. */
+export function saveFailure(code: string): { ar: string; en: string; ur: string } {
+  const known = code.startsWith("PROJECT_OS_") ? getProjectError(code) : null;
+  const reason = known && known.code !== "PROJECT_OS_REQUEST_FAILED" ? known.messages : null;
+  const why = (language: "ar" | "en" | "ur") => (reason ? (reason as Record<string, string>)[language] ?? reason.en : `${text[language].saveReason} ${code}`);
+  return { ar: `${text.ar.saveFailed} ${why("ar")}`, en: `${text.en.saveFailed} ${why("en")}`, ur: `${text.ur.saveFailed} ${why("ur")}` };
+}
+
 export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; projectId: string }) {
   const { language, isArabic } = useLanguage();
   const t = text[language];
   const plansQuery = trpc.masterPlans.list.useQuery({ tenantId, projectId });
-  const units = useMemo(() => latestUnits(plansQuery.data), [plansQuery.data]);
+  // Q-62: the units a drawing is matched against come from the server — the newest version's own units, or, when it has none, the project's PMC villas
+  // (the «villa list» import), so the villas are never entered twice
+  const versionId = latestVersionId(plansQuery.data);
+  const unitsQuery = trpc.masterPlans.drawingUnits.useQuery({ tenantId, projectId, masterPlanVersionId: versionId ?? "00000000-0000-4000-8000-000000000000" }, { enabled: versionId !== null });
+  const units: PlanUnit[] = useMemo(() => (unitsQuery.data?.units ?? []).map(unit => ({ id: unit.id, code: unit.code, name: unit.name, status: unit.status, progressPercent: unit.progressPercent })), [unitsQuery.data]);
+  const unitSource = unitsQuery.data?.source ?? "plan";
   // The saved layout of the newest version's drawing (G-189): it fills the screen when a drawing is not open yet, and saves what the person confirms.
-  const saved = useMasterPlanDrawingLayout({ tenantId, projectId, masterPlanVersionId: latestVersionId(plansQuery.data), units });
+  const saved = useMasterPlanDrawingLayout({ tenantId, projectId, masterPlanVersionId: versionId, units, unitSource });
   const [file, setFile] = useState<File | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
 
@@ -293,7 +302,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   }, [background, file, savedBackground, savedBackgroundUrl, savedMime]);
 
   const calibration = localCalibration ?? saved.layout?.calibration ?? null;
-  const hasVersion = latestVersionId(plansQuery.data) !== null;
+  const hasVersion = versionId !== null;
 
   const unitById = useMemo(() => new Map(units.map(unit => [unit.id, unit])), [units]);
   // Q-8 (b): colour by a PMC activity's site status (Q-4 writes it), with block and model filters; the plan's unit status stays the default
@@ -458,7 +467,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       setFile(null);
       setSavedNotice(true);
     } else {
-      setError({ kind: "action", code: outcome.code, message: { ar: text.ar.saveFailed, en: text.en.saveFailed, ur: text.ur.saveFailed } });
+      setError({ kind: "action", code: outcome.code, message: saveFailure(outcome.code) });
     }
   }
 
@@ -470,7 +479,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       setPicks([]);
       return true;
     }
-    setError({ kind: "action", code: outcome.code, message: { ar: text.ar.saveFailed, en: text.en.saveFailed, ur: text.ur.saveFailed } });
+    setError({ kind: "action", code: outcome.code, message: saveFailure(outcome.code) });
     return false;
   }
 
@@ -514,7 +523,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
     if (point) setPicks(previous => (previous.length >= 2 ? [point] : [...previous, point]));
   }
 
-  const unitStatusText = (status: string) => (t.unitStatus as Record<string, string>)[status] ?? status;
+  const unitStatusText = (status: string) => (t.unitStatus as Record<string, string>)[status] ?? status; // a PMC villa has none: its site status is the colouring
   const reasonText = (reason: string | null) => (reason && (t.reason as Record<string, string>)[reason]) || null;
 
   return (
@@ -525,9 +534,11 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       </div>
 
       {plansQuery.error ? <SectionMessage title={t.title} isArabic={isArabic} language={language} kind="error" error={plansQuery.error} onRetry={() => plansQuery.refetch()} /> : null}
+      {!plansQuery.error && unitsQuery.error ? <SectionMessage title={t.title} isArabic={isArabic} language={language} kind="error" error={unitsQuery.error} onRetry={() => unitsQuery.refetch()} /> : null}
 
       {plansQuery.data && !hasVersion ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noPlan}</p> : null}
-      {plansQuery.data && hasVersion && units.length === 0 ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noUnits}</p> : null}
+      {unitsQuery.data?.villasDenied ? <p role="note" data-villas-denied className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.villasDenied}</p> : null}
+      {plansQuery.data && hasVersion && unitsQuery.data && !unitsQuery.data.villasDenied && units.length === 0 ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noUnits}</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <FileButton label={t.upload} accept=".dxf,.dwg,.png,.jpg,.jpeg,.pdf" showName={false} onFile={onFileChosen} />
@@ -684,7 +695,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                       <button type="button" className="min-h-[44px] text-start font-medium" onClick={() => setSelectedId(item.polygonId)} aria-pressed={selectedId === item.polygonId}>
                         {t.shape(index + 1)} · {t.state[item.state]}{item.unitCode ? ` · ${item.unitCode}` : ""}
                       </button>
-                      {item.state === "confirmed" && item.unitId && unitById.get(item.unitId) ? <span className="text-xs text-muted-foreground">{unitStatusText(unitById.get(item.unitId)!.status)}</span> : null}
+                      {item.state === "confirmed" && item.unitId && unitById.get(item.unitId)?.status ? <span className="text-xs text-muted-foreground">{unitStatusText(unitById.get(item.unitId)!.status)}</span> : null}
                       {reasonText(item.reason) ? <span className="text-xs text-muted-foreground">{reasonText(item.reason)}</span> : null}
                       {colouring && item.state === "confirmed" && item.unitCode ? <span className="text-xs text-muted-foreground" data-site-status>{colourText.keys[colouring.keyOf(item.unitCode)]}</span> : null}
                     </div>

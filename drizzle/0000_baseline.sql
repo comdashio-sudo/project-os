@@ -1085,9 +1085,11 @@ CREATE TABLE "master_plan_drawing_links" (
 	"project_id" varchar(36) NOT NULL,
 	"drawing_id" varchar(36) NOT NULL,
 	"polygon_id" varchar(36) NOT NULL,
-	"entity_id" varchar(36) NOT NULL,
+	"entity_id" varchar(36),
+	"pmc_unit_id" varchar(36),
 	"confirmed_by_user_id" integer NOT NULL,
-	"confirmed_at" timestamp with time zone DEFAULT now() NOT NULL
+	"confirmed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "master_plan_drawing_links_one_unit_check" CHECK (("master_plan_drawing_links"."entity_id" IS NULL) <> ("master_plan_drawing_links"."pmc_unit_id" IS NULL))
 );
 --> statement-breakpoint
 CREATE TABLE "master_plan_drawing_polygons" (
@@ -3367,6 +3369,7 @@ ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_tenant_id_co
 ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_source_document_id_project_documents_id_fk" FOREIGN KEY ("source_document_id") REFERENCES "public"."project_documents"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "knowledge_articles" ADD CONSTRAINT "knowledge_articles_published_by_user_id_users_id_fk" FOREIGN KEY ("published_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_pmc_unit_fk" FOREIGN KEY ("pmc_unit_id","tenant_id","project_id") REFERENCES "public"."pmc_units"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_project_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "master_plan_drawing_links" ADD CONSTRAINT "mpdl_drawing_fk" FOREIGN KEY ("drawing_id") REFERENCES "public"."master_plan_drawings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -3959,6 +3962,7 @@ CREATE UNIQUE INDEX "issues_project_code_unique" ON "issues" USING btree ("proje
 CREATE INDEX "issues_tenant_project_status_idx" ON "issues" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "kba_document_unique" ON "knowledge_articles" USING btree ("source_document_id");--> statement-breakpoint
 CREATE INDEX "kba_tenant_status_idx" ON "knowledge_articles" USING btree ("tenant_id","status","updated_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "master_plan_drawing_links_drawing_pmc_unit_unique" ON "master_plan_drawing_links" USING btree ("drawing_id","pmc_unit_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "master_plan_drawing_links_polygon_unique" ON "master_plan_drawing_links" USING btree ("polygon_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "master_plan_drawing_links_drawing_entity_unique" ON "master_plan_drawing_links" USING btree ("drawing_id","entity_id");--> statement-breakpoint
 CREATE INDEX "master_plan_drawing_links_tenant_project_drawing_idx" ON "master_plan_drawing_links" USING btree ("tenant_id","project_id","drawing_id");--> statement-breakpoint
