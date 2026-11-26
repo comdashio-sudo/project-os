@@ -60,7 +60,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-61 (1): a large Primav
     const put = await fetch(target.uploadUrl, { method: "PUT", headers: target.headers, body: Buffer.from(file.bytes) });
     expect(put.ok).toBe(true);
 
-    const analysis = await manager.smartImport.analyze({ ...scope, uploadKey: target.uploadKey, fileName: "large-schedule.xer" });
+    const t0 = Date.now(); const analysis = await manager.smartImport.analyze({ ...scope, uploadKey: target.uploadKey, fileName: "large-schedule.xer" });
+    console.log(`analyze ${Date.now() - t0} ms`);
     const plan = analysis.p6Plan!;
     expect(plan.issues).toEqual([]); expect(plan.canConfirm).toBe(true);
     expect(plan.counts.activities.create).toBe(LARGE_P6_COUNTS.activities); expect(plan.counts.wbs.create).toBe(LARGE_P6_COUNTS.wbs);
@@ -72,7 +73,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-61 (1): a large Primav
     expect(confirmed).toMatchObject({ status: "importing", module: "p6" });
     let progress = await manager.dataImports.progress({ ...scope, importId: confirmed.importId });
     const seen = new Set<string>();
-    for (let waited = 0; progress.status === "importing" && waited < 540_000; waited += 1000) { if (progress.progressStage) seen.add(progress.progressStage); await new Promise(resolve => setTimeout(resolve, 1000)); progress = await manager.dataImports.progress({ ...scope, importId: confirmed.importId }); }
+    for (let waited = 0; progress.status === "importing" && waited < 540_000; waited += 1000) { if (progress.progressStage && !seen.has(progress.progressStage)) { seen.add(progress.progressStage); console.log(`stage ${progress.progressStage} at ${Date.now() - t0} ms`); } await new Promise(resolve => setTimeout(resolve, 1000)); progress = await manager.dataImports.progress({ ...scope, importId: confirmed.importId }); }
     expect(progress).toMatchObject({ status: "completed", progressPercent: 100, createdRows: LARGE_P6_COUNTS.activities });
     expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ? AND status = 'completed'", [T])).toBe(1); // one import row: the job's own, not a second one
     expect(await n("SELECT COUNT(*) AS n FROM wbs_items WHERE tenantId = ?", [T])).toBe(LARGE_P6_COUNTS.wbs);
