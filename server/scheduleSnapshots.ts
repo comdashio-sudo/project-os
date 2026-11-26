@@ -9,9 +9,9 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
-import { activities, dataImportRowResults, dataImports, scheduleSnapshotActivities, scheduleSnapshots } from "../drizzle/schema";
+import { activities, auditLogs, dataImportRowResults, dataImports, scheduleSnapshotActivities, scheduleSnapshots } from "../drizzle/schema";
 import { bulkUpdate } from "./bulkUpdate";
-import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
+import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 
 type Writer = Pick<NonNullable<Awaited<ReturnType<typeof getDb>>>, "execute" | "select" | "insert">;
@@ -215,3 +215,40 @@ export async function compareScheduleSnapshots(input: { userId: number; tenantId
     changes,
   };
 }
+
+// ------------------------------------------------------------------------------------------------------------- adopt a new baseline (Q-61 (5))
+
+/** Who may move the baseline: whoever manages the project's schedule, or the project itself. */
+export const BASELINE_PERMISSIONS = ["project.schedule.manage", "project.manage"] as const;
+
+/**
+ * Q-61 (5): the first confirmed P6 import is the baseline; a later IMPORT (the owner uploads the version submitted, then the one approved) becomes the new
+ * baseline only by this explicit decision — with the permission, a reason, and an audit row in the same transaction. The previous baseline stays a snapshot
+ * (nothing is deleted); the updates stay forecasts. Refused, writing nothing, for a snapshot of another project, one that is not a P6 import (an update or a
+ * «before» copy), the baseline itself, or a reason under five characters. The data import feature of the subscription is required, as for the import.
+ */
+export async function adoptScheduleBaseline(input: { userId: number; tenantId: string; projectId: string; snapshotId: string; reason: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: BASELINE_PERMISSIONS, featureCode: "DATA_IMPORT", scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const reason = input.reason.trim();
+  if (reason.length < 5) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SCHEDULE_BASELINE_REASON_REQUIRED" });
+  const mine = and(eq(scheduleSnapshots.tenantId, input.tenantId), eq(scheduleSnapshots.projectId, input.projectId));
+  return db.transaction(async tx => {
+    // the same lock as an import's snapshot: a baseline is never moved while an import is writing its own
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`schedule-snapshot:${input.projectId}`}))`);
+    const [target] = await tx.select({ id: scheduleSnapshots.id, source: scheduleSnapshots.source, isBaseline: scheduleSnapshots.isBaseline, dataDate: scheduleSnapshots.dataDate }).from(scheduleSnapshots).where(and(mine, eq(scheduleSnapshots.id, input.snapshotId))).limit(1);
+    if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND" });
+    if (target.source !== "p6_import") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SCHEDULE_BASELINE_NOT_IMPORT" });
+    if (target.isBaseline) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_SCHEDULE_ALREADY_BASELINE" });
+    const [previous = null] = await tx.select({ id: scheduleSnapshots.id }).from(scheduleSnapshots).where(and(mine, eq(scheduleSnapshots.isBaseline, true))).limit(1);
+    // the old one first: one baseline per project (a partial unique index)
+    if (previous) await tx.update(scheduleSnapshots).set({ isBaseline: false, updatedAt: new Date() }).where(and(mine, eq(scheduleSnapshots.id, previous.id)));
+    const moved = await tx.update(scheduleSnapshots).set({ isBaseline: true, updatedAt: new Date() }).where(and(mine, eq(scheduleSnapshots.id, target.id))).returning({ id: scheduleSnapshots.id });
+    if (moved.length !== 1) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_SCHEDULE_ALREADY_BASELINE" });
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "schedule.baseline_adopted", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ from: previous?.id ?? null, to: target.id, dataDate: target.dataDate, reason }) });
+    return { baselineId: target.id, previousBaselineId: previous?.id ?? null };
+  });
+}
+
