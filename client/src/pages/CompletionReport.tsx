@@ -106,6 +106,7 @@ export default function CompletionReport() {
     <PageMain className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 md:p-6">
       <PageTitle title={t.title} description={t.intro} />
       <SourceNotice query={query} isArabic={isArabic} title={t.title} />
+      <SourceNotice query={options} isArabic={isArabic} title={t.filters} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <section className="flex min-w-0 flex-col gap-3" aria-label={t.title} data-completion-report>
           <div className="flex flex-wrap items-center justify-between gap-2">
