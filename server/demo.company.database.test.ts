@@ -214,10 +214,11 @@ describe.skipIf(!run)("the demonstration company", () => {
     const { operationalRoleDefinitions } = await import("./domain/operationalRoles");
     const templates = operationalRoleDefinitions.map(role => role.code).filter(code => code !== "TENANT_OWNER");
     expect(templates.filter(code => !DEMO_PEOPLE.some(person => person.role === code))).toEqual([]);
-    const [rows] = await connection.query<{ email: string; code: string }[]>(
-      `SELECT u.email, r.code FROM memberships m JOIN users u ON u.id = m.userId JOIN membership_roles mr ON mr.membershipId = m.id JOIN roles r ON r.id = mr.roleId
+    const [rows] = await connection.query<{ email: string; code: string; scopeType: string }[]>(
+      `SELECT u.email, r.code, mr.scopeType FROM memberships m JOIN users u ON u.id = m.userId JOIN membership_roles mr ON mr.membershipId = m.id JOIN roles r ON r.id = mr.roleId
        WHERE m.tenantId = ? AND m.status = 'active'`, [tenantId]);
-    for (const person of DEMO_PEOPLE) expect(rows.some(row => row.email === person.email && row.code === person.role), `${person.email} as ${person.role}`).toBe(true);
+    // the role at the level the person is shown at (a company role given on a project, or the reverse, would show a different page set)
+    for (const person of DEMO_PEOPLE) expect(rows.some(row => row.email === person.email && row.code === person.role && row.scopeType === person.scope), `${person.email} as ${person.role} on ${person.scope}`).toBe(true);
     // every one of them is an obviously made-up address
     expect(DEMO_PEOPLE.every(person => person.email.endsWith("@show.example.test"))).toBe(true);
   });
