@@ -147,7 +147,7 @@ export function openApiDocument() {
   }
   return {
     openapi: "3.1.0",
-    info: { title: "Dashio / PROJECT OS integration API", version: "1.0.0", description: "A company's other systems (ERP, submittal and quality systems) exchange data with its Dashio company here. Every call carries a company API key; a batch is idempotent by the other system's own identifier; every record's outcome is in the sync log. Webhooks: events are POSTed as JSON with the header `X-ProjectOS-Signature: t=<unix>,v1=<hex HMAC-SHA256 of \"<t>.<body>\" with the endpoint secret>`." },
+    info: { title: "Dashio integration API", version: "1.0.0", description: "A company's other systems (ERP, submittal and quality systems) exchange data with its Dashio company here. Every call carries a company API key; a batch is idempotent by the other system's own identifier; every record's outcome is in the sync log. Webhooks: events are POSTed as JSON with the header `X-ProjectOS-Signature: t=<unix>,v1=<hex HMAC-SHA256 of \"<t>.<body>\" with the endpoint secret>`." },
     servers: [{ url: "/api/v1" }],
     components: { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer", description: "A company API key (pos_…) made by the company's manager. Powers: " + (Object.entries(SCOPE_TEXT).map(([scope, text]) => `${scope} (${text})`).join("; ")) } } },
     paths: { "/openapi.json": { get: { summary: "This document.", responses: { "200": { description: "OK" } } } }, ...paths },

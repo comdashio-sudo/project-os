@@ -18,7 +18,9 @@ type BlockProps = React.HTMLAttributes<HTMLElement> & { children?: React.ReactNo
 
 /** The page's root. Alone: <main>. Inside the frame: a plain block without its own page background or full-screen height (the frame has both). */
 export function PageMain({ className, ...rest }: BlockProps) {
-  if (useInShell()) return <div data-page-root="" {...rest} className={cn(className, "min-h-0 bg-transparent")} />;
+  // Q-59 (6): «w-full» — a page root with «mx-auto» inside the frame's column would otherwise shrink to its widest child (auto margins stop the
+  // stretch), so on a phone a wide table pushed the whole page past the screen's left edge (the weekly report at 390px)
+  if (useInShell()) return <div data-page-root="" {...rest} className={cn(className, "min-h-0 w-full bg-transparent")} />;
   return <main {...rest} className={className} />;
 }
 
