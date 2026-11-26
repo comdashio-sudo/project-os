@@ -1866,6 +1866,16 @@ export const projectErrorMessages = {
     en: "The site's old record was already imported into this project; it is imported only once.",
     ur: "سائٹ کا پرانا ریکارڈ اس پروجیکٹ میں پہلے ہی درآمد ہو چکا ہے؛ یہ صرف ایک بار درآمد ہوتا ہے۔",
   },
+  PROJECT_OS_PROGRESS_LOG_DATE_INVALID: {
+    ar: "تاريخ السجل غير صالح: اكتب التاريخ بالشكل سنة-شهر-يوم، وليكن «من» قبل «إلى» أو مثله.",
+    en: "The log's date is not valid: write it as year-month-day, with «from» on or before «to».",
+    ur: "لاگ کی تاریخ درست نہیں: سال-مہینہ-دن کی شکل میں لکھیں، اور «سے» «تک» سے پہلے یا برابر ہو۔",
+  },
+  PROJECT_OS_PROGRESS_LOG_SOURCE_INVALID: {
+    ar: "مصدر الإدخال غير معروف في سجل الإنجاز.",
+    en: "This source of entry is not known in the progress log.",
+    ur: "پیش رفت لاگ میں اندراج کا یہ ذریعہ معلوم نہیں۔",
+  },
   PROJECT_OS_STALL_THRESHOLD_INVALID: {
     ar: "حد التوقف عدد أيام عمل من 1 إلى 60.",
     en: "The stall threshold is a number of working days from 1 to 60.",

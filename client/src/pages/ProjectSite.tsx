@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useParams } from "wouter";
-import { ClipboardCheck, FileText, PauseCircle, TrendingUp, type LucideIcon } from "lucide-react";
+import { ClipboardCheck, FileText, History, PauseCircle, TrendingUp, type LucideIcon } from "lucide-react";
 import { Badge, Card, CardBody } from "@/components/ds";
 import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
@@ -17,9 +17,9 @@ const QC_PAGE = 100;
 const dayOf = (value: unknown) => (value instanceof Date ? siteToday(value) : typeof value === "string" ? value.slice(0, 10) : "");
 
 const text = {
-  ar: { intro: "شاشات الموقع في مكان واحد: افتح ما تحتاجه اليوم، والعدد على كل بطاقة من بيانات المشروع.", todayReport: "تقرير اليوم", none: "لم يُبدأ", draft: "مسودة", submitted: "بانتظار الاعتماد", approved: "معتمد", rejected: "مُعاد", awaiting: "تقارير بانتظار الاعتماد", activities: "نشاطًا في جدول الأوزان", today: "استلامًا مسجّلًا اليوم", stalled: "متوقفة", long: "متوقفة طويلًا", nothing: "لا تملك صلاحية فتح أي من شاشات الموقع في هذا المشروع.", open: "فتح" },
-  en: { intro: "The site's screens in one place: open what you need today; each card's number comes from the project's data.", todayReport: "Today's report", none: "Not started", draft: "Draft", submitted: "Awaiting approval", approved: "Approved", rejected: "Returned", awaiting: "reports awaiting approval", activities: "activities in the weights table", today: "receipts recorded today", stalled: "stalled", long: "long stalled", nothing: "You may not open any of the site's screens in this project.", open: "Open" },
-  ur: { intro: "سائٹ کی اسکرینیں ایک جگہ: آج جو چاہیے کھولیں؛ ہر کارڈ کا عدد منصوبے کے ڈیٹا سے ہے۔", todayReport: "آج کی رپورٹ", none: "شروع نہیں ہوئی", draft: "مسودہ", submitted: "منظوری کی منتظر", approved: "منظور شدہ", rejected: "واپس کی گئی", awaiting: "رپورٹیں منظوری کی منتظر", activities: "سرگرمیاں وزن کی جدول میں", today: "وصولیاں آج درج ہوئیں", stalled: "رکی ہوئی", long: "طویل رکی ہوئی", nothing: "آپ اس منصوبے میں سائٹ کی کوئی اسکرین نہیں کھول سکتے۔", open: "کھولیں" },
+  ar: { intro: "شاشات الموقع في مكان واحد: افتح ما تحتاجه اليوم، والعدد على كل بطاقة من بيانات المشروع.", todayReport: "تقرير اليوم", none: "لم يُبدأ", draft: "مسودة", submitted: "بانتظار الاعتماد", approved: "معتمد", rejected: "مُعاد", awaiting: "تقارير بانتظار الاعتماد", activities: "نشاطًا في جدول الأوزان", today: "استلامًا مسجّلًا اليوم", stalled: "متوقفة", long: "متوقفة طويلًا", nothing: "لا تملك صلاحية فتح أي من شاشات الموقع في هذا المشروع.", open: "فتح", logHint: "من أدخل ماذا، على أي فلل، ومن أين" },
+  en: { intro: "The site's screens in one place: open what you need today; each card's number comes from the project's data.", todayReport: "Today's report", none: "Not started", draft: "Draft", submitted: "Awaiting approval", approved: "Approved", rejected: "Returned", awaiting: "reports awaiting approval", activities: "activities in the weights table", today: "receipts recorded today", stalled: "stalled", long: "long stalled", nothing: "You may not open any of the site's screens in this project.", open: "Open", logHint: "Who entered what, on which villas, and from where" },
+  ur: { intro: "سائٹ کی اسکرینیں ایک جگہ: آج جو چاہیے کھولیں؛ ہر کارڈ کا عدد منصوبے کے ڈیٹا سے ہے۔", todayReport: "آج کی رپورٹ", none: "شروع نہیں ہوئی", draft: "مسودہ", submitted: "منظوری کی منتظر", approved: "منظور شدہ", rejected: "واپس کی گئی", awaiting: "رپورٹیں منظوری کی منتظر", activities: "سرگرمیاں وزن کی جدول میں", today: "وصولیاں آج درج ہوئیں", stalled: "رکی ہوئی", long: "طویل رکی ہوئی", nothing: "آپ اس منصوبے میں سائٹ کی کوئی اسکرین نہیں کھول سکتے۔", open: "کھولیں", logHint: "کس نے کیا درج کیا، کن ولاز پر، اور کہاں سے" },
 };
 
 function SiteCard({ icon: Icon, title, href, children, testId }: { icon: LucideIcon; title: string; href: string; children: React.ReactNode; testId: string }) {
@@ -43,7 +43,7 @@ export default function ProjectSite() {
   const t = pickLanguage(language, text);
   const name = (key: keyof typeof PAGE_NAMES) => pickLanguage(language, PAGE_NAMES[key]);
   const scope = { tenantId, projectId };
-  const can = { dailyReport: useCanPage("dailyReport", projectId), progress: useCanPage("progress", projectId), qc: useCanPage("qc", projectId), stalled: useCanPage("stalled", projectId) };
+  const can = { dailyReport: useCanPage("dailyReport", projectId), progress: useCanPage("progress", projectId), qc: useCanPage("qc", projectId), stalled: useCanPage("stalled", projectId), progressLog: useCanPage("progressLog", projectId) };
   const reports = trpc.siteReports.list.useQuery(scope, { enabled: can.dailyReport });
   const activities = trpc.pmc.progressActivities.useQuery(scope, { enabled: can.progress });
   const receipts = trpc.pmc.qcHistory.useQuery({ ...scope, limit: QC_PAGE }, { enabled: can.qc });
@@ -59,7 +59,7 @@ export default function ProjectSite() {
   const cutToday = qcEvents.length >= QC_PAGE && dayOf(qcEvents[qcEvents.length - 1].at) === today; // the oldest on a full page is still today's
   const receivedTodayLabel = cutToday ? `${receivedToday}+` : null;
   const count = (value: number) => <bdi dir="ltr" className="font-semibold text-foreground">{value}</bdi>;
-  const any = can.dailyReport || can.progress || can.qc || can.stalled;
+  const any = can.dailyReport || can.progress || can.qc || can.stalled || can.progressLog;
 
   return (
     <PageMain className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-6">
@@ -82,6 +82,9 @@ export default function ProjectSite() {
           </SiteCard> : null}
           {can.stalled ? <SiteCard testId="stalled" icon={PauseCircle} title={name("stalled")} href={`/projects/${tenantId}/${projectId}/stalled`}>
             {stalled.data ? <><Badge tone="warning">{count(stalled.data.counts.stalled)} {t.stalled}</Badge><Badge tone="danger">{count(stalled.data.counts.long)} {t.long}</Badge></> : null}
+          </SiteCard> : null}
+          {can.progressLog ? <SiteCard testId="progressLog" icon={History} title={name("progressLog")} href={`/projects/${tenantId}/${projectId}/progress-log`}>
+            <span>{t.logHint}</span>
           </SiteCard> : null}
         </ul>
       ) : <p role="note" className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground ring-1 ring-border">{t.nothing}</p>}
