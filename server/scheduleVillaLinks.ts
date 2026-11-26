@@ -20,7 +20,7 @@ export async function loadScheduleAndVillas(db: Db, scope: { tenantId: string; p
       .innerJoin(activityCodeTypes, and(eq(activityCodeTypes.id, activityCodeAssignments.codeTypeId), eq(activityCodeTypes.tenantId, activityCodeAssignments.tenantId)))
       .innerJoin(activityCodeValues, and(eq(activityCodeValues.id, activityCodeAssignments.codeValueId), eq(activityCodeValues.tenantId, activityCodeAssignments.tenantId)))
       .where(mine(activityCodeAssignments)),
-    db.select({ unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, blockCode: pmcBlocks.code })
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, blockCode: pmcBlocks.code, unitWeight: pmcUnits.unitWeight })
       .from(pmcUnits).innerJoin(pmcBlocks, and(eq(pmcBlocks.id, pmcUnits.blockId), eq(pmcBlocks.tenantId, pmcUnits.tenantId))).where(mine(pmcUnits)),
   ]);
   const codesOf = new Map<string, Record<string, string>>();
