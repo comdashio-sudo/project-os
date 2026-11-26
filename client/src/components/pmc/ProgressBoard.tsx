@@ -24,7 +24,7 @@ const pct = (value: number | null) => (value === null ? "—" : formatPercent(va
 const signed = (value: number | null) => (value === null ? "—" : `${value > 0 ? "+" : ""}${formatPercent(value, 1)}`);
 
 export function ProgressBoard({ tenantId, projectId }: { tenantId: string; projectId: string }) {
-  const { language, isArabic } = useLanguage();
+  const { language, isArabic, isRtl } = useLanguage();
   const t = pickLanguage(language, text);
   const [, navigate] = useLocation();
   const [mode, setMode] = React.useState<ColourMode>("progress");
@@ -52,10 +52,14 @@ export function ProgressBoard({ tenantId, projectId }: { tenantId: string; proje
     context.clearRect(0, 0, layout.width, layout.height);
     const colours = new Map(Object.entries(BAND_TOKEN).map(([band, name]) => [band, token(name)]));
     const byNumber = new Map(units.map(u => [u.unitNumber, u]));
-    for (const cell of layout.cells) { const unit = byNumber.get(cell.unitNumber); if (!unit) continue; context.fillStyle = colours.get(bandOf(unit, mode, models)) ?? "#888"; context.fillRect(cell.x, cell.y, cell.size, cell.size); }
+    // right to left: the blocks flow from the right edge like the rest of the page (the tap below mirrors the same way)
+    const xOf = (x: number, size: number) => (isRtl ? layout.width - x - size : x);
+    for (const cell of layout.cells) { const unit = byNumber.get(cell.unitNumber); if (!unit) continue; context.fillStyle = colours.get(bandOf(unit, mode, models)) ?? "#888"; context.fillRect(xOf(cell.x, cell.size), cell.y, cell.size, cell.size); }
+    // a block code is Latin text: drawn left to right at its block's start, never inheriting the page's direction (which pushed the first column's off the canvas)
+    context.direction = "ltr"; context.textAlign = isRtl ? "right" : "left";
     context.fillStyle = token("--muted-foreground"); context.font = "600 11px system-ui, sans-serif"; context.textBaseline = "top";
-    for (const block of layout.blocks) context.fillText(block.blockCode, block.x, block.y + 2);
-  }, [layout, units, mode, models]);
+    for (const block of layout.blocks) context.fillText(block.blockCode, isRtl ? layout.width - block.x : block.x, block.y + 2);
+  }, [layout, units, mode, models, isRtl]);
 
   if (board.isLoading) return <LoadingState isArabic={isArabic} label={t.loading} />;
   if (board.error) return <ErrorState isArabic={isArabic} error={board.error} title={t.failed} onRetry={() => board.refetch()} retrying={board.isFetching} />;
@@ -79,7 +83,7 @@ export function ProgressBoard({ tenantId, projectId }: { tenantId: string; proje
         <p className="text-xs text-muted-foreground">{t.schematic}</p>
         <div ref={wrapRef} className="w-full min-w-0">
           <canvas ref={canvasRef} role="img" aria-label={t.mapLabel(units.length)} data-board-map="" style={{ width: layout?.width ?? "100%", height: layout?.height ?? 0 }} className="block cursor-pointer"
-            onClick={event => { if (!layout) return; const box = event.currentTarget.getBoundingClientRect(); const number = cellAt(layout, event.clientX - box.left, event.clientY - box.top); if (number !== null) navigate(`/m/${tenantId}/${projectId}/unit/${number}`); }} />
+            onClick={event => { if (!layout) return; const box = event.currentTarget.getBoundingClientRect(); const x = event.clientX - box.left; const number = cellAt(layout, isRtl ? layout.width - x : x, event.clientY - box.top); if (number !== null) navigate(`/m/${tenantId}/${projectId}/unit/${number}`); }} />
         </div>
         <ul className="flex flex-wrap gap-3 text-xs" data-board-legend="">{Object.entries(legend).map(([band, label]) => <li key={band} className="flex items-center gap-1"><span aria-hidden="true" className="inline-block h-3 w-3 rounded-sm" style={{ background: `var(${BAND_TOKEN[band] ?? "--muted"})` }} />{label}</li>)}</ul>
       </>}
