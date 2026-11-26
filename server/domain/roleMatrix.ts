@@ -52,7 +52,7 @@ export const matrixColumns: readonly MatrixColumn[] = [
     { tier: "edit", sources: [s(DB, "createPortfolioForTenant", "pmo.write")] },
   ] },
   { id: "pmc", title: "ضبط المشروع PMC", kind: "screen", actions: [
-    { tier: "see", sources: [s(PMC, "listPmcVerificationStatuses", "project.pmc.read"), s("server/scheduleStageMapping.ts", "getScheduleStageMapping", "project.pmc.read"), s("server/scheduleVillaLinks.ts", "getScheduleVillaLinks", "project.pmc.read")] },
+    { tier: "see", sources: [s(PMC, "listPmcVerificationStatuses", "project.pmc.read"), s("server/scheduleStageMapping.ts", "getScheduleStageMapping", "project.pmc.read"), s("server/scheduleVillaLinks.ts", "getScheduleVillaLinks", "project.pmc.read"), s("server/plannedCurveService.ts", "getPlannedCurve", "project.pmc.read")] },
     { tier: "edit", sources: [s(PMC, "setPmcUnitActivityStatus", "project.pmc.update"), s(PMC, "setPmcStatusFactors", "project.pmc.manage"), s("server/scheduleStageMapping.ts", "saveScheduleStageMapping", "project.pmc.manage")] },
   ] },
   { id: "siteConsultant", title: "الموقع والاستشاري", kind: "screen", actions: [
