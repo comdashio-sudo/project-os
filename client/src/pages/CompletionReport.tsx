@@ -21,25 +21,25 @@ const text = {
     filters: "التصفية", block: "البلوك", phase: "المرحلة", activity: "البند", status: "الحالة", villa: "رقم الفيلا", all: "الكل", model: "النموذج", weight: "الوزن %",
     started: "بدأ", completed: "اكتمل", qc: "استلام QC", lastBy: "آخر من حرّكه", rows: "صفًا", previous: "السابق", next: "التالي", none: "لا صفوف بهذه التصفية.",
     exportAll: (n: string) => `تصدير ${n} صف إلى Excel`, exporting: (done: string, all: string) => `جارٍ التصدير… ${done} من ${all}`, exportFailed: "تعذّر إنشاء ملف Excel. حاول مرة أخرى.", unknown: "—",
-    received: "مستلم", notReceived: "غير مستلم", statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", COMPLETE: "مكتمل" },
+    received: "مستلم", notReceived: "غير مستلم", statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل" },
   },
   en: {
     title: "Completion report", intro: "One row per villa × activity of its model: the status now, the day it started and the day it was completed, the QC receipt, and who moved it last — computed from the site's records.",
     filters: "Filters", block: "Block", phase: "Phase", activity: "Activity", status: "Status", villa: "Villa number", all: "All", model: "Model", weight: "Weight %",
     started: "Started", completed: "Completed", qc: "QC receipt", lastBy: "Last moved by", rows: "rows", previous: "Previous", next: "Next", none: "No rows with this filter.",
     exportAll: (n: string) => `Export ${n} rows to Excel`, exporting: (done: string, all: string) => `Exporting… ${done} of ${all}`, exportFailed: "The Excel file could not be created. Try again.", unknown: "—",
-    received: "Received", notReceived: "Not received", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", COMPLETE: "Complete" },
+    received: "Received", notReceived: "Not received", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete" },
   },
   ur: {
     title: "تکمیل رپورٹ", intro: "ہر ولا × اس کے ماڈل کی سرگرمی کے لیے ایک قطار: موجودہ حالت، شروع اور تکمیل کا دن، کیو سی وصولی، اور آخری بار کس نے بدلا — سائٹ کے ریکارڈ سے۔",
     filters: "فلٹر", block: "بلاک", phase: "مرحلہ", activity: "سرگرمی", status: "حالت", villa: "ولا نمبر", all: "سب", model: "ماڈل", weight: "وزن %",
     started: "شروع", completed: "مکمل", qc: "کیو سی وصولی", lastBy: "آخری بار بدلا", rows: "قطاریں", previous: "پچھلا", next: "اگلا", none: "اس فلٹر کے ساتھ کوئی قطار نہیں۔",
     exportAll: (n: string) => `${n} قطاریں Excel میں برآمد کریں`, exporting: (done: string, all: string) => `برآمد ہو رہا ہے… ${all} میں سے ${done}`, exportFailed: "Excel فائل نہیں بن سکی۔ دوبارہ کوشش کریں۔", unknown: "—",
-    received: "وصول", notReceived: "وصول نہیں", statuses: { NOT_STARTED: "شروع نہیں", IN_PROGRESS: "جاری", COMPLETE: "مکمل" },
+    received: "وصول", notReceived: "وصول نہیں", statuses: { NOT_STARTED: "شروع نہیں", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیر جائزہ", COMPLETE: "مکمل" },
   },
 };
 
-type Status = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETE";
+type Status = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "COMPLETE";
 
 export default function CompletionReport() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
@@ -93,7 +93,7 @@ export default function CompletionReport() {
     { key: "model", header: t.model, render: row => <span className="whitespace-nowrap">{row.modelCode}</span> },
     { key: "activity", header: t.activity, render: row => <span className="whitespace-nowrap">{<span>{row.activityCode} — {row.activityName}</span>}</span> },
     { key: "weight", header: t.weight, numeric: true, render: row => <span className="whitespace-nowrap">{formatNumber(row.weightPercent, 2)}</span> },
-    { key: "status", header: t.status, render: row => <span className="whitespace-nowrap">{<Badge tone={row.status === "COMPLETE" ? "success" : row.status === "IN_PROGRESS" ? "info" : "neutral"}>{statusLabel(row.status)}</Badge>}</span> },
+    { key: "status", header: t.status, render: row => <span className="whitespace-nowrap">{<Badge tone={row.status === "COMPLETE" ? "success" : row.status === "UNDER_REVIEW" ? "warning" : row.status === "IN_PROGRESS" ? "info" : "neutral"}>{statusLabel(row.status)}</Badge>}</span> },
     { key: "started", header: t.started, render: row => <span className="whitespace-nowrap">{<bdi dir="ltr">{row.startedOn ?? t.unknown}</bdi>}</span> },
     { key: "completed", header: t.completed, render: row => <span className="whitespace-nowrap">{<bdi dir="ltr">{row.completedOn ?? t.unknown}</bdi>}</span> },
     { key: "qc", header: t.qc, render: row => <span className="whitespace-nowrap">{qcLabel(row)}</span> },
@@ -135,7 +135,7 @@ export default function CompletionReport() {
               <Field label={t.block}>{props => <Select id={props.id} options={[{ value: ALL, label: t.all }, ...(lists?.blocks ?? []).map(code => ({ value: code, label: code }))]} value={block} onValueChange={change(setBlock)} />}</Field>
               <Field label={t.phase}>{props => <Select id={props.id} options={[{ value: ALL, label: t.all }, ...(lists?.phases ?? []).map(code => ({ value: code, label: code }))]} value={phase} onValueChange={change(setPhase)} />}</Field>
               <Field label={t.activity}>{props => <Select id={props.id} options={[{ value: ALL, label: t.all }, ...(lists?.activities ?? []).map(item => ({ value: item.code, label: `${item.code} — ${item.name}` }))]} value={activity} onValueChange={change(setActivity)} />}</Field>
-              <Field label={t.status}>{props => <Select id={props.id} options={[{ value: ALL, label: t.all }, ...(["NOT_STARTED", "IN_PROGRESS", "COMPLETE"] as const).map(value => ({ value, label: statusLabel(value) }))]} value={status} onValueChange={change(setStatus)} />}</Field>
+              <Field label={t.status}>{props => <Select id={props.id} options={[{ value: ALL, label: t.all }, ...(["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"] as const).map(value => ({ value, label: statusLabel(value) }))]} value={status} onValueChange={change(setStatus)} />}</Field>
             </div>
           </details>
         </aside>
