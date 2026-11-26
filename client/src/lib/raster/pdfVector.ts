@@ -83,7 +83,7 @@ export async function readPdfVector(bytes: Uint8Array, pageNumber: number, loadP
     }
     // A shape drawn twice (a fill then its stroke) is one shape
     const seen = new Set<string>();
-    const unique = rings.filter(points => { const key = points.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(";"); if (seen.has(key)) return false; seen.add(key); return true; });
+    const unique = rings.filter(points => { const key = points.map(p => `${Math.round(p.x * 100)},${Math.round(p.y * 100)}`).join(";"); if (seen.has(key)) return false; seen.add(key); return true; }); // the key is hundredths of a point, not a display
     if (!unique.length) return null;
     // An outline around many shapes (the site, a block) is set aside: it is no villa, and a person would only have to unlink it
     const centres = unique.map(centre);
