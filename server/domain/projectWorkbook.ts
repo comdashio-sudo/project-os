@@ -87,6 +87,8 @@ const T = {
 } as const;
 
 const DATE_KEYS = /At$|Date$/; const NUMBER_KEYS = /Value$|Amount$|quantity|unitRate|unitCost|unitWeight|unitNumber/; const PERCENT_KEYS = /weightPercent|plannedPercent/;
+/** Review of #531: the columns that hold a number (an amount, a quantity, a rate, a weight). Every other column — a code above all — stays text, so «007» is never «7». */
+export const isNumberColumn = (key: string) => NUMBER_KEYS.test(key) || PERCENT_KEYS.test(key);
 const hintOf = (column: WorkbookColumn, locale: WorkbookLocale) => {
   const hint = T[locale].hint;
   const kind = column.list ? hint.list : DATE_KEYS.test(column.key) ? hint.date : PERCENT_KEYS.test(column.key) ? hint.percent : NUMBER_KEYS.test(column.key) ? hint.number : "";
