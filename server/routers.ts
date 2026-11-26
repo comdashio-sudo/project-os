@@ -1,4 +1,5 @@
 import { isCalendarDay } from "../shared/siteReportRange";
+import { exportFilledProjectWorkbook } from "./projectWorkbookExport";
 import { applyProjectWorkbook, previewProjectWorkbook } from "./projectWorkbookImport";
 import { buildProjectWorkbook } from "./domain/projectWorkbook";
 import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
@@ -373,6 +374,8 @@ export const appRouter = router({
     // Q-51 batch 1: «كراسة بيانات المشروع» — the whole project in one workbook, built from the importers' own field tables (server/domain/projectWorkbook.ts)
     projectWorkbook: protectedProcedure.input(z.object({ locale: z.enum(EXPORT_LOCALES) })).mutation(async ({ input }) => { const file = await buildProjectWorkbook(input); return { fileName: file.fileName, contentType: file.contentType, base64: file.bytes.toString("base64") }; }),
     // Q-51 batch 2a: the workbook's PMC sheets applied in order, one transaction per sheet (server/projectWorkbookImport.ts); the PMC importer's permission
+    // Q-51 batch 3: the workbook pre-filled with the project's models, units and activities (the PMC importer's permission)
+    projectWorkbookFilled: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportFilledProjectWorkbook({ userId: ctx.user.id, ...input })),
     projectWorkbookPreview: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000) })).mutation(({ ctx, input }) => previewProjectWorkbook({ userId: ctx.user.id, ...input })),
     projectWorkbookApply: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileBase64: z.string().min(1).max(4_200_000), approvedHash: z.string().regex(/^[0-9a-f]{64}$/) })).mutation(({ ctx, input }) => applyProjectWorkbook({ userId: ctx.user.id, ...input })),
     // Direct upload (work order 6): the file goes browser → Storage by a signed URL, and is analysed / imported by a job the screen polls.
