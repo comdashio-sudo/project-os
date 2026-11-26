@@ -66,7 +66,7 @@ describe("ProgressLog (Q-70 1)", () => {
   });
 
   it("review of #574 (C, change 1, sibling): a change through review reads «Under review» in its language, never the raw status word", () => {
-    entries.push({ ...entries[0], key: "c", from: "UNDER_REVIEW", to: "COMPLETE" } as (typeof entries)[number]);
+    entries.push({ ...entries[0], key: "c", from: "UNDER_REVIEW", to: "COMPLETE" } as unknown as (typeof entries)[number]);
     try {
       render(<ProgressLog />);
       const row = Array.from(document.querySelectorAll("[data-log-entry]")).find(item => item.textContent?.includes("Under review"))!;
