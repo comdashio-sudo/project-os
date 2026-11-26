@@ -8,19 +8,19 @@ import { QC_KEYS, SITE_COLOUR, SITE_KEYS, type ColourKey } from "@/lib/masterPla
 
 const text = {
   ar: {
-    colourBy: "التلوين حسب", planStatus: "حالة الوحدة في الخطة", block: "البلوك", model: "النموذج", all: "الكل", exportPng: "تصدير PNG", card: "بطاقة الفيلا",
+    colourBy: "التلوين حسب", planStatus: "حالة الوحدة في الخطة", block: "البلوك", model: "النموذج", phase: "المرحلة", all: "الكل", exportPng: "تصدير PNG", card: "بطاقة الفيلا",
     rule: "تُطابَق الوحدة مع الفيلا برقمها في الرمز (\u2066V-04\u2069 ← الفيلا 4).", noSource: "تعذّر تحميل حالات الموقع؛ التلوين بحالة الوحدة في الخطة.",
     source: "المصدر", site: "الموقع", qc: "استلام QC",
     keys: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل", RECEIVED: "مستلم", NOT_RECEIVED: "غير مستلم", NOT_IN_MODEL: "ليس في نموذج الفيلا", NOT_MATCHED: "بلا فيلا مطابقة" },
   },
   en: {
-    colourBy: "Colour by", planStatus: "Unit status in the plan", block: "Block", model: "Model", all: "All", exportPng: "Export PNG", card: "Villa card",
+    colourBy: "Colour by", planStatus: "Unit status in the plan", block: "Block", model: "Model", phase: "Phase", all: "All", exportPng: "Export PNG", card: "Villa card",
     rule: "A unit is matched to a villa by the number in its code (V-04 → villa 4).", noSource: "Site statuses could not be loaded; colouring by the plan's unit status.",
     source: "Source", site: "Site", qc: "QC receipt",
     keys: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete", RECEIVED: "Received", NOT_RECEIVED: "Not received", NOT_IN_MODEL: "Not in the villa's model", NOT_MATCHED: "No matching villa" },
   },
   ur: {
-    colourBy: "رنگ بلحاظ", planStatus: "منصوبے میں یونٹ کی حالت", block: "بلاک", model: "ماڈل", all: "سب", exportPng: "PNG برآمد کریں", card: "ولا کارڈ",
+    colourBy: "رنگ بلحاظ", planStatus: "منصوبے میں یونٹ کی حالت", block: "بلاک", model: "ماڈل", phase: "مرحلہ", all: "سب", exportPng: "PNG برآمد کریں", card: "ولا کارڈ",
     rule: "یونٹ کو اس کے کوڈ کے نمبر سے ولا سے ملایا جاتا ہے (\u2066V-04\u2069 ← ولا 4)۔", noSource: "سائٹ کی حالتیں لوڈ نہیں ہو سکیں؛ منصوبے کی یونٹ حالت سے رنگ۔",
     source: "ماخذ", site: "سائٹ", qc: "QC وصولی",
     keys: { NOT_STARTED: "شروع نہیں", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیر جائزہ", COMPLETE: "مکمل", RECEIVED: "وصول", NOT_RECEIVED: "وصول نہیں", NOT_IN_MODEL: "ولا کے ماڈل میں نہیں", NOT_MATCHED: "مطابق ولا نہیں" },
@@ -43,6 +43,10 @@ export function MasterPlanColourPanel(props: {
   model: string;
   onBlock: (value: string) => void;
   onModel: (value: string) => void;
+  /** Q-60 batch 2c: the phases the project's villas carry; the filter shows only when there are some */
+  phases?: string[];
+  phase?: string;
+  onPhase?: (value: string) => void;
   counts: Record<ColourKey, number> | null;
   failed: boolean;
   onExportPng: () => void;
@@ -66,6 +70,11 @@ export function MasterPlanColourPanel(props: {
             <label className="flex flex-col text-xs">{t.model}
               <Select className="mt-1" aria-label={t.model} value={props.model || ANY} onValueChange={value => props.onModel(value === ANY ? "" : value)} options={[{ value: ANY, label: t.all }, ...props.models.map(model => ({ value: model, label: model }))]} />
             </label>
+            {props.phases?.length && props.onPhase ? (
+              <label className="flex flex-col text-xs" data-phase-filter>{t.phase}
+                <Select className="mt-1" aria-label={t.phase} value={props.phase || ANY} onValueChange={value => props.onPhase!(value === ANY ? "" : value)} options={[{ value: ANY, label: t.all }, ...props.phases.map(phase => ({ value: phase, label: phase }))]} />
+              </label>
+            ) : null}
           </>
         ) : null}
         <button type="button" className="min-h-[44px] rounded-lg border border-border bg-white px-3 text-sm" onClick={props.onExportPng}>{t.exportPng}</button>
