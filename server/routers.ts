@@ -8,6 +8,7 @@ import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, e
 import { adoptScheduleBaseline, compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getScheduleVillaLinks } from "./scheduleVillaLinks";
 import { getScheduleStageMapping, saveScheduleStageMapping } from "./scheduleStageMapping";
+import { getActivityComputedProgress } from "./activityComputedService";
 import { getPlannedCurve } from "./plannedCurveService";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
@@ -1165,6 +1166,8 @@ export const appRouter = router({
     // Q-61 (5): a later P6 import adopted as the new baseline — explicit, with a reason, audited (project.schedule.manage / project.manage)
     adoptBaseline: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), snapshotId: z.string().uuid(), reason: z.string().max(500) })).mutation(({ ctx, input }) => adoptScheduleBaseline({ userId: ctx.user.id, ...input })),
     plannedCurve: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPlannedCurve({ userId: ctx.user.id, ...input })),
+    // Q-71 (1) batch 2: each P6 activity's progress computed from the villas' PMC cells (server/activityComputedService.ts), read-only
+    computedProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getActivityComputedProgress({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),
