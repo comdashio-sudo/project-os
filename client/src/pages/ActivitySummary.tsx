@@ -1,7 +1,7 @@
 // Q-70 (3): «ملخص البنود» — the project's progress in one place: per activity (villas, complete, in progress, remaining, completion and earned share), per
 // block and per phase (villas, weighted progress, completed cells). Read from pmc.activitySummary with the project's own PMC rules, so it agrees with the
 // PMC page. A block or a phase narrows everything on the server. Each table exports to Excel exactly as shown. Q-69 layout: the activities first and wide,
-// blocks and phases beside them on a laptop.
+// blocks and phases under them, each at the full width (four columns that must stay readable).
 import React, { useState } from "react";
 import { useParams } from "wouter";
 import { Badge, DataTable, Field, Select, type Column } from "@/components/ds";
@@ -93,7 +93,7 @@ export default function ActivitySummary() {
           <Field label={t.phase}>{props => <Select id={props.id} options={[{ value: ALL, label: t.all }, ...(data?.filters.phases ?? []).map(code => ({ value: code, label: code }))]} value={phase} onValueChange={setPhase} />}</Field>
         </div>
       </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="flex flex-col gap-4">
         <section className="flex min-w-0 flex-col gap-2" data-summary-activities>
           <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t.activities}</h2><ExportExcelButton fileName="activity-summary" sheetName={t.activities} title={t.title} rows={data?.activities ?? []} columns={activityExport} /></div>
           <DataTable caption={t.activities} columns={activityColumns} rows={data?.activities ?? []} rowKey={row => row.code} empty={data ? t.none : undefined} />
