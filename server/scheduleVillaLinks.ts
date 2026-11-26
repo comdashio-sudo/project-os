@@ -8,19 +8,15 @@ import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db"
 import { assertTenantAccess } from "./domain/authorization";
 import { linkScheduleToVillas, type ScheduleActivity } from "./domain/scheduleVillas";
 
-export async function getScheduleVillaLinks(input: { userId: number; tenantId: string; projectId: string }) {
-  const db = await getDb();
-  if (!db) throw new Error("Database connection is not available");
-  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: ["project.read", "project.manage"], scope: { type: "project", id: input.projectId } });
-  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
-  const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
-
+type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+/** The project's schedule (WBS, activities with their P6 codes) and villas, every query by tenant and project and every join on the same company. Also the
+ * names of the code values («Q02» → «Blockwork»), for the stages of Q-61 (3). The caller has already checked the permission. */
+export async function loadScheduleAndVillas(db: Db, scope: { tenantId: string; projectId: string }) {
+  const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, scope.tenantId), eq(table.projectId as never, scope.projectId));
   const [wbs, rows, codes, villas] = await Promise.all([
     db.select({ id: wbsItems.id, parentId: wbsItems.parentId, code: wbsItems.code, name: wbsItems.name }).from(wbsItems).where(mine(wbsItems)),
     db.select({ id: activities.id, code: activities.code, name: activities.name, wbsItemId: activities.wbsItemId }).from(activities).where(mine(activities)),
-    db.select({ activityId: activityCodeAssignments.activityId, type: activityCodeTypes.name, value: activityCodeValues.shortName })
+    db.select({ activityId: activityCodeAssignments.activityId, type: activityCodeTypes.name, value: activityCodeValues.shortName, valueName: activityCodeValues.name })
       .from(activityCodeAssignments)
       .innerJoin(activityCodeTypes, and(eq(activityCodeTypes.id, activityCodeAssignments.codeTypeId), eq(activityCodeTypes.tenantId, activityCodeAssignments.tenantId)))
       .innerJoin(activityCodeValues, and(eq(activityCodeValues.id, activityCodeAssignments.codeValueId), eq(activityCodeValues.tenantId, activityCodeAssignments.tenantId)))
@@ -29,7 +25,22 @@ export async function getScheduleVillaLinks(input: { userId: number; tenantId: s
       .from(pmcUnits).innerJoin(pmcBlocks, and(eq(pmcBlocks.id, pmcUnits.blockId), eq(pmcBlocks.tenantId, pmcUnits.tenantId))).where(mine(pmcUnits)),
   ]);
   const codesOf = new Map<string, Record<string, string>>();
-  for (const row of codes) (codesOf.get(row.activityId) ?? codesOf.set(row.activityId, {}).get(row.activityId)!)[row.type] = row.value;
+  const valueNames = new Map<string, string>();
+  for (const row of codes) {
+    (codesOf.get(row.activityId) ?? codesOf.set(row.activityId, {}).get(row.activityId)!)[row.type] = row.value;
+    valueNames.set(row.value.trim().toUpperCase(), row.valueName);
+  }
   const scheduleActivities: ScheduleActivity[] = rows.map(row => ({ ...row, codes: codesOf.get(row.id) ?? {} }));
+  return { wbs, activities: scheduleActivities, villas, valueNames };
+}
+
+export async function getScheduleVillaLinks(input: { userId: number; tenantId: string; projectId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
+  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
+  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: ["project.read", "project.manage"], scope: { type: "project", id: input.projectId } });
+  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  const { wbs, activities: scheduleActivities, villas } = await loadScheduleAndVillas(db, input);
   return linkScheduleToVillas({ wbs, activities: scheduleActivities, villas });
 }

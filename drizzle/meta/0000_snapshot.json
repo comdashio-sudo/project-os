@@ -1,5 +1,5 @@
 {
-  "id": "f5ffdb3e-bc49-4cb1-8d13-72314263cfb9",
+  "id": "367714b8-0c05-41e2-a352-0a8ba36cc2b8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -17545,6 +17545,183 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pmc_schedule_stage_links": {
+      "name": "pmc_schedule_stage_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stage_codes_json": {
+          "name": "stage_codes_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "anchor": {
+          "name": "anchor",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'span'"
+        },
+        "suggested_score": {
+          "name": "suggested_score",
+          "type": "numeric(5, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pmc_schedule_stage_links_group_unique": {
+          "name": "pmc_schedule_stage_links_group_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pmc_schedule_stage_links_tenant_project_idx": {
+          "name": "pmc_schedule_stage_links_tenant_project_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pmc_schedule_stage_links_tenant_id_companies_id_fk": {
+          "name": "pmc_schedule_stage_links_tenant_id_companies_id_fk",
+          "tableFrom": "pmc_schedule_stage_links",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pmc_schedule_stage_links_project_id_projects_id_fk": {
+          "name": "pmc_schedule_stage_links_project_id_projects_id_fk",
+          "tableFrom": "pmc_schedule_stage_links",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pmc_schedule_stage_links_updated_by_user_id_users_id_fk": {
+          "name": "pmc_schedule_stage_links_updated_by_user_id_users_id_fk",
+          "tableFrom": "pmc_schedule_stage_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pmc_stage_links_group_fk": {
+          "name": "pmc_stage_links_group_fk",
+          "tableFrom": "pmc_schedule_stage_links",
+          "tableTo": "pmc_activity_groups",
+          "columnsFrom": [
+            "group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "pmc_schedule_stage_links_anchor_check": {
+          "name": "pmc_schedule_stage_links_anchor_check",
+          "value": "\"pmc_schedule_stage_links\".\"anchor\" IN ('span', 'start', 'end')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.pmc_site_activities": {

@@ -41,8 +41,9 @@ const pick = (codes: Record<string, string>, aliases: readonly string[]) => {
 const comparableModel = (value: string) => value.trim().replace(/^type[\s\-_]*/i, "").toUpperCase();
 const comparableBlock = (value: string) => value.trim().replace(/^(?:blk|block|b)[\s\-_]*/i, "").replace(/^0+(?=\d)/, "").toUpperCase();
 
-export function linkScheduleToVillas(input: { wbs: ScheduleWbs[]; activities: ScheduleActivity[]; villas: ProjectVilla[] }): VillaLinks {
-  const wbsById = new Map(input.wbs.map(node => [node.id, node]));
+/** Each activity's villa number (activity id → number), from the nearest WBS node «V606» above it, else from its code's prefix; activities with neither are left out. */
+export function villaOfEachActivity(wbs: ScheduleWbs[], activities: Array<Pick<ScheduleActivity, "id" | "code" | "wbsItemId">>): Map<string, number> {
+  const wbsById = new Map(wbs.map(node => [node.id, node]));
   const villaOfWbs = new Map<string, number | null>();
   const fromWbs = (id: string | null): number | null => {
     const seen: string[] = [];
@@ -59,12 +60,22 @@ export function linkScheduleToVillas(input: { wbs: ScheduleWbs[]; activities: Sc
     for (const node of seen) villaOfWbs.set(node, null);
     return null;
   };
+  const out = new Map<string, number>();
+  for (const activity of activities) {
+    const number = fromWbs(activity.wbsItemId) ?? villaNumberFromActivityCode(activity.code);
+    if (number !== null) out.set(activity.id, number);
+  }
+  return out;
+}
+
+export function linkScheduleToVillas(input: { wbs: ScheduleWbs[]; activities: ScheduleActivity[]; villas: ProjectVilla[] }): VillaLinks {
+  const villaOf = villaOfEachActivity(input.wbs, input.activities);
   const project = new Map(input.villas.map(villa => [villa.unitNumber, villa]));
   const byVilla = new Map<number, ScheduleActivity[]>();
   let linked = 0;
   for (const activity of input.activities) {
-    const number = fromWbs(activity.wbsItemId) ?? villaNumberFromActivityCode(activity.code);
-    if (number === null) continue;
+    const number = villaOf.get(activity.id);
+    if (number === undefined) continue;
     linked += 1;
     (byVilla.get(number) ?? byVilla.set(number, []).get(number)!).push(activity);
   }

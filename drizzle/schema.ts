@@ -3540,6 +3540,34 @@ export const pmcSiteActivityLinks = pgTable(
   ],
 );
 
+// Q-61 (3): once per project, which stages of the P6 schedule (its «Q Item» codes, which do not mean what the weights file's Q codes mean) a weight group's
+// planned progress follows: across the span of those stages' activities in each villa, or earned at the start or the end of one stage (a group with no villa
+// activity of its own, such as factory production). The platform suggests by name; a person saves it, audited.
+export const pmcScheduleStageLinks = pgTable(
+  "pmc_schedule_stage_links",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    groupId: varchar("group_id", { length: 36 }).notNull(),
+    // the schedule's stage codes, a JSON array of one or more («["Q07","Q26","Q06"]»)
+    stageCodesJson: text("stage_codes_json").notNull(),
+    // span: linear across the stages' activities; start / end: the whole weight at the start or the finish of the (single) stage
+    anchor: varchar("anchor", { length: 8 }).default("span").notNull(),
+    // how close the names were (0..1) when the platform suggested the link; NULL when a person chose it
+    suggestedScore: numeric("suggested_score", { precision: 5, scale: 4 }),
+    updatedByUserId: integer("updated_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("pmc_schedule_stage_links_group_unique").on(table.projectId, table.groupId),
+    index("pmc_schedule_stage_links_tenant_project_idx").on(table.tenantId, table.projectId),
+    foreignKey({ columns: [table.groupId], foreignColumns: [pmcActivityGroups.id], name: "pmc_stage_links_group_fk" }),
+    check("pmc_schedule_stage_links_anchor_check", sql`${table.anchor} IN ('span', 'start', 'end')`),
+  ],
+);
+
 export const pmcSiteStatusEnum = pgEnum("pmc_site_status", ["NOT_STARTED", "IN_PROGRESS", "DONE", "INSPECTION_REQUESTED", "QC_APPROVED"]);
 export const pmcSiteCells = pgTable(
   "pmc_site_cells",
