@@ -1,5 +1,5 @@
 {
-  "id": "3a91fbc5-ead1-46bc-a888-49c592e20978",
+  "id": "3c8c0f09-c72e-4927-9b15-6de66b7c8016",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -4686,6 +4686,18 @@
           "columns": [
             {
               "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "module_code",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
