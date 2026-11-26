@@ -93,7 +93,7 @@ describe("ProjectPmc screens", () => {
     expect(guide.textContent).toContain("Who updated progress and when");
     fireEvent.click(screen.getByRole("tab", { name: "Approvals" }));
     expect(document.querySelector("[data-pmc-tab-guide]")!.textContent).toContain("Inspection requests sent to the consultant");
-    expect(document.querySelectorAll("[data-pmc-guide-all] dt")).toHaveLength(13);
+    expect(document.querySelectorAll("[data-pmc-guide-all] dt")).toHaveLength(14); // Q-63: the progress board is the 14th tab
     expect(document.querySelector("[data-pmc-not-in-platform]")!.textContent).toContain("Google Sheets");
   });
 
