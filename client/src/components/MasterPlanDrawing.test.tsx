@@ -220,6 +220,25 @@ describe("MasterPlanDrawing", () => {
     expect(csv).not.toContain("B1-U-0002");
   });
 
+  it("review of #554: a find far below the project's villas says it is partial and points to DXF; a find that covers them does not", async () => {
+    state.data = plan(); // three villas
+    const image: GrayImage = { width: 1, height: 1, data: new Uint8Array(1) };
+    const square = (id: string, x: number) => ({ id, points: [{ x, y: 0 }, { x: x + 10, y: 0 }, { x: x + 10, y: 10 }, { x, y: 10 }], x, y: 0, width: 10, height: 10 });
+    raster.readRasterImage.mockResolvedValue(image);
+    raster.createOcrWorker.mockResolvedValue({ recognize: vi.fn(), terminate: vi.fn(async () => undefined) });
+    raster.analyseRaster.mockResolvedValueOnce({ drawing: buildRasterDrawing([square("shape-1", 0), square("shape-2", 20)], [], 100), shapeCount: 2, labelCount: 0 });
+    const first = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(first.container, "png-bytes", "plan.png");
+    await waitFor(() => expect(first.container.querySelector('[data-raster-note="partial"]')).toBeTruthy());
+    expect(first.container.querySelector("[data-raster-note]")?.textContent).toMatch(/Only 2 shapes were found and the project has 3 villas.*DXF or a vector PDF/);
+    first.unmount();
+    raster.analyseRaster.mockResolvedValueOnce({ drawing: buildRasterDrawing([square("shape-1", 0), square("shape-2", 20), square("shape-3", 40)], [], 100), shapeCount: 3, labelCount: 0 });
+    const second = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(second.container, "png-bytes", "plan.png");
+    await waitFor(() => expect(second.container.querySelector('[data-raster-note="found"]')).toBeTruthy());
+    expect(second.container.querySelector("[data-raster-note]")?.textContent).not.toMatch(/Only/);
+  });
+
   it("reads a PNG through the raster path: shapes become proposals only where a code was read", async () => {
     state.data = plan();
     const image: GrayImage = { width: 1, height: 1, data: new Uint8Array(1) };
