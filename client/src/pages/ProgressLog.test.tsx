@@ -65,6 +65,16 @@ describe("ProgressLog (Q-70 1)", () => {
     expect(screen.getByText("No entries with this filter.")).toBeTruthy();
   });
 
+  it("review of #574 (C, change 1, sibling): a change through review reads «Under review» in its language, never the raw status word", () => {
+    entries.push({ ...entries[0], key: "c", from: "UNDER_REVIEW", to: "COMPLETE" } as (typeof entries)[number]);
+    try {
+      render(<ProgressLog />);
+      const row = Array.from(document.querySelectorAll("[data-log-entry]")).find(item => item.textContent?.includes("Under review"))!;
+      expect(row.textContent).toContain("Under review → Complete");
+      expect(document.body.textContent).not.toContain("UNDER_REVIEW");
+    } finally { entries.pop(); }
+  });
+
   it("villa ranges fold only consecutive numbers", () => {
     expect(villaRanges(["1", "2", "3", "5", "7", "8"])).toBe("1–3, 5, 7–8");
     expect(villaRanges(["A1", "A2"])).toBe("A1, A2");

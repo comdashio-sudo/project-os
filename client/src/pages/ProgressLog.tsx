@@ -21,7 +21,7 @@ const text = {
     when: "التاريخ والوقت", who: "المستخدم", villas: "الفلل", count: "عدد الفلل", change: "قبل ← بعد", entries: "إدخالًا", more: "أظهر المزيد",
     none: "لا إدخالات بهذه التصفية.", cut: "السجل أطول من الحد في هذه المدة: ضيّق التواريخ لترى الأقدم.", unknown: "—",
     sources: { manual: "تحديث الإنجاز", import: "استيراد", dailyReport: "تقرير يومي", undo: "تراجع", cell: "خلية واحدة", qc: "استلام QC" },
-    statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", COMPLETE: "مكتمل", RECEIVED: "مستلم", NOT_RECEIVED: "غير مستلم" },
+    statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل", RECEIVED: "مستلم", NOT_RECEIVED: "غير مستلم" },
   },
   en: {
     title: "Progress log", intro: "Every progress entry in one row: when, who, the activity, the villas, what it was and what it became, and where it came from. The list exports to Excel as shown. It covers the weights-table progress and QC receipts; the site record's own updates have their history on the site ↔ consultant screen.",
@@ -29,7 +29,7 @@ const text = {
     when: "Date and time", who: "User", villas: "Villas", count: "Villas", change: "Before → after", entries: "entries", more: "Show more",
     none: "No entries with this filter.", cut: "The log is longer than the limit in these dates: narrow the dates to see older entries.", unknown: "—",
     sources: { manual: "Progress update", import: "Import", dailyReport: "Daily report", undo: "Undo", cell: "Single cell", qc: "QC receipt" },
-    statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", COMPLETE: "Complete", RECEIVED: "Received", NOT_RECEIVED: "Not received" },
+    statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete", RECEIVED: "Received", NOT_RECEIVED: "Not received" },
   },
   ur: {
     title: "پیش رفت لاگ", intro: "ہر پیش رفت اندراج ایک قطار میں: کب، کس نے، سرگرمی، ولاز، پہلے کیا تھا اور کیا ہوا، اور کہاں سے آیا۔ فہرست جیسی دکھتی ہے ویسی Excel میں برآمد ہوتی ہے۔ یہ وزن کی جدول کی پیش رفت اور کیو سی وصولیوں کا احاطہ کرتا ہے؛ سائٹ ریکارڈ کی اپنی تبدیلیوں کی تاریخ سائٹ ↔ مشیر اسکرین پر ہے۔",
@@ -37,7 +37,7 @@ const text = {
     when: "تاریخ اور وقت", who: "صارف", villas: "ولاز", count: "ولاز کی تعداد", change: "پہلے ← بعد", entries: "اندراجات", more: "مزید دکھائیں",
     none: "اس فلٹر کے ساتھ کوئی اندراج نہیں۔", cut: "ان تاریخوں میں لاگ حد سے لمبا ہے: پرانے دیکھنے کے لیے تاریخیں محدود کریں۔", unknown: "—",
     sources: { manual: "پیش رفت اپ ڈیٹ", import: "درآمد", dailyReport: "روزانہ رپورٹ", undo: "واپسی", cell: "ایک خانہ", qc: "کیو سی وصولی" },
-    statuses: { NOT_STARTED: "شروع نہیں", IN_PROGRESS: "جاری", COMPLETE: "مکمل", RECEIVED: "وصول", NOT_RECEIVED: "وصول نہیں" },
+    statuses: { NOT_STARTED: "شروع نہیں", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیر جائزہ", COMPLETE: "مکمل", RECEIVED: "وصول", NOT_RECEIVED: "وصول نہیں" },
   },
 };
 
