@@ -63,7 +63,7 @@ export async function sync<E extends Syncable, D extends Syncable>(input: { crea
   return { create: toCreate.length, update: toUpdate.length, unchanged, absent: Array.from(input.existing.keys()).filter(key => !seen.has(key)).length };
 }
 
-async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, source: { key: string; name: string } | null, commit: boolean): Promise<P6Plan> {
+async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, source: { key: string; name: string } | null, commit: boolean, existingImportId?: string): Promise<P6Plan> {
   const [project] = await tx.select({ currency: projects.currency }).from(projects).where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId))).limit(1);
   const projectCurrency = project?.currency ?? "SAR";
   const cost = plannedCostByActivity(model);
@@ -207,12 +207,18 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   plan.canConfirm = true;
   if (!commit) throw new Rollback(plan);
   if (source) {
-    const importId = randomUUID();
-    await tx.insert(dataImports).values({
-      id: importId, ...common, moduleCode: "p6", templateCode: "p6_v1", sourceFormat: "xer", fileName: source.name, fileKey: source.key, fileHash, status: "completed",
+    const importId = existingImportId ?? randomUUID();
+    const finished = {
       totalRows: model.activities.length, validRows: model.activities.length, invalidRows: 0, createdRows: counts.activities.create, updatedRows: counts.activities.update, skippedRows: counts.activities.unchanged,
-      summaryJson: JSON.stringify({ p6: { header: model.header, counts, summary, currency, created: createdIds } }), createdByUserId: input.userId, progressPercent: 100, completedAt: now,
-    });
+      summaryJson: JSON.stringify({ p6: { header: model.header, counts, summary, currency, created: createdIds } }), progressPercent: 100, progressStage: null, failureReason: null, heartbeatAt: null, completedAt: now,
+    };
+    if (existingImportId) {
+      // a background job (Q-61 P6): the import row exists as `importing`; it becomes `completed` in THIS transaction, with the data. Cancelled or failed meanwhile: nothing is written (the whole transaction rolls back).
+      const done = await tx.update(dataImports).set({ status: "completed", ...finished }).where(and(eq(dataImports.id, importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.status, "importing"))).returning({ id: dataImports.id });
+      if (!done.length) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
+    } else {
+      await tx.insert(dataImports).values({ id: importId, ...common, moduleCode: "p6", templateCode: "p6_v1", sourceFormat: "xer", fileName: source.name, fileKey: source.key, fileHash, status: "completed", ...finished, createdByUserId: input.userId });
+    }
     await tx.insert(dataImportSources).values({ importId, ...common, sourceKey: source.key, sourceName: source.name, detectedKind: "xer", sheetName: null, mappingJson: JSON.stringify({ tables: Object.fromEntries(ENTITIES.map(name => [name, counts[name]])) }), mergedCellsFilled: 0 });
     let rowNumber = 0;
     for (const batch of chunks(model.activities)) await tx.insert(dataImportRowResults).values(batch.map(item => ({ id: randomUUID(), importId, rowNumber: (rowNumber += 1), rowKey: item.code.slice(0, 160), action: (existingActivities.has(item.code) ? "updated" : "created") as "created" | "updated", entityId: activityId.get(item.code)! })));
@@ -223,9 +229,9 @@ async function run(tx: Tx, input: Scope, model: P6Model, fileHash: string, sourc
   return plan;
 }
 
-async function inTransaction(input: Scope, model: P6Model, fileHash: string, source: { key: string; name: string } | null, commit: boolean): Promise<{ db: Db; plan: P6Plan & { importId?: string } }> {
+async function inTransaction(input: Scope, model: P6Model, fileHash: string, source: { key: string; name: string } | null, commit: boolean, existingImportId?: string): Promise<{ db: Db; plan: P6Plan & { importId?: string } }> {
   const db = await authorizeNewImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "schedule" });
-  try { return { db, plan: await db.transaction(tx => run(tx, input, model, fileHash, source, commit)) }; }
+  try { return { db, plan: await db.transaction(tx => run(tx, input, model, fileHash, source, commit, existingImportId)) }; }
   catch (error) { if (error instanceof Rollback) return { db, plan: error.plan }; throw error; }
 }
 
@@ -237,10 +243,10 @@ export async function analyzeP6Import(input: Scope & { bytes: Uint8Array }): Pro
   return (await inTransaction(input, model, fileHash, null, false)).plan;
 }
 
-export async function confirmP6Import(input: Scope & { bytes: Uint8Array; approvedHash?: string; source: { key: string; name: string } }): Promise<P6Plan & { importId?: string }> {
+export async function confirmP6Import(input: Scope & { bytes: Uint8Array; approvedHash?: string; source: { key: string; name: string }; importId?: string }): Promise<P6Plan & { importId?: string }> {
   const { model, fileHash } = read(input.bytes);
   if (input.approvedHash && input.approvedHash !== fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
-  const { db, plan } = await inTransaction(input, model, fileHash, input.source, true); // the connection authorised for this import (no second authorisation for it)
+  const { db, plan } = await inTransaction(input, model, fileHash, input.source, true, input.importId); // the connection authorised for this import (no second authorisation for it)
   if (!plan.canConfirm || plan.issues.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_VALIDATION_FAILED", cause: plan.issues.slice(0, 20) });
   void refreshStatisticsAfterBulkLoad(db, ["activities", "wbs_items", "activity_*"], model.activities.length);
   return plan;

@@ -141,14 +141,14 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
     const [zones, blocks, units] = await Promise.all([
       db.select({ id: pmcZones.id, code: pmcZones.code }).from(pmcZones).where(mine(pmcZones, scope)),
       db.select({ id: pmcBlocks.id, code: pmcBlocks.code, zoneId: pmcBlocks.zoneId }).from(pmcBlocks).where(mine(pmcBlocks, scope)),
-      db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, blockId: pmcUnits.blockId, modelCode: pmcUnits.modelCode, saleStatus: pmcUnits.saleStatus, unitWeight: pmcUnits.unitWeight }).from(pmcUnits).where(mine(pmcUnits, scope)),
+      db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, blockId: pmcUnits.blockId, modelCode: pmcUnits.modelCode, saleStatus: pmcUnits.saleStatus, unitWeight: pmcUnits.unitWeight, phase: pmcUnits.phase, package: pmcUnits.package, isMockup: pmcUnits.isMockup }).from(pmcUnits).where(mine(pmcUnits, scope)),
     ]);
     const zoneById = new Map(zones.map(zone => [zone.id, zone.code]));
     const blockById = new Map(blocks.map(block => [block.id, block.code]));
     const plan = planLocations(parsed.rows, {
       zones: new Map(zones.map(zone => [zone.code, { id: zone.id }])),
       blocks: new Map(blocks.map(block => [block.code, { id: block.id, zoneCode: zoneById.get(block.zoneId) ?? "" }])),
-      units: new Map(units.map(unit => [unit.unitNumber, { id: unit.id, blockCode: blockById.get(unit.blockId) ?? "", modelCode: unit.modelCode, saleStatus: unit.saleStatus, unitWeight: Number(unit.unitWeight) }])),
+      units: new Map(units.map(unit => [unit.unitNumber, { id: unit.id, blockCode: blockById.get(unit.blockId) ?? "", modelCode: unit.modelCode, saleStatus: unit.saleStatus, unitWeight: Number(unit.unitWeight), phase: unit.phase, package: unit.package, isMockup: unit.isMockup }])),
     });
     const details = { zones: plan.newZones.length, blocks: plan.newBlocks.length };
     if (plan.errors.length) return { report: report("locations", fileHash, total, plan.errors, plan.counts, details), apply: null };
@@ -159,8 +159,8 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
         const blockIds = new Map(blocks.map(block => [block.code, block.id]));
         for (const zone of plan.newZones) { const id = crypto.randomUUID(); zoneIds.set(zone.code, id); await tx.insert(pmcZones).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: zone.code, name: zone.name }); }
         for (const block of plan.newBlocks) { const id = crypto.randomUUID(); blockIds.set(block.code, id); await tx.insert(pmcBlocks).values({ id, tenantId: input.tenantId, projectId: input.projectId, zoneId: zoneIds.get(block.zoneCode)!, code: block.code, name: block.name }); }
-        for (const batch of chunks(plan.newUnits)) await tx.insert(pmcUnits).values(batch.map(unit => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, blockId: blockIds.get(unit.blockCode)!, unitNumber: unit.unitNumber, modelCode: unit.modelCode, saleStatus: unit.saleStatus, unitWeight: String(unit.unitWeight) })));
-        for (const unit of plan.updatedUnits) await tx.update(pmcUnits).set({ saleStatus: unit.saleStatus, unitWeight: String(unit.unitWeight) }).where(eq(pmcUnits.id, unit.id));
+        for (const batch of chunks(plan.newUnits)) await tx.insert(pmcUnits).values(batch.map(unit => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, blockId: blockIds.get(unit.blockCode)!, unitNumber: unit.unitNumber, modelCode: unit.modelCode, saleStatus: unit.saleStatus, unitWeight: String(unit.unitWeight), phase: unit.phase, package: unit.package, isMockup: unit.isMockup })));
+        for (const unit of plan.updatedUnits) await tx.update(pmcUnits).set({ saleStatus: unit.saleStatus, unitWeight: String(unit.unitWeight), phase: unit.phase, package: unit.package, isMockup: unit.isMockup }).where(and(eq(pmcUnits.id, unit.id), eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId)));
       },
     };
   }

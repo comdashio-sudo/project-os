@@ -1,5 +1,5 @@
 {
-  "id": "a8fc8c0a-df9b-48e6-a904-9fcf5e5dc74f",
+  "id": "3c8c0f09-c72e-4927-9b15-6de66b7c8016",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -19272,6 +19272,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "phase": {
+          "name": "phase",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "package": {
+          "name": "package",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_mockup": {
+          "name": "is_mockup",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
         "net_sellable_area": {
           "name": "net_sellable_area",
           "type": "numeric(12, 2)",
@@ -19395,6 +19413,33 @@
             },
             {
               "expression": "block_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pmc_units_tenant_project_phase_idx": {
+          "name": "pmc_units_tenant_project_phase_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "phase",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

@@ -22,13 +22,13 @@ import { issuesOf, siteTodayInBrowser } from "./PmcSiteUpdate";
 
 const STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETE"] as const;
 type Status = (typeof STATUSES)[number];
-type Mode = "list" | "range" | "block";
+type Mode = "list" | "range" | "block" | "model";
 type Issue = { code: string; villa?: string; detail?: string };
 
 const copy = {
-  ar: { keptOffline: "حُفظ على هذا الهاتف وسيُرسل عند عودة الاتصال.", notKept: "تعذّر الحفظ على الهاتف (مساحة ممتلئة أو محظورة). أعد الحفظ عند الاتصال.", title: "تحديث الإنجاز", back: "الإدخال الميداني", summary: "اختر النشاط من جدول الأوزان، ثم الفلل، ثم الحالة والتاريخ، واحفظ مرة واحدة.", statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", COMPLETE: "مكتمل", UNDER_REVIEW: "قيد المراجعة" } as Record<string, string>, weight: "الوزن", result: "بعد الحفظ", villa: "فيلا", project: "نسبة المشروع", history: "آخر التحديثات", noHistory: "لا تحديثات بعد.", by: "بواسطة", tooMany: (max?: string) => `اختر ${max ?? ""} فيلا على الأكثر في المرة الواحدة.`, steps: ["البند", "الفلل", "الحالة"], ask: ["ما البند الذي تحدّثه؟", "أي الفلل؟", "ما الحالة؟"], stepsLabel: "خطوات التحديث" },
-  en: { keptOffline: "Kept on this phone; it will be sent when the connection returns.", notKept: "Could not keep it on this phone (storage full or blocked). Save again when online.", title: "Progress update", back: "Field entry", summary: "Choose the activity from the weights table, then the villas, then the status and the date, and save once.", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", COMPLETE: "Complete", UNDER_REVIEW: "Under review" } as Record<string, string>, weight: "Weight", result: "After the save", villa: "Villa", project: "Project progress", history: "Latest updates", noHistory: "No updates yet.", by: "by", tooMany: (max?: string) => `Choose at most ${max ?? ""} villas at a time.`, steps: ["Item", "Villas", "Status"], ask: ["Which item are you updating?", "Which villas?", "What is the status?"], stepsLabel: "Update steps" },
-  ur: { keptOffline: "اس فون پر محفوظ ہو گیا؛ کنکشن واپس آنے پر بھیجا جائے گا۔", notKept: "فون پر محفوظ نہ ہو سکا (اسٹوریج بھرا یا بند)۔ کنکشن پر دوبارہ محفوظ کریں۔", title: "پیش رفت کی تازہ کاری", back: "فیلڈ اندراج", summary: "وزن کی جدول سے سرگرمی منتخب کریں، پھر ولاز، پھر حالت اور تاریخ، اور ایک بار محفوظ کریں۔", statuses: { NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", COMPLETE: "مکمل", UNDER_REVIEW: "زیر جائزہ" } as Record<string, string>, weight: "وزن", result: "محفوظ کرنے کے بعد", villa: "ولا", project: "منصوبے کی پیش رفت", history: "تازہ ترین اپڈیٹس", noHistory: "ابھی کوئی اپڈیٹ نہیں۔", by: "از", tooMany: (max?: string) => `ایک وقت میں زیادہ سے زیادہ ${max ?? ""} ولاز منتخب کریں۔`, steps: ["آئٹم", "ولاز", "حالت"], ask: ["آپ کون سا آئٹم اپڈیٹ کر رہے ہیں؟", "کون سے ولاز؟", "حالت کیا ہے؟"], stepsLabel: "اپڈیٹ کے مراحل" },
+  ar: { modeModel: "نموذج كامل", model: "النموذج (مثل C أو A-End)", confirmMany: (n: number) => `سيُحدَّث ${n} فيلا دفعة واحدة. راجع النشاط والحالة والتاريخ ثم أكّد.`, confirmSave: (n: number) => `أكّد حفظ ${n} فيلا`, cancel: "إلغاء", keptOffline: "حُفظ على هذا الهاتف وسيُرسل عند عودة الاتصال.", notKept: "تعذّر الحفظ على الهاتف (مساحة ممتلئة أو محظورة). أعد الحفظ عند الاتصال.", title: "تحديث الإنجاز", back: "الإدخال الميداني", summary: "اختر النشاط من جدول الأوزان، ثم الفلل، ثم الحالة والتاريخ، واحفظ مرة واحدة.", statuses: { NOT_STARTED: "لم يبدأ", IN_PROGRESS: "جارٍ", COMPLETE: "مكتمل", UNDER_REVIEW: "قيد المراجعة" } as Record<string, string>, weight: "الوزن", result: "بعد الحفظ", villa: "فيلا", project: "نسبة المشروع", history: "آخر التحديثات", noHistory: "لا تحديثات بعد.", by: "بواسطة", tooMany: (max?: string) => `اختر ${max ?? ""} فيلا على الأكثر في المرة الواحدة.`, steps: ["البند", "الفلل", "الحالة"], ask: ["ما البند الذي تحدّثه؟", "أي الفلل؟", "ما الحالة؟"], stepsLabel: "خطوات التحديث" },
+  en: { modeModel: "Whole model", model: "Model (e.g. C or A-End)", confirmMany: (n: number) => `${n} villas will be updated at once. Check the activity, the status and the date, then confirm.`, confirmSave: (n: number) => `Confirm saving ${n} villas`, cancel: "Cancel", keptOffline: "Kept on this phone; it will be sent when the connection returns.", notKept: "Could not keep it on this phone (storage full or blocked). Save again when online.", title: "Progress update", back: "Field entry", summary: "Choose the activity from the weights table, then the villas, then the status and the date, and save once.", statuses: { NOT_STARTED: "Not started", IN_PROGRESS: "In progress", COMPLETE: "Complete", UNDER_REVIEW: "Under review" } as Record<string, string>, weight: "Weight", result: "After the save", villa: "Villa", project: "Project progress", history: "Latest updates", noHistory: "No updates yet.", by: "by", tooMany: (max?: string) => `Choose at most ${max ?? ""} villas at a time.`, steps: ["Item", "Villas", "Status"], ask: ["Which item are you updating?", "Which villas?", "What is the status?"], stepsLabel: "Update steps" },
+  ur: { modeModel: "پورا ماڈل", model: "ماڈل (مثلاً C یا A-End)", confirmMany: (n: number) => `${n} ولاز ایک ساتھ اپ ڈیٹ ہوں گے۔ سرگرمی، حالت اور تاریخ دیکھ کر تصدیق کریں۔`, confirmSave: (n: number) => `${n} ولاز محفوظ کرنے کی تصدیق کریں`, cancel: "منسوخ", keptOffline: "اس فون پر محفوظ ہو گیا؛ کنکشن واپس آنے پر بھیجا جائے گا۔", notKept: "فون پر محفوظ نہ ہو سکا (اسٹوریج بھرا یا بند)۔ کنکشن پر دوبارہ محفوظ کریں۔", title: "پیش رفت کی تازہ کاری", back: "فیلڈ اندراج", summary: "وزن کی جدول سے سرگرمی منتخب کریں، پھر ولاز، پھر حالت اور تاریخ، اور ایک بار محفوظ کریں۔", statuses: { NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", COMPLETE: "مکمل", UNDER_REVIEW: "زیر جائزہ" } as Record<string, string>, weight: "وزن", result: "محفوظ کرنے کے بعد", villa: "ولا", project: "منصوبے کی پیش رفت", history: "تازہ ترین اپڈیٹس", noHistory: "ابھی کوئی اپڈیٹ نہیں۔", by: "از", tooMany: (max?: string) => `ایک وقت میں زیادہ سے زیادہ ${max ?? ""} ولاز منتخب کریں۔`, steps: ["آئٹم", "ولاز", "حالت"], ask: ["آپ کون سا آئٹم اپڈیٹ کر رہے ہیں؟", "کون سے ولاز؟", "حالت کیا ہے؟"], stepsLabel: "اپڈیٹ کے مراحل" },
 };
 
 export default function PmcProgressUpdate() {
@@ -48,6 +48,9 @@ export default function PmcProgressUpdate() {
   const [mode, setMode] = useState<Mode>("list");
   const [villas, setVillas] = useState("");
   const [range, setRange] = useState("");
+  const [model, setModel] = useState("");
+  // Q-60: above 100 villas the server asks for the count first; the screen shows it and the save is sent again carrying it
+  const [confirmCount, setConfirmCount] = useState<number | null>(null);
   const [block, setBlock] = useState("");
   const [status, setStatus] = useState<Status>("COMPLETE");
   const [date, setDate] = useState(siteTodayInBrowser());
@@ -72,19 +75,19 @@ export default function PmcProgressUpdate() {
   }, [client]);
   const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}:pmcProgress` : null, send);
   const update = trpc.pmc.updateProgress.useMutation({
-    onSuccess: result => { setIssues([]); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setVillas(""); setRange(""); void history.refetch(); },
+    onSuccess: result => { setIssues([]); setConfirmCount(null); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setVillas(""); setRange(""); void history.refetch(); },
     onError: (error, variables) => {
       if (isNetworkError(error) && variables.clientRequestId) {
         const kept = queue.keep({ id: variables.clientRequestId, kind: "pmcProgress", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${variables.activityCode} · ${c.statuses[variables.status] ?? variables.status} · ${variables.villas?.join(", ") ?? variables.range ?? variables.blockCode ?? ""}` });
         if (kept) { setIssues([]); notify.success(c.keptOffline); setVillas(""); setRange(""); } else notify.error(c.notKept);
         return;
       }
-      const found = issuesOf(error); setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language));
+      const found = issuesOf(error); const ask = found.find(issue => issue.code === "SITE_CONFIRM_COUNT"); if (ask) { setIssues([]); setConfirmCount(Number(ask.detail)); return; } setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language));
     },
   });
   const undo = trpc.pmc.undoProgressBatch.useMutation({ onSuccess: () => { setLastSave(current => current ? { ...current, undone: true } : current); void history.refetch(); } });
-  const submit = () => update.mutate({ ...scope, clientRequestId: crypto.randomUUID(), activityCode, status, date, ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : { blockCode: block.trim() }) });
-  const villasGiven = mode === "list" ? villas.trim() !== "" : mode === "range" ? range.trim() !== "" : block.trim() !== "";
+  const submit = (confirmed?: number) => update.mutate({ ...scope, clientRequestId: crypto.randomUUID(), activityCode, status, date, ...(confirmed ? { confirmCount: confirmed } : {}), ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : mode === "model" ? { modelCode: model.trim() } : { blockCode: block.trim() }) });
+  const villasGiven = mode === "list" ? villas.trim() !== "" : mode === "range" ? range.trim() !== "" : mode === "model" ? model.trim() !== "" : block.trim() !== "";
   const stepsDone = !activityCode ? 0 : !villasGiven ? 1 : 2;
   const ask = (index: number) => <h2 className="text-base font-bold">{c.ask[index]}</h2>;
   const reason = (issue: Issue) => issue.code === "SITE_TOO_MANY_VILLAS" ? c.tooMany(issue.detail) : (t.issues[issue.code] ?? (() => issue.code))(issue.villa, issue.detail);
@@ -112,10 +115,11 @@ export default function PmcProgressUpdate() {
               </>
             )}
             <div className="border-t border-border" />{ask(1)}
-            <Segmented label={t.update.villasMode} value={mode} onValueChange={value => setMode(value as Mode)} options={[{ value: "list", label: t.update.modeList }, { value: "range", label: t.update.modeRange }, { value: "block", label: t.update.modeBlock }]} />
+            <Segmented label={t.update.villasMode} value={mode} onValueChange={value => setMode(value as Mode)} options={[{ value: "list", label: t.update.modeList }, { value: "range", label: t.update.modeRange }, { value: "block", label: t.update.modeBlock }, { value: "model", label: c.modeModel }]} />
             {mode === "list" && <Field label={t.update.villas} hint={t.update.villasHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={villas} onChange={event => setVillas(event.target.value)} />}</Field>}
             {mode === "range" && <Field label={t.update.range} hint={t.update.rangeHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={range} onChange={event => setRange(event.target.value)} />}</Field>}
             {mode === "block" && <Field label={t.update.block} required>{props => <TextInput {...props} dir="ltr" value={block} onChange={event => setBlock(event.target.value)} />}</Field>}
+            {mode === "model" && <Field label={c.model} required>{props => <TextInput {...props} dir="ltr" value={model} onChange={event => setModel(event.target.value)} />}</Field>}
             <div className="border-t border-border" />{ask(2)}
             <Segmented label={t.update.status} value={status} onValueChange={value => setStatus(value as Status)} options={STATUSES.map(value => ({ value, label: c.statuses[value] }))} />
             <Field label={t.update.date} required>{props => <TextInput {...props} type="date" dir="ltr" max={siteTodayInBrowser()} value={date} onChange={event => setDate(event.target.value)} />}</Field>
@@ -127,7 +131,14 @@ export default function PmcProgressUpdate() {
             )}
           </CardBody>
           {/* the save stays at the bottom of the screen on a phone, as in the owner's own tool */}
-          <CardFooter className="sticky bottom-0 bg-card pb-[max(1rem,env(safe-area-inset-bottom))]"><Button size="lg" className="min-h-14 w-full rounded-[14px] bg-hero text-hero-foreground hover:bg-hero/90" loading={update.isPending} disabled={!activityCode} onClick={submit}>{t.update.save}</Button></CardFooter>
+          <CardFooter className="sticky bottom-0 flex flex-col gap-2 bg-card pb-[max(1rem,env(safe-area-inset-bottom))]">
+            {confirmCount !== null ? (
+              <div role="alertdialog" aria-label={c.confirmSave(confirmCount)} data-confirm-count={confirmCount} className="flex w-full flex-col gap-2 rounded-md border border-warning bg-warning-soft p-3 text-sm text-warning-soft-foreground">
+                <p>{c.confirmMany(confirmCount)}</p>
+                <div className="flex gap-2"><Button size="lg" className="min-h-12 flex-1" loading={update.isPending} onClick={() => submit(confirmCount)}>{c.confirmSave(confirmCount)}</Button><Button size="lg" variant="secondary" className="min-h-12" onClick={() => setConfirmCount(null)}>{c.cancel}</Button></div>
+              </div>
+            ) : <Button size="lg" className="min-h-14 w-full rounded-[14px] bg-hero text-hero-foreground hover:bg-hero/90" loading={update.isPending} disabled={!activityCode} onClick={() => submit()}>{t.update.save}</Button>}
+          </CardFooter>
         </Card>
       </WriteGate>
       {lastSave && <UndoLastSave savedAt={lastSave.at} undone={lastSave.undone} pending={undo.isPending} error={undo.error ? getLocalizedProjectError(undo.error, language) : null} onUndo={() => undo.mutate({ ...scope, batchId: lastSave.batchId })} />}
