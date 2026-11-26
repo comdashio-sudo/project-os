@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useParams } from "wouter";
 import { CalendarDays, CalendarRange, GitCompare, type LucideIcon } from "lucide-react";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { useCanPage } from "@/lib/permissions";
@@ -37,7 +37,7 @@ export default function ProjectReports() {
   const base = `/projects/${tenantId}/${projectId}`;
   return (
     <PageMain className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-6">
-      <PageHeader><h1 className="text-2xl font-semibold">{name("reports")}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+      <PageTitle title={name("reports")} description={t.intro} />
       {can.weekly || can.monthly || can.comparison ? (
         <ul className="grid gap-3 sm:grid-cols-2" data-report-cards>
           {can.weekly ? <ReportCard testId="weekly" icon={CalendarDays} title={name("weeklyReport")} href={`${base}/weekly-report`}>{t.weekly}</ReportCard> : null}

@@ -2,7 +2,7 @@ import React from "react";
 import { useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput, formatDate } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SectionErrorBoundary, SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -62,7 +62,7 @@ export default function ProjectTeam() {
   return (
     <PageMain className="py-2 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-4xl space-y-4">
-        <PageHeader><h1 className="text-2xl font-semibold">{t.title}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+        <PageTitle title={t.title} description={t.intro} />
         <Card>
           <CardHeader><CardTitle>{t.members}</CardTitle></CardHeader>
           <CardBody>

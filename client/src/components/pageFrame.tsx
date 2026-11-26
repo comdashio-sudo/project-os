@@ -32,3 +32,24 @@ export function PageHeader({ className, ...rest }: BlockProps) {
 export function OutsideShell({ children }: { children: React.ReactNode }) {
   return useInShell() ? null : <>{children}</>;
 }
+
+/**
+ * Q-59 (4): the one head of a page — its title, ONE line that says what the page is for, the page's own buttons in one place (new, save, …) and,
+ * under them, its filter bar. The frame's toolbar row above every page already holds the export to Excel and the print (Q-57), so a page does not
+ * draw those again. The content follows. `actions` and `filters` are optional; a page with neither is just its title and its line.
+ */
+export function PageTitle({ title, description, actions, filters, eyebrow, className }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode; filters?: React.ReactNode; eyebrow?: React.ReactNode; className?: string }) {
+  return (
+    <PageHeader data-page-title="" className={cn("flex flex-col gap-3 pb-2", className)}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-64">
+          {eyebrow ? <p className="text-xs font-semibold text-muted-foreground">{eyebrow}</p> : null}
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title}</h1>
+          {description ? <p data-page-description="" className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p> : null}
+        </div>
+        {actions ? <div data-page-actions="" className="flex flex-wrap items-center gap-2 print:hidden">{actions}</div> : null}
+      </div>
+      {filters ? <div data-page-filters="" role="group" className="flex flex-wrap items-end gap-3 rounded-[14px] border border-border bg-card p-3 print:hidden">{filters}</div> : null}
+    </PageHeader>
+  );
+}
