@@ -53,6 +53,10 @@ const FIELDS: Record<PmcImportKind, Field[]> = {
     { key: "modelCode", required: true, aliases: ["model", "model code", "type", "النموذج", "رمز النموذج", "الطراز"] },
     { key: "saleStatus", required: false, aliases: ["sale status", "حالة البيع"] },
     { key: "unitWeight", required: false, aliases: ["unit weight", "وزن الوحدة"] },
+    // Q-60 (the owner's villa register): the construction phase, the package and the mock-up mark — optional, read when the file has them
+    { key: "phase", required: false, aliases: ["phase", "phase code", "ph", "المرحلة", "المرحلة الإنشائية", "رمز المرحلة"] },
+    { key: "package", required: false, aliases: ["package", "الباقة", "باقة"] },
+    { key: "mockup", required: false, aliases: ["mock-up villa", "mockup villa", "mock up villa", "mock-up", "mockup", "mock up", "فيلا نموذجية", "نموذجية"] },
   ],
   catalog: [
     { key: "modelCode", required: true, aliases: ["model", "model code", "النموذج", "رمز النموذج", "الطراز"] },
@@ -183,7 +187,7 @@ export type PmcPreviewRow = { row: number; class: PmcRowClass; cells: Record<str
 export const PMC_PREVIEW_ROWS = 30;
 /** An applied cell correction, with the value the file holds, for the report and the audit trail. */
 export type PmcAppliedEdit = { row: number; field: string; header: string; from: string; to: string };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; readRows?: number[]; preview?: PmcPreviewRow[]; outlineHeadings?: number; wide?: { sheetName: string; models: string[]; groups: number; phases: number } } };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; readRows?: number[]; preview?: PmcPreviewRow[]; outlineHeadings?: number; chosenColumns?: Array<{ field: string; header: string; over: string[] }>; errorColumns?: string[]; wide?: { sheetName: string; models: string[]; groups: number; phases: number } } };
 /** Q-50 batch 5a: a totals line the reader skipped, with the weight it carries in the file (compared with the sum read, never used as data). */
 export type PmcFileTotal = { row: number; value: string; model?: string };
 /** The comparison of the file's own totals line with what was read, in the file's units (fractions or percent). */
@@ -376,6 +380,22 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   const holdsData = (header: string) => !/^\([A-Z]+\)$/.test(header) || rows.some(row => String(row[header] ?? "").trim() !== "");
   if (sheet.rowCount - headerRow > PMC_IMPORT_LIMITS.maxRows) return { headers, rows: [], errors: [{ rowNumber: 0, code: "IMPORT_TOO_MANY_ROWS" }] };
   const errors: PmcImportError[] = [];
+  // Q-60 (the owner's register): «Villa» written twice — «Villa 700» and «700». For the unit number, the one column whose every value is a whole number is read
+  // and the other is left aside (said in the notes), instead of «ambiguous column». Any other ambiguity stays one, for a person to choose.
+  const chosenColumns: Array<{ field: string; header: string; over: string[] }> = [];
+  if (input.kind === "locations" && !override) {
+    for (const item of match.ambiguous.filter(entry => entry.field === "unitNumber")) {
+      const numeric = item.headers.filter(header => { const values = rows.map(row => String(row[header] ?? "").trim()).filter(Boolean); return values.length > 0 && values.every(value => /^\d{1,9}(?:\.0+)?$/.test(value)); });
+      if (numeric.length !== 1) continue;
+      match = { ...match, mapping: new Map(match.mapping).set("unitNumber", numeric[0]), ambiguous: match.ambiguous.filter(entry => entry !== item), missing: match.missing.filter(key => key !== "unitNumber") };
+      chosenColumns.push({ field: "unitNumber", header: numeric[0], over: item.headers.filter(header => header !== numeric[0]) });
+    }
+  }
+  // Q-60: a column whose every value is a spreadsheet error («#REF!» — a broken link in the owner's «WBS code (villa)») carries nothing: it is set aside with a
+  // note, never refused as an unknown column
+  const SHEET_ERROR = /^#(?:REF!|N\/A|VALUE!|DIV\/0!|NAME\?|NULL!|NUM!|SPILL!|CALC!)$/i;
+  const errorColumns = match.unsupported.filter(header => { const values = rows.map(row => String(row[header] ?? "").trim()).filter(Boolean); return values.length > 0 && values.every(value => SHEET_ERROR.test(value)); });
+  if (errorColumns.length) match = { ...match, unsupported: match.unsupported.filter(header => !errorColumns.includes(header)) };
   // a weights table exported from a spreadsheet tool carries its own extra columns (ids, totals, notes): they are ignored, not refused
   if (input.kind !== "weights") for (const header of match.unsupported) errors.push({ rowNumber: headerRow, code: "IMPORT_UNSUPPORTED_COLUMN", field: header });
   for (const item of match.ambiguous) errors.push({ rowNumber: headerRow, code: "IMPORT_COLUMN_AMBIGUOUS", field: item.field, detail: item.headers.join(" | ") });
@@ -392,7 +412,7 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   const used = new Set(mapping.values());
   const ignoredColumns: PmcIgnoredColumn[] = headers.filter(header => header && !used.has(header) && holdsData(header))
     .map(header => ({ header, samples: Array.from(new Set(rows.map(row => String(row[header] ?? "").trim()).filter(Boolean))).slice(0, 3) }));
-  const notes: NonNullable<ParsedFile["notes"]> = { skippedTotals: 0, filledDown: 0, ...(ignoredColumns.length ? { ignoredColumns } : {}) };
+  const notes: NonNullable<ParsedFile["notes"]> = { skippedTotals: 0, filledDown: 0, ...(ignoredColumns.length ? { ignoredColumns } : {}), ...(chosenColumns.length ? { chosenColumns } : {}), ...(errorColumns.length ? { errorColumns } : {}) };
   // Q-50 batch 4: the person's corrections, applied to the rows as read (the stored file is untouched). A correction of a row the table does not have, or of a
   // field no column is read for, is refused with the row — never dropped silently
   const ignored = new Set<number>();
@@ -468,14 +488,14 @@ const required = (errors: PmcImportError[], rowNumber: number, field: string, va
 export type LocationsContext = {
   zones: Map<string, { id: string }>;
   blocks: Map<string, { id: string; zoneCode: string }>;
-  units: Map<number, { id: string; blockCode: string; modelCode: string; saleStatus: string | null; unitWeight: number }>;
+  units: Map<number, { id: string; blockCode: string; modelCode: string; saleStatus: string | null; unitWeight: number; phase?: string | null; package?: string | null; isMockup?: boolean | null }>;
 };
 export type LocationsPlan = {
   errors: PmcImportError[];
   newZones: Array<{ code: string; name: string }>;
   newBlocks: Array<{ code: string; name: string; zoneCode: string }>;
-  newUnits: Array<{ unitNumber: number; blockCode: string; modelCode: string; saleStatus: string | null; unitWeight: number }>;
-  updatedUnits: Array<{ id: string; unitNumber: number; saleStatus: string | null; unitWeight: number }>;
+  newUnits: Array<{ unitNumber: number; blockCode: string; modelCode: string; saleStatus: string | null; unitWeight: number; phase: string | null; package: string | null; isMockup: boolean | null }>;
+  updatedUnits: Array<{ id: string; unitNumber: number; saleStatus: string | null; unitWeight: number; phase: string | null; package: string | null; isMockup: boolean | null }>;
   counts: PmcImportCounts;
 };
 
@@ -495,8 +515,13 @@ export function planLocations(rows: ParsedRow[], context: LocationsContext): Loc
     const before = errors.length;
     required(errors, rowNumber, "blockCode", blockCode);
     required(errors, rowNumber, "modelCode", modelCode);
-    const unitNumber = wholeNumber(cells.unitNumber);
+    // Q-60: «Villa 700» / «V-700» is villa 700 (the owner's register writes the number with the word)
+    const unitNumber = wholeNumber(text(cells.unitNumber).replace(/^(?:villa|v)[\s\-_.]*/i, ""));
     if (unitNumber === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "unitNumber" });
+    const mockupRaw = text(cells.mockup).toLowerCase();
+    const isMockup = !mockupRaw ? null : ["yes", "y", "true", "1", "نعم", "x", "✓"].includes(mockupRaw) ? true : ["no", "n", "false", "0", "لا", "-", "–"].includes(mockupRaw) ? false : undefined;
+    if (isMockup === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_VALUE", field: "mockup", detail: text(cells.mockup) });
+    const phase = text(cells.phase) || null; const unitPackage = text(cells.package) || null;
     const weightRaw = text(cells.unitWeight);
     const unitWeight = weightRaw ? nonNegativeNumber(weightRaw) : 1;
     if (unitWeight === undefined || unitWeight <= 0) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "unitWeight" });
@@ -506,18 +531,21 @@ export function planLocations(rows: ParsedRow[], context: LocationsContext): Loc
       const inFile = blockInfo.get(blockCode);
       if ((existing && existing.zoneCode !== zoneCode) || (inFile && inFile.zoneCode !== zoneCode)) errors.push({ rowNumber, code: "PMC_BLOCK_ZONE_CONFLICT", field: "blockCode", detail: blockCode });
     }
-    if (errors.length > before || unitNumber === undefined || unitWeight === undefined) continue;
+    if (errors.length > before || unitNumber === undefined || unitWeight === undefined || isMockup === undefined) continue;
     seenUnits.add(unitNumber);
     const saleStatus = text(cells.saleStatus) || null;
     if (zoneCode && !context.zones.has(zoneCode) && !zoneNames.has(zoneCode)) zoneNames.set(zoneCode, text(cells.zoneName) || zoneCode);
     if (!context.blocks.has(blockCode) && !blockInfo.has(blockCode)) blockInfo.set(blockCode, { name: text(cells.blockName) || blockCode, zoneCode });
     else if (!blockInfo.has(blockCode)) blockInfo.set(blockCode, { name: "", zoneCode });
     const existingUnit = context.units.get(unitNumber);
-    if (!existingUnit) { newUnits.push({ unitNumber, blockCode, modelCode, saleStatus, unitWeight }); continue; }
+    const extra = { phase, package: unitPackage, isMockup };
+    if (!existingUnit) { newUnits.push({ unitNumber, blockCode, modelCode, saleStatus, unitWeight, ...extra }); continue; }
     if (existingUnit.modelCode !== modelCode) { errors.push({ rowNumber, code: "PMC_UNIT_MODEL_CHANGE_BLOCKED", field: "modelCode", detail: `${existingUnit.modelCode} -> ${modelCode}` }); continue; }
     if (existingUnit.blockCode !== blockCode) { errors.push({ rowNumber, code: "PMC_UNIT_BLOCK_CHANGE_BLOCKED", field: "blockCode", detail: `${existingUnit.blockCode} -> ${blockCode}` }); continue; }
-    if (existingUnit.saleStatus === saleStatus && existingUnit.unitWeight === unitWeight) unchanged += 1;
-    else updatedUnits.push({ id: existingUnit.id, unitNumber, saleStatus, unitWeight });
+    // a column the file does not carry leaves the stored value as it is (re-uploading an older register never clears a phase)
+    const kept = { phase: cells.phase === undefined ? existingUnit.phase ?? null : phase, package: cells.package === undefined ? existingUnit.package ?? null : unitPackage, isMockup: cells.mockup === undefined ? existingUnit.isMockup ?? null : isMockup };
+    if (existingUnit.saleStatus === saleStatus && existingUnit.unitWeight === unitWeight && (existingUnit.phase ?? null) === kept.phase && (existingUnit.package ?? null) === kept.package && (existingUnit.isMockup ?? null) === kept.isMockup) unchanged += 1;
+    else updatedUnits.push({ id: existingUnit.id, unitNumber, saleStatus, unitWeight, ...kept });
   }
   const newBlocks = Array.from(blockInfo.entries()).filter(([code]) => !context.blocks.has(code)).map(([code, info]) => ({ code, name: info.name, zoneCode: info.zoneCode }));
   const newZones = Array.from(zoneNames.entries()).map(([code, name]) => ({ code, name }));

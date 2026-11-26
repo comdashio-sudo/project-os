@@ -35,7 +35,7 @@ export async function getCellCardForTenant(input: Scope & { unitId: string; acti
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
 
-  const [unit] = await db.select({ id: pmcUnits.id, number: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, block: pmcBlocks.code, zone: pmcZones.code }).from(pmcUnits)
+  const [unit] = await db.select({ id: pmcUnits.id, number: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, block: pmcBlocks.code, zone: pmcZones.code, phase: pmcUnits.phase, package: pmcUnits.package, isMockup: pmcUnits.isMockup }).from(pmcUnits)
     .innerJoin(pmcBlocks, eq(pmcBlocks.id, pmcUnits.blockId)).innerJoin(pmcZones, eq(pmcZones.id, pmcBlocks.zoneId)).where(and(mine(pmcUnits), eq(pmcUnits.id, input.unitId))).limit(1);
   if (!unit) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PMC_UNIT_NOT_FOUND" });
   let activity: { id: string; code: string; name: string } | null = null;
