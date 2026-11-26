@@ -35,3 +35,12 @@ describe("the row limit of a Primavera file is per table, not the sum of two (Q-
     expect(xerTableOverLimit(() => 0)).toBeNull();
   });
 });
+
+describe("the smart import's schedule translation with a very large schedule (Q-61 1, review of #552)", () => {
+  it("translates 130,000 activities without overflowing the call stack (the spread of the rows above about 120,000 elements did)", async () => {
+    const { translate } = await import("./domain/smartImport/translate");
+    const rows = Array.from({ length: 130_000 }, (_unused, index) => ({ rowNumber: index + 2, values: { activityCode: `A${index}`, activityName: `Activity ${index}`, plannedStartAt: "2026-01-01", plannedFinishAt: "2026-02-01", wbsCode: "W1", status: "", progress: "" } }));
+    const file = translate("schedule" as never, rows as never)!;
+    expect(file.rows.filter(row => row[0] === "Activity")).toHaveLength(130_000);
+  });
+});

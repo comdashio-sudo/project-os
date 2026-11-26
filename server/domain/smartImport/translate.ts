@@ -81,7 +81,7 @@ const schedule: Translate = rows => {
     activities.push(["Activity", wbs, "", code, name, start, finish, num(row.values.plannedValue) ?? 0, scheduleStatus(row.values.status, row.values.progress)]);
   }
   for (const [code, name] of Array.from(wbsNames)) file.rows.push(["WBS", code, name, "", "", "", "", 0, ""]);
-  file.rows.push(...activities);
+  for (const activity of activities) file.rows.push(activity); // a loop, not push(...activities): above about 120,000 activities the spread overflows the call stack (Q-61 1, D's review)
   if (wbsNames.has("GEN")) file.notes.push("SCHEDULE_WBS_SYNTHESISED");
   return file;
 };
