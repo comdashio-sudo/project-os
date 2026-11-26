@@ -114,6 +114,7 @@ import { getStalledUnits, setStallThreshold } from "./stalledUnits";
 import { getPmcProgressLog } from "./pmcProgressLog";
 import { LOG_SOURCES } from "./domain/progressLog";
 import { COMPLETION_STATUSES, getPmcCompletionReport } from "./pmcCompletionReport";
+import { getPmcActivitySummary } from "./pmcActivitySummary";
 import { quickSearch } from "./quickSearch";
 import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
 import { undoPmcProgressBatch, undoPmcQcReceiptBatch } from "./pmcUndo";
@@ -311,6 +312,8 @@ export const appRouter = router({
     progressHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcProgressHistory({ userId: ctx.user.id, ...input })),
     // Q-70 (1): the progress log — one row per entry a person made, with its villas, before → after and source (server/pmcProgressLog.ts)
     progressLog: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), from: z.string().trim().max(10).optional(), to: z.string().trim().max(10).optional(), byUserId: z.number().int().positive().optional(), blockCode: z.string().trim().max(80).optional(), activityCode: z.string().trim().max(80).optional(), source: z.enum(LOG_SOURCES as [string, ...string[]], { message: "PROJECT_OS_PROGRESS_LOG_SOURCE_INVALID" }).optional() })).query(({ ctx, input }) => getPmcProgressLog({ userId: ctx.user.id, ...input, source: input.source as (typeof LOG_SOURCES)[number] | undefined })),
+    // Q-70 (3): the activity summary — per activity, block and phase, by the PMC progress rules (server/pmcActivitySummary.ts)
+    activitySummary: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional() })).query(({ ctx, input }) => getPmcActivitySummary({ userId: ctx.user.id, ...input })),
     // Q-70 (2): the completion report — one row per villa × activity, in pages (server/pmcCompletionReport.ts)
     completionReport: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional(), activityCode: z.string().trim().max(80).optional(), status: z.enum(COMPLETION_STATUSES).optional(), villa: z.string().trim().max(40).optional(), offset: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(5000).optional() })).query(({ ctx, input }) => getPmcCompletionReport({ userId: ctx.user.id, ...input })),
     // Q-14 (a): the stalled villas (working days since the last progress or QC movement) and the project's threshold (server/stalledUnits.ts)
