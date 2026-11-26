@@ -45,6 +45,14 @@ describe("UnitCard", () => {
     expect(h.exported["villa-12-timeline"]).toHaveLength(6);
   });
 
+  it("Q-70 (4): a change's note names its source in words — a progress update, never the save's internal identifier", () => {
+    h.cardExtra = { events: [event(0, "status_change", "— → COMPLETE", { note: "batch 44444444-4444-4444-8444-444444444444", activityDefinitionId: "a-walls", activity: "WALLS — Walls", by: "Site engineer (synthetic)" })] };
+    render(<UnitCard />);
+    const item = document.querySelector('[data-kind="status_change"]')!;
+    expect(item.textContent).toContain("WALLS — Walls · by Site engineer (synthetic) · Progress update");
+    expect(item.textContent).not.toContain("44444444");
+  });
+
   it("Q-70 (4) NEGATIVE: a model whose weights do not total 100 shows no progress number, and says why; one activity shows no items table", () => {
     h.cardExtra = { items: [{ code: "WALLS", name: "Walls", weightPercent: 40, status: "COMPLETE", completedOn: null, qcReceived: null }], progressPercent: null };
     render(<UnitCard />);

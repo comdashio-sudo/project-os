@@ -23,7 +23,7 @@ const text = {
     modeoff: "معطّلة", modewarn: "تحذير", modeblock: "منع",
     NOT_STARTED: "لم يبدأ", IN_PROGRESS: "قيد التنفيذ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل",
     timeline: "الخط الزمني", empty: "لا أحداث بعد لهذه الوحدة.", filter: "النوع", all: "الكل",
-    daily_report: "تقرير يومي", submittal: "تسليم للاستشاري", inspection: "فحص", ncr: "عدم مطابقة", material_issue: "مادة مصروفة", status_change: "تغيّر حالة", qc_receipt: "استلام QC", RECEIVED: "مستلم", NOT_RECEIVED: "غير مستلم", by: "بواسطة", items: "بنود النموذج", villaProgress: "تقدم الفيلا", weight: "الوزن %", completedOn: "اكتمل", itemsNoNumber: "أوزان النموذج لا تبلغ 100، فلا رقم للفيلا", item: "البند",
+    daily_report: "تقرير يومي", submittal: "تسليم للاستشاري", inspection: "فحص", ncr: "عدم مطابقة", material_issue: "مادة مصروفة", status_change: "تغيّر حالة", sourceManual: "تحديث الإنجاز", sourceUndo: "تراجع", sourceImport: "استيراد", qc_receipt: "استلام QC", RECEIVED: "مستلم", NOT_RECEIVED: "غير مستلم", by: "بواسطة", items: "بنود النموذج", villaProgress: "تقدم الفيلا", weight: "الوزن %", completedOn: "اكتمل", itemsNoNumber: "أوزان النموذج لا تبلغ 100، فلا رقم للفيلا", item: "البند",
     quantity: "الكمية", reply: "الرد", noReply: "بلا رد", answer: "الرد", consultant: "الاستشاري", noAnswer: "بلا رد بعد", state: "الحالة", more: "المزيد", showAll: "عرض أقدم", label: "البند",
   },
   en: {
@@ -33,7 +33,7 @@ const text = {
     modeoff: "Off", modewarn: "Warn", modeblock: "Block",
     NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete",
     timeline: "Timeline", empty: "No events yet for this unit.", filter: "Kind", all: "All",
-    daily_report: "Daily report", submittal: "Consultant submittal", inspection: "Inspection", ncr: "NCR", material_issue: "Material issued", status_change: "Status change", qc_receipt: "QC receipt", RECEIVED: "Received", NOT_RECEIVED: "Not received", by: "by", items: "The model's items", villaProgress: "Villa progress", weight: "Weight %", completedOn: "Completed", itemsNoNumber: "the model's weights do not total 100, so the villa has no number", item: "Activity",
+    daily_report: "Daily report", submittal: "Consultant submittal", inspection: "Inspection", ncr: "NCR", material_issue: "Material issued", status_change: "Status change", sourceManual: "Progress update", sourceUndo: "Undo", sourceImport: "Import", qc_receipt: "QC receipt", RECEIVED: "Received", NOT_RECEIVED: "Not received", by: "by", items: "The model's items", villaProgress: "Villa progress", weight: "Weight %", completedOn: "Completed", itemsNoNumber: "the model's weights do not total 100, so the villa has no number", item: "Activity",
     quantity: "Quantity", reply: "Reply", noReply: "No reply", answer: "Answer", consultant: "Consultant", noAnswer: "No answer yet", state: "Status", more: "More", showAll: "Show older", label: "Item",
   },
   ur: {
@@ -43,7 +43,7 @@ const text = {
     modeoff: "بند", modewarn: "تنبیہ", modeblock: "روک",
     NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیرِ جائزہ", COMPLETE: "مکمل",
     timeline: "ٹائم لائن", empty: "اس یونٹ کے لیے ابھی کوئی واقعہ نہیں۔", filter: "قسم", all: "سب",
-    daily_report: "روزانہ رپورٹ", submittal: "کنسلٹنٹ کو سبمٹل", inspection: "معائنہ", ncr: "عدم مطابقت", material_issue: "مادّہ جاری", status_change: "حالت میں تبدیلی", qc_receipt: "کیو سی وصولی", RECEIVED: "وصول", NOT_RECEIVED: "وصول نہیں", by: "از", items: "ماڈل کی سرگرمیاں", villaProgress: "ولا کی پیش رفت", weight: "وزن %", completedOn: "مکمل ہوا", itemsNoNumber: "ماڈل کے وزن 100 نہیں، اس لیے ولا کا کوئی عدد نہیں", item: "سرگرمی",
+    daily_report: "روزانہ رپورٹ", submittal: "کنسلٹنٹ کو سبمٹل", inspection: "معائنہ", ncr: "عدم مطابقت", material_issue: "مادّہ جاری", status_change: "حالت میں تبدیلی", sourceManual: "پیش رفت اپ ڈیٹ", sourceUndo: "واپسی", sourceImport: "درآمد", qc_receipt: "کیو سی وصولی", RECEIVED: "وصول", NOT_RECEIVED: "وصول نہیں", by: "از", items: "ماڈل کی سرگرمیاں", villaProgress: "ولا کی پیش رفت", weight: "وزن %", completedOn: "مکمل ہوا", itemsNoNumber: "ماڈل کے وزن 100 نہیں، اس لیے ولا کا کوئی عدد نہیں", item: "سرگرمی",
     quantity: "مقدار", reply: "جواب", noReply: "جواب نہیں", answer: "جواب", consultant: "کنسلٹنٹ", noAnswer: "ابھی جواب نہیں", state: "حالت", more: "مزید", showAll: "پرانے دکھائیں", label: "آئٹم",
   },
 };
@@ -86,21 +86,30 @@ export default function UnitCard() {
 
   const name = (key: string) => (t as Record<string, string>)[key] ?? key;
   // a status change is recorded as codes (FROM → TO); the person reads them in their language
+  const noteText = (note: string) => {
+    if (/^batch\s/i.test(note)) return t.sourceManual;
+    if (/^undo\s/i.test(note)) return t.sourceUndo;
+    if (/^import$/i.test(note)) return t.sourceImport;
+    const report = /^daily report\s+(\S+)/i.exec(note);
+    if (report) return `${t.daily_report} ${showDate(report[1], language)}`;
+    return note;
+  };
   const eventTitle = (event: (typeof data.events)[number]) => (event.kind === "status_change" || event.kind === "qc_receipt" ? event.title.split(" → ").map(code => (t as Record<string, string>)[code] ?? code).join(" → ") : event.title);
-  const detail = (event: (typeof data.events)[number]) => {
+  const detailParts = (event: (typeof data.events)[number]): string[] => {
     const d = event.detail as Record<string, string | number | null>;
     switch (event.kind) {
-      case "daily_report": return [d.label, d.description, d.quantity !== null && d.quantity !== undefined ? `${t.quantity}: ${d.quantity}` : null, d.reportedStatus ? name(String(d.reportedStatus)) : null].filter(Boolean).join(SEPARATOR);
-      case "submittal": return [name("state") + ": " + d.status, d.replyCode ? `${t.reply}: ${d.replyCode}` : t.noReply, d.submittalType].filter(Boolean).join(SEPARATOR);
-      case "inspection": return [d.responseCode ? `${t.answer}: ${d.responseCode}` : t.noAnswer, d.consultant ? `${t.consultant}: ${d.consultant}` : null].filter(Boolean).join(SEPARATOR);
-      case "ncr": return [d.status, d.summary].filter(Boolean).join(SEPARATOR);
-      case "material_issue": return [d.description, `${t.quantity}: ${d.quantity} ${d.unit ?? ""}`.trim()].filter(Boolean).join(SEPARATOR);
+      case "daily_report": return [d.label, d.description, d.quantity !== null && d.quantity !== undefined ? `${t.quantity}: ${d.quantity}` : null, d.reportedStatus ? name(String(d.reportedStatus)) : null].filter(Boolean) as string[];
+      case "submittal": return [name("state") + ": " + d.status, d.replyCode ? `${t.reply}: ${d.replyCode}` : t.noReply, d.submittalType].filter(Boolean) as string[];
+      case "inspection": return [d.responseCode ? `${t.answer}: ${d.responseCode}` : t.noAnswer, d.consultant ? `${t.consultant}: ${d.consultant}` : null].filter(Boolean) as string[];
+      case "ncr": return [d.status, d.summary].filter(Boolean) as string[];
+      case "material_issue": return [d.description, `${t.quantity}: ${d.quantity} ${d.unit ?? ""}`.trim()].filter(Boolean) as string[];
       // Q-70 (4): which activity, who, and the note; a QC receipt with the day the engineer chose
-      case "status_change": return [d.activity, d.by ? `${t.by} ${d.by}` : null, d.note].filter(Boolean).join(SEPARATOR);
-      case "qc_receipt": return [d.activity, d.receivedOn, d.by ? `${t.by} ${d.by}` : null].filter(Boolean).join(SEPARATOR);
-      default: return d.note ? String(d.note) : "";
+      case "status_change": return [d.activity, d.by ? `${t.by} ${d.by}` : null, d.note ? noteText(String(d.note)) : null].filter(Boolean) as string[];
+      case "qc_receipt": return [d.activity, d.receivedOn ? showDate(String(d.receivedOn), language) : null, d.by ? `${t.by} ${d.by}` : null].filter(Boolean) as string[];
+      default: return d.note ? [String(d.note)] : [];
     }
   };
+  const detail = (event: (typeof data.events)[number]) => detailParts(event).join(SEPARATOR);
   const events = data.events.filter(event => kind === "all" || event.kind === kind);
   type Item = NonNullable<typeof data.items>[number];
   const qcText = (value: boolean | null) => (value === null ? "—" : value ? t.RECEIVED : t.NOT_RECEIVED);
@@ -108,7 +117,7 @@ export default function UnitCard() {
     { key: "item", header: t.item, render: row => <span className="whitespace-nowrap">{row.code} — {row.name}</span> },
     { key: "weight", header: t.weight, numeric: true, render: row => formatNumber(row.weightPercent, 2) },
     { key: "status", header: t.status, render: row => <span className="whitespace-nowrap">{name(row.status)}</span> },
-    { key: "completed", header: t.completedOn, render: row => <bdi dir="ltr">{row.completedOn ? showDate(row.completedOn, language) : "—"}</bdi> },
+    { key: "completed", header: t.completedOn, render: row => <bdi className="whitespace-nowrap">{row.completedOn ? showDate(row.completedOn, language) : "—"}</bdi> }, // the date as the language writes it: no forced direction
     { key: "qc", header: t.qcReceipt, render: row => <span className="whitespace-nowrap">{qcText(row.qcReceived)}</span> },
   ];
   const itemExport = [
@@ -169,7 +178,7 @@ export default function UnitCard() {
           : <ol className="space-y-2">{events.slice(0, shownCount).map(event => (
             <li key={`${event.kind}-${event.ref}-${event.at}`} className="rounded-xl border bg-white p-3" data-kind={event.kind}>
               <p className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm font-semibold">{name(event.kind)} · <bdi>{eventTitle(event)}</bdi></span><span className="text-xs text-muted-foreground">{showDate(event.at, language)}</span></p>
-              {detail(event) && <p className="text-sm text-foreground"><bdi>{detail(event)}</bdi></p>}
+              {detailParts(event).length > 0 && <p className="text-sm text-foreground">{detailParts(event).map((part, index) => <React.Fragment key={index}>{index ? SEPARATOR : null}<bdi>{part}</bdi></React.Fragment>)}</p>}
             </li>))}</ol>}
         {events.length > shownCount && <Button variant="outline" className={`${tap} w-full`} onClick={() => setShownCount(count => count + PAGE)}>{t.showAll}</Button>}
       </section>
