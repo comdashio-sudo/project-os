@@ -690,7 +690,7 @@ export const appRouter = router({
   policy: router({
     effective: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getEffectivePolicyForProject({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantPolicyForManager({ userId: ctx.user.id, ...input })),
-    set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), qcCompletionMode: z.enum(["off", "warn", "block"]), qcAcceptedCodes: z.array(z.string().trim().min(1).max(4)).min(1).max(8), materialApprovalMode: z.enum(["off", "warn", "block"]), ncrAcceptanceMode: z.enum(["off", "warn", "block"]).optional() })).mutation(({ ctx, input }) => setTenantPolicyForManager({ userId: ctx.user.id, ...input })),
+    set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), qcCompletionMode: z.enum(["off", "warn", "block"]), qcAcceptedCodes: z.array(z.string().trim().min(1).max(4)).min(1).max(8), materialApprovalMode: z.enum(["off", "warn", "block"]), ncrAcceptanceMode: z.enum(["off", "warn", "block"]).optional(), dailyReportApproval: z.boolean().optional() })).mutation(({ ctx, input }) => setTenantPolicyForManager({ userId: ctx.user.id, ...input })),
   }),
   cells: router({
     card: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityDefinitionId: z.string().uuid().optional() })).query(({ ctx, input }) => getCellCardForTenant({ userId: ctx.user.id, ...input })),

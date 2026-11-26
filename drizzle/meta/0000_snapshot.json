@@ -1,5 +1,5 @@
 {
-  "id": "3c8c0f09-c72e-4927-9b15-6de66b7c8016",
+  "id": "9889d5c6-ab7a-447c-b337-1b1d49127d06",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -32419,6 +32419,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'block'"
+        },
+        "daily_report_approval": {
+          "name": "daily_report_approval",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "updated_by_user_id": {
           "name": "updated_by_user_id",

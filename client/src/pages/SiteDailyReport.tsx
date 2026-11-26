@@ -51,7 +51,7 @@ const text = {
     trade: "المهنة", machine: "المعدة", count: "العدد", hours: "الساعات", unit: "رقم الوحدة", activity: "النشاط", pickActivity: "اختر النشاط", status: "الحالة بعد العمل", notes: "ملاحظات", remove: "حذف",
     unitUnknown: "لا وحدة بهذا الرقم في المشروع", forActivity: "لهذا النشاط (اختياري)", none: "بلا نشاط",
     inProgress: "قيد التنفيذ", underReview: "قيد المراجعة", complete: "مكتمل",
-    save: "حفظ المسودة", saving: "جارٍ الحفظ…", saved: "حُفظت المسودة", submit: "إرسال للاعتماد", submitting: "جارٍ الإرسال…", submitted: "أُرسل التقرير للاعتماد",
+    save: "حفظ المسودة", saving: "جارٍ الحفظ…", saved: "حُفظت المسودة", submit: "إرسال للاعتماد", submitting: "جارٍ الإرسال…", submitted: "أُرسل التقرير للاعتماد", send: "إرسال التقرير", sentFinal: "أُرسل التقرير وأصبح نهائيًا: دخل الأسبوعي والشهري.", sentApplied: "خلايا تقدم حُدِّثت:", sentHeld: "خلايا لم تُحدَّث لأن فحصها لم يُقبل:",
     photos: "الصور", takePhoto: "التقاط صورة", photoNeedsSave: "احفظ المسودة أولًا ثم أضف الصور.", photoAdded: "أُضيفت الصورة", noPhotos: "لا صور بعد.", uploading: "جارٍ الرفع…",
     recent: "تقارير حديثة", noReports: "لا تقارير بعد.", open: "فتح", edit: "تعديل", view: "عرض", draft: "مسودة", pending: "بانتظار الاعتماد", approved: "معتمد", rejected: "أُعيد للتعديل",
     rejectedNote: "سبب الإعادة", locked: "هذا التقرير مُرسَل أو معتمد ولا يُعدَّل.", newReport: "تقرير جديد",
@@ -69,7 +69,7 @@ const text = {
     trade: "Trade", machine: "Equipment", count: "Count", hours: "Hours", unit: "Unit number", activity: "Activity", pickActivity: "Pick the activity", status: "Status after the work", notes: "Notes", remove: "Remove",
     unitUnknown: "No unit with that number in this project", forActivity: "For this activity (optional)", none: "No activity",
     inProgress: "In progress", underReview: "Under review", complete: "Complete",
-    save: "Save draft", saving: "Saving…", saved: "Draft saved", submit: "Send for approval", submitting: "Sending…", submitted: "The report was sent for approval",
+    save: "Save draft", saving: "Saving…", saved: "Draft saved", submit: "Send for approval", submitting: "Sending…", submitted: "The report was sent for approval", send: "Send the report", sentFinal: "The report was sent and is final: it counts in the week and month.", sentApplied: "Progress cells updated:", sentHeld: "Cells not updated because their inspection is not accepted:",
     photos: "Photos", takePhoto: "Take a photo", photoNeedsSave: "Save the draft first, then add photos.", photoAdded: "Photo added", noPhotos: "No photos yet.", uploading: "Uploading…",
     recent: "Recent reports", noReports: "No reports yet.", open: "Open", edit: "Edit", view: "View", draft: "Draft", pending: "Awaiting approval", approved: "Approved", rejected: "Sent back",
     rejectedNote: "Why it was sent back", locked: "This report is sent or approved and cannot be edited.", newReport: "New report",
@@ -87,7 +87,7 @@ const text = {
     trade: "ہنر", machine: "سازوسامان", count: "تعداد", hours: "گھنٹے", unit: "یونٹ نمبر", activity: "سرگرمی", pickActivity: "سرگرمی منتخب کریں", status: "کام کے بعد کی حالت", notes: "نوٹس", remove: "حذف کریں",
     unitUnknown: "اس پروجیکٹ میں اس نمبر کا کوئی یونٹ نہیں", forActivity: "اس سرگرمی کے لیے (اختیاری)", none: "کوئی سرگرمی نہیں",
     inProgress: "جاری", underReview: "زیرِ جائزہ", complete: "مکمل",
-    save: "مسودہ محفوظ کریں", saving: "محفوظ کیا جا رہا ہے…", saved: "مسودہ محفوظ ہو گیا", submit: "منظوری کے لیے بھیجیں", submitting: "بھیجا جا رہا ہے…", submitted: "رپورٹ منظوری کے لیے بھیج دی گئی",
+    save: "مسودہ محفوظ کریں", saving: "محفوظ کیا جا رہا ہے…", saved: "مسودہ محفوظ ہو گیا", submit: "منظوری کے لیے بھیجیں", submitting: "بھیجا جا رہا ہے…", submitted: "رپورٹ منظوری کے لیے بھیج دی گئی", send: "رپورٹ بھیجیں", sentFinal: "رپورٹ بھیج دی گئی اور حتمی ہے: ہفتہ وار و ماہانہ میں شامل ہوئی۔", sentApplied: "پیش رفت کے خانے اپ ڈیٹ ہوئے:", sentHeld: "خانے جو اپ ڈیٹ نہیں ہوئے کیونکہ ان کا معائنہ قبول نہیں ہوا:",
     photos: "تصاویر", takePhoto: "تصویر لیں", photoNeedsSave: "پہلے مسودہ محفوظ کریں، پھر تصاویر شامل کریں۔", photoAdded: "تصویر شامل ہو گئی", noPhotos: "ابھی کوئی تصویر نہیں۔", uploading: "اپ لوڈ ہو رہا ہے…",
     recent: "حالیہ رپورٹس", noReports: "ابھی کوئی رپورٹ نہیں۔", open: "کھولیں", edit: "ترمیم", view: "دیکھیں", draft: "مسودہ", pending: "منظوری کے انتظار میں", approved: "منظور شدہ", rejected: "واپس بھیجی گئی",
     rejectedNote: "واپس بھیجنے کی وجہ", locked: "یہ رپورٹ بھیجی جا چکی ہے یا منظور ہے، اس میں ترمیم نہیں ہو سکتی۔", newReport: "نئی رپورٹ",
@@ -123,6 +123,10 @@ export default function SiteDailyReport() {
   const utils = trpc.useUtils();
   const options = trpc.siteReports.options.useQuery(scope, { enabled });
   const list = trpc.siteReports.list.useQuery(scope, { enabled });
+  // Q-71 (2): the company's rule — off (the default), a sent report is final; on, it waits for the approver. Unknown (loading, failed): the neutral wording
+  const policy = trpc.policy.effective.useQuery(scope, { enabled });
+  // a failed read is not «off»: the wording stays neutral and the server decides on sending (its answer says final or waiting)
+  const approvalOn = !policy.isError && policy.data?.dailyReportApproval === true;
   const canWrite = useCan("project.field.manage", projectId);
   const canReview = useCan("project.manage", projectId);
   // Q-12: who does not hold the site's part (the HSE and QA/QC engineers, the planning engineer) gets their own section only, below
@@ -207,7 +211,13 @@ export default function SiteDailyReport() {
     },
   });
   const submit = trpc.siteReports.submit.useMutation({
-    onSuccess: () => { setLocked(true); setMessage(t.submitted); void utils.siteReports.list.invalidate(); },
+    onSuccess: result => {
+      setLocked(true);
+      const sent = result as { final?: boolean; applied?: unknown[]; skipped?: Array<{ reason?: string }> };
+      const applied = sent.applied?.length ?? 0; const held = (sent.skipped ?? []).filter(cell => cell.reason === "QC_NOT_ACCEPTED").length;
+      setMessage(sent.final ? [t.sentFinal, applied ? `${t.sentApplied} ${applied}.` : "", held ? `${t.sentHeld} ${held}` : ""].filter(Boolean).join(" ") : t.submitted);
+      void utils.siteReports.list.invalidate();
+    },
   });
   const attach = trpc.siteReports.attachPhoto.useMutation({ onSuccess: () => { setPhotoMessage(t.photoAdded); void detail.refetch(); } });
 
@@ -439,7 +449,7 @@ export default function SiteDailyReport() {
             <div data-save-bar className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t bg-background p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] lg:sticky lg:px-0 lg:shadow-none">
               <p className="col-span-2 text-xs text-muted-foreground" role="status" data-autosaved={autoSavedAt ? "" : undefined}>{autoSavedAt ? layout.autosaved(formatDateTime(autoSavedAt, language)) : layout.autosaveHint}</p>
               <Button type="submit" variant="outline" className={`${tap} text-base`} disabled={problems.length > 0 || save.isPending}>{save.isPending ? t.saving : t.save}</Button>
-              <Button type="button" className={`${tap} text-base`} disabled={!reportId || problems.length > 0 || submit.isPending} onClick={() => { setMessage(null); if (reportId) submit.mutate({ ...scope, reportId }); }}>{submit.isPending ? t.submitting : t.submit}</Button>
+              <Button type="button" className={`${tap} text-base`} disabled={!reportId || problems.length > 0 || submit.isPending} onClick={() => { setMessage(null); if (reportId) submit.mutate({ ...scope, reportId }); }}>{submit.isPending ? t.submitting : approvalOn ? t.submit : t.send}</Button>
             </div>
           )}
         </CheckedForm>

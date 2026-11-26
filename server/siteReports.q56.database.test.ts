@@ -1,4 +1,5 @@
 import fixtureDb from "./testing/pgCompat";
+import { requireReportApproval } from "./testing/reportApproval";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -47,6 +48,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-56 (4): who approves a
     for (const key of KEYS) { userIds[key] = rows.find(row => row.openId === `q56-${key}`)!.id; callers[key] = callerFor(userIds[key], `q56-${key}`); }
     ({ tenantId } = await callers.owner.tenant.create({ legalName: "Q56 One-person Co. (synthetic)", slug: SLUG, packageCode: "ALL-IN-ONE" }));
     ({ tenantId: tenantB } = await callers.ownerB.tenant.create({ legalName: "Q56 Other Co. (synthetic)", slug: SLUG_B, packageCode: "ALL-IN-ONE" }));
+    await requireReportApproval(tenantId); await requireReportApproval(tenantB); // Q-71 (2): this file tests who approves and what waits
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'Q56-1', 'Villas (synthetic)', 'villas', 'SAR', 'active')", [P, tenantId]);
     await connection.query("INSERT INTO pmc_zones (id, tenantId, projectId, code, name) VALUES (?, ?, ?, 'Z1', 'Zone 1')", [ZONE, tenantId, P]);
     await connection.query("INSERT INTO pmc_blocks (id, tenantId, projectId, zoneId, code, name) VALUES (?, ?, ?, ?, 'B1', 'Block 1')", [BLOCK, tenantId, P, ZONE]);

@@ -10,6 +10,7 @@ import { canSeeFinancials } from "./pmcSiteService";
 import { actualCurve, milestoneStates, monthEnds, plannedCurve } from "./domain/monthlyCurve";
 import { getReportPeriod } from "./reportPeriods";
 import { authorize, READ_PERMISSIONS } from "./siteReports";
+import { countedReportCondition } from "./reportCounting";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
@@ -22,7 +23,8 @@ export async function getMonthlyReport(input: Scope & { month: string; includeUn
   const period = await getReportPeriod({ ...input, kind: "month", anchor: `${input.month}-01` });
   const db = await authorize(input, READ_PERMISSIONS);
   const { start, end } = period.period;
-  const counted = input.includeUnapproved ? sql`${siteDailyReports.status} <> 'rejected'` : sql`${siteDailyReports.status} = 'approved'`;
+  // Q-71 (2): approved only when the company's daily reports need approval; otherwise a sent report counts too
+  const counted = await countedReportCondition(db, input.tenantId, input.includeUnapproved);
 
   const [schedule, firsts, definitions, unitCount, snapshot] = await Promise.all([
     // the imported P6 schedule: activities that came from P6 (an external id) with both planned dates
