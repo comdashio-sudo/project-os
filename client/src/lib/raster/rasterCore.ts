@@ -2,7 +2,13 @@
 // editor work on them unchanged. This file is pure: no canvas, no wasm. The browser-only steps live in rasterFile.ts and ocrReader.ts.
 import type { DxfDrawing, DxfPoint, DxfPolygon } from "@/lib/dxf/dxfReader";
 
-export type GrayImage = { width: number; height: number; data: Uint8Array };
+/** `tint` (Q-62): per pixel 0 = page (near white), 1 = dark ink, 2 = colour. A coloured plan — villas as filled rectangles in pale colours — turns almost
+ *  white in grey, so the colour is kept beside the grey for the filled-shape detector. Absent for an image made in grey (a test, a PDF page in grey). */
+export type GrayImage = { width: number; height: number; data: Uint8Array; tint?: Uint8Array };
+
+/** A pixel counts as colour when its channels spread this far apart, as dark when its luma is below DARK_LUMA; anything else is page. */
+export const COLOUR_SPREAD = 40;
+export const DARK_LUMA = 110;
 
 // A shape found on the drawing, in image pixels (y grows downward).
 export type RasterShape = { id: string; points: DxfPoint[]; x: number; y: number; width: number; height: number };
@@ -18,10 +24,13 @@ export const MIN_LABEL_CONFIDENCE = 70;
 // ITU-R BT.601 luma, the same weights the browser uses when it draws colour to grey.
 export function rgbaToGray(rgba: Uint8ClampedArray, width: number, height: number): GrayImage {
   const data = new Uint8Array(width * height);
+  const tint = new Uint8Array(width * height);
   for (let i = 0, p = 0; i < data.length; i++, p += 4) {
-    data[i] = Math.round(0.299 * rgba[p] + 0.587 * rgba[p + 1] + 0.114 * rgba[p + 2]);
+    const r = rgba[p], g = rgba[p + 1], b = rgba[p + 2];
+    data[i] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+    tint[i] = data[i] < DARK_LUMA ? 1 : Math.max(r, g, b) - Math.min(r, g, b) >= COLOUR_SPREAD ? 2 : 0;
   }
-  return { width, height, data };
+  return { width, height, data, tint };
 }
 
 // Returns the trimmed code when the read is confident enough and has the shape of a unit code; null otherwise.

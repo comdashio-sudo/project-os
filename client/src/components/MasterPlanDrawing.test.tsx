@@ -617,7 +617,9 @@ describe("MasterPlanDrawing", () => {
     raster.analyseRaster.mockResolvedValue({ drawing: buildRasterDrawing([], [], 1), shapeCount: 0, labelCount: 0 });
     const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
     await upload(container, "%PDF synthetic", "plan.pdf");
-    await waitFor(() => screen.getByText(/Found 0 shapes/));
+    // Q-62 (3): no shape found says what to do instead — a DXF or a vector PDF, or linking by tap — not «Found 0 shapes»
+    await waitFor(() => screen.getByText(/No villa shapes were found in this image\. For a more exact result upload a DXF or a vector PDF/));
+    expect(screen.queryByText(/Found 0 shapes/)).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
   });
 });
