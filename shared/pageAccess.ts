@@ -24,6 +24,8 @@ export const PAGE_ACCESS = {
   team: [["project.manage", "project.team.invite"]],
   pmc: [["project.pmc.read"]],
   stalled: [["project.pmc.read"]],
+  // pmc.progressLog — getPmcProgressLog (server/pmcProgressLog.ts), Q-70 (1)
+  progressLog: [["project.pmc.read"]],
   // pmc.completionReport — getPmcCompletionReport (server/pmcCompletionReport.ts), Q-70 (2)
   completionReport: [["project.pmc.read"]],
   // meetings.list — listProjectMeetings (server/meetings.ts), Q-25: a reader of the project, or whoever records its minutes (assertDecisionRecorder:
@@ -56,7 +58,7 @@ export const pageAllowed = (page: PageKey, holds: (codes: readonly string[]) => 
  * Q-36 (step 2 b, adviser's decision §6.2): «الموقع والتنفيذ» is an entry page that gathers four site pages, each as a card with its count. The entry opens
  * for whoever may open at least one of them, and each card shows only for whoever may open its own page. The side menu's item reads SITE_HUB_READERS.
  */
-export const SITE_HUB_PAGES = ["dailyReport", "progress", "qc", "stalled"] as const satisfies readonly PageKey[];
+export const SITE_HUB_PAGES = ["dailyReport", "progress", "qc", "stalled", "progressLog"] as const satisfies readonly PageKey[];
 export const SITE_HUB_READERS: readonly string[] = Array.from(new Set(SITE_HUB_PAGES.flatMap(page => PAGE_ACCESS[page].length === 1 ? PAGE_ACCESS[page][0] : [])));
 
 /** Q-36 (step 2 c): «التقارير» — the weekly report, the monthly report and the site ↔ consultant comparison, gathered the same way as the site's page. */
