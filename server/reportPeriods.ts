@@ -8,6 +8,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { ncrs, pmcActivityDefinitions, pmcInspectionRequests, pmcUnits, projectEquipment, projectLabourRoles, projectProfiles, rfis, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportLines, siteDailyReports } from "../drizzle/schema";
 import { activityFigures, ncrAges, periodRange, round, workDaysOf, workingDays, type ActivityDayRow, type PeriodKind } from "./domain/reportPeriod";
 import { authorize, HSE_KINDS, READ_PERMISSIONS } from "./siteReports";
+import { countedReportCondition, reportsNeedApproval } from "./reportCounting";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, input: Scope) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
@@ -33,7 +34,8 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
   const [profile] = await db.select({ workDays: projectProfiles.workDays, workStart: projectProfiles.workStart, workEnd: projectProfiles.workEnd }).from(projectProfiles).where(mine(projectProfiles, input)).limit(1);
   const workDays = workDaysOf(profile?.workDays);
   const working = workingDays(range.days, workDays);
-  const counted = input.includeUnapproved ? sql`${siteDailyReports.status} <> 'rejected'` : sql`${siteDailyReports.status} = 'approved'`;
+  // Q-71 (2): approved only when the company's daily reports need approval; otherwise a sent report counts too
+  const counted = await countedReportCondition(db, input.tenantId, input.includeUnapproved);
   const upToEnd = and(mine(siteDailyReports, input), counted, sql`${siteDailyReports.reportDate} <= ${range.end}`);
   const inPeriod = and(upToEnd, sql`${siteDailyReports.reportDate} >= ${range.start}`);
   const profileHours = profile?.workStart && profile.workEnd ? round((Date.parse(`1970-01-01T${profile.workEnd}Z`) - Date.parse(`1970-01-01T${profile.workStart}Z`)) / 3_600_000, 2) : null;
@@ -103,7 +105,9 @@ export async function getReportPeriod(input: Scope & { kind: PeriodKind; anchor:
 
   // Q-56 (4a): the reports of the period that are sent and wait for an approver — the figures above count approved reports only, so a period whose reports all
   // wait reads empty; the screen says how many wait instead of leaving the reader to guess
-  const [{ awaiting }] = await db.select({ awaiting: sql<number>`count(*)::int` }).from(siteDailyReports)
+  // Q-71 (2): with no approval rule nothing waits — a sent report is final and counted above
+  const needApproval = await reportsNeedApproval(db, input.tenantId);
+  const [{ awaiting }] = !needApproval ? [{ awaiting: 0 }] : await db.select({ awaiting: sql<number>`count(*)::int` }).from(siteDailyReports)
     .where(and(mine(siteDailyReports, input), eq(siteDailyReports.status, "submitted"), sql`${siteDailyReports.reportDate} >= ${range.start}`, sql`${siteDailyReports.reportDate} <= ${range.end}`));
   return {
     period: { kind: input.kind, start: range.start, end: range.end, workDays, workingDays: working, workingDayCount: working.length, includeUnapproved: Boolean(input.includeUnapproved) },

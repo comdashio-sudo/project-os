@@ -25,7 +25,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-60: the bu
     for (const villa of villas) { units[villa] = randomUUID(); await client.query("INSERT INTO pmc_units (id, tenant_id, project_id, block_id, unit_number, model_code) VALUES ($1, $2, $3, $4, $5, 'C')", [units[villa], a.tenantId, a.projectId, block, Number(villa)]); }
     await client.query("INSERT INTO pmc_activity_groups (id, tenant_id, project_id, code, name) VALUES ($1, $2, $3, 'Q01', 'Group 1')", [group, a.tenantId, a.projectId]);
     await client.query("INSERT INTO pmc_activity_stages (id, tenant_id, project_id, group_id, code, name) VALUES ($1, $2, $3, $4, 'S1', 'Stage 1')", [stage, a.tenantId, a.projectId, group]);
-    for (const code of ["ACT01", "ACT02", "ACT03", "ACT04", "QC01"]) { definitions[code] = randomUUID(); await client.query("INSERT INTO pmc_activity_definitions (id, tenant_id, project_id, group_id, stage_id, model_code, code, name, weight_percent) VALUES ($1, $2, $3, $4, $5, 'C', $6, $6, 20)", [definitions[code], a.tenantId, a.projectId, group, stage, code]); }
+    for (const code of ["ACT01", "ACT02", "ACT03", "ACT04", "ACT05", "ACT06", "ACT07", "QC01"]) { definitions[code] = randomUUID(); await client.query("INSERT INTO pmc_activity_definitions (id, tenant_id, project_id, group_id, stage_id, model_code, code, name, weight_percent) VALUES ($1, $2, $3, $4, $5, 'C', $6, $6, 20)", [definitions[code], a.tenantId, a.projectId, group, stage, code]); }
   });
   afterAll(async () => {
     if (a) {
@@ -42,6 +42,18 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-60: the bu
       expect(results.map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
       const changed = results.map(result => (result as PromiseFulfilledResult<{ changed: number }>).value.changed).sort((x, y) => x - y);
       expect(changed).toEqual([0, 60]); // the second waits for the first, then finds every cell already moved
+      const cells = await client.query("SELECT count(*)::int AS n FROM pmc_unit_activity_progress WHERE tenant_id = $1 AND activity_definition_id = $2", [a.tenantId, definitions[code]]);
+      expect(cells.rows[0].n).toBe(60);
+    }
+  });
+
+  it("POSITIVE (review of #570): a single-cell write and a bulk save that create the same new cell at the same moment both succeed — one cell, never a duplicate-key error", async () => {
+    for (const code of ["ACT05", "ACT06", "ACT07"]) {
+      const results = await Promise.allSettled([
+        a.asOwner.pmc.updateProgress(entry(code, villas, "IN_PROGRESS")),
+        a.asOwner.pmc.setUnitActivityStatus({ tenantId: a.tenantId, projectId: a.projectId, unitId: units["730"], activityDefinitionId: definitions[code], status: "IN_PROGRESS" }),
+      ]);
+      expect(results.map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
       const cells = await client.query("SELECT count(*)::int AS n FROM pmc_unit_activity_progress WHERE tenant_id = $1 AND activity_definition_id = $2", [a.tenantId, definitions[code]]);
       expect(cells.rows[0].n).toBe(60);
     }

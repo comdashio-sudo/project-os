@@ -34,7 +34,7 @@ export async function listProgressActivities(input: Scope) {
   return Array.from(byCode.values()).sort((a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name));
 }
 
-export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; modelCode?: string; status: ProgressStatus; date: string; queuedAt?: string; confirmCount?: number };
+export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; modelCode?: string; phase?: string; status: ProgressStatus; date: string; queuedAt?: string; confirmCount?: number };
 
 /**
  * Q-24 (P-120): a save kept on the phone while offline carries `queuedAt` — when it was kept. When it is finally sent, any target cell written AFTER that
@@ -63,19 +63,19 @@ export async function assertCellsNotChangedSince(tx: Parameters<Parameters<Await
  * block, never two at once) resolved against the project and the activity's models. Refused whole, villa by villa, before anything is written. */
 /** QC receipts (Q-5) still write villa by villa, so they keep their cap; the progress update (Q-60) passes none. */
 export const MAX_QC_VILLAS_PER_SAVE = 500;
-export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>>, input: Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; modelCode?: string; date: string }, extra: ProgressIssue[] = [], maxVillas: number | null = MAX_QC_VILLAS_PER_SAVE) {
+export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>>, input: Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; modelCode?: string; phase?: string; date: string }, extra: ProgressIssue[] = [], maxVillas: number | null = MAX_QC_VILLAS_PER_SAVE) {
   const issues: ProgressIssue[] = [...extra];
   if (!input.activityCode?.trim()) issues.push({ code: "SITE_FIELD_MISSING", detail: "activity" });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date ?? "") || Number.isNaN(Date.parse(`${input.date}T00:00:00Z`))) issues.push({ code: "SITE_FIELD_MISSING", detail: "date" });
   else if (input.date > siteToday()) issues.push({ code: "SITE_DATE_IN_FUTURE", detail: input.date });
-  const chosen = [input.villas?.length ? 1 : 0, input.range ? 1 : 0, input.blockCode ? 1 : 0, input.modelCode ? 1 : 0].reduce((a, b) => a + b, 0);
+  const chosen = [input.villas?.length ? 1 : 0, input.range ? 1 : 0, input.blockCode ? 1 : 0, input.modelCode ? 1 : 0, input.phase ? 1 : 0].reduce((a, b) => a + b, 0);
   if (chosen === 0) issues.push({ code: "SITE_FIELD_MISSING", detail: "villas" });
   else if (chosen > 1) issues.push({ code: "SITE_TARGET_AMBIGUOUS" });
   if (issues.length) throw refuse(issues);
 
   const [definitions, units] = await Promise.all([
     db.select({ id: pmcActivityDefinitions.id, modelCode: pmcActivityDefinitions.modelCode }).from(pmcActivityDefinitions).where(and(mine(pmcActivityDefinitions, input), eq(pmcActivityDefinitions.code, input.activityCode.trim()))),
-    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel, modelCode: pmcUnits.modelCode, blockId: pmcUnits.blockId }).from(pmcUnits).where(mine(pmcUnits, input)),
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel, modelCode: pmcUnits.modelCode, blockId: pmcUnits.blockId, phase: pmcUnits.phase }).from(pmcUnits).where(mine(pmcUnits, input)),
   ]);
   if (!definitions.length) throw refuse([{ code: "SITE_ACTIVITY_UNKNOWN", detail: input.activityCode }]);
   const definitionByModel = new Map(definitions.map(definition => [definition.modelCode, definition.id]));
@@ -90,6 +90,13 @@ export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>
     else wanted = units.filter(unit => unit.blockId === block.id).map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
   }
   // Q-60: every villa of one model (the owner chooses «all of model C»); an unknown model is said by name
+  // Q-60 batch 2c: every villa of one construction phase (PH1–PH4, from the villa register); an unknown phase is said by name
+  if (input.phase) {
+    const wantedPhase = input.phase.trim().toLowerCase();
+    const ofPhase = units.filter(unit => (unit.phase ?? "").trim().toLowerCase() === wantedPhase);
+    if (!ofPhase.length) issues.push({ code: "SITE_PHASE_UNKNOWN", detail: input.phase });
+    else wanted = ofPhase.map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
+  }
   if (input.modelCode) {
     const ofModel = units.filter(unit => unit.modelCode === input.modelCode!.trim());
     if (!ofModel.length) issues.push({ code: "SITE_MODEL_UNKNOWN", detail: input.modelCode });

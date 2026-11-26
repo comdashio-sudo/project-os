@@ -34,7 +34,7 @@ vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localiz
 vi.mock("@/lib/trpc", () => {
   const mutation = (name: "createInspection" | "advance" | "respond" | "createNcr" | "transition" | "saveRules") => ({ useMutation: (config: { onSuccess?: (result: unknown) => void }) => ({ mutate: (input: unknown) => { h[name](input); config.onSuccess?.(name === "respond" ? h.respondResult : {}); }, isPending: false, error: null }) });
   return { trpc: {
-    useUtils: () => ({ pmc: { inspections: { invalidate: vi.fn() } }, ncrs: { list: { invalidate: vi.fn() } }, policy: { get: { invalidate: vi.fn() } } }),
+    useUtils: () => ({ pmc: { inspections: { invalidate: vi.fn() } }, ncrs: { list: { invalidate: vi.fn() } }, policy: { get: { invalidate: vi.fn() }, effective: { invalidate: vi.fn() } } }),
     siteReports: { options: { useQuery: () => ({ data: options, isLoading: false, error: null, refetch: vi.fn() }) } },
     pmc: { inspections: { useQuery: () => ({ data: requests(), isLoading: false, error: null, refetch: vi.fn() }) }, createInspection: mutation("createInspection"), advanceInspection: mutation("advance"), respondInspection: mutation("respond") },
     ncrs: { list: { useQuery: () => ({ data: ncrRows(), isLoading: false, error: null, refetch: vi.fn() }) }, create: mutation("createNcr"), transitionStatus: mutation("transition") },
@@ -171,13 +171,19 @@ describe("ProjectQuality — NCRs and the company's rules", () => {
     fireEvent.change(screen.getByLabelText("An open NCR keeps an inspection from being accepted"), { target: { value: "warn" } });
     fireEvent.click(screen.getByLabelText("C — Revise and resubmit"));
     fireEvent.click(screen.getByText("Save the rules"));
-    expect(h.saveRules).toHaveBeenCalledWith({ tenantId: "t", qcCompletionMode: "block", qcAcceptedCodes: ["A", "B", "C"], materialApprovalMode: "warn", ncrAcceptanceMode: "warn" });
+    // Q-71 (2): the daily report rule reads off (the saved policy has it unset) and is saved with the rest; ticked, it is sent as on
+    expect((screen.getByLabelText(/The daily report needs an approval/) as HTMLInputElement).checked).toBe(false);
+    expect(h.saveRules).toHaveBeenCalledWith({ tenantId: "t", qcCompletionMode: "block", qcAcceptedCodes: ["A", "B", "C"], materialApprovalMode: "warn", ncrAcceptanceMode: "warn", dailyReportApproval: false });
+    fireEvent.click(screen.getByLabelText(/The daily report needs an approval/));
+    fireEvent.click(screen.getByText("Save the rules"));
+    expect(h.saveRules.mock.calls.at(-1)?.[0]).toMatchObject({ dailyReportApproval: true });
     cleanup(); h.isManager = false;
     render(<ProjectQuality />);
     open(/Company rules/);
     expect(screen.getByText("Only the company manager changes the rules.")).toBeTruthy();
     expect((screen.getByLabelText("An open NCR keeps an inspection from being accepted") as HTMLSelectElement).disabled).toBe(true);
     expect(screen.queryByText("Save the rules")).toBeNull();
+    expect((screen.getByLabelText(/The daily report needs an approval/) as HTMLInputElement).disabled).toBe(true);
   });
 
   it.each([["ar", "الجودة", "rtl"], ["en", "Quality", "ltr"], ["ur", "معیار", "rtl"]] as const)("%s: the title and the direction", (language, title, dir) => {

@@ -7,7 +7,7 @@ import { cellsWithoutAcceptedInspection, loadTenantPolicy, ncrAcceptanceVerdict 
 import { createHash } from "node:crypto";
 import { refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { syncPmcProgressToEvm } from "./pmcEvmBridge";
 import {
   auditLogs,
@@ -48,7 +48,7 @@ import {
   type PmcImportEdits,
   type PmcAppliedEdit,
 } from "./domain/pmcImport";
-import { PMC_INSPECTION_STEPS } from "./pmcService";
+import { lockProjectCells, PMC_INSPECTION_STEPS } from "./pmcService";
 
 export type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -241,13 +241,22 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
       report: report("status", fileHash, total, [], plan.counts, statusDetails),
       apply: async tx => {
         const now = new Date();
-        const creates = plan.operations.filter(operation => !operation.existing);
+        // review of #575 (C): the import is a writer of the project's cells like the site's saves, so it takes the same project lock before it locks any
+        // cell row, and re-reads the cells inside the transaction — a cell another save created after the file was planned is updated, not inserted twice
+        await lockProjectCells(tx, input.projectId);
+        const fresh = new Map<string, { id: string; status: PmcStatus }>();
+        for (const unitIds of chunks(Array.from(new Set(plan.operations.map(operation => operation.unitId))))) {
+          const rows = await tx.select({ id: pmcUnitActivityProgress.id, unitId: pmcUnitActivityProgress.unitId, activityDefinitionId: pmcUnitActivityProgress.activityDefinitionId, status: pmcUnitActivityProgress.status }).from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId), inArray(pmcUnitActivityProgress.unitId, unitIds))).for("update");
+          for (const row of rows) fresh.set(`${row.unitId}:${row.activityDefinitionId}`, { id: row.id, status: row.status as PmcStatus });
+        }
+        const operations = plan.operations.map(operation => ({ ...operation, existing: fresh.get(`${operation.unitId}:${operation.activityDefinitionId}`) ?? null }));
+        const creates = operations.filter(operation => !operation.existing);
         const created = creates.map(operation => ({ operation, id: crypto.randomUUID() }));
         for (const batch of chunks(created)) {
           await tx.insert(pmcUnitActivityProgress).values(batch.map(({ operation, id }) => ({ id, tenantId: input.tenantId, projectId: input.projectId, unitId: operation.unitId, activityDefinitionId: operation.activityDefinitionId, status: operation.status, verificationStatusId: operation.verificationStatusId, assignedUserId: operation.engineerUserId, lastChangedByUserId: operation.engineerUserId ?? input.userId, lastChangedAt: operation.changedAt ?? now })));
           await tx.insert(pmcUnitActivityHistory).values(batch.map(({ operation, id }) => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: id, fromStatus: null, toStatus: operation.status, changedByUserId: operation.engineerUserId ?? input.userId, changedAt: operation.changedAt ?? now, note: "import" })));
         }
-        for (const operation of plan.operations.filter(item => item.existing)) {
+        for (const operation of operations.filter(item => item.existing)) {
           const progressId = operation.existing!.id;
           await tx.update(pmcUnitActivityProgress).set({ status: operation.status, verificationStatusId: operation.verificationStatusId, ...(operation.engineerUserId ? { assignedUserId: operation.engineerUserId } : {}), lastChangedByUserId: operation.engineerUserId ?? input.userId, lastChangedAt: operation.changedAt ?? now }).where(eq(pmcUnitActivityProgress.id, progressId));
           if (operation.existing!.status !== operation.status) await tx.insert(pmcUnitActivityHistory).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: progressId, fromStatus: operation.existing!.status, toStatus: operation.status, changedByUserId: operation.engineerUserId ?? input.userId, changedAt: operation.changedAt ?? now, note: "import" });

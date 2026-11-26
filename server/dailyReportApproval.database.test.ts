@@ -1,4 +1,5 @@
 import fixtureDb from "./testing/pgCompat";
+import { requireReportApproval } from "./testing/reportApproval";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { ENV } from "./_core/env";
@@ -52,6 +53,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's inspe
     for (const key of KEYS) { ids[key] = rows.find(row => row.openId === `dap-${key}`)!.id; callers[key] = callerFor(ids[key], `dap-${key}`); }
     ({ tenantId } = await callers.owner.tenant.create({ legalName: "Daily Approval Co.", slug: SLUG, packageCode: "ALL-IN-ONE" }));
     ({ tenantId: otherTenantId } = await callers.otherOwner.tenant.create({ legalName: "Other Approval Co.", slug: `${SLUG}-other`, packageCode: "ALL-IN-ONE" }));
+    await requireReportApproval(tenantId); await requireReportApproval(otherTenantId); // Q-71 (2): the approval chain needs the rule on
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'DAP-A', 'Approval A', 'villas', 'SAR', 'active'), (?, ?, 'DAP-B', 'Approval B', 'villas', 'SAR', 'active')", [A, tenantId, B, tenantId]);
     const manager = await callers.owner.tenant.createRole({ tenantId, code: "DAP_MANAGER", name: "Project manager", productCode: "PROJECT", permissionCodes: ["project.read", "project.manage"] });
     const field = await callers.owner.tenant.createRole({ tenantId, code: "DAP_FIELD", name: "Site engineer", productCode: "PROJECT", permissionCodes: ["project.field.manage"] });

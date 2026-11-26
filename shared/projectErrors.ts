@@ -1871,6 +1871,21 @@ export const projectErrorMessages = {
     en: "This item's progress is computed from the villas' PMC cells (its linked activities), so it is not entered by hand. Update progress from the progress update or the daily report.",
     ur: "اس آئٹم کی پیش رفت PMC میں ولاز کے خانوں (اس کی منسلک سرگرمیوں) سے نکالی جاتی ہے، اس لیے ہاتھ سے درج نہیں ہوتی۔ پیش رفت «پیش رفت اپ ڈیٹ» یا روزانہ رپورٹ سے اپ ڈیٹ کریں۔",
   },
+  PROJECT_OS_PROGRESS_LOG_DATE_INVALID: {
+    ar: "تاريخ السجل غير صالح: اكتب التاريخ بالشكل سنة-شهر-يوم، وليكن «من» قبل «إلى» أو مثله.",
+    en: "The log's date is not valid: write it as year-month-day, with «from» on or before «to».",
+    ur: "لاگ کی تاریخ درست نہیں: سال-مہینہ-دن کی شکل میں لکھیں، اور «سے» «تک» سے پہلے یا برابر ہو۔",
+  },
+  PROJECT_OS_PROGRESS_LOG_SOURCE_INVALID: {
+    ar: "مصدر الإدخال غير معروف في سجل الإنجاز.",
+    en: "This source of entry is not known in the progress log.",
+    ur: "پیش رفت لاگ میں اندراج کا یہ ذریعہ معلوم نہیں۔",
+  },
+  PROJECT_OS_COMPLETION_FILTER_INVALID: {
+    ar: "تصفية تقرير الإنجاز غير صالحة: اكتب رقم الفيلا رقمًا، واختر الحالة من القائمة.",
+    en: "The completion report's filter is not valid: write the villa as a number and choose the status from the list.",
+    ur: "تکمیل رپورٹ کا فلٹر درست نہیں: ولا نمبر کے طور پر لکھیں اور حالت فہرست سے منتخب کریں۔",
+  },
   PROJECT_OS_STALL_THRESHOLD_INVALID: {
     ar: "حد التوقف عدد أيام عمل من 1 إلى 60.",
     en: "The stall threshold is a number of working days from 1 to 60.",

@@ -33,6 +33,13 @@ describe("colouring the plan by a PMC activity (Q-8 b)", () => {
     expect(passesFilter(null, "B1", "")).toBe(false);
   });
 
+  it("Q-60 batch 2c: filters by phase too; a villa with no phase never passes a phase filter", () => {
+    expect(passesFilter({ unitNumber: 1, modelCode: "A", blockCode: "B1", status: null, phase: "PH1" }, "", "", "PH1")).toBe(true);
+    expect(passesFilter({ unitNumber: 1, modelCode: "A", blockCode: "B1", status: null, phase: "PH1" }, "", "", "PH2")).toBe(false);
+    expect(passesFilter({ unitNumber: 1, modelCode: "A", blockCode: "B1", status: null }, "", "", "PH1")).toBe(false);
+    expect(passesFilter({ unitNumber: 1, modelCode: "A", blockCode: "B1", status: null, phase: "PH1" }, "B1", "A", "PH1")).toBe(true);
+  });
+
   it("QC states colour the same way, apart from the site's", () => {
     const qc: SiteUnit[] = [{ unitNumber: 1, modelCode: "A", blockCode: "B1", status: "RECEIVED" }, { unitNumber: 2, modelCode: "A", blockCode: "B1", status: "NOT_RECEIVED" }];
     const colouring = colourUnits(["V-01", "V-02"], qc);

@@ -2918,6 +2918,7 @@ CREATE TABLE "tenant_policies" (
 	"qc_accepted_codes" varchar(40) DEFAULT 'A,B' NOT NULL,
 	"material_approval_mode" "tenant_policies_mode" DEFAULT 'warn' NOT NULL,
 	"ncr_acceptance_mode" "tenant_policies_mode" DEFAULT 'block' NOT NULL,
+	"daily_report_approval" boolean DEFAULT false NOT NULL,
 	"updated_by_user_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL

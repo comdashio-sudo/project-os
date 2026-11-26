@@ -14,6 +14,7 @@ import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot, isDuplicateE
 import { assertTenantAccess } from "./domain/authorization";
 import { siteToday } from "./wo22Shared";
 import { LOST_TIME_KINDS, permitState, safetyRates, type SafetyIncidentKind } from "@shared/safetyIndicators";
+import { countedReportCondition } from "./reportCounting";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -126,7 +127,7 @@ export async function approvedManHours(db: Db, input: Scope & { from: string; to
   const rows = await db.select({ id: siteDailyReports.id, workHours: siteDailyReports.workHours, headcount: sql<number>`coalesce(sum(${siteDailyReportLabour.headcount}), 0)::int` })
     .from(siteDailyReports)
     .leftJoin(siteDailyReportLabour, and(eq(siteDailyReportLabour.reportId, siteDailyReports.id), eq(siteDailyReportLabour.tenantId, siteDailyReports.tenantId)))
-    .where(and(eq(siteDailyReports.tenantId, input.tenantId), eq(siteDailyReports.projectId, input.projectId), eq(siteDailyReports.status, "approved"), gte(siteDailyReports.reportDate, input.from), lte(siteDailyReports.reportDate, input.to)))
+    .where(and(eq(siteDailyReports.tenantId, input.tenantId), eq(siteDailyReports.projectId, input.projectId), await countedReportCondition(db, input.tenantId), gte(siteDailyReports.reportDate, input.from), lte(siteDailyReports.reportDate, input.to)))
     .groupBy(siteDailyReports.id, siteDailyReports.workHours);
   let manHours = 0; let daysWithoutHours = 0;
   for (const row of rows) {

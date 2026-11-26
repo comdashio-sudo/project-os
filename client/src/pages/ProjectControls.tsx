@@ -42,6 +42,7 @@ import { ProjectDataExport as ProjectDataExportContent } from "./ProjectDataExpo
 import { ProjectMasterPlan as ProjectMasterPlanContent } from "./ProjectMasterPlan";
 import { MasterPlanDrawing as MasterPlanDrawingContent } from "@/components/MasterPlanDrawing";
 import { PlanningControlCenter } from "@/components/PlanningControlCenter";
+import { VillaPlannedCurve } from "@/components/VillaPlannedCurve";
 import { WbsTree } from "@/components/WbsTree";
 import { calculatePlanningControl } from "@/lib/planningControl";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
@@ -113,6 +114,10 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
   const { tenantId, projectId } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, language } = useLanguage();
   const scheduleQuery = trpc.projects.getControlsSchedule.useQuery({ tenantId, projectId });
+  // Q-64 batch 2: where the baseline says the project should be today, against the site's actual (needs the PMC read; without it, with no baseline or when the read fails the sentence simply omits it, and the curve card below says why in words)
+  const canReadPlan = useCan("project.pmc.read", projectId);
+  const plannedCurveQuery = trpc.schedule.plannedCurve.useQuery({ tenantId, projectId }, { enabled: canReadPlan, retry: false });
+  const planVsActual = !plannedCurveQuery.isError && plannedCurveQuery.data?.ready ? { planned: plannedCurveQuery.data.projectNow, actual: plannedCurveQuery.data.projectActual } : null;
   const financialsQuery = trpc.projects.getControlsFinancials.useQuery({ tenantId, projectId });
   const performanceQuery = trpc.projects.getControlsPerformance.useQuery({ tenantId, projectId });
   const boqQuery = (trpc.boq?.list?.useQuery ?? (() => emptyPlanningQuery))({ tenantId, projectId });
@@ -328,8 +333,10 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
         {(!focus || focus === "planning") && <>
 
         <div>
-          <PlanningControlCenter result={planningControl} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} isLoading={boqQuery.isLoading || procurementQuery.isLoading || warehouseQuery.isLoading || contractsQuery.isLoading} onUpload={upload} />
+          <PlanningControlCenter result={planningControl} plan={planVsActual} activities={data.activities} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} isLoading={boqQuery.isLoading || procurementQuery.isLoading || warehouseQuery.isLoading || contractsQuery.isLoading} onUpload={upload} />
         </div>
+        {/* Q-64 batch 2: the progress section — the planned S-curve from the baseline against the site's actual (own gate: project.pmc.read; it says why when there is no baseline yet) */}
+        {focus === "planning" ? <div className="mt-5"><VillaPlannedCurve tenantId={tenantId} projectId={projectId} /></div> : null}
 
         {apiError && <p className="mt-5 rounded-xl bg-danger-soft p-4 text-sm text-danger-soft-foreground">{getLocalizedProjectError(apiError, isArabic)}</p>}
         {scheduleQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="loading" /></div>}
