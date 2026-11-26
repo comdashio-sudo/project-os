@@ -56,6 +56,8 @@ export function buildTenantNavigation(input: { snapshot: TenantAccessSnapshot; t
       read("my-performance", "overview", "navigation.myPerformance", `${base}/my-performance`, "project.performance.read_own"),
       // Q-36 (2 b, 2 c): the site's and the reports' entry pages stay, each heading its section
       read("project-site", "site", "navigation.projectSite", `${base}/site`, SITE_HUB_READERS),
+      // Q-59 (2): the site's records (field reports, quality register, HSE, RFI, NCR, changes, resources, workforce, design) — the board's site level, its own page
+      page("project-field-records", "site", "page.fieldRecords", `${base}/field-records`, "controls"),
       page("project-daily-report", "site", "page.dailyReport", `/m/${t}/${p}/report`, "dailyReport"),
       page("project-progress", "site", "page.progress", `/m/${t}/${p}/progress`, "progress"),
       page("project-qc", "site", "page.qcReceipt", `/m/${t}/${p}/qc`, "qc"),
@@ -75,6 +77,8 @@ export function buildTenantNavigation(input: { snapshot: TenantAccessSnapshot; t
       page("project-site-consultant", "reports", "page.siteConsultant", `${base}/site-consultant`, "siteConsultant"),
       page("project-supply", "supply", "navigation.projectSupply", `${base}/supply`, "controls"),
       page("project-commercial", "supply", "navigation.projectCommercial", `${base}/commercial`, "commercial"),
+      // the board's contracts level (contracts, claims, documents, tenders), its own page
+      page("project-contracts", "supply", "page.contractsRecords", `${base}/contracts`, "controls"),
       page("project-profitability", "supply", "page.profitability", `${base}/profitability`, "profitability"),
       page("project-baseline", "setup", "page.baseline", `${base}/baseline`, "baseline"),
       // the import entry opens for whoever may open one of its pages (client/src/App.tsx ImportHubGate, IMPORT_HUB_READERS)

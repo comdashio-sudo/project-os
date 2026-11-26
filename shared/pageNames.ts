@@ -29,6 +29,8 @@ export const PAGE_NAMES = {
   imports: { ar: "الاستيراد", en: "Import", ur: "درآمد" },
   planning: { ar: "التخطيط والتحكم", en: "Planning and control", ur: "منصوبہ بندی اور کنٹرول" },
   supply: { ar: "المستودعات والمشتريات", en: "Warehouses and procurement", ur: "گودام اور خریداری" },
+  fieldRecords: { ar: "سجلات الموقع", en: "Site records", ur: "سائٹ کے ریکارڈ" },
+  contractsRecords: { ar: "العقود والمستندات", en: "Contracts and documents", ur: "معاہدے اور دستاویزات" },
   dailyReport: { ar: "التقرير اليومي", en: "Daily report", ur: "روزانہ رپورٹ" },
   progress: { ar: "تحديث الإنجاز", en: "Progress update", ur: "پیش رفت کی تازہ کاری" },
   qcReceipt: { ar: "استلام QC", en: "QC receipt", ur: "کیو سی وصولی" },
@@ -43,7 +45,7 @@ export const PROJECT_SUBPAGE_NAMES: Record<string, PageNameKey> = {
   controls: "board", baseline: "baseline", team: "team", pmc: "pmc", stalled: "stalled", profitability: "profitability", commercial: "commercial",
   quality: "quality", submittals: "submittals", "site-consultant": "siteConsultant", guide: "guide", "weekly-report": "weeklyReport",
   "monthly-report": "monthlyReport", "my-performance": "myPerformance", meetings: "meetings", risks: "risks", safety: "safety", schedule: "liveSchedule", site: "site", reports: "reports", import: "imports",
-  planning: "planning", supply: "supply",
+  planning: "planning", supply: "supply", "field-records": "fieldRecords", contracts: "contractsRecords",
 };
 
 /** Names a page no longer goes by (Arabic), and the page they belonged to. The client test fails if any of them is shown again. */
