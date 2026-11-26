@@ -71,4 +71,15 @@ describe("the library's priced bills of quantities (Q-50)", () => {
     expect(boqRefusal(read)).toBe("BOQ_ROWS_INVALID");
     expect(read.leftOut.map(row => row.rowNumber)).toEqual([5, 8, 9, 11, 12]); // only the headings and the totals
   });
+
+  it("review of #544 — NEGATIVE: an item with a code and an amount but no unit, quantity or rate (a lump sum written as an amount) is an error on its row, never left out; a totals line with an amount and no code is still left out", async () => {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load((await BOQ_SHAPES[0].build()) as unknown as ArrayBuffer);
+    const sheet = workbook.worksheets[0];
+    sheet.getRow(13).values = ["3", "Preliminaries (lump sum)", "", null, null, 50000];
+    const read = await analyzeBoqFile(new Uint8Array(await workbook.xlsx.writeBuffer()), "xlsx");
+    expect(read.issues).toEqual([{ rowNumber: 13, code: "BOQ_LUMP_SUM_UNPRICED", value: "50000" }]);
+    expect(boqRefusal(read)).toBe("BOQ_ROWS_INVALID");
+    expect(read.leftOut.map(row => `${row.rowNumber}:${row.kind}`)).toEqual(["5:heading", "8:line", "9:heading", "11:line", "12:line"]); // the totals with amounts are still lines
+  });
 });

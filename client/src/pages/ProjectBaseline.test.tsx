@@ -160,7 +160,13 @@ describe("ProjectBaseline", () => {
     expect(left.textContent).toContain("2 rows are not items and were left out");
     expect(left.querySelector('[data-boq-left-out="heading"]')!.textContent).toContain("Row 5 · Section heading: 1 SUBSTRUCTURE");
     expect(left.querySelector('[data-boq-left-out="line"]')!.textContent).toContain("Row 8 · Total or note: Total carried to summary");
+    expect(left.querySelector("[data-boq-left-out-more]")).toBeNull(); // every left-out row is listed
     unmount();
+    // review of #544: past the 50 listed, the screen says how many more were left out, so the list is never read as complete
+    h.boqData = { count: 3, items: [], issues: [], leftOutCount: 53, leftOut: Array.from({ length: 50 }, (_, index) => ({ rowNumber: index + 5, kind: "line", text: `Carried ${index}` })), totalAmount: 1, newCount: 3, updateCount: 0, fileError: null, refusal: null };
+    const second = render(<ProjectBaseline />);
+    expect(within(card("boq")).getByTestId("boq-left-out").querySelector("[data-boq-left-out-more]")!.textContent).toBe("and 3 more not shown here");
+    second.unmount();
     h.boqData = { count: 3, items: [], issues: [], leftOutCount: 0, leftOut: [], totalAmount: 115750, newCount: 3, updateCount: 0, fileError: null, refusal: null };
     render(<ProjectBaseline />);
     expect(within(card("boq")).queryByTestId("boq-left-out")).toBeNull();

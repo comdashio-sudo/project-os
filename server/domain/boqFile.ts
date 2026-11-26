@@ -3,9 +3,10 @@
 import { headerEvaluator, resolveColumns, type ColumnReport } from "./columnChoice";
 import { readSpreadsheetSafely, worksheetToRows } from "./excelWorkbook";
 import { chooseSheet } from "./importEngine/read";
+import { normalizeHeader } from "./smartImport/dictionary";
 
 export type BoqFileItem = { rowNumber: number; code: string; description: string; unitOfMeasure: string; quantity: number; unitRate: number; totalAmount: number };
-export type BoqIssue = { rowNumber: number; code: "BOQ_CODE_MISSING" | "BOQ_CODE_TOO_LONG" | "BOQ_DESCRIPTION_MISSING" | "BOQ_UNIT_INVALID" | "BOQ_QUANTITY_INVALID" | "BOQ_RATE_INVALID" | "BOQ_CODE_REPEATED"; value?: string };
+export type BoqIssue = { rowNumber: number; code: "BOQ_LUMP_SUM_UNPRICED" | "BOQ_CODE_MISSING" | "BOQ_CODE_TOO_LONG" | "BOQ_DESCRIPTION_MISSING" | "BOQ_UNIT_INVALID" | "BOQ_QUANTITY_INVALID" | "BOQ_RATE_INVALID" | "BOQ_CODE_REPEATED"; value?: string };
 /** `columns`: which column each field was read from (Q-31), absent when the file could not be read at all. */
 /** Q-50 (the library's priced BOQ): a row that is not an item and is left out — counted and shown in the check report, never silent. «heading»: a code and a
  *  description with no unit, no quantity and no rate (a section: «1 SUBSTRUCTURE»); «line»: no code, no unit, no quantity, no rate (a total carried to
@@ -21,6 +22,9 @@ export const BOQ_HEADERS = {
   unitRate: ["rate", "unit rate", "unit price", "سعر الوحدة", "الفئة", "شرح"],
 } as const;
 export const MAX_BOQ_ROWS = 5000;
+/** Review of #544 (A): the amount column, when the file has one. It is not a BOQ field (the amount is quantity × rate), but it tells a lump sum written
+ *  only as an amount («1.0 Preliminaries … 50,000») from a section heading, so that money is never left out unseen. */
+const AMOUNT_HEADERS = ["amount", "total", "total amount", "المبلغ", "الإجمالي", "القيمة"].map(normalizeHeader);
 
 const text = (value: unknown) => String(value ?? "").trim();
 const amount = (value: unknown) => { const raw = text(value).replace(/,/g, ""); const n = Number(raw); return raw !== "" && Number.isFinite(n) && n >= 0 && n < 1e13 ? n : null; };
@@ -36,11 +40,15 @@ export function analyzeBoqRows(rows: Array<Record<string, unknown>>, headers: st
   if (Object.values(columns).some(column => !column)) return { ...none, fileError: "BOQ_COLUMNS_MISSING" };
   if (rows.length > MAX_BOQ_ROWS) return { ...none, fileError: "BOQ_TOO_MANY_ROWS" };
   const items: BoqFileItem[] = []; const issues: BoqIssue[] = []; const leftOut: BoqLeftOut[] = []; const seen = new Set<string>();
+  const chosen = new Set(Object.values(columns)); const amountColumn = headers.find(header => !chosen.has(header) && AMOUNT_HEADERS.includes(normalizeHeader(header)));
   rows.forEach((row, index) => {
     const rowNumber = rowNumbers?.[index] ?? index + 2; const code = text(row[columns.code!]); const description = text(row[columns.description!]); const unit = text(row[columns.unitOfMeasure!]);
     const quantity = amount(row[columns.quantity!]); const unitRate = amount(row[columns.unitRate!]);
     // Q-50: a section heading or a line that is not an item (all three of unit, quantity and rate empty) is left out and reported; partly filled stays an error
     const bare = !unit && text(row[columns.quantity!]) === "" && text(row[columns.unitRate!]) === "";
+    // review of #544 (A): an item with a code and an amount but no unit, quantity or rate is a lump sum written as an amount — an error on its row (write it as
+    // quantity 1 at that rate), never left out as a heading, so its money is not lost from a total that looks complete
+    if (bare && code && amountColumn && (amount(row[amountColumn]) ?? 0) > 0) return void issues.push({ rowNumber, code: "BOQ_LUMP_SUM_UNPRICED", value: text(row[amountColumn]) });
     if (bare && (code || description)) return void leftOut.push({ rowNumber, kind: code ? "heading" : "line", text: [code, description].filter(Boolean).join(" ").slice(0, 120) });
     if (!code) return void issues.push({ rowNumber, code: "BOQ_CODE_MISSING" });
     if (code.length > 80) return void issues.push({ rowNumber, code: "BOQ_CODE_TOO_LONG", value: code.slice(0, 40) });
