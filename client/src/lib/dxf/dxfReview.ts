@@ -97,6 +97,24 @@ export function confirmLink(items: ReviewItem[], polygonId: string): ReviewResul
   return replaceItem(items, polygonId, item => ({ ...item, state: "confirmed", reason: null, candidateUnitIds: [] }));
 }
 
+/**
+ * Q-62 batch 3: confirm every proposal at once — a vector plan of 1,230 villas proposes 1,230 links, one by one is not a way to work. A proposal whose villa is
+ * already confirmed on another shape, or proposed on two shapes, is left for a person (never a guess); everything else is confirmed exactly as proposed.
+ */
+export function confirmAllProposals(items: ReviewItem[]): { items: ReviewItem[]; confirmed: number; leftForPerson: number } {
+  const confirmedUnits = new Set(items.filter(item => item.state === "confirmed" && item.unitId).map(item => item.unitId!));
+  const proposedCount = new Map<string, number>();
+  for (const item of items) if (item.state === "proposed" && item.unitId) proposedCount.set(item.unitId, (proposedCount.get(item.unitId) ?? 0) + 1);
+  let confirmed = 0; let leftForPerson = 0;
+  const next = items.map(item => {
+    if (item.state !== "proposed" || !item.unitId) return item;
+    if (confirmedUnits.has(item.unitId) || (proposedCount.get(item.unitId) ?? 0) > 1) { leftForPerson += 1; return item; }
+    confirmed += 1;
+    return { ...item, state: "confirmed" as const, reason: null, candidateUnitIds: [] };
+  });
+  return { items: next, confirmed, leftForPerson };
+}
+
 export function assignUnit(items: ReviewItem[], polygonId: string, unit: ProjectUnit): ReviewResult {
   if (confirmedOnOtherShape(items, unit.id, polygonId)) return { ok: false, error: { code: "UNIT_ALREADY_CONFIRMED", message: ERRORS.UNIT_ALREADY_CONFIRMED } };
   return replaceItem(items, polygonId, item => ({ ...item, state: "confirmed", unitId: unit.id, unitCode: unit.code, reason: null, candidateUnitIds: [] }));
