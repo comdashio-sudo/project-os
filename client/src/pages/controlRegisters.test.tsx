@@ -399,8 +399,10 @@ describe("control-register dashboards", () => {
   });
 
   it("يعرض نموذج النشاط وسجل الجدولة وحالة النشاط باللغتين", () => {
+    // Q-59 (2): the registers live on their levels' pages now (planning, site records, contracts); read together they hold what the board held
+    const allLevels = () => (["planning", "site", "supply", "contracts"] as const).map(focus => renderToStaticMarkup(<ProjectControls focus={focus} />)).join("");
     state.isArabic = false;
-    let markup = renderToStaticMarkup(<ProjectControls />);
+    let markup = allLevels();
     expect(markup).toContain("Activities &amp; schedule");
     expect(markup).toContain("Schedule activity");
     expect(markup).toContain("A-01 · Mobilize crew");
@@ -429,7 +431,7 @@ describe("control-register dashboards", () => {
     expect(markup).not.toContain("RAW SERVER MESSAGE");
 
     state.isArabic = true;
-    markup = renderToStaticMarkup(<ProjectControls />);
+    markup = allLevels();
     expect(markup).toContain("الأنشطة والجدولة");
     expect(markup).toContain("جدولة نشاط");
     expect(markup).toContain("لم يبدأ");
@@ -453,11 +455,11 @@ describe("control-register dashboards", () => {
   it("يعرض خطأ سجل العقود والالتزامات موضّعًا باللغتين", () => {
     state.isArabic = false;
     state.contractRegisterError = {};
-    let markup = renderToStaticMarkup(<ProjectControls />);
+    let markup = renderToStaticMarkup(<ProjectControls focus="contracts" />);
     expect(markup).toContain("Localized error");
 
     state.isArabic = true;
-    markup = renderToStaticMarkup(<ProjectControls />);
+    markup = renderToStaticMarkup(<ProjectControls focus="contracts" />);
     expect(markup).toContain("خطأ موضّع");
     state.contractRegisterError = null;
     state.isArabic = false;
@@ -466,11 +468,11 @@ describe("control-register dashboards", () => {
   it("يعرض خطأ سجل NCR موضّعًا باللغتين", () => {
     state.isArabic = false;
     state.ncrError = {};
-    let markup = renderToStaticMarkup(<ProjectControls />);
+    let markup = renderToStaticMarkup(<ProjectControls focus="site" />);
     expect(markup).toContain("Localized error");
 
     state.isArabic = true;
-    markup = renderToStaticMarkup(<ProjectControls />);
+    markup = renderToStaticMarkup(<ProjectControls focus="site" />);
     expect(markup).toContain("خطأ موضّع");
     state.ncrError = null;
     state.isArabic = false;
@@ -479,11 +481,11 @@ describe("control-register dashboards", () => {
   it("يعرض خطأ التقاط صحة المشروع موضّعًا باللغتين", () => {
     state.isArabic = false;
     state.projectHealthError = {};
-    let markup = renderToStaticMarkup(<ProjectControls />);
+    let markup = renderToStaticMarkup(<ProjectControls focus="planning" />);
     expect(markup).toContain("Localized error");
 
     state.isArabic = true;
-    markup = renderToStaticMarkup(<ProjectControls />);
+    markup = renderToStaticMarkup(<ProjectControls focus="planning" />);
     expect(markup).toContain("خطأ موضّع");
     state.projectHealthError = null;
     state.isArabic = false;
@@ -502,11 +504,11 @@ describe("control-register dashboards", () => {
   it("يعرض خطأ سجل المستندات موضّعًا باللغتين", () => {
     state.isArabic = false;
     state.documentRegisterError = {};
-    let markup = renderToStaticMarkup(<ProjectControls />);
+    let markup = renderToStaticMarkup(<ProjectControls focus="contracts" />);
     expect(markup).toContain("Localized error");
 
     state.isArabic = true;
-    markup = renderToStaticMarkup(<ProjectControls />);
+    markup = renderToStaticMarkup(<ProjectControls focus="contracts" />);
     expect(markup).toContain("خطأ موضّع");
     state.documentRegisterError = null;
     state.isArabic = false;
@@ -515,11 +517,11 @@ describe("control-register dashboards", () => {
   it("يعرض خطأ انتقال مراجعة المستند موضّعًا باللغتين", () => {
     state.isArabic = false;
     state.documentTransitionError = {};
-    let markup = renderToStaticMarkup(<ProjectControls />);
+    let markup = renderToStaticMarkup(<ProjectControls focus="contracts" />);
     expect(markup).toContain("Localized error");
 
     state.isArabic = true;
-    markup = renderToStaticMarkup(<ProjectControls />);
+    markup = renderToStaticMarkup(<ProjectControls focus="contracts" />);
     expect(markup).toContain("خطأ موضّع");
     state.documentTransitionError = null;
     state.isArabic = false;
@@ -687,10 +689,10 @@ describe("control-register dashboards", () => {
   it("يعرض خطأ سجل RFI موضّعًا باللغتين", () => {
     state.isArabic = false;
     state.rfiError = {};
-    let markup = renderToStaticMarkup(<ProjectControls />);
+    let markup = renderToStaticMarkup(<ProjectControls focus="site" />);
     expect(markup).toContain("Localized error");
     state.isArabic = true;
-    markup = renderToStaticMarkup(<ProjectControls />);
+    markup = renderToStaticMarkup(<ProjectControls focus="site" />);
     expect(markup).toContain("خطأ موضّع");
     state.rfiError = null;
     state.isArabic = false;
