@@ -249,7 +249,7 @@ export async function startP6ImportJob(input: { userId: number; tenantId: string
   const db = await authorizeNewImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "schedule" });
   const fileHash = createHash("sha256").update(input.bytes).digest("hex");
   if (input.approvedHash && input.approvedHash !== fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
-  await assertFileNotAlreadyImported(db, { tenantId: input.tenantId, fileHash });
+  await assertFileNotAlreadyImported(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: "p6", fileHash });
   const id = randomUUID();
   try {
     await db.insert(dataImports).values({
