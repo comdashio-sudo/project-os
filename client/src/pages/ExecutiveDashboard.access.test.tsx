@@ -55,7 +55,7 @@ describe("ExecutiveDashboard access", () => {
     expect(screen.queryByRole("button", { name: "Save decision draft" })).toBeNull();
   });
 
-  it("renders the PROJECT OS product label only inside an authorized executive dashboard", () => {
+  it("renders the Dashio product label only inside an authorized executive dashboard", () => {
     state.error = null;
     state.data = {
       totals: { budget: 100, actual: 60, forecast: 90 },
@@ -65,7 +65,7 @@ describe("ExecutiveDashboard access", () => {
     state.cashData = { cashFlow: { plannedBudget: 100, actualCost: 60, committedAmount: 0, remainingBudget: 40, totalExposure: 0 }, cashFlowByPortfolio: [], cashFlowByProject: [] };
     render(<ExecutiveDashboard />);
 
-    expect(screen.getByText("PROJECT OS")).toBeTruthy();
+    expect(screen.getByText("Dashio")).toBeTruthy(); expect(screen.queryByText("PROJECT OS")).toBeNull(); // I3: the retired name is not shown
     expect(screen.getAllByText("EX-01 · Executive evidence").length).toBeGreaterThan(0);
   });
 

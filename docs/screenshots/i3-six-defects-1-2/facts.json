@@ -1,0 +1,314 @@
+[
+ {
+  "lang": "ar",
+  "width": 390,
+  "name": "pmo",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 45,
+  "exceptionDetails": [
+   "تأخر النهاية المتوقعة 30 يومًا",
+   "الحالة: صفراء",
+   "تحديث مخطط الكهرباء للنموذج B (عرض)"
+  ]
+ },
+ {
+  "lang": "ar",
+  "width": 390,
+  "name": "executive",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 9,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ar",
+  "width": 390,
+  "name": "profile",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 4,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ar",
+  "width": 390,
+  "name": "home",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 0,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "name": "pmo",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 60,
+  "exceptionDetails": [
+   "تأخر النهاية المتوقعة 30 يومًا",
+   "الحالة: صفراء",
+   "تحديث مخطط الكهرباء للنموذج B (عرض)"
+  ]
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "name": "executive",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 12,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "name": "profile",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 4,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "name": "home",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 1,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "name": "pmo",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 45,
+  "exceptionDetails": [
+   "Forecast finish 30 days late",
+   "Status: amber",
+   "تحديث مخطط الكهرباء للنموذج B (عرض)"
+  ]
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "name": "executive",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 9,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "name": "profile",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 4,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "name": "home",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 0,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "name": "pmo",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 60,
+  "exceptionDetails": [
+   "Forecast finish 30 days late",
+   "Status: amber",
+   "تحديث مخطط الكهرباء للنموذج B (عرض)"
+  ]
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "name": "executive",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 12,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "name": "profile",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 4,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "name": "home",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 1,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "name": "pmo",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 45,
+  "exceptionDetails": [
+   "متوقع تکمیل 30 دن تاخیر سے",
+   "حالت: زرد",
+   "تحديث مخطط الكهرباء للنموذج B (عرض)"
+  ]
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "name": "executive",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 9,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "name": "profile",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 4,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "name": "home",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 0,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "name": "pmo",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 60,
+  "exceptionDetails": [
+   "متوقع تکمیل 30 دن تاخیر سے",
+   "حالت: زرد",
+   "تحديث مخطط الكهرباء للنموذج B (عرض)"
+  ]
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "name": "executive",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 12,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "name": "profile",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 4,
+  "exceptionDetails": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "name": "home",
+  "projectOs": false,
+  "dashio": true,
+  "rawHealth": false,
+  "hScroll": false,
+  "eastern": false,
+  "smallTargets": 1,
+  "exceptionDetails": []
+ }
+]
