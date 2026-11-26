@@ -129,6 +129,8 @@ try {
   await siteScreen.page.goto(`${BASE_URL}${walk}/report?lang=en`, { waitUntil: "networkidle" });
   await choose(siteScreen.page, siteScreen.page.getByLabel("Weather"), "clear");
   await siteScreen.page.getByLabel("Summary of the day").fill("Walk-through report: block work finished on one villa.");
+  // Q-58 (2): a phone shows one section at a time — «next» goes from the header to the work done
+  await siteScreen.page.locator("[data-report-section][data-current] [data-section-next]").click();
   await siteScreen.page.getByRole("button", { name: "Add work" }).click();
   await siteScreen.page.getByLabel("Unit number").nth(1).fill(String(unitNumber)); // the first one is the unit-card shortcut
   const activitySelect = siteScreen.page.getByLabel("Activity");
