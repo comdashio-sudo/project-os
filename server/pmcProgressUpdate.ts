@@ -20,19 +20,49 @@ export type ProgressIssue = { code: string; villa?: string; detail?: string };
 export const CONFIRM_ABOVE_VILLAS = 100;
 const refuse = (issues: ProgressIssue[]) => new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SITE_UPDATE_INVALID", cause: { issues } });
 
-/** The activities of the weights table, once per code: its CSI section and its weight (the same code may weigh differently per model: the range is given). */
+/** The activities of the weights table, once per code: its CSI section (code and name) and its weight (the same code may weigh differently per model: the
+ * range is given), and the models that have it (Q-67: the screen names the chosen villas whose model has no such activity before the save). */
 export async function listProgressActivities(input: Scope) {
   const db = await authorize(input, "project.pmc.read");
-  const rows = await db.select({ code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent, section: pmcActivityGroups.name, sectionEn: pmcActivityGroups.nameEn })
-    .from(pmcActivityDefinitions).innerJoin(pmcActivityGroups, eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId)).where(mine(pmcActivityDefinitions, input));
+  const rows = await db.select({ code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent, modelCode: pmcActivityDefinitions.modelCode, sectionCode: pmcActivityGroups.code, section: pmcActivityGroups.name, sectionEn: pmcActivityGroups.nameEn })
+    .from(pmcActivityDefinitions).innerJoin(pmcActivityGroups, eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId)).where(and(mine(pmcActivityDefinitions, input), eq(pmcActivityGroups.tenantId, input.tenantId), eq(pmcActivityGroups.projectId, input.projectId)));
   // Q-49: with the optional English names (null when there is none), for the screens' name switch
-  const byCode = new Map<string, { code: string; name: string; nameEn: string | null; section: string; sectionEn: string | null; minWeight: number; maxWeight: number }>();
+  const byCode = new Map<string, { code: string; name: string; nameEn: string | null; sectionCode: string; section: string; sectionEn: string | null; minWeight: number; maxWeight: number; models: string[] }>();
   for (const row of rows) {
     const weight = Number(row.weightPercent); const known = byCode.get(row.code);
-    if (!known) byCode.set(row.code, { code: row.code, name: row.name, nameEn: row.nameEn, section: row.section, sectionEn: row.sectionEn, minWeight: weight, maxWeight: weight });
-    else { known.minWeight = Math.min(known.minWeight, weight); known.maxWeight = Math.max(known.maxWeight, weight); }
+    if (!known) byCode.set(row.code, { code: row.code, name: row.name, nameEn: row.nameEn, sectionCode: row.sectionCode, section: row.section, sectionEn: row.sectionEn, minWeight: weight, maxWeight: weight, models: [row.modelCode] });
+    else { known.minWeight = Math.min(known.minWeight, weight); known.maxWeight = Math.max(known.maxWeight, weight); if (!known.models.includes(row.modelCode)) known.models.push(row.modelCode); }
   }
-  return Array.from(byCode.values()).sort((a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name));
+  return Array.from(byCode.values()).map(item => ({ ...item, models: item.models.sort() })).sort((a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name));
+}
+
+/**
+ * Q-67 (2)(3): what the field screens choose villas from — the project's own villas with their block, phase and model, and (for the activity chosen) each
+ * villa's current status, so the screen lists the phases, blocks and villas with their counts (never a typed code) and says, before the save, which chosen
+ * villas the activity does not apply to and which would move back. Read with project.pmc.read; every table filtered by the company and the project.
+ */
+export async function listProgressPicker(input: Scope & { activityCode?: string }) {
+  const db = await authorize(input, "project.pmc.read");
+  const [units, blocks] = await Promise.all([
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel, modelCode: pmcUnits.modelCode, blockId: pmcUnits.blockId, phase: pmcUnits.phase }).from(pmcUnits).where(mine(pmcUnits, input)),
+    db.select({ id: pmcBlocks.id, code: pmcBlocks.code }).from(pmcBlocks).where(mine(pmcBlocks, input)),
+  ]);
+  const blockCode = new Map(blocks.map(block => [block.id, block.code]));
+  const statusOf = new Map<string, string>();
+  if (input.activityCode?.trim()) {
+    const cells = await db.select({ unitId: pmcUnitActivityProgress.unitId, status: pmcUnitActivityProgress.status })
+      .from(pmcUnitActivityProgress).innerJoin(pmcActivityDefinitions, eq(pmcActivityDefinitions.id, pmcUnitActivityProgress.activityDefinitionId))
+      .where(and(mine(pmcUnitActivityProgress, input), eq(pmcActivityDefinitions.tenantId, input.tenantId), eq(pmcActivityDefinitions.projectId, input.projectId), eq(pmcActivityDefinitions.code, input.activityCode.trim())));
+    for (const cell of cells) statusOf.set(cell.unitId, cell.status);
+  }
+  const villas = units.map(unit => ({ villa: villaKey(unit.villaLabel ?? unit.unitNumber), number: unit.unitNumber, block: blockCode.get(unit.blockId) ?? "", phase: unit.phase?.trim() || null, model: unit.modelCode, status: input.activityCode?.trim() ? statusOf.get(unit.id) ?? "NOT_STARTED" : null }))
+    .sort((a, b) => a.number - b.number || a.villa.localeCompare(b.villa, "en", { numeric: true }));
+  const count = (key: (villa: (typeof villas)[number]) => string | null) => {
+    const counts = new Map<string, number>();
+    for (const villa of villas) { const value = key(villa); if (value) counts.set(value, (counts.get(value) ?? 0) + 1); }
+    return Array.from(counts.entries()).sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true })).map(([code, villas]) => ({ code, villas }));
+  };
+  return { villas, blocks: count(villa => villa.block || null), phases: count(villa => villa.phase), models: count(villa => villa.model) };
 }
 
 export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; modelCode?: string; phase?: string; status: ProgressStatus; date: string; queuedAt?: string; confirmCount?: number };

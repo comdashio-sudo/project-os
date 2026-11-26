@@ -2,9 +2,12 @@
 // shown), then the villas (a list, a range or a whole block), then the status and the date; one save. The server refuses the whole entry before writing anything
 // when one villa is wrong and says which; after the save the villas' and the project's progress, computed from the weights, are shown at once, with the latest history.
 import { ActivityNameToggle, hasEnglishNames, useActivityLabel, useActivityNameLanguage } from "@/lib/activityNames";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "wouter";
-import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, Select, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
+import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
+import { SearchCombobox, type ComboOption } from "@/components/SearchCombobox";
+import { SelectionSummaryNote, VillaPicker, emptyChoice } from "@/components/VillaPicker";
+import { readRecentActivities, rememberActivity, summarizeSelection, villasOf, type VillaChoice } from "@/lib/villaPicker";
 import { FieldShell } from "@/components/FieldShell";
 import { UndoLastSave } from "@/components/UndoLastSave";
 import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
@@ -22,7 +25,6 @@ import { issuesOf, siteTodayInBrowser } from "./PmcSiteUpdate";
 
 const STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETE"] as const;
 type Status = (typeof STATUSES)[number];
-type Mode = "list" | "range" | "block" | "model" | "phase";
 type Issue = { code: string; villa?: string; detail?: string };
 
 const copy = {
@@ -43,27 +45,27 @@ export default function PmcProgressUpdate() {
   const withEnglish = hasEnglishNames(activities.data);
   const activityLabel = useActivityLabel(nameLanguage, withEnglish);
   const history = trpc.pmc.progressHistory.useQuery({ ...scope, limit: 10 }, { enabled });
-  const [search, setSearch] = useState("");
   const [activityCode, setActivityCode] = useState("");
-  const [mode, setMode] = useState<Mode>("list");
-  const [villas, setVillas] = useState("");
-  const [range, setRange] = useState("");
-  const [model, setModel] = useState("");
-  const [phase, setPhase] = useState("");
+  // Q-67 (2): the villas are chosen from the project's own phases, blocks, models and villas (pmc.progressPicker), with the chosen activity's status of each
+  const [choice, setChoice] = useState<VillaChoice>(emptyChoice("block"));
+  const picker = trpc.pmc.progressPicker.useQuery({ ...scope, ...(activityCode ? { activityCode } : {}) }, { enabled, placeholderData: previous => previous });
+  useEffect(() => { if (picker.data?.phases.length && choice.mode === "block" && !choice.blocks.length) setChoice(emptyChoice("phase")); }, [picker.data?.phases.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [recent, setRecent] = useState<string[]>(() => readRecentActivities(projectId));
   // Q-60: above 100 villas the server asks for the count first; the screen shows it and the save is sent again carrying it
   const [confirmCount, setConfirmCount] = useState<number | null>(null);
-  const [block, setBlock] = useState("");
   const [status, setStatus] = useState<Status>("COMPLETE");
   const [date, setDate] = useState(siteTodayInBrowser());
   const [issues, setIssues] = useState<Issue[]>([]);
 
   const weightOf = (item: { minWeight: number; maxWeight: number }) => item.minWeight === item.maxWeight ? formatPercent(item.minWeight, 2) : `${formatPercent(item.minWeight, 2)}–${formatPercent(item.maxWeight, 2)}`;
-  const options = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    // Q-49: the search finds an activity by either of its names; the list shows the language chosen in the names switch
-    return (activities.data ?? []).filter(item => !needle || `${item.code} ${item.name} ${item.nameEn ?? ""} ${item.section} ${item.sectionEn ?? ""}`.toLowerCase().includes(needle))
-      .map(item => ({ value: item.code, label: activityLabel(item), description: `${activityLabel({ name: item.section, nameEn: item.sectionEn }, false)} · ${c.weight} ${weightOf(item)}` }));
-  }, [activities.data, search, c.weight, activityLabel]);
+  // Q-67 (1): one searchable list — by the code, either name (Q-49) or part of a word — grouped by its section (Q01…), its code and weight shown, last used first
+  const options = useMemo<ComboOption[]>(() => (activities.data ?? [])
+    .map(item => ({ value: item.code, code: item.code, label: activityLabel(item), group: `${item.sectionCode} — ${activityLabel({ name: item.section, nameEn: item.sectionEn }, false)}`, description: `${c.weight} ${weightOf(item)}`, keywords: `${item.name} ${item.nameEn ?? ""} ${item.section} ${item.sectionEn ?? ""}` })),
+  [activities.data, c.weight, activityLabel]);
+  const activityModels = useMemo(() => (activities.data ?? []).find(item => item.code === activityCode)?.models ?? null, [activities.data, activityCode]);
+  // Q-67 (3): before the save — how many villas, which the item does not apply to (their model), which would move back
+  const summary = useMemo(() => summarizeSelection(villasOf(picker.data?.villas ?? [], choice), activityCode ? activityModels : null, status), [picker.data?.villas, choice, activityCode, activityModels, status]);
+  const chooseActivity = (code: string) => { setActivityCode(code); setRecent(rememberActivity(projectId, code)); };
 
   const [lastSave, setLastSave] = useState<{ batchId: string; at: number; undone: boolean } | null>(null);
   // Q-24 (P-120): a save that cannot reach the server is kept on this phone (with the moment it was kept) and sent when the connection returns; the server
@@ -76,19 +78,21 @@ export default function PmcProgressUpdate() {
   }, [client]);
   const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}:pmcProgress` : null, send);
   const update = trpc.pmc.updateProgress.useMutation({
-    onSuccess: result => { setIssues([]); setConfirmCount(null); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setVillas(""); setRange(""); void history.refetch(); },
+    onSuccess: result => { setIssues([]); setConfirmCount(null); setLastSave({ batchId: result.batchId, at: Date.now(), undone: false }); notify.success(t.update.saved(result.changed, result.unchanged)); setChoice(emptyChoice(choice.mode)); void history.refetch(); void picker.refetch(); },
     onError: (error, variables) => {
       if (isNetworkError(error) && variables.clientRequestId) {
-        const kept = queue.keep({ id: variables.clientRequestId, kind: "pmcProgress", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${variables.activityCode} · ${c.statuses[variables.status] ?? variables.status} · ${variables.villas?.join(", ") ?? variables.range ?? variables.blockCode ?? variables.modelCode ?? variables.phase ?? ""}` });
-        if (kept) { setIssues([]); notify.success(c.keptOffline); setVillas(""); setRange(""); } else notify.error(c.notKept);
+        const kept = queue.keep({ id: variables.clientRequestId, kind: "pmcProgress", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${variables.activityCode} · ${c.statuses[variables.status] ?? variables.status} · ${describeVillas(variables.villas ?? [])}` });
+        if (kept) { setIssues([]); notify.success(c.keptOffline); setChoice(emptyChoice(choice.mode)); } else notify.error(c.notKept);
         return;
       }
       const found = issuesOf(error); const ask = found.find(issue => issue.code === "SITE_CONFIRM_COUNT"); if (ask) { setIssues([]); setConfirmCount(Number(ask.detail)); return; } setIssues(found); if (!found.length) notify.error(getLocalizedProjectError(error, language));
     },
   });
   const undo = trpc.pmc.undoProgressBatch.useMutation({ onSuccess: () => { setLastSave(current => current ? { ...current, undone: true } : current); void history.refetch(); } });
-  const submit = (confirmed?: number) => update.mutate({ ...scope, clientRequestId: crypto.randomUUID(), activityCode, status, date, ...(confirmed ? { confirmCount: confirmed } : {}), ...(mode === "list" ? { villas: villas.split(/[,،;\s]+/).filter(Boolean) } : mode === "range" ? { range: range.trim() } : mode === "model" ? { modelCode: model.trim() } : mode === "phase" ? { phase: phase.trim() } : { blockCode: block.trim() }) });
-  const villasGiven = mode === "list" ? villas.trim() !== "" : mode === "range" ? range.trim() !== "" : mode === "model" ? model.trim() !== "" : mode === "phase" ? phase.trim() !== "" : block.trim() !== "";
+  // the save carries the villas the item applies to; the server checks each of them again (unknown villa, model without the item) and refuses the whole entry
+  const submit = (confirmed?: number) => update.mutate({ ...scope, clientRequestId: crypto.randomUUID(), activityCode, status, date, ...(confirmed ? { confirmCount: confirmed } : {}), villas: summary.applicable });
+  const villasGiven = summary.applicable.length > 0;
+  const describeVillas = (villas: string[]) => villas.length > 6 ? `${villas.slice(0, 6).join(", ")} … (${villas.length})` : villas.join(", ");
   const stepsDone = !activityCode ? 0 : !villasGiven ? 1 : 2;
   const ask = (index: number) => <h2 className="text-base font-bold">{c.ask[index]}</h2>;
   const reason = (issue: Issue) => issue.code === "SITE_TOO_MANY_VILLAS" ? c.tooMany(issue.detail) : (t.issues[issue.code] ?? (() => issue.code))(issue.villa, issue.detail);
@@ -111,20 +115,16 @@ export default function PmcProgressUpdate() {
             {activities.isLoading ? <SkeletonRows rows={3} /> : (
               <>
                 {withEnglish && <ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} />}
-                <Field label={t.update.activitySearch} optional>{props => <TextInput {...props} value={search} onChange={event => setSearch(event.target.value)} />}</Field>
-                <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <Select id={props.id} aria-describedby={props["aria-describedby"]} options={options} value={activityCode} onValueChange={setActivityCode} placeholder={t.update.activity} disabled={!options.length} />}</Field>
+                <Field label={t.update.activity} required hint={activities.data && activities.data.length === 0 ? t.noActivities : undefined}>{props => <SearchCombobox id={props.id} data-combobox="activity" aria-describedby={props["aria-describedby"]} options={options} value={activityCode} onChange={chooseActivity} recent={recent} placeholder={t.update.activity} disabled={!options.length} />}</Field>
               </>
             )}
             <div className="border-t border-border" />{ask(1)}
-            <Segmented label={t.update.villasMode} value={mode} onValueChange={value => setMode(value as Mode)} options={[{ value: "list", label: t.update.modeList }, { value: "range", label: t.update.modeRange }, { value: "block", label: t.update.modeBlock }, { value: "model", label: c.modeModel }, { value: "phase", label: c.modePhase }]} />
-            {mode === "list" && <Field label={t.update.villas} hint={t.update.villasHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={villas} onChange={event => setVillas(event.target.value)} />}</Field>}
-            {mode === "range" && <Field label={t.update.range} hint={t.update.rangeHint} required>{props => <TextInput {...props} inputMode="numeric" dir="ltr" value={range} onChange={event => setRange(event.target.value)} />}</Field>}
-            {mode === "block" && <Field label={t.update.block} required>{props => <TextInput {...props} dir="ltr" value={block} onChange={event => setBlock(event.target.value)} />}</Field>}
-            {mode === "model" && <Field label={c.model} required>{props => <TextInput {...props} dir="ltr" value={model} onChange={event => setModel(event.target.value)} />}</Field>}
-            {mode === "phase" && <Field label={c.phase} required>{props => <TextInput {...props} dir="ltr" value={phase} onChange={event => setPhase(event.target.value)} />}</Field>}
+            <SourceNotice query={picker} isArabic={language === "ar"} title={t.update.villas} />
+            {picker.isLoading ? <SkeletonRows rows={2} /> : picker.data ? <VillaPicker data={picker.data} choice={choice} onChoice={setChoice} /> : null}
             <div className="border-t border-border" />{ask(2)}
             <Segmented label={t.update.status} value={status} onValueChange={value => setStatus(value as Status)} options={STATUSES.map(value => ({ value, label: c.statuses[value] }))} />
             <Field label={t.update.date} required>{props => <TextInput {...props} type="date" dir="ltr" max={siteTodayInBrowser()} value={date} onChange={event => setDate(event.target.value)} />}</Field>
+            <SelectionSummaryNote summary={summary} />
             {issues.length > 0 && (
               <div role="alert" className="rounded-md border border-destructive p-3 text-sm">
                 <p className="font-semibold text-destructive">{t.update.issuesTitle}</p>
@@ -139,7 +139,7 @@ export default function PmcProgressUpdate() {
                 <p>{c.confirmMany(confirmCount)}</p>
                 <div className="flex gap-2"><Button size="lg" className="min-h-12 flex-1" loading={update.isPending} onClick={() => submit(confirmCount)}>{c.confirmSave(confirmCount)}</Button><Button size="lg" variant="secondary" className="min-h-12" onClick={() => setConfirmCount(null)}>{c.cancel}</Button></div>
               </div>
-            ) : <Button size="lg" className="min-h-14 w-full rounded-[14px] bg-hero text-hero-foreground hover:bg-hero/90" loading={update.isPending} disabled={!activityCode} onClick={() => submit()}>{t.update.save}</Button>}
+            ) : <Button size="lg" className="min-h-14 w-full rounded-[14px] bg-hero text-hero-foreground hover:bg-hero/90" loading={update.isPending} disabled={!activityCode || !villasGiven} onClick={() => submit()}>{t.update.save}</Button>}
           </CardFooter>
         </Card>
       </WriteGate>

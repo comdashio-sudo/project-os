@@ -96,7 +96,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-4: the site engineer's
   });
 
   it("lists the weights table's activities with their section and weight", async () => {
-    expect(await manager().pmc.progressActivities(scope)).toEqual([{ code: "FOOT", name: "Footings", nameEn: null, section: "03 Concrete", sectionEn: null, minWeight: 40, maxWeight: 40 }, { code: "PAINT", name: "Paint", nameEn: null, section: "09 Finishes", sectionEn: null, minWeight: 60, maxWeight: 60 }]);
+    expect(await manager().pmc.progressActivities(scope)).toEqual([{ code: "FOOT", name: "Footings", nameEn: null, sectionCode: expect.any(String), section: "03 Concrete", sectionEn: null, minWeight: 40, maxWeight: 40, models: expect.any(Array) }, { code: "PAINT", name: "Paint", nameEn: null, sectionCode: expect.any(String), section: "09 Finishes", sectionEn: null, minWeight: 60, maxWeight: 60, models: expect.any(Array) }]);
   });
 
   it("one activity, a list of villas across two models, COMPLETE: saved at once, the villas' and the project's progress come back, and each villa has its history row", async () => {
