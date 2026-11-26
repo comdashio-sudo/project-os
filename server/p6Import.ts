@@ -58,7 +58,7 @@ async function sync<E extends Syncable, D extends Syncable>(input: { created?: s
     else toUpdate.push({ stored, wanted: item });
   }
   for (const batch of chunks(toCreate)) await input.insert(batch);
-  input.created?.push(...toCreate.map(item => item.id)); // Q-23: what this import created, so it can be undone exactly (importAttempts.ts)
+  if (input.created) for (const item of toCreate) input.created.push(item.id); // a loop, not push(...ids): a file with 181,000 code assignments overflowed the call stack (Q-61) // Q-23: what this import created, so it can be undone exactly (importAttempts.ts)
   for (const batch of chunks(toUpdate)) await input.update(batch);
   return { create: toCreate.length, update: toUpdate.length, unchanged, absent: Array.from(input.existing.keys()).filter(key => !seen.has(key)).length };
 }
