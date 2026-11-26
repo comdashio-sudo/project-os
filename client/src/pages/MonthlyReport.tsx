@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { AwaitingApprovalNote } from "@/components/dailyReport/ApprovalWho";
 import { Link, useParams } from "wouter";
 import { Button, Card, CardBody, CardHeader, CardTitle, Field, TableScroll, TextInput, formatDate, formatNumber } from "@/components/ds";
-import { PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { ReportPeriodTabs } from "@/components/ReportPeriodTabs";
 import { SectionFailed } from "@/components/ScreenStates";
 import { WeeklyExports } from "@/components/WeeklyDeckSlides";
@@ -36,14 +36,12 @@ export default function MonthlyReport() {
   const data = report.data;
   return (
     <PageMain className="mx-auto flex max-w-6xl flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col gap-2"><ReportPeriodTabs tenantId={tenantId} projectId={projectId} current="monthly" /><h1 className="text-xl font-semibold">{t.title}</h1></div>
-        <div className="flex flex-wrap items-end gap-2">
+      {/* Q-59 (4): the template's head — the period tabs, the title, the period's controls in the filter bar */}
+      <PageTitle eyebrow={<ReportPeriodTabs tenantId={tenantId} projectId={projectId} current="monthly" />} title={t.title} filters={<>
           <Button variant="secondary" onClick={() => setMonth(shiftMonth(month, -1))}>{t.previous}</Button>
           <Field label={t.month}>{props => <TextInput {...props} type="month" value={month} onChange={event => setMonth(event.target.value)} />}</Field>
           <Button variant="secondary" onClick={() => setMonth(shiftMonth(month, 1))}>{t.next}</Button>
-        </div>
-      </div>
+      </>} />
       {report.error ? <SectionFailed title={t.figures} error={report.error} isArabic={language === "ar"} onRetry={() => report.refetch()} /> : data ? (
         <>
         {/* Q-56 (4a): the figures count approved reports only — say how many of the period's reports still wait for an approver */}
