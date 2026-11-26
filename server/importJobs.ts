@@ -24,6 +24,7 @@ import { DIFF_PAGE_SIZE, summariseDiff } from "./domain/importCycle";
 import { auditEmployeeRecordsRead, isLedgerModule, ledgerPlanHash, planLedgerImport } from "./ledgerImports";
 import { assertTenantAccess } from "./domain/authorization";
 import { insertChunked } from "./importBulk";
+import { confirmP6Import } from "./p6Import";
 import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageDelete, storageHead, storageList, storageRead } from "./storage";
 
 /** A running job that has not touched its heartbeat for this long is dead: the function's own limit (300 s) is shorter. */
@@ -227,13 +228,51 @@ export async function runImportConfirmation(job: JobIdentity, options: { resume?
   try {
     const progress = async (next: string, percent: number) => { stage = next; await touch(db, job.importId, next, percent); };
     const [module] = await db.select({ moduleCode: dataImports.moduleCode }).from(dataImports).where(and(eq(dataImports.id, job.importId), eq(dataImports.tenantId, job.tenantId))).limit(1);
-    if (module && isExternalModule(module.moduleCode)) await confirmExternal(db, job, progress);
+    if (module?.moduleCode === "p6") await confirmP6Job(db, job, progress);
+    else if (module && isExternalModule(module.moduleCode)) await confirmExternal(db, job, progress);
     else await confirmAndImportData({ ...job, asJob: true, onStage: progress });
     await db.update(dataImports).set({ progressPercent: 100, progressStage: null, failureReason: null, heartbeatAt: null }).where(and(eq(dataImports.id, job.importId), eq(dataImports.status, "completed")));
   } catch (error) {
     logError("import.confirmation_failed", error, { importId: job.importId, stage });
     await failJob(db, job, reasonCode(error), stage);
   }
+}
+
+/**
+ * Q-61 (P6): a full Primavera import (WBS, activities, relationships, resources, codes) as a background job. The file is already in Storage (the smart box's signed upload); here the import is
+ * recorded as `importing` (with the hash the person approved) and the write runs after the response, in ONE transaction that also turns the row into `completed`. The screen polls
+ * getImportProgress; a function killed at its limit leaves nothing written (the transaction rolled back) and the sweep / next poll re-runs it, at most IMPORT_JOB_MAX_ATTEMPTS times.
+ */
+export async function startP6ImportJob(input: { userId: number; tenantId: string; projectId: string; uploadKey: string; fileName: string; bytes: Uint8Array; approvedHash?: string }) {
+  const db = await authorizeNewImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "schedule" });
+  const fileHash = createHash("sha256").update(input.bytes).digest("hex");
+  if (input.approvedHash && input.approvedHash !== fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
+  await assertFileNotAlreadyImported(db, { tenantId: input.tenantId, fileHash });
+  const id = randomUUID();
+  try {
+    await db.insert(dataImports).values({
+      id, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "p6", templateCode: "p6_v1", sourceFormat: "xer", fileName: input.fileName, fileKey: input.uploadKey, fileHash,
+      status: "importing", duplicateMode: "fail_on_duplicate", progressPercent: 5, progressStage: "queued", createdByUserId: input.userId,
+    });
+  } catch (error) {
+    if (isDuplicateEntryError(error)) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
+    throw error;
+  }
+  const job = { userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, importId: id };
+  void runAfterResponse(`import.p6:${id}`, () => runImportConfirmation(job));
+  return { id, status: "importing" as const };
+}
+
+/** The write of a P6 job: read the stored file, check it is the one that was approved, and run the importer's single transaction on this import row. Safe to repeat: a killed run wrote nothing. */
+async function confirmP6Job(db: Db, job: JobIdentity, onStage: (stage: string, percent: number) => Promise<void>) {
+  const [record] = await db.select({ fileKey: dataImports.fileKey, fileName: dataImports.fileName, fileHash: dataImports.fileHash })
+    .from(dataImports).where(and(eq(dataImports.id, job.importId), eq(dataImports.tenantId, job.tenantId), eq(dataImports.projectId, job.projectId), eq(dataImports.status, "importing"))).limit(1);
+  if (!record) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
+  await onStage("downloading", 10);
+  const bytes = await storageRead(record.fileKey);
+  if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  await onStage("writing", 30);
+  await confirmP6Import({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, bytes, approvedHash: record.fileHash, source: { key: record.fileKey, name: record.fileName }, importId: job.importId });
 }
 
 /** Who may act on an import at all: the general importer's gate, or (for a PMC / master-plan import) that module's own. The module's gate is ALSO applied to the record afterwards, so holding one never opens the other. */
