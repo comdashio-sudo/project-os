@@ -112,8 +112,10 @@ describe("static check: the text colours that failed on the screens are the ones
   });
 
   it("draws the commercial chain and profitability eyebrows in the primary token (D-75: was the dark teal literal), not #0e8f9a (3.65:1)", () => {
-    expect(page("CommercialChain.tsx")).toContain(`text-primary">{copy.eyebrow}`);
-    expect(page("ProjectProfitability.tsx")).toContain(`text-primary">{t.eyebrow}`);
+    // Q-59 (4): the eyebrow is now drawn by the page template (PageTitle, a muted token), never the teal literal
+    expect(page("CommercialChain.tsx")).toContain(`<PageTitle eyebrow={copy.eyebrow}`);
+    expect(page("ProjectProfitability.tsx")).toContain(`<PageTitle eyebrow={t.eyebrow}`);
+    for (const file of ["CommercialChain.tsx", "ProjectProfitability.tsx"]) expect(page(file).toLowerCase()).not.toContain("#0e8f9a");
   });
 
   it("draws the setup step count in slate-600 (4.4:1 on the tinted panel before)", () => {

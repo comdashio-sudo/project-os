@@ -30,6 +30,6 @@ describe("the page template (Q-59 4)", () => {
     const moved = ["ProjectReports.tsx", "ProjectImportHub.tsx", "ProjectImportKind.tsx", "ProjectSetupWizard.tsx", "ProjectSite.tsx", "ProjectTeam.tsx", "LiveSchedule.tsx", "DevPlanner.tsx", "ProjectRisks.tsx", "ProjectMeetings.tsx", "ProjectSafety.tsx", "StalledUnits.tsx", "ProjectBaseline.tsx", "WeeklyReport.tsx", "MonthlyReport.tsx", "UserGuide.tsx"];
     for (const name of moved) expect(sources.find(source => source.name === name)!.text, name).toContain("<PageTitle");
     const handMade = sources.reduce((count, source) => count + (source.text.match(/<h1[\s>]/g) ?? []).length, 0);
-    expect(handMade).toBeLessThanOrEqual(28);
+    expect(handMade).toBeLessThanOrEqual(26);
   });
 });

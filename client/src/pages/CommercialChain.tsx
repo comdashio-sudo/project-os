@@ -5,7 +5,7 @@ import { Select } from "@/components/ds";
 /** «not a registered supplier» on the ds list (which has no empty value); "" in the draft. */
 const NOT_REGISTERED = "__none";
 import { formatMoney } from "@/lib/profitabilityView";
-import { PageMain, PageHeader } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, FileCheck2, FileText, Landmark, Plus, ReceiptText, ShieldCheck } from "lucide-react";
@@ -57,7 +57,8 @@ export default function CommercialChain() {
   const totals = useMemo(() => ({ boq: sumOrHidden(boq.data ?? [], row => (row.totalAmount === null && row.unitRate === null ? null : Number(row.totalAmount ?? Number(row.quantity) * Number(row.unitRate)))), contracts: sumOrHidden(contracts.data ?? [], row => (row.contractValue === null ? null : Number(row.contractValue))), invoices: sumOrHidden(invoices.data ?? [], row => (row.amount === null ? null : Number(row.totalAmount ?? Number(row.amount) + Number(row.vatAmount)))) }), [boq.data, contracts.data, invoices.data]);
   return <PageMain className="min-h-screen bg-muted px-4 py-6 text-foreground sm:px-8" dir={isRtl ? "rtl" : "ltr"}>
     <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader className="flex flex-wrap items-center justify-between gap-4"><div><Link href={`/projects/${tenantId}`} className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"><ArrowLeft className="h-4 w-4" />{copy.back}</Link><p className="mt-4 text-xs font-semibold uppercase tracking-[0.22em] text-primary">{copy.eyebrow}</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">{copy.title}</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">{copy.subtitle}</p></div><div className="flex items-center gap-2 rounded-2xl bg-hero px-4 py-3 text-white"><ShieldCheck className="h-5 w-5 text-secondary" /><span className="text-sm">{copy.governed}</span></div></PageHeader>
+      <Link href={`/projects/${tenantId}`} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-primary hover:underline"><ArrowLeft className="h-4 w-4" />{copy.back}</Link>
+      <PageTitle eyebrow={copy.eyebrow} title={copy.title} description={copy.subtitle} actions={<span className="flex items-center gap-2 rounded-2xl bg-hero px-4 py-3 text-white"><ShieldCheck className="h-5 w-5 text-secondary" /><span className="text-sm">{copy.governed}</span></span>} />
       {notice && <p role="status" className="rounded-xl bg-success-soft px-4 py-3 text-sm text-success-soft-foreground">{notice}</p>}{anyError ? <ErrorState isArabic={isArabic} error={anyError} onRetry={() => { void boq.refetch(); void contracts.refetch(); void certificates.refetch(); void invoices.refetch(); }} retrying={boq.isFetching || contracts.isFetching || certificates.isFetching || invoices.isFetching} /> : null}
       <section className="grid gap-3 sm:grid-cols-3"><Metric icon={Landmark} label={copy.boqValue} value={money(totals.boq, isArabic)} /><Metric icon={FileText} label={copy.contractValue} value={money(totals.contracts, isArabic)} /><Metric icon={ReceiptText} label={copy.invoiced} value={money(totals.invoices, isArabic)} /></section>
       <div className="grid gap-6 xl:grid-cols-2">
