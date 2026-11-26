@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { Download } from "lucide-react";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput, formatNumber } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -60,7 +60,7 @@ function Planner() {
   return (
     <PageMain className="py-2 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-5xl space-y-4">
-        <PageHeader><h1 className="text-2xl font-semibold">{t.title}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+        <PageTitle title={t.title} description={t.intro} />
         <Card>
           <CardBody>
             <CheckedForm className="space-y-4" onSubmit={event => { event.preventDefault(); run.mutate({ tenantId, plan: plan() }); }}>

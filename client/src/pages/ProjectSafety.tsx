@@ -7,7 +7,7 @@ import { useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, MetricCard, Segmented, Select, TextInput, type BadgeTone } from "@/components/ds";
 import { formatAmount, formatDate, formatDateTime } from "@/components/ds/format";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -87,7 +87,7 @@ export default function ProjectSafety() {
   const refresh = () => void query.refetch();
   return (
     <PageMain>
-      <PageHeader><h1 className="text-2xl font-semibold">{pickLanguage(language, PAGE_NAMES.safety)}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+      <PageTitle title={pickLanguage(language, PAGE_NAMES.safety)} description={t.intro} />
       {query.error ? <p role="alert" className="text-sm text-destructive">{getLocalizedProjectError(query.error, language === "ar")}</p> : null}
       <div className="mb-4"><Segmented label={t.views} value={view} onValueChange={value => setView(value as typeof view)} options={[{ value: "indicators", label: t.indicators }, { value: "incidents", label: t.incidents }, { value: "permits", label: t.permits }]} /></div>
       {data && view === "indicators" ? <Indicators rates={data.rates} t={t} /> : null}

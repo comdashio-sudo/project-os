@@ -7,7 +7,7 @@ import { useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput } from "@/components/ds";
 import { formatDate } from "@/components/ds/format";
 import { OwnerSelect } from "@/components/OwnerSelect";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SectionErrorBoundary } from "@/components/SectionResilience";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -121,7 +121,7 @@ export default function ProjectRisks() {
   const byId = useMemo(() => new Map(risks.map(risk => [risk.id, risk])), [risks]);
   return (
     <PageMain>
-      <PageHeader><h1 className="text-2xl font-semibold">{pickLanguage(language, PAGE_NAMES.risks)}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+      <PageTitle title={pickLanguage(language, PAGE_NAMES.risks)} description={t.intro} />
       {query.error ? <p role="alert" className="text-sm text-destructive">{getLocalizedProjectError(query.error, language === "ar")}</p> : null}
       {data ? (
         <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
