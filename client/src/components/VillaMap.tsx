@@ -38,6 +38,8 @@ export function VillaMap({ shapes: rawShapes, yUp, villas, models, chosen, onCho
   const [drag, setDrag] = React.useState<{ from: Point; to: Point } | null>(null);
   const svgRef = React.useRef<SVGSVGElement | null>(null);
   const size = bounds ? Math.max(bounds.width, bounds.height) : 1;
+  // the points as SVG text and the centre, once per drawing (not on every tap)
+  const drawn = React.useMemo(() => shapes.map(shape => ({ villa: shape.villa, points: shape.points.map(point => `${point.x},${point.y}`).join(" "), centre: centreOf(shape.points) })), [shapes]);
 
   const choose = (list: string[]) => onChosen(toggleVillas(chosen, list.filter(applies)));
   const focusPhase = (value: string) => {
@@ -76,18 +78,10 @@ export function VillaMap({ shapes: rawShapes, yUp, villas, models, chosen, onCho
       {/* the box takes the plan's own proportions (a wide plan is not lost in a tall box), between 14rem and 36rem high */}
       <svg ref={setRefs} {...(area ? { viewBox: panHandlers.viewBox, ...areaHandlers } : panHandlers)} style={{ touchAction: "none", userSelect: "none", aspectRatio: `${Math.max(bounds.width, 1)} / ${Math.max(bounds.height, bounds.width / 3, 1)}` }} role="group" aria-label={t.map}
         className="max-h-[36rem] min-h-56 w-full rounded-[var(--radius)] border border-border bg-muted/30" data-aspect={`${Math.round(bounds.width)}/${Math.round(bounds.height)}`}>
-        {shapes.map(shape => {
-          const villa = byVilla.get(shape.villa); const ok = applies(shape.villa); const isChosen = chosenSet.has(shape.villa);
-          const centre = centreOf(shape.points);
-          return (
-            <g key={shape.villa} data-map-villa={shape.villa} data-chosen={isChosen || undefined} aria-label={`${t.villa} ${shape.villa}`} role="button" aria-pressed={isChosen} aria-disabled={!ok || undefined}
-              onClick={() => { if (ok && !area) onChosen(toggleVillas(chosen, [shape.villa])); }} className={cn(ok ? "cursor-pointer" : "cursor-not-allowed")}>
-              <polygon points={shape.points.map(point => `${point.x},${point.y}`).join(" ")} vectorEffect="non-scaling-stroke"
-                className={cn(ok ? FILL[villa?.status ?? "NOT_STARTED"] ?? FILL.NOT_STARTED : NOT_APPLICABLE, isChosen ? "stroke-primary" : ok ? "stroke-border" : "")} strokeWidth={isChosen ? 3 : 1} strokeDasharray={ok ? undefined : "3 2"} />
-              {isChosen && <text x={centre.x} y={centre.y} textAnchor="middle" dominantBaseline="central" fontSize={size / 90} className="pointer-events-none fill-primary-foreground font-bold">✓</text>}
-            </g>
-          );
-        })}
+        {/* one delegated click for all the villas, and each villa drawn by a memoised shape: a tap redraws the villa it changed, not the 1,300 others */}
+        <g onClick={event => { const villa = (event.target as Element).closest("[data-map-villa]")?.getAttribute("data-map-villa"); if (villa && applies(villa) && !area) onChosen(toggleVillas(chosen, [villa])); }}>
+          {drawn.map(shape => <VillaShapeView key={shape.villa} villa={shape.villa} points={shape.points} centre={shape.centre} fill={FILL[byVilla.get(shape.villa)?.status ?? "NOT_STARTED"] ?? FILL.NOT_STARTED} ok={applies(shape.villa)} chosen={chosenSet.has(shape.villa)} label={`${t.villa} ${shape.villa}`} markSize={size / 90} />)}
+        </g>
         {blocks.map(block => (
           <text key={block.key} x={block.at.x} y={block.at.y} textAnchor="middle" dominantBaseline="central" fontSize={size / 60} role="button" aria-label={block.key} data-map-block={block.key}
             onClick={() => { if (!area) choose(block.villas); }} className="cursor-pointer fill-foreground font-semibold" paintOrder="stroke" stroke="var(--card)" strokeWidth={size / 400}>{block.key}</text>
@@ -101,3 +95,13 @@ export function VillaMap({ shapes: rawShapes, yUp, villas, models, chosen, onCho
     </div>
   );
 }
+
+/** One villa on the map; redrawn only when its own colour, applicability or choice changes. */
+const VillaShapeView = React.memo(function VillaShapeView({ villa, points, centre, fill, ok, chosen, label, markSize }: { villa: string; points: string; centre: Point; fill: string; ok: boolean; chosen: boolean; label: string; markSize: number }) {
+  return (
+    <g data-map-villa={villa} data-chosen={chosen || undefined} aria-label={label} role="button" aria-pressed={chosen} aria-disabled={!ok || undefined} className={cn(ok ? "cursor-pointer" : "cursor-not-allowed")}>
+      <polygon points={points} vectorEffect="non-scaling-stroke" className={cn(ok ? fill : NOT_APPLICABLE, chosen ? "stroke-primary" : ok ? "stroke-border" : "")} strokeWidth={chosen ? 3 : 1} strokeDasharray={ok ? undefined : "3 2"} />
+      {chosen && <text x={centre.x} y={centre.y} textAnchor="middle" dominantBaseline="central" fontSize={markSize} className="pointer-events-none fill-primary-foreground font-bold">✓</text>}
+    </g>
+  );
+});
