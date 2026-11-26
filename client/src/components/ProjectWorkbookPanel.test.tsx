@@ -57,6 +57,6 @@ describe("Q-51 batch 2b: the project workbook panel", () => {
     expect((screen.getByRole("button", { name: "حفظ ما ظهر في المعاينة" }) as HTMLButtonElement).disabled).toBe(true);
     const refused = document.querySelector('[data-workbook-sheet="requests"]')!;
     expect(refused.getAttribute("data-workbook-state")).toBe("refused");
-    expect(refused.textContent).toContain("الصف 6"); expect(refused.textContent).toContain("unitNumbers"); expect(refused.textContent).toContain("PMC_UNIT_NOT_FOUND");
+    expect(refused.textContent).toContain("الصف 6"); expect(refused.querySelector("[data-workbook-error=PMC_UNIT_NOT_FOUND]")).not.toBeNull(); expect(refused.textContent).not.toContain("PMC_UNIT_NOT_FOUND"); // said in words, not the code
   });
 });
