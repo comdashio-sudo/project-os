@@ -318,7 +318,7 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
         {(!focus || focus === "planning") && <>
 
         <div>
-          <PlanningControlCenter result={planningControl} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} isLoading={boqQuery.isLoading || procurementQuery.isLoading || warehouseQuery.isLoading || contractsQuery.isLoading} />
+          <PlanningControlCenter result={planningControl} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} isLoading={boqQuery.isLoading || procurementQuery.isLoading || warehouseQuery.isLoading || contractsQuery.isLoading} onUpload={upload} />
         </div>
 
         {apiError && <p className="mt-5 rounded-xl bg-danger-soft p-4 text-sm text-danger-soft-foreground">{getLocalizedProjectError(apiError, isArabic)}</p>}
