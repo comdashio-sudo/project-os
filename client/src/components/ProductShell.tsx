@@ -8,6 +8,7 @@ import { useCan } from "@/lib/permissions";
 import { PAGE_NAMES, PROJECT_SUBPAGE_NAMES } from "@shared/pageNames";
 import { Activity, AlertTriangle, BookOpen, Briefcase, CalendarClock, CalendarRange, CheckCircle2, ClipboardCheck, ClipboardList, Compass, FileBarChart, FileInput, FileSignature, FileText, FolderInput, FolderKanban, Gauge, GitCompare, HardHat, Handshake, Layers, LayoutGrid, LayoutPanelTop, PauseCircle, PieChart, Settings, ShieldAlert, ShieldCheck, SlidersHorizontal, Target, TrendingUp, Users, UsersRound, Wallet, Warehouse, type LucideIcon } from "lucide-react";
 import { InShellProvider } from "@/components/pageFrame";
+import { QuickSearch } from "@/components/QuickSearch";
 import { PageActions, PrintHeader } from "@/components/PageActions";
 import React from "react";
 import { useLocation } from "wouter";
@@ -167,6 +168,7 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
         project={projectId ?? ""}
         onProject={value => setLocation(projectSwitchHref(location, tenantId, projectId, value))}
         breadcrumbs={crumbs}
+        headerTools={<QuickSearch tenantId={tenantId} projectId={projectId} pages={nav.map(item => ({ id: item.id, label: item.label, href: item.href }))} onOpen={href => setLocation(href)} />}
         actions={<PageActions company={companyName} project={projectName} pageTitle={pageTitle} />}
         printHeader={<PrintHeader company={companyName} project={projectName} pageTitle={pageTitle} user={user?.name ?? undefined} />}
         user={{ name: user?.name ?? "", email: user?.email ?? "" }}
