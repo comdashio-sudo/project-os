@@ -13,6 +13,7 @@ import { pickLanguage } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import { PAGE_NAMES } from "@shared/pageNames";
 import { ScheduleCompare } from "@/components/ScheduleCompare";
+import { ScheduleStageMapping } from "@/components/ScheduleStageMapping";
 
 type Filter = "all" | "critical" | "late" | "lookAhead" | "open";
 const text = {
@@ -122,6 +123,8 @@ export default function LiveSchedule() {
         </Card>
         {/* Q-23: two updates compared (schedule.compare) */}
         <ScheduleCompare key={data.snapshots.map(snapshot => snapshot.id).join(",")} tenantId={tenantId} projectId={projectId} snapshots={data.snapshots} sourceLabel={source => t.source[source as keyof typeof t.source] ?? source} />
+        {/* Q-61 (3): schedule stages linked to the weight groups (schedule.stageMapping), with Q-61 (2)'s differences */}
+        <ScheduleStageMapping tenantId={tenantId} projectId={projectId} />
       </>}
     </PageMain>
   );
