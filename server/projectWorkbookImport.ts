@@ -30,6 +30,8 @@ const MAX_BYTES = 3 * 1024 * 1024; // a workbook sent inside a request (CLAUDE.m
 export type WorkbookSheetOutcome = {
   key: string; status: "empty" | "will_apply" | "applied" | "refused" | "awaiting_confirmation" | "feeds_other_sheets";
   rows: number; counts?: { create: number; update: number; unchanged: number };
+  /** The sheet's name in each language, from the workbook's own table (added to every outcome before it is returned). */
+  title?: { ar: string; en: string; ur: string };
   errors: Array<WorkbookError | (PmcImportError & { sheet: string })>;
 };
 /** The general importer's modules the workbook's sheets go to. */
@@ -92,7 +94,7 @@ export async function previewProjectWorkbook(input: Scope & { fileBase64: string
       throw new PreviewRollback();
     });
   } catch (error) { if (!(error instanceof PreviewRollback)) throw error; }
-  return { fileHash, sheets: outcomes.map(outcome => (outcome.status === "applied" ? { ...outcome, status: "will_apply" as const } : outcome)) };
+  return { fileHash, sheets: titled(outcomes.map(outcome => (outcome.status === "applied" ? { ...outcome, status: "will_apply" as const } : outcome))) };
 }
 
 export async function applyProjectWorkbook(input: Scope & { fileBase64: string; approvedHash: string }): Promise<{ sheets: WorkbookSheetOutcome[] }> {
@@ -119,8 +121,9 @@ export async function applyProjectWorkbook(input: Scope & { fileBase64: string; 
       outcomes.push({ key: sheet.key, status: "refused", rows: sheet.rows.length, errors: error.errors.map(item => ({ ...item, sheet: sheet.key })) });
     }
   }
-  return { sheets: outcomes };
+  return { sheets: titled(outcomes) };
 }
+const titled = (outcomes: WorkbookSheetOutcome[]) => outcomes.map(outcome => { const sheet = sheetSpec(outcome.key); return { ...outcome, title: { ar: sheet.ar, en: sheet.en, ur: sheet.ur } }; });
 
 /** The contract rules saveProjectContract applies, checked without saving (the preview). */
 function contractRefusal(cells: Record<string, string>): string | null {
