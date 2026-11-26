@@ -148,6 +148,49 @@ export async function applyCellStatus(tx: Tx, input: Scope & { unitId: string; a
   return { progressId, from, to: input.status, changed: true as const, evm, warnings };
 }
 
+/**
+ * Q-60 (the owner, 26-11: «no artificial cap on villas in one update» — 1,230 villas): the same write as applyCellStatus for many cells of one status at once,
+ * with the same result per cell — the cell row, a history row when the status moves (with the batch's note, so undo finds it), an audit row per changed cell,
+ * the QC completion gate (refused whole in block mode, a warning in warn mode) — but in a few statements per 500 cells instead of five per cell, and the
+ * EVM bridge once at the end instead of once per cell. The verification status of a cell is kept as it is (this path never sets it).
+ */
+export async function applyCellStatuses(tx: Tx, input: Scope & { status: PmcUnitActivityStatus; note: string }, targets: ReadonlyArray<{ unitId: string; activityDefinitionId: string }>, now: Date) {
+  const key = (unitId: string, activityDefinitionId: string) => `${unitId}/${activityDefinitionId}`;
+  const existing = new Map<string, typeof pmcUnitActivityProgress.$inferSelect>();
+  for (let index = 0; index < targets.length; index += 500) {
+    const unitIds = Array.from(new Set(targets.slice(index, index + 500).map(target => target.unitId)));
+    const rows = await tx.select().from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId), inArray(pmcUnitActivityProgress.unitId, unitIds))).for("update");
+    for (const row of rows) existing.set(key(row.unitId, row.activityDefinitionId), row);
+  }
+  const moving = targets.filter(target => existing.get(key(target.unitId, target.activityDefinitionId))?.status !== input.status);
+  const warnings: CellWarning[] = [];
+  if (input.status === "COMPLETE" && moving.length) {
+    const gate = await qcCompletionGate(tx, input.tenantId, moving);
+    if (gate.notAccepted.length) {
+      if (gate.mode === "block") throw refuse("CONFLICT", "PROJECT_OS_QC_NOT_ACCEPTED");
+      warnings.push({ code: "QC_NOT_ACCEPTED" });
+    }
+  }
+  const updates: string[] = []; const inserts: Array<typeof pmcUnitActivityProgress.$inferInsert> = []; const history: Array<typeof pmcUnitActivityHistory.$inferInsert> = []; const audits: Array<typeof auditLogs.$inferInsert> = [];
+  for (const target of moving) {
+    const row = existing.get(key(target.unitId, target.activityDefinitionId));
+    const progressId = row?.id ?? crypto.randomUUID();
+    const verificationStatusId = row?.verificationStatusId ?? null;
+    if (row) updates.push(row.id);
+    else inserts.push({ id: progressId, tenantId: input.tenantId, projectId: input.projectId, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, status: input.status, verificationStatusId, lastChangedByUserId: input.userId, lastChangedAt: now });
+    const from = row?.status ?? null;
+    history.push({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: progressId, fromStatus: from, toStatus: input.status, changedByUserId: input.userId, changedAt: now, note: input.note });
+    audits.push({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.unit_activity_changed", entityType: "pmc_unit_activity_progress", entityId: progressId, metadata: JSON.stringify({ projectId: input.projectId, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, from, to: input.status, verificationStatusId, ...(warnings.length ? { warnings: warnings.map(item => item.code) } : {}) }) });
+  }
+  for (let index = 0; index < updates.length; index += 500) await tx.update(pmcUnitActivityProgress).set({ status: input.status, lastChangedByUserId: input.userId, lastChangedAt: now }).where(and(eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId), inArray(pmcUnitActivityProgress.id, updates.slice(index, index + 500))));
+  for (let index = 0; index < inserts.length; index += 500) await tx.insert(pmcUnitActivityProgress).values(inserts.slice(index, index + 500));
+  for (let index = 0; index < history.length; index += 500) await tx.insert(pmcUnitActivityHistory).values(history.slice(index, index + 500));
+  for (let index = 0; index < audits.length; index += 500) await tx.insert(auditLogs).values(audits.slice(index, index + 500));
+  // Rule 7: the WBS items linked to activities take their progress from the cells, in this same transaction — once, after every cell is written
+  const evm = moving.length ? await syncPmcProgressToEvm(tx, input, now) : null;
+  return { changed: moving.length, unchanged: targets.length - moving.length, warnings, evm };
+}
+
 // ------------------------------------------------------------ progress (rules 1-4)
 
 /**

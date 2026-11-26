@@ -5,7 +5,7 @@ import { buildProjectWorkbook } from "./domain/projectWorkbook";
 import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions , listActivityBoqLinks, setActivityBoqLinks} from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, exportProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES, MINUTES_EXPORT_FORMATS } from "./meetings";
-import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
+import { adoptScheduleBaseline, compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getScheduleVillaLinks } from "./scheduleVillaLinks";
 import { getScheduleStageMapping, saveScheduleStageMapping } from "./scheduleStageMapping";
 import { getPlannedCurve } from "./plannedCurveService";
@@ -304,7 +304,7 @@ export const appRouter = router({
     structure: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStructure({ userId: ctx.user.id, ...input })),
     // Q-4: the site engineer's progress update on the weights table (server/pmcProgressUpdate.ts): the activities, one atomic update for several villas, the history
     progressActivities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressActivities({ userId: ctx.user.id, ...input })),
-    updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10), queuedAt: z.string().datetime().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "pmc.updateProgress" }, () => updatePmcProgress({ userId: ctx.user.id, ...input }))),
+    updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(20000).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), modelCode: z.string().trim().max(80).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10), queuedAt: z.string().datetime().optional(), confirmCount: z.number().int().positive().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "pmc.updateProgress" }, () => updatePmcProgress({ userId: ctx.user.id, ...input }))),
     progressHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcProgressHistory({ userId: ctx.user.id, ...input })),
     // Q-14 (a): the stalled villas (working days since the last progress or QC movement) and the project's threshold (server/stalledUnits.ts)
     stalledUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getStalledUnits({ userId: ctx.user.id, ...input })),
@@ -1146,6 +1146,8 @@ export const appRouter = router({
       links: z.array(z.object({ groupId: z.string().uuid(), stageCodes: z.array(z.string().trim().min(1).max(80)).max(20), anchor: z.enum(["span", "start", "end"]) })).min(1).max(200),
     })).mutation(({ ctx, input }) => saveScheduleStageMapping({ userId: ctx.user.id, ...input })),
     // Q-61 (4): the planned S-curve per villa / block / model / project from the baseline and the weights, against the site's actual (project.pmc.read)
+    // Q-61 (5): a later P6 import adopted as the new baseline — explicit, with a reason, audited (project.schedule.manage / project.manage)
+    adoptBaseline: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), snapshotId: z.string().uuid(), reason: z.string().max(500) })).mutation(({ ctx, input }) => adoptScheduleBaseline({ userId: ctx.user.id, ...input })),
     plannedCurve: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPlannedCurve({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),

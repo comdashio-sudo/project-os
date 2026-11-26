@@ -60,7 +60,8 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-61 (1): a large Primav
     const put = await fetch(target.uploadUrl, { method: "PUT", headers: target.headers, body: Buffer.from(file.bytes) });
     expect(put.ok).toBe(true);
 
-    const analysis = await manager.smartImport.analyze({ ...scope, uploadKey: target.uploadKey, fileName: "large-schedule.xer" });
+    const t0 = Date.now(); const analysis = await manager.smartImport.analyze({ ...scope, uploadKey: target.uploadKey, fileName: "large-schedule.xer" });
+    console.log(`analyze ${Date.now() - t0} ms`);
     const plan = analysis.p6Plan!;
     expect(plan.issues).toEqual([]); expect(plan.canConfirm).toBe(true);
     expect(plan.counts.activities.create).toBe(LARGE_P6_COUNTS.activities); expect(plan.counts.wbs.create).toBe(LARGE_P6_COUNTS.wbs);
@@ -68,7 +69,13 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-61 (1): a large Primav
     expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ?", [T])).toBe(0); // the analysis wrote nothing
 
     const confirmed = await manager.smartImport.confirm({ ...scope, uploadKey: target.uploadKey, fileName: "large-schedule.xer", kind: "xer", forced: {} as never, approvedHash: plan.fileHash });
-    expect(confirmed).toMatchObject({ status: "completed", module: "p6", rowsSent: LARGE_P6_COUNTS.activities });
+    // above 2 MB the write is a background job (Q-61): the answer is the import in `importing`, and the screen polls its progress until it is completed
+    expect(confirmed).toMatchObject({ status: "importing", module: "p6" });
+    let progress = await manager.dataImports.progress({ ...scope, importId: confirmed.importId });
+    const seen = new Set<string>();
+    for (let waited = 0; progress.status === "importing" && waited < 540_000; waited += 1000) { if (progress.progressStage && !seen.has(progress.progressStage)) { seen.add(progress.progressStage); console.log(`stage ${progress.progressStage} at ${Date.now() - t0} ms`); } await new Promise(resolve => setTimeout(resolve, 1000)); progress = await manager.dataImports.progress({ ...scope, importId: confirmed.importId }); }
+    expect(progress).toMatchObject({ status: "completed", progressPercent: 100, createdRows: LARGE_P6_COUNTS.activities });
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ? AND status = 'completed'", [T])).toBe(1); // one import row: the job's own, not a second one
     expect(await n("SELECT COUNT(*) AS n FROM wbs_items WHERE tenantId = ?", [T])).toBe(LARGE_P6_COUNTS.wbs);
     expect(await n("SELECT COUNT(*) AS n FROM activities WHERE tenantId = ?", [T])).toBe(LARGE_P6_COUNTS.activities);
     expect(await n("SELECT COUNT(*) AS n FROM activity_relationships WHERE tenantId = ?", [T])).toBe(LARGE_P6_COUNTS.relationships);
@@ -76,5 +83,14 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-61 (1): a large Primav
     expect(await n("SELECT COUNT(*) AS n FROM activity_code_types WHERE tenantId = ?", [T])).toBe(LARGE_P6_COUNTS.codeTypes);
     // every villa's activities are reachable by their villa node (the shape the baseline calculation will read)
     expect(await n("SELECT COUNT(*) AS n FROM activities a INNER JOIN wbs_items w ON w.id = a.wbsItemId WHERE a.tenantId = ? AND w.code LIKE 'V%'", [T])).toBe(LARGE_P6_COUNTS.activities);
-  }, 600_000);
+  }, 1_200_000);
+
+  it("a file that is not the approved one is refused before any import row exists", async () => {
+    const manager = callerFor();
+    const target = await manager.smartImport.createUpload({ ...scope, fileName: "other-large.xer" });
+    await fetch(target.uploadUrl, { method: "PUT", headers: target.headers, body: Buffer.from(buildLargeP6Xer({ counts: { ...LARGE_P6_COUNTS, activities: 9000 }, longNames: true }).bytes) });
+    const before = await n("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ?", [T]);
+    await expect(manager.smartImport.confirm({ ...scope, uploadKey: target.uploadKey, fileName: "other-large.xer", kind: "xer", forced: {} as never, approvedHash: "0".repeat(64) })).rejects.toThrow("PROJECT_OS_PMC_IMPORT_FILE_CHANGED");
+    expect(await n("SELECT COUNT(*) AS n FROM data_imports WHERE tenantId = ?", [T])).toBe(before);
+  }, 120_000);
 });
