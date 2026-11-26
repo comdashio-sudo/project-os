@@ -23,7 +23,7 @@ type Reader = Pick<Awaited<ReturnType<typeof authorize>>, "select">;
 /** The classification itself, for a caller already allowed to read the project: the screen (above) and the 7:00 digest (stalledUnitsDigest.ts). */
 export async function computeStalledUnits(db: Reader, input: { tenantId: string; projectId: string }, now: Date) {
   const [units, blocks, definitions, groups, stages, cells, receipts, profile, threshold] = await Promise.all([
-    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel, modelCode: pmcUnits.modelCode, blockId: pmcUnits.blockId }).from(pmcUnits).where(mine(pmcUnits, input)),
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel, modelCode: pmcUnits.modelCode, blockId: pmcUnits.blockId , phase: pmcUnits.phase }).from(pmcUnits).where(mine(pmcUnits, input)),
     db.select({ id: pmcBlocks.id, code: pmcBlocks.code }).from(pmcBlocks).where(mine(pmcBlocks, input)),
     db.select({ id: pmcActivityDefinitions.id, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, modelCode: pmcActivityDefinitions.modelCode, groupId: pmcActivityDefinitions.groupId, stageId: pmcActivityDefinitions.stageId }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, input)),
     db.select({ id: pmcActivityGroups.id, code: pmcActivityGroups.code }).from(pmcActivityGroups).where(mine(pmcActivityGroups, input)),
@@ -43,7 +43,7 @@ export async function computeStalledUnits(db: Reader, input: { tenantId: string;
   const qcByUnit = new Map<string, Date[]>(); for (const receipt of receipts) qcByUnit.set(receipt.unitId, [...(qcByUnit.get(receipt.unitId) ?? []), receipt.updatedAt]);
   const rows = classifyStalledUnits({
     activitiesByModel, today: riyadhDay(now), workDays: workDaysOf(profile[0]?.workDays), threshold,
-    units: units.map(unit => ({ unitId: unit.id, villa: villaKey(unit.villaLabel ?? unit.unitNumber), blockCode: blockCode.get(unit.blockId) ?? "", modelCode: unit.modelCode, cells: cellsByUnit.get(unit.id) ?? [], qcChangedAt: qcByUnit.get(unit.id) ?? [] })),
+    units: units.map(unit => ({ unitId: unit.id, villa: villaKey(unit.villaLabel ?? unit.unitNumber), blockCode: blockCode.get(unit.blockId) ?? "", modelCode: unit.modelCode, phase: unit.phase, cells: cellsByUnit.get(unit.id) ?? [], qcChangedAt: qcByUnit.get(unit.id) ?? [] })),
   });
   return { threshold, longDays: LONG_STALL_DAYS, counts: { stalled: rows.filter(row => row.state === "stalled").length, long: rows.filter(row => row.state === "long").length, active: rows.filter(row => row.state === "active").length }, rows };
 }
