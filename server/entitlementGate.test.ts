@@ -10,7 +10,7 @@ const sources = Object.fromEntries(readdirSync(serverDir).filter(name => /\.ts$/
 const routers = sources["routers.ts"];
 
 /** Helpers that end in `assertTenantAccess` (active membership + licensed product + permission + scope) or check the licence themselves. */
-const GATES = ["assertTenderAccess", "assertDesignAccess", "assertTenantAccess", "assertTenantFeatureAccess", "authorizeNewImport", "assertImportAccess", "authorizeUpload", "importAccess", "authorizeExternalImport", "authorizeDirectUpload", "assertHrRecordAccess", "assertAttendanceAccess", "assertPerformanceManager", "assertPerformanceAccess", "assertPayrollAccess", "assertAnyPayrollAccess", "assertTenantManager", "assertCompanyManager", "assertRoleProductEntitled", "resolveScopedAccess", "authorizeInventory", "assertDecisionRecorder", "assertDecisionParticipant"];
+const GATES = ["assertTenderAccess", "assertDesignAccess", "assertTenantAccess", "assertTenantFeatureAccess", "authorizeNewImport", "assertImportAccess", "authorizeUpload", "importAccess", "authorizeExternalImport", "authorizeDirectUpload", "assertHrRecordAccess", "assertAttendanceAccess", "assertPerformanceManager", "assertPerformanceAccess", "assertPayrollAccess", "assertAnyPayrollAccess", "assertTenantManager", "assertCompanyManager", "assertRoleProductEntitled", "resolveScopedAccess", "authorizeInventory", "assertDecisionRecorder", "assertDecisionParticipant", "pmcGate"];
 
 const WITHOUT_PRODUCT_LICENCE: Record<string, string> = {
   getTenantNavigationForUser: "returns only the menu entries the caller's own access snapshot allows and reads no company data; a non-member is refused",
@@ -72,7 +72,7 @@ describe("entitlement gate on every tenant action (G-130)", () => {
 
   it("checks that each gate helper itself ends in the licence check", () => {
     for (const gate of GATES.filter(name => name !== "assertTenantAccess" && name !== "assertTenantFeatureAccess")) {
-      // a gate helper lives in db.ts, or in the service file of a module that has its own (designService.ts)
+      // a gate helper lives in db.ts, or in the service file of a module that has its own (designService.ts; the PMC gate in wo22Shared.ts)
       const db = Object.values(sources).find(source => new RegExp(`(?:async )?function ${gate}\\b`).test(source))!;
       const start = db.search(new RegExp(`(?:async )?function ${gate}\\b`));
       expect(start, gate).toBeGreaterThan(-1);

@@ -66,8 +66,8 @@ describe("ScheduleStageMapping (Q-61 (3))", () => {
     fireEvent.click(boxes[2]); // Q20: a start link keeps one stage, so Q20 replaces Q06
     fireEvent.click(document.querySelector("[data-save-stage-mapping]")!);
     expect(h.save).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", links: [
-      { groupId: "g1", stageCodes: ["Q02"], anchor: "span", suggestedScore: 0.67 },
-      { groupId: "g5", stageCodes: ["Q20"], anchor: "start", suggestedScore: null },
+      { groupId: "g1", stageCodes: ["Q02"], anchor: "span" },
+      { groupId: "g5", stageCodes: ["Q20"], anchor: "start" },
     ] });
   });
 
