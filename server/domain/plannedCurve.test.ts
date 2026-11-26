@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { elapsedShare, monthEnds, plannedCurves, type CurveActivity } from "./plannedCurve";
+import { elapsedShare, monthEnds, plannedCurves, unitWeightOf, type CurveActivity } from "./plannedCurve";
 
 // Q-61 (4): planned curves worked by hand. Synthetic villas and dates only.
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -65,4 +65,13 @@ describe("Q-61 (4): the planned curve per villa and for the project", () => {
     expect(result.gaps).toEqual([{ unitNumber: 3, groupCodes: ["W2", "W3"] }]);
     expect(plannedCurves({ villas, activities: [], groups, links, at: d("2026-01-21") })).toMatchObject({ months: [], project: [], projectNow: 0 });
   });
+
+  it("review of #556 (A), note 2: a unit weight of 0 stays 0 — the villa does not move the project's curve; only a missing or unreadable weight reads as 1", () => {
+    expect([unitWeightOf(0), unitWeightOf("0"), unitWeightOf("0.0000"), unitWeightOf("2.5"), unitWeightOf(null), unitWeightOf(undefined), unitWeightOf("x"), unitWeightOf(-1)]).toEqual([0, 0, 0, 2.5, 1, 1, 1, 1]);
+    const weighted = villas.map(villa => villa.unitNumber === 2 ? { ...villa, unitWeight: unitWeightOf("0") } : villa);
+    const result = plannedCurves({ villas: weighted, activities, groups, links, at: d("2026-01-21") });
+    // without villa 2 (weight 0): Jan (31 + 31) / 2 = 31; Feb (100 + 40) / 2 = 70
+    expect(result.project).toEqual([{ month: "2026-01", planned: 31 }, { month: "2026-02", planned: 70 }]);
+  });
 });
+
