@@ -125,7 +125,18 @@ export type CellWarning = { code: "QC_NOT_ACCEPTED" };
  * The cell's unit and activity are already checked by the caller. Moving a cell to COMPLETE asks the company's quality policy (qualityGate.ts): "block" refuses, "warn"
  * lets it through and says so in `warnings`; the database holds the same rule for "block" on the table itself.
  */
+/**
+ * Review of #557 (C, note 2) and of #570 (C): FOR UPDATE locks only the rows that exist, so two writes that create the same missing cell would both insert and
+ * the second fail on the unique index. Every write of a project's cells takes this one lock for its transaction BEFORE it locks any cell row — the bulk save,
+ * the single-cell write (a cell edit, a daily report approval) and the undo — so they run one after the other and never wait on each other in a cycle.
+ * Reentrant: a transaction that writes many cells one by one takes it once and passes on the next calls.
+ */
+export async function lockProjectCells(tx: Pick<Tx, "execute">, projectId: string) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`pmc-cells:${projectId}`}))`);
+}
+
 export async function applyCellStatus(tx: Tx, input: Scope & { unitId: string; activityDefinitionId: string; status: PmcUnitActivityStatus; verificationStatusId?: string | null; note?: string }, now: Date) {
+  await lockProjectCells(tx, input.projectId);
   const [existing] = await tx.select().from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.unitId, input.unitId), eq(pmcUnitActivityProgress.activityDefinitionId, input.activityDefinitionId), eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId))).for("update").limit(1);
   const verificationStatusId = input.verificationStatusId === undefined ? (existing?.verificationStatusId ?? null) : input.verificationStatusId;
   if (existing && existing.status === input.status && existing.verificationStatusId === verificationStatusId) return { progressId: existing.id, from: existing.status, to: input.status, changed: false as const, evm: null, warnings: [] as CellWarning[] };
@@ -156,9 +167,7 @@ export async function applyCellStatus(tx: Tx, input: Scope & { unitId: string; a
  */
 export async function applyCellStatuses(tx: Tx, input: Scope & { status: PmcUnitActivityStatus; note: string }, targets: ReadonlyArray<{ unitId: string; activityDefinitionId: string }>, now: Date) {
   const key = (unitId: string, activityDefinitionId: string) => `${unitId}/${activityDefinitionId}`;
-  // review of #557 (C, note 2): FOR UPDATE locks only the rows that exist, so two saves that create the same missing cell would both insert and the second
-  // fail on the unique index; one project-wide lock for the transaction runs the bulk saves of a project one after the other
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`pmc-cells:${input.projectId}`}))`);
+  await lockProjectCells(tx, input.projectId);
   const existing = new Map<string, typeof pmcUnitActivityProgress.$inferSelect>();
   for (let index = 0; index < targets.length; index += 500) {
     const unitIds = Array.from(new Set(targets.slice(index, index + 500).map(target => target.unitId)));

@@ -67,6 +67,16 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-70: the co
     expect((await a.asOwner.pmc.completionReport({ ...scopeOf(a), blockCode: "BLK 33" })).total).toBe(4);
   });
 
+  it("review of #574 (C, change 1): a cell under review comes back as such, and the status filter finds it", async () => {
+    const unit = (await client.query("SELECT id FROM pmc_units WHERE tenant_id = $1 AND unit_number = 701", [a.tenantId])).rows[0].id;
+    const act = (await client.query("SELECT id FROM pmc_activity_definitions WHERE tenant_id = $1 AND model_code = 'C' AND code = 'ACT02'", [a.tenantId])).rows[0].id;
+    await a.asOwner.pmc.setUnitActivityStatus({ tenantId: a.tenantId, projectId: a.projectId, unitId: unit, activityDefinitionId: act, status: "UNDER_REVIEW" });
+    const review = await a.asOwner.pmc.completionReport({ ...scopeOf(a), status: "UNDER_REVIEW" });
+    expect(review.rows.map(row => [row.villa, row.activityCode, row.status])).toEqual([["701", "ACT02", "UNDER_REVIEW"]]);
+    expect((await a.asOwner.pmc.completionReport({ ...scopeOf(a), status: "NOT_STARTED" })).total).toBe(3); // 702–703 ACT02 and 800 ACT01: 701 left it
+    await a.asOwner.pmc.setUnitActivityStatus({ tenantId: a.tenantId, projectId: a.projectId, unitId: unit, activityDefinitionId: act, status: "NOT_STARTED" });
+  });
+
   it("NEGATIVE: company isolation — B's completions never show in A's report and B cannot read A's project; a villa that is no number and someone without the PMC read permission are refused", async () => {
     const report = await a.asOwner.pmc.completionReport({ ...scopeOf(a), activityCode: "ACT02" });
     expect(report.rows.filter(row => row.status === "COMPLETE")).toEqual([]); // B completed ACT02 on its own 700 and 701

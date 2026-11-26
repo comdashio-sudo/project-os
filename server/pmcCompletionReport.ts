@@ -6,9 +6,11 @@
 import { sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { authorize, type Scope } from "./pmcService";
+import { villaKey } from "./wo22Shared";
 
 export const COMPLETION_PAGE_MAX = 5000;
-export const COMPLETION_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETE"] as const;
+// review of #574 (C, change 1): the cell has four statuses (pmc_unit_activity_progress_status), «under review» among them
+export const COMPLETION_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"] as const;
 export type CompletionFilter = { blockCode?: string; phase?: string; activityCode?: string; status?: (typeof COMPLETION_STATUSES)[number]; villa?: string };
 export type CompletionRow = {
   villa: string; blockCode: string; phase: string | null; modelCode: string; activityCode: string; activityName: string; weightPercent: number;
@@ -57,7 +59,7 @@ export async function getPmcCompletionReport(input: Scope & CompletionFilter & {
   ]);
   const total = Number((countResult.rows[0] as { n: number } | undefined)?.n ?? 0);
   const rows: CompletionRow[] = (pageResult.rows as Array<Record<string, unknown>>).map(row => ({
-    villa: String(row.unitNumber), blockCode: String(row.blockCode), phase: (row.phase as string | null) ?? null, modelCode: String(row.modelCode),
+    villa: villaKey((row.villaLabel as string | null) ?? Number(row.unitNumber)), blockCode: String(row.blockCode), phase: (row.phase as string | null) ?? null, modelCode: String(row.modelCode),
     activityCode: String(row.activityCode), activityName: String(row.activityName), weightPercent: Number(row.weightPercent),
     status: row.status as CompletionRow["status"],
     // a COMPLETE cell completed without passing through «in progress» has no start day: «—», not a guess
