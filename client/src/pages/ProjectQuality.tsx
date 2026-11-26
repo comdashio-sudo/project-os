@@ -30,7 +30,7 @@ const text = {
     ncrNumber: "رقم NCR", ncrTitle: "العنوان", ncrDescription: "الوصف", ncrDue: "الموعد النهائي", ncrUnit: "رقم الوحدة (اختياري)", ncrActivity: "النشاط (اختياري)", createNcr: "إنشاء NCR", ncrCreated: "أُنشئ NCR",
     open: "مفتوح", under_investigation: "قيد التحقيق", corrective_action: "إجراء تصحيحي", verification: "تحقق", closed: "مغلق", cancelled: "ملغى",
     toNext: "نقل إلى", closeNcr: "إغلاق", cancelNcr: "إلغاء", noNcrs: "لا NCR بعد.", ncrBlocks: "NCR مفتوح على وحدة ونشاط يمنع قبول فحصهما", openCount: "مفتوحة",
-    rulesAccepted: "رموز الرد التي تُعدّ قبولًا", rulesCompletion: "لا يكتمل نشاط قبل فحص مقبول", rulesMaterial: "صرف مادة غير معتمدة", rulesNcr: "NCR مفتوح يمنع قبول الفحص",
+    rulesAccepted: "رموز الرد التي تُعدّ قبولًا", rulesCompletion: "لا يكتمل نشاط قبل فحص مقبول", rulesMaterial: "صرف مادة غير معتمدة", rulesNcr: "NCR مفتوح يمنع قبول الفحص", rulesDaily: "التقرير اليومي يحتاج اعتمادًا", rulesDailyHint: "مُطفأ: يصبح التقرير نهائيًا عند إرساله ويدخل الأسبوعي والشهري فورًا. مُشغَّل: ينتظر اعتماد المعتمِد.",
     off: "معطّل", warn: "تحذير", block: "منع", saveRules: "حفظ القواعد", rulesSaved: "حُفظت القواعد", rulesManager: "تعديل القواعد لمدير الشركة وحده.",
     responseA: "A — معتمد", responseB: "B — معتمد بملاحظات", responseC: "C — يُعدَّل ويُعاد", responseUR: "UR — قيد المراجعة",
     noPermission: "دورك لا يتيح تعديل الجودة.", warningNcr: "سُجّل الرد، لكن NCR مفتوح على هذه الخلية:",
@@ -48,7 +48,7 @@ const text = {
     ncrNumber: "NCR number", ncrTitle: "Title", ncrDescription: "Description", ncrDue: "Due date", ncrUnit: "Unit number (optional)", ncrActivity: "Activity (optional)", createNcr: "Create NCR", ncrCreated: "NCR created",
     open: "Open", under_investigation: "Under investigation", corrective_action: "Corrective action", verification: "Verification", closed: "Closed", cancelled: "Cancelled",
     toNext: "Move to", closeNcr: "Close", cancelNcr: "Cancel", noNcrs: "No NCRs yet.", ncrBlocks: "An open NCR on a unit and activity keeps their inspection from being accepted", openCount: "open",
-    rulesAccepted: "Answer codes that count as an acceptance", rulesCompletion: "An activity cannot complete before an accepted inspection", rulesMaterial: "Issuing a material that is not approved", rulesNcr: "An open NCR keeps an inspection from being accepted",
+    rulesAccepted: "Answer codes that count as an acceptance", rulesCompletion: "An activity cannot complete before an accepted inspection", rulesMaterial: "Issuing a material that is not approved", rulesNcr: "An open NCR keeps an inspection from being accepted", rulesDaily: "The daily report needs an approval", rulesDailyHint: "Off: a report is final when it is sent and counts in the week and month at once. On: it waits for the approver.",
     off: "Off", warn: "Warn", block: "Block", saveRules: "Save the rules", rulesSaved: "Rules saved", rulesManager: "Only the company manager changes the rules.",
     responseA: "A — Approved", responseB: "B — Approved as noted", responseC: "C — Revise and resubmit", responseUR: "UR — Under review",
     noPermission: "Your role does not allow changing quality records.", warningNcr: "The answer was recorded, but an NCR is open on this cell:",
@@ -66,7 +66,7 @@ const text = {
     ncrNumber: "NCR نمبر", ncrTitle: "عنوان", ncrDescription: "تفصیل", ncrDue: "آخری تاریخ", ncrUnit: "یونٹ نمبر (اختیاری)", ncrActivity: "سرگرمی (اختیاری)", createNcr: "NCR بنائیں", ncrCreated: "NCR بن گیا",
     open: "کھلا", under_investigation: "زیرِ تحقیق", corrective_action: "اصلاحی کارروائی", verification: "تصدیق", closed: "بند", cancelled: "منسوخ",
     toNext: "منتقل کریں:", closeNcr: "بند کریں", cancelNcr: "منسوخ کریں", noNcrs: "ابھی کوئی NCR نہیں۔", ncrBlocks: "کسی یونٹ اور سرگرمی پر کھلا NCR ان کے معائنے کی قبولیت روک دیتا ہے", openCount: "کھلے",
-    rulesAccepted: "وہ جوابی کوڈ جو قبولیت شمار ہوتے ہیں", rulesCompletion: "قبول شدہ معائنے سے پہلے سرگرمی مکمل نہیں ہو سکتی", rulesMaterial: "غیر منظور شدہ مادّہ جاری کرنا", rulesNcr: "کھلا NCR معائنے کی قبولیت روکتا ہے",
+    rulesAccepted: "وہ جوابی کوڈ جو قبولیت شمار ہوتے ہیں", rulesCompletion: "قبول شدہ معائنے سے پہلے سرگرمی مکمل نہیں ہو سکتی", rulesMaterial: "غیر منظور شدہ مادّہ جاری کرنا", rulesNcr: "کھلا NCR معائنے کی قبولیت روکتا ہے", rulesDaily: "روزانہ رپورٹ کو منظوری درکار ہے", rulesDailyHint: "بند: رپورٹ بھیجتے ہی حتمی ہو جاتی ہے اور فوراً ہفتہ وار و ماہانہ میں شامل ہوتی ہے۔ چالو: منظور کنندہ کی منظوری کا انتظار کرتی ہے۔",
     off: "بند", warn: "تنبیہ", block: "روک", saveRules: "قواعد محفوظ کریں", rulesSaved: "قواعد محفوظ ہو گئے", rulesManager: "قواعد صرف کمپنی کا مینیجر بدل سکتا ہے۔",
     responseA: "A — منظور", responseB: "B — نوٹس کے ساتھ منظور", responseC: "C — درست کر کے دوبارہ جمع کریں", responseUR: "UR — زیرِ جائزہ",
     noPermission: "آپ کا کردار معیار کے ریکارڈ بدلنے کی اجازت نہیں دیتا۔", warningNcr: "جواب درج ہو گیا، مگر اس خانے پر NCR کھلا ہے:",
@@ -99,7 +99,7 @@ export default function ProjectQuality() {
   const [warning, setWarning] = useState<string | null>(null);
   const [form, setForm] = useState({ code: "", units: "", activityId: "", consultant: "", contractor: "" });
   const [ncr, setNcr] = useState({ number: "", title: "", description: "", due: "", unit: "", activityId: "" });
-  const [rules, setRules] = useState<{ qcCompletionMode: Mode; materialApprovalMode: Mode; ncrAcceptanceMode: Mode; codes: string[] } | null>(null);
+  const [rules, setRules] = useState<{ qcCompletionMode: Mode; materialApprovalMode: Mode; ncrAcceptanceMode: Mode; codes: string[]; dailyReportApproval: boolean } | null>(null);
 
   const refresh = () => { void utils.pmc.inspections.invalidate(); void utils.ncrs.list.invalidate(); };
   const createInspection = trpc.pmc.createInspection.useMutation({ onSuccess: () => { setMessage(t.created); setForm(current => ({ ...current, code: "", units: "" })); refresh(); } });
@@ -107,7 +107,7 @@ export default function ProjectQuality() {
   const respond = trpc.pmc.respondInspection.useMutation({ onSuccess: result => { const held = (result as { openNcrs?: string[] }).openNcrs; setWarning(held?.length ? `${t.warningNcr} ${held.join(", ")}` : null); refresh(); } });
   const createNcr = trpc.ncrs.create.useMutation({ onSuccess: () => { setMessage(t.ncrCreated); setNcr({ number: "", title: "", description: "", due: "", unit: "", activityId: "" }); refresh(); } });
   const transition = trpc.ncrs.transitionStatus.useMutation({ onSuccess: refresh });
-  const saveRules = trpc.policy.set.useMutation({ onSuccess: () => { setMessage(t.rulesSaved); void utils.policy.get.invalidate(); } });
+  const saveRules = trpc.policy.set.useMutation({ onSuccess: () => { setMessage(t.rulesSaved); void utils.policy.get.invalidate(); void utils.policy.effective.invalidate(); } });
 
   const units = options.data?.units ?? [];
   const activities = options.data?.activities ?? [];
@@ -144,7 +144,7 @@ export default function ProjectQuality() {
   if (loadError) return <FieldShell wide tenantId={tenantId} projectId={projectId} current="quality" title={t.title} backHref={back} backLabel={t.back}><p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(loadError, isArabic)}</p><Button className={tap} variant="outline" onClick={() => { void options.refetch(); void inspections.refetch(); void ncrList.refetch(); }}>{t.retry}</Button></FieldShell>;
 
   const tabButton = (value: typeof tab, label: string) => <button type="button" role="tab" aria-selected={tab === value} className={`${tap} rounded-xl px-3 text-sm font-semibold ${tab === value ? "bg-primary text-white" : "border bg-white text-foreground"}`} onClick={() => { setTab(value); setMessage(null); }}>{label}</button>;
-  const draft = rules ?? (policy ? { qcCompletionMode: policy.qcCompletionMode as Mode, materialApprovalMode: policy.materialApprovalMode as Mode, ncrAcceptanceMode: policy.ncrAcceptanceMode as Mode, codes: policy.qcAcceptedCodes } : null);
+  const draft = rules ?? (policy ? { qcCompletionMode: policy.qcCompletionMode as Mode, materialApprovalMode: policy.materialApprovalMode as Mode, ncrAcceptanceMode: policy.ncrAcceptanceMode as Mode, codes: policy.qcAcceptedCodes, dailyReportApproval: Boolean((policy as { dailyReportApproval?: boolean }).dailyReportApproval) } : null);
   const modeSelect = (label: string, key: "qcCompletionMode" | "materialApprovalMode" | "ncrAcceptanceMode") => draft && <label className="block text-sm font-medium">{label}<Select className="mt-1" value={draft[key]} disabled={!isManager} onValueChange={value => setRules({ ...draft, [key]: value as Mode })} options={MODES.map(mode => ({ value: mode, label: (t as Record<string, string>)[mode] }))} /></label>;
 
   return (
@@ -262,7 +262,8 @@ export default function ProjectQuality() {
               {modeSelect(t.rulesCompletion, "qcCompletionMode")}
               {modeSelect(t.rulesMaterial, "materialApprovalMode")}
               {modeSelect(t.rulesNcr, "ncrAcceptanceMode")}
-              {isManager && <Button className={tap} disabled={saveRules.isPending || draft.codes.length === 0} onClick={() => { setMessage(null); saveRules.mutate({ tenantId, qcCompletionMode: draft.qcCompletionMode, qcAcceptedCodes: draft.codes, materialApprovalMode: draft.materialApprovalMode, ncrAcceptanceMode: draft.ncrAcceptanceMode }); }}>{t.saveRules}</Button>}
+              <label className={`${tap} flex items-start gap-2 text-sm`}><input type="checkbox" className="mt-1" disabled={!isManager} checked={draft.dailyReportApproval} onChange={event => setRules({ ...draft, dailyReportApproval: event.target.checked })} /><span><span className="font-medium">{t.rulesDaily}</span><span className="block text-muted-foreground">{t.rulesDailyHint}</span></span></label>
+              {isManager && <Button className={tap} disabled={saveRules.isPending || draft.codes.length === 0} onClick={() => { setMessage(null); saveRules.mutate({ tenantId, qcCompletionMode: draft.qcCompletionMode, qcAcceptedCodes: draft.codes, materialApprovalMode: draft.materialApprovalMode, ncrAcceptanceMode: draft.ncrAcceptanceMode, dailyReportApproval: draft.dailyReportApproval }); }}>{t.saveRules}</Button>}
             </div>
           )}
         </section>

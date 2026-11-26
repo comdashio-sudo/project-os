@@ -1,4 +1,5 @@
 import fixtureDb from "./testing/pgCompat";
+import { requireReportApproval } from "./testing/reportApproval";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
@@ -43,6 +44,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-58 (1): several daily 
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'q58-%'");
     for (const key of KEYS) { userIds[key] = rows.find(row => row.openId === `q58-${key}`)!.id; callers[key] = callerFor(userIds[key], `q58-${key}`); }
     ({ tenantId } = await callers.owner.tenant.create({ legalName: "Q58 Many Co. (synthetic)", slug: SLUG, packageCode: "ALL-IN-ONE" }));
+    await requireReportApproval(tenantId); // Q-71 (2): both reports of the day are approved by the project manager here
     await callers.ownerB.tenant.create({ legalName: "Q58 Other Co. (synthetic)", slug: SLUG_B, packageCode: "ALL-IN-ONE" });
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'Q58-1', 'Villas (synthetic)', 'villas', 'SAR', 'active')", [P, tenantId]);
     await connection.query("INSERT INTO pmc_zones (id, tenantId, projectId, code, name) VALUES (?, ?, ?, 'Z1', 'Zone 1')", [ZONE, tenantId, P]);

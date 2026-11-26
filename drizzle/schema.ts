@@ -3137,6 +3137,9 @@ export const tenantPolicies = pgTable(
     materialApprovalMode: tenantPoliciesModeEnum("material_approval_mode").default("warn").notNull(),
     // work order 14: an open NCR on a unit and activity keeps an inspection from counting as accepted (block, the default), only warns, or is ignored
     ncrAcceptanceMode: tenantPoliciesModeEnum("ncr_acceptance_mode").default("block").notNull(),
+    // Q-71 (the owner, 26-11: «why does the daily report wait for approval? it is just sent»): off (the default) — sending a daily report makes it final; on — it
+    // waits for the project's approver, as before
+    dailyReportApproval: boolean("daily_report_approval").default(false).notNull(),
     updatedByUserId: integer("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
