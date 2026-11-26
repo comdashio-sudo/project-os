@@ -114,10 +114,10 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
   const { tenantId, projectId } = useParams<{ tenantId: string; projectId: string }>();
   const { isArabic, language } = useLanguage();
   const scheduleQuery = trpc.projects.getControlsSchedule.useQuery({ tenantId, projectId });
-  // Q-64 batch 2: where the baseline says the project should be today, against the site's actual (needs the PMC read; without it, or without a baseline, the sentence simply omits it)
+  // Q-64 batch 2: where the baseline says the project should be today, against the site's actual (needs the PMC read; without it, with no baseline or when the read fails the sentence simply omits it, and the curve card below says why in words)
   const canReadPlan = useCan("project.pmc.read", projectId);
   const plannedCurveQuery = trpc.schedule.plannedCurve.useQuery({ tenantId, projectId }, { enabled: canReadPlan, retry: false });
-  const planVsActual = plannedCurveQuery.data?.ready ? { planned: plannedCurveQuery.data.projectNow, actual: plannedCurveQuery.data.projectActual } : null;
+  const planVsActual = !plannedCurveQuery.isError && plannedCurveQuery.data?.ready ? { planned: plannedCurveQuery.data.projectNow, actual: plannedCurveQuery.data.projectActual } : null;
   const financialsQuery = trpc.projects.getControlsFinancials.useQuery({ tenantId, projectId });
   const performanceQuery = trpc.projects.getControlsPerformance.useQuery({ tenantId, projectId });
   const boqQuery = (trpc.boq?.list?.useQuery ?? (() => emptyPlanningQuery))({ tenantId, projectId });
