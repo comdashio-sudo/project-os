@@ -1,0 +1,68 @@
+[
+ {
+  "lang": "ar",
+  "width": 390,
+  "present": true,
+  "groups": 2,
+  "readiness": "form",
+  "suggestions": [],
+  "hScroll": false,
+  "smallTargets": 0,
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "present": true,
+  "groups": 2,
+  "readiness": "form",
+  "suggestions": [],
+  "hScroll": false,
+  "smallTargets": 0,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "present": true,
+  "groups": 2,
+  "readiness": "form",
+  "suggestions": [],
+  "hScroll": false,
+  "smallTargets": 0,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "present": true,
+  "groups": 2,
+  "readiness": "form",
+  "suggestions": [],
+  "hScroll": false,
+  "smallTargets": 0,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "present": true,
+  "groups": 2,
+  "readiness": "form",
+  "suggestions": [],
+  "hScroll": false,
+  "smallTargets": 0,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "present": true,
+  "groups": 2,
+  "readiness": "form",
+  "suggestions": [],
+  "hScroll": false,
+  "smallTargets": 0,
+  "errors": []
+ }
+]

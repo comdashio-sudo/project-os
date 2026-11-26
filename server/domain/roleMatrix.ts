@@ -67,7 +67,7 @@ export const matrixColumns: readonly MatrixColumn[] = [
   ], note: "أمر العمل 22 (D-5). القيمة المكتسبة بالريال في عمود «التكاليف والميزانية» (project.budget.manage)." },
   { id: "imports", title: "الاستيراد والتراجع", kind: "screen", actions: [
     { tier: "edit", sources: [
-      s("server/p6Import.ts", "inTransaction", "project.schedule.manage", "project.wbs.manage"), s("server/p6Update.ts", "confirmScheduleUpdate", "project.schedule.manage", "project.wbs.manage"),
+      s("server/p6Import.ts", "inTransaction", "project.schedule.manage", "project.wbs.manage"), s("server/p6Update.ts", "confirmScheduleUpdate", "project.schedule.manage", "project.wbs.manage"), s("server/scheduleSnapshots.ts", "adoptScheduleBaseline", "project.schedule.manage", "project.manage"),
       s("server/matrixImport.ts", "confirmMatrixImport", "project.pmc.manage"), s("server/consultantImport.ts", "confirmConsultantImport", "project.pmc.manage"), s("server/siteLegacyImport.ts", "confirmSiteLegacyImport", "project.pmc.manage"),
       s("server/importAttempts.ts", "discardImportAttempt", "project.wbs.manage", "project.budget.manage", "project.commitment.manage", "project.procurement.manage", "project.inventory.manage", "project.schedule.manage"),
       s("server/importAttempts.ts", "rollbackImport", "project.manage"),

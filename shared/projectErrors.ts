@@ -1926,6 +1926,21 @@ export const projectErrorMessages = {
     en: "One of the attendees chosen is not an active member of this company.",
     ur: "منتخب حاضرین میں سے ایک اس کمپنی کا فعال رکن نہیں۔",
   },
+  PROJECT_OS_SCHEDULE_BASELINE_REASON_REQUIRED: {
+    ar: "اكتب سبب اعتماد خط الأساس الجديد (خمسة أحرف على الأقل).",
+    en: "Write why this becomes the new baseline (at least five characters).",
+    ur: "نیا بنیادی منصوبہ منظور کرنے کی وجہ لکھیں (کم از کم پانچ حروف)۔",
+  },
+  PROJECT_OS_SCHEDULE_BASELINE_NOT_IMPORT: {
+    ar: "يُعتمد خط أساس جديد من استيراد P6 كامل فقط، لا من تحديث أنشطة.",
+    en: "Only a full P6 import can become the new baseline, not an activity update.",
+    ur: "صرف مکمل P6 درآمد نیا بنیادی منصوبہ بن سکتی ہے، سرگرمیوں کی تازہ کاری نہیں۔",
+  },
+  PROJECT_OS_SCHEDULE_ALREADY_BASELINE: {
+    ar: "هذا الاستيراد هو خط الأساس الحالي.",
+    en: "This import is already the baseline.",
+    ur: "یہ درآمد پہلے ہی بنیادی منصوبہ ہے۔",
+  },
   PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND: {
     ar: "إحدى لقطتي المقارنة غير موجودة في هذا المشروع.",
     en: "One of the two snapshots to compare is not in this project.",
