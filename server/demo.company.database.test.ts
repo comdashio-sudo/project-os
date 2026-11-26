@@ -188,7 +188,7 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect(register.incidents.filter(incident => incident.status === "closed")).toHaveLength(2);
     expect(register.permits.map(permit => permit.permitNumber).sort()).toEqual(["PTW-101", "PTW-102", "PTW-103", "PTW-104", "PTW-105"]);
     expect(register.permits.filter(permit => permit.state === "closed")).toHaveLength(2);
-    // the man-hours of the reports-mode project's approved dailies make the rates real numbers: one lost-time and two recordable incidents
+    // the man-hours of the reports-mode project's approved dailies make the rates real numbers: one lost-time incident, which is also the one recordable (a first-aid case is not recordable)
     expect(register.rates.manHours).toBeGreaterThan(0);
     expect(register.rates).toMatchObject({ lostTime: 1, recordable: 1 });
     expect(register.rates.ltifr).toBeGreaterThan(0);
@@ -206,7 +206,8 @@ describe.skipIf(!run)("the demonstration company", () => {
     const ops = await asPerson("operations.manager@show.example.test");
     expect((await ops.operations.overview({ tenantId })).projects.length).toBeGreaterThanOrEqual(2);
     // NEGATIVE: the operations manager writes no safety record (no project.hse.manage)
-    await expect(ops.safety.recordIncident({ ...scope, incidentNumber: "INC-X", occurredOn: "2026-01-01", kind: "near_miss", title: "x (عرض)", description: "x (عرض)" })).rejects.toThrow();
+    // (review of #530) the refusal is for the missing project.hse.manage, not any other error
+    await expect(ops.safety.recordIncident({ ...scope, incidentNumber: "INC-X", occurredOn: "2026-01-01", kind: "near_miss", title: "x (عرض)", description: "x (عرض)" })).rejects.toMatchObject({ message: "PROJECT_OS_PERMISSION_DENIED" });
   });
 
   it("Q-55 (2): the latest report of the reports-mode project exports as Word, with its parties and its sections", async () => {
