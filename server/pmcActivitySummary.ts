@@ -3,6 +3,7 @@
 import { pmcActivityDefinitions, pmcBlocks, pmcStatusFactors, pmcUnitActivityProgress, pmcUnits } from "../drizzle/schema";
 import { effectiveStatusFactors, type PmcUnitActivityStatus } from "./domain/pmc";
 import { summarizeProgress } from "./domain/progressSummary";
+import { unitWeightOf } from "./domain/plannedCurve";
 import { authorize, mine, type Scope } from "./pmcService";
 import { villaKey } from "./wo22Shared";
 
@@ -17,7 +18,7 @@ export async function getPmcActivitySummary(input: Scope & { blockCode?: string;
     db.select({ status: pmcStatusFactors.status, factor: pmcStatusFactors.factor }).from(pmcStatusFactors).where(mine(pmcStatusFactors, scope)),
   ]);
   const blockCode = new Map(blocks.map(block => [block.id, block.code]));
-  const all = units.map(unit => ({ id: unit.id, villa: villaKey(unit.villaLabel ?? unit.unitNumber), blockCode: blockCode.get(unit.blockId) ?? "", phase: unit.phase, modelCode: unit.modelCode, unitWeight: Number(unit.unitWeight) }));
+  const all = units.map(unit => ({ id: unit.id, villa: villaKey(unit.villaLabel ?? unit.unitNumber), blockCode: blockCode.get(unit.blockId) ?? "", phase: unit.phase, modelCode: unit.modelCode, unitWeight: unitWeightOf(unit.unitWeight) }));
   const chosen = all.filter(unit => (!input.blockCode || unit.blockCode === input.blockCode) && (!input.phase || (unit.phase ?? "").toUpperCase() === input.phase.trim().toUpperCase()));
   const summary = summarizeProgress({
     units: chosen, definitions: definitions.map(definition => ({ ...definition, weightPercent: Number(definition.weightPercent) })),

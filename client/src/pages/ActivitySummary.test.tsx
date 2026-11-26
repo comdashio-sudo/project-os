@@ -12,7 +12,7 @@ vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<t
   <select id={id} value={value} onChange={event => onValueChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
 ) }));
 const data = {
-  activities: [{ code: "ACT01", name: "Excavation", villas: 5, complete: 4, inProgress: 0, notStarted: 1, completionPercent: 80, earnedPercent: 80 }, { code: "ACT02", name: "Footings", villas: 4, complete: 0, inProgress: 1, notStarted: 3, completionPercent: 0, earnedPercent: 0 }],
+  activities: [{ code: "ACT01", name: "Excavation", villas: 5, complete: 4, underReview: 0, inProgress: 0, notStarted: 1, completionPercent: 80, earnedPercent: 80 }, { code: "ACT02", name: "Footings", villas: 4, complete: 0, underReview: 0, inProgress: 1, notStarted: 3, completionPercent: 0, earnedPercent: 0 }],
   blocks: [{ key: "BLK 33", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4 }],
   phases: [{ key: "PH1", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4 }],
   project: { villas: 5, progressPercent: 52, villasWithoutNumber: 1 },

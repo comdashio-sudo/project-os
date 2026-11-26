@@ -6,8 +6,15 @@ import { calculateProjectProgress, calculateUnitProgress, type PmcUnitActivitySt
 
 export type SummaryUnit = { id: string; villa: string; blockCode: string; phase: string | null; modelCode: string; unitWeight: number };
 export type SummaryDefinition = { id: string; modelCode: string; code: string; name: string; weightPercent: number };
-export type ActivitySummary = { code: string; name: string; villas: number; complete: number; inProgress: number; notStarted: number; completionPercent: number; earnedPercent: number };
+export type ActivitySummary = { code: string; name: string; villas: number; complete: number; underReview: number; inProgress: number; notStarted: number; completionPercent: number; earnedPercent: number };
 export type GroupSummary = { key: string; villas: number; progressPercent: number | null; villasWithoutNumber: number; completeCells: number; totalCells: number };
+
+/** Weighted progress of villas that have a number; null — never a throw — when their total weight is 0 (a villa may weigh 0: review of #576, C). */
+function weighted(units: SummaryUnit[], progressOf: ReadonlyMap<string, number | null>): number | null {
+  const counted = units.filter(unit => progressOf.get(unit.id) != null);
+  if (!counted.length || counted.reduce((sum, unit) => sum + unit.unitWeight, 0) <= 0) return null;
+  return round(calculateProjectProgress(counted.map(unit => ({ progressPercent: progressOf.get(unit.id)!, unitWeight: unit.unitWeight }))));
+}
 
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -17,7 +24,7 @@ export function summarizeProgress(input: { units: SummaryUnit[]; definitions: Su
   const statusFor = (unit: SummaryUnit, definition: SummaryDefinition) => input.statusOf.get(`${unit.id}:${definition.id}`) ?? "NOT_STARTED";
 
   // activities by code: one activity may be defined once per model, the villas of every model that has it are counted together
-  type Tally = { code: string; name: string; villas: number; complete: number; inProgress: number; notStarted: number; weight: number; earned: number };
+  type Tally = { code: string; name: string; villas: number; complete: number; underReview: number; inProgress: number; notStarted: number; weight: number; earned: number };
   const tallies = new Map<string, Tally>();
   // each villa's progress, by the PMC rule (a model whose weights do not total 100 gives no number, with no guess)
   const progressOf = new Map<string, number | null>();
@@ -25,9 +32,10 @@ export function summarizeProgress(input: { units: SummaryUnit[]; definitions: Su
     const definitions = byModel.get(unit.modelCode) ?? [];
     for (const definition of definitions) {
       const status = statusFor(unit, definition);
-      const tally = tallies.get(definition.code) ?? { code: definition.code, name: definition.name, villas: 0, complete: 0, inProgress: 0, notStarted: 0, weight: 0, earned: 0 };
+      const tally = tallies.get(definition.code) ?? { code: definition.code, name: definition.name, villas: 0, complete: 0, underReview: 0, inProgress: 0, notStarted: 0, weight: 0, earned: 0 };
       tally.villas += 1;
-      if (status === "COMPLETE") tally.complete += 1; else if (status === "NOT_STARTED") tally.notStarted += 1; else tally.inProgress += 1;
+      // «under review» is its own count (review of #576, C: it was folded into «in progress» without saying so)
+      if (status === "COMPLETE") tally.complete += 1; else if (status === "UNDER_REVIEW") tally.underReview += 1; else if (status === "NOT_STARTED") tally.notStarted += 1; else tally.inProgress += 1;
       tally.weight += unit.unitWeight; tally.earned += unit.unitWeight * (input.factors[status] ?? 0);
       tallies.set(definition.code, tally);
     }
@@ -36,7 +44,7 @@ export function summarizeProgress(input: { units: SummaryUnit[]; definitions: Su
   }
   const activities: ActivitySummary[] = Array.from(tallies.values())
     .sort((a, b) => a.code.localeCompare(b.code, "en", { numeric: true }))
-    .map(tally => ({ code: tally.code, name: tally.name, villas: tally.villas, complete: tally.complete, inProgress: tally.inProgress, notStarted: tally.notStarted, completionPercent: tally.villas ? round((tally.complete / tally.villas) * 100) : 0, earnedPercent: tally.weight ? round((tally.earned / tally.weight) * 100) : 0 }));
+    .map(tally => ({ code: tally.code, name: tally.name, villas: tally.villas, complete: tally.complete, underReview: tally.underReview, inProgress: tally.inProgress, notStarted: tally.notStarted, completionPercent: tally.villas ? round((tally.complete / tally.villas) * 100) : 0, earnedPercent: tally.weight ? round((tally.earned / tally.weight) * 100) : 0 }));
 
   const groupBy = (keyOf: (unit: SummaryUnit) => string | null): GroupSummary[] => {
     const groups = new Map<string, SummaryUnit[]>();
@@ -45,10 +53,10 @@ export function summarizeProgress(input: { units: SummaryUnit[]; definitions: Su
       const counted = units.filter(unit => progressOf.get(unit.id) != null);
       let completeCells = 0; let totalCells = 0;
       for (const unit of units) for (const definition of byModel.get(unit.modelCode) ?? []) { totalCells += 1; if (statusFor(unit, definition) === "COMPLETE") completeCells += 1; }
-      return { key, villas: units.length, progressPercent: counted.length ? round(calculateProjectProgress(counted.map(unit => ({ progressPercent: progressOf.get(unit.id)!, unitWeight: unit.unitWeight })))) : null, villasWithoutNumber: units.length - counted.length, completeCells, totalCells };
+      return { key, villas: units.length, progressPercent: weighted(units, progressOf), villasWithoutNumber: units.length - counted.length, completeCells, totalCells };
     });
   };
   const counted = input.units.filter(unit => progressOf.get(unit.id) != null);
-  const project = counted.length ? round(calculateProjectProgress(counted.map(unit => ({ progressPercent: progressOf.get(unit.id)!, unitWeight: unit.unitWeight })))) : null;
+  const project = weighted(input.units, progressOf);
   return { activities, blocks: groupBy(unit => unit.blockCode || null), phases: groupBy(unit => unit.phase), project: { villas: input.units.length, progressPercent: project, villasWithoutNumber: input.units.length - counted.length } };
 }
