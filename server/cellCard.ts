@@ -24,6 +24,7 @@ import {
   users,
 } from "../drizzle/schema";
 import { calculateUnitProgress, effectiveStatusFactors, type PmcUnitActivityStatus } from "./domain/pmc";
+import { riyadhDay } from "./domain/stalledUnits"; // review of #578 (C, note 1): the completion day is the site's (Riyadh) day, as in the completion report
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { cellsWithoutAcceptedInspection, loadTenantPolicy, openNcrNumbers } from "./qualityGate";
@@ -109,7 +110,7 @@ export async function getCellCardForTenant(input: Scope & { unitId: string; acti
     for (const row of qcEvents) { const at = row.changedAt.toISOString(); const seen = qcNow.get(row.activityDefinitionId); if (!seen || at > seen.at) qcNow.set(row.activityDefinitionId, { at, received: row.to }); }
     items = [...definitions].sort((a, b) => a.code.localeCompare(b.code, "en", { numeric: true })).map(definition => {
       const status = statusOf.get(definition.id) ?? "NOT_STARTED";
-      return { code: definition.code, name: definition.name, weightPercent: Number(definition.weightPercent), status, completedOn: status === "COMPLETE" ? (completedOn.get(definition.id) ?? null) : null, qcReceived: qcNow.get(definition.id)?.received ?? null };
+      return { code: definition.code, name: definition.name, weightPercent: Number(definition.weightPercent), status, completedOn: status === "COMPLETE" && completedOn.has(definition.id) ? riyadhDay(new Date(completedOn.get(definition.id)!)) : null, qcReceived: qcNow.get(definition.id)?.received ?? null };
     });
     try { progressPercent = calculateUnitProgress({ statusFactors: effectiveStatusFactors(factorRows), activities: definitions.map(definition => ({ weightPercent: Number(definition.weightPercent), status: statusOf.get(definition.id) ?? "NOT_STARTED" })) }); }
     catch { progressPercent = null; }

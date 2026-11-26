@@ -59,6 +59,13 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-70: the vi
     expect(card.progressPercent).toBe(40); // ACT01 complete (40), ACT02 in progress earns 0 with the default factors
   });
 
+  it("review of #578 (C, note 1): a completion at 22:30 UTC is the next day in Riyadh, and the items table says so", async () => {
+    const unit = await unitOf(a, 701);
+    await client.query("UPDATE pmc_unit_activity_history h SET changed_at = '2026-11-20T22:30:00Z' FROM pmc_unit_activity_progress p WHERE p.id = h.unit_activity_progress_id AND p.unit_id = $1 AND h.to_status = 'COMPLETE' AND h.tenant_id = $2", [unit, a.tenantId]);
+    const card = await a.asOwner.cells.card({ ...scopeOf(a), unitId: unit });
+    expect(card.items!.find(item => item.code === "ACT01")!.completedOn).toBe("2026-11-21");
+  });
+
   it("one activity of the villa keeps its own timeline and no items table", async () => {
     const definitions = (await client.query("SELECT id FROM pmc_activity_definitions WHERE tenant_id = $1 AND model_code = 'C' AND code = 'ACT02'", [a.tenantId])).rows;
     const card = await a.asOwner.cells.card({ ...scopeOf(a), unitId: await unitOf(a, 700), activityDefinitionId: definitions[0].id });

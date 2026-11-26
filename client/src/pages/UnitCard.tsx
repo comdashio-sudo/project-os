@@ -124,7 +124,7 @@ export default function UnitCard() {
     { header: t.item, value: (row: Item) => `${row.code} — ${row.name}` },
     { header: t.weight, kind: "number" as const, value: (row: Item) => row.weightPercent },
     { header: t.status, value: (row: Item) => name(row.status) },
-    { header: t.completedOn, kind: "date" as const, value: (row: Item) => (row.completedOn ? new Date(row.completedOn) : null) },
+    { header: t.completedOn, kind: "date" as const, value: (row: Item) => (row.completedOn ? new Date(`${row.completedOn}T12:00:00Z`) : null) }, // a Riyadh day: noon UTC keeps it on that day in any time zone
     { header: t.qcReceipt, value: (row: Item) => qcText(row.qcReceived) },
   ];
   // the timeline as shown (after its filter): when, what, the change and its detail
