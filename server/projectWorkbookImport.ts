@@ -11,16 +11,18 @@
 // Permission to start: the PMC importer's own (project.pmc.manage on the project, the PMC feature), checked before anything is read.
 import { createHash, randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { auditLogs } from "../drizzle/schema";
+import { and, eq, inArray } from "drizzle-orm";
+import { auditLogs, budgetLines, contracts, materialMasters, projectWarehouses, warehouseInventoryTransactions } from "../drizzle/schema";
 import type { PmcImportError, PmcImportKind } from "./domain/pmcImport";
 import { readProjectWorkbook, type WorkbookError } from "./domain/projectWorkbookReader";
 import { syncPmcProgressToEvm } from "./pmcEvmBridge";
 import { authorize, prepareRows } from "./pmcImportService";
 import ExcelJS from "exceljs";
-import { confirmAndImportData, createAndAnalyzeDataImport } from "./db";
+import { authorizeNewImport, confirmAndImportData, createAndAnalyzeDataImport } from "./db";
 import { analyzeImportFile } from "./domain/dataImport";
-import { previewProjectBoq, saveProjectBoq, saveProjectContract } from "./projectBaseline";
-import { projectWorkbookSheets, type WorkbookSheet } from "./domain/projectWorkbook";
+import { baselineSheetPermission, previewProjectBoq, saveProjectBoq, saveProjectContract } from "./projectBaseline";
+import { projectGate } from "./projectProfile";
+import { isNumberColumn, projectWorkbookSheets, type WorkbookSheet } from "./domain/projectWorkbook";
 import type { ImportModuleCode } from "@shared/importTemplateHeaders";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -42,7 +44,8 @@ type Row = { row: number; cells: Record<string, string> };
 async function plainFile(sheet: WorkbookSheet, rows: Row[]) {
   const book = new ExcelJS.Workbook(); const ws = book.addWorksheet(`${sheet.key}-${randomUUID().slice(0, 8)}`);
   ws.addRow(sheet.columns.map(column => column.en));
-  for (const row of rows) ws.addRow(sheet.columns.map(column => { const value = row.cells[column.key]; return value !== "" && /^-?\d+(\.\d+)?$/.test(value) ? Number(value) : value || null; }));
+  // review of #531: only a number column becomes a number; a code stays the text it was («007» stays «007», so it still finds the stored record)
+  for (const row of rows) ws.addRow(sheet.columns.map(column => { const value = row.cells[column.key]; return isNumberColumn(column.key) && /^-?\d+(\.\d+)?$/.test(value) ? Number(value) : value || null; }));
   return Buffer.from(await book.xlsx.writeBuffer()).toString("base64");
 }
 /** A plain file's row N (header in row 1) is the workbook's row rows[N - 2].row. */
@@ -134,14 +137,55 @@ function contractRefusal(cells: Record<string, string>): string | null {
 }
 const refused = (key: string, rows: Row[], errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>): WorkbookSheetOutcome => ({ key, status: "refused", rows: rows.length, errors: errors.map(error => ({ sheet: key, ...error })) as WorkbookSheetOutcome["errors"] });
 
+/** Review of #531: whether the reader may save this sheet, asked with the very permission its save asks (the general importer's for its module,
+ *  the base file's for the BOQ and the contract). A sheet they may not save is refused with that reason in the preview and is never written. */
+async function sheetAccessRefusal(input: Scope, key: string): Promise<string | null> {
+  try {
+    const moduleCode = GENERAL_SHEETS[key];
+    if (moduleCode) await authorizeNewImport({ ...input, moduleCode });
+    else if (key === "boq" || key === "project") await projectGate(input, baselineSheetPermission[key]);
+    return null;
+  } catch (error) {
+    if (error instanceof TRPCError && error.code === "FORBIDDEN") return error.message;
+    throw error;
+  }
+}
+/** Review of #531: what a general sheet would create and update, looked up as its save looks it up (budget lines and contracts by code in the
+ *  project, materials by code in the company; opening stock is created only for a warehouse and material with no movement yet, else left as it is). */
+async function generalCounts(input: Scope, moduleCode: string, validRows: Array<{ values: Record<string, unknown> }>) {
+  const db = await authorizeNewImport({ ...input, moduleCode: moduleCode as ImportModuleCode });
+  const text = (value: unknown) => String(value ?? "");
+  if (moduleCode === "openingBalances") {
+    const warehouses = await db.select({ id: projectWarehouses.id, code: projectWarehouses.code }).from(projectWarehouses).where(and(eq(projectWarehouses.tenantId, input.tenantId), eq(projectWarehouses.projectId, input.projectId)));
+    const materials = await db.select({ id: materialMasters.id, code: materialMasters.code }).from(materialMasters).where(eq(materialMasters.tenantId, input.tenantId));
+    const ids = warehouses.map(row => row.id);
+    const moved = new Set(ids.length ? (await db.select({ w: warehouseInventoryTransactions.warehouseId, m: warehouseInventoryTransactions.materialId }).from(warehouseInventoryTransactions).where(and(eq(warehouseInventoryTransactions.tenantId, input.tenantId), inArray(warehouseInventoryTransactions.warehouseId, ids)))).map(row => `${row.w}|${row.m}`) : []);
+    const w = new Map(warehouses.map(row => [row.code, row.id])); const m = new Map(materials.map(row => [row.code, row.id]));
+    const unchanged = validRows.filter(row => moved.has(`${w.get(text(row.values.warehouseCode))}|${m.get(text(row.values.materialCode))}`)).length;
+    return { create: validRows.length - unchanged, update: 0, unchanged };
+  }
+  const keys = validRows.map(row => text(moduleCode === "budget" ? row.values.costCode : row.values.code));
+  if (!keys.length) return { create: 0, update: 0, unchanged: 0 };
+  const existing = moduleCode === "budget"
+    ? await db.select({ key: budgetLines.costCode }).from(budgetLines).where(and(eq(budgetLines.tenantId, input.tenantId), eq(budgetLines.projectId, input.projectId), inArray(budgetLines.costCode, keys)))
+    : moduleCode === "contracts"
+      ? await db.select({ key: contracts.code }).from(contracts).where(and(eq(contracts.tenantId, input.tenantId), eq(contracts.projectId, input.projectId), inArray(contracts.code, keys)))
+      : await db.select({ key: materialMasters.code }).from(materialMasters).where(and(eq(materialMasters.tenantId, input.tenantId), inArray(materialMasters.code, keys)));
+  const stored = new Set(existing.map(row => row.key));
+  const update = keys.filter(key => stored.has(key)).length;
+  return { create: keys.length - update, update, unchanged: 0 };
+}
+
 /** Batch 2b preview of the sheets that are not PMC: checked as their save would check them, nothing stored. */
 async function previewOtherSheet(input: Scope, key: string, rows: Row[]): Promise<WorkbookSheetOutcome> {
   if (key === "models") return { key, status: "feeds_other_sheets", rows: rows.length, errors: [] };
   if (key === "team") return { key, status: "awaiting_confirmation", rows: rows.length, errors: [] };
+  const denied = await sheetAccessRefusal(input, key);
+  if (denied) return refused(key, rows, [{ rowNumber: 0, code: denied }]);
   const moduleCode = GENERAL_SHEETS[key];
   if (moduleCode) {
     const analysis = await analyzeImportFile({ moduleCode, format: "xlsx", bytes: new Uint8Array(Buffer.from(await plainFile(sheetSpec(key), rows), "base64")) });
-    return analysis.errors.length ? refused(key, rows, analysis.errors.map(error => ({ rowNumber: workbookRow(rows, error.rowNumber), code: error.code, field: error.field, detail: "detail" in error ? error.detail : undefined }))) : { key, status: "will_apply", rows: rows.length, errors: [] };
+    return analysis.errors.length ? refused(key, rows, analysis.errors.map(error => ({ rowNumber: workbookRow(rows, error.rowNumber), code: error.code, field: error.field, detail: "detail" in error ? error.detail : undefined }))) : { key, status: "will_apply", rows: rows.length, counts: await generalCounts(input, moduleCode, analysis.validRows as Array<{ values: Record<string, unknown> }>), errors: [] };
   }
   if (key === "boq") {
     const preview = await previewProjectBoq({ ...input, format: "xlsx", fileBase64: await plainFile(sheetSpec(key), rows) }) as { refusal?: string | null; issues?: Array<{ rowNumber: number; code: string; value?: string }> };
@@ -156,7 +200,8 @@ async function previewOtherSheet(input: Scope, key: string, rows: Row[]): Promis
 /** A refusal the existing save throws (its own checks: a contract value, dates, a duplicate file…) is that sheet's error, never the whole upload's. */
 async function applyOtherSheet(input: Scope, key: string, rows: Row[]): Promise<WorkbookSheetOutcome> {
   try { return await applyOtherSheetOrThrow(input, key, rows); } catch (error) {
-    if (!(error instanceof TRPCError) || error.code !== "BAD_REQUEST" && error.code !== "CONFLICT") throw error;
+    // review of #531: a refusal of permission is that sheet's error too, so the sheets already applied are still reported
+    if (!(error instanceof TRPCError) || error.code !== "BAD_REQUEST" && error.code !== "CONFLICT" && error.code !== "FORBIDDEN") throw error;
     return refused(key, rows, [{ rowNumber: rows[0]?.row ?? 0, code: error.message }]);
   }
 }
@@ -164,12 +209,15 @@ async function applyOtherSheetOrThrow(input: Scope, key: string, rows: Row[]): P
   if (key === "models") return { key, status: "feeds_other_sheets", rows: rows.length, errors: [] };
   // the team is never invited from an upload: a person confirms each invitation separately
   if (key === "team") return { key, status: "awaiting_confirmation", rows: rows.length, errors: [] };
+  // review of #531: asked before anything is analysed or stored, so a sheet the person may not save leaves no analysis record behind
+  const denied = await sheetAccessRefusal(input, key);
+  if (denied) return refused(key, rows, [{ rowNumber: 0, code: denied }]);
   const moduleCode = GENERAL_SHEETS[key];
   if (moduleCode) {
     const analysis = await createAndAnalyzeDataImport({ ...input, moduleCode, fileName: `project-workbook-${key}.xlsx`, sourceFormat: "xlsx", base64: await plainFile(sheetSpec(key), rows), duplicateMode: "upsert" });
     if (analysis.errors.length) return refused(key, rows, analysis.errors.map(error => ({ rowNumber: workbookRow(rows, error.rowNumber), code: error.code, field: error.field, detail: "detail" in error ? error.detail : undefined })));
-    await confirmAndImportData({ ...input, importId: analysis.id });
-    return { key, status: "applied", rows: rows.length, errors: [] };
+    const done = await confirmAndImportData({ ...input, importId: analysis.id }) as { createdRows?: number; updatedRows?: number; skippedRows?: number };
+    return { key, status: "applied", rows: rows.length, counts: { create: done.createdRows ?? 0, update: done.updatedRows ?? 0, unchanged: done.skippedRows ?? 0 }, errors: [] };
   }
   if (key === "boq") {
     const file = { ...input, format: "xlsx" as const, fileBase64: await plainFile(sheetSpec(key), rows) };
