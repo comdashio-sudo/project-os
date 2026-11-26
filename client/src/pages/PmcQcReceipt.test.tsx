@@ -35,6 +35,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
   pmc: {
     progressActivities: { useQuery: () => ({ data: [{ code: "FOOT", name: "Footings", sectionCode: "Q03", section: "03 Concrete", minWeight: 40, maxWeight: 40, models: ["C"] }], isLoading: false, error: null }) },
     progressPicker: { useQuery: () => ({ data: PICKER, isLoading: false, error: null, refetch: vi.fn() }) },
+    progressMapShapes: { useQuery: () => ({ data: (globalThis as { __q67Map?: unknown }).__q67Map ?? { shapes: [], yUp: false }, isError: false, error: null }) },
     qcHistory: { useQuery: () => ({ data: [{ at: "2026-11-11T09:00:00Z", on: "2026-11-11", from: null, to: true, by: "QC Engineer", unitNumber: 3, villaLabel: null, activityCode: "FOOT", activityName: "Footings" }], error: null, refetch: vi.fn() }) },
     qcCounters: { useQuery: () => ({ data: [{ code: "FOOT", name: "Footings", received: 1, total: 4, notReceived: 3 }], error: null, refetch: vi.fn() }) },
     undoQcReceiptBatch: { useMutation: () => ({ mutate: h.undo, isPending: false, error: null }) },
