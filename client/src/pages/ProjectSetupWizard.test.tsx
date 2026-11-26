@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Q-12 (d): the new-project wizard. Fabricated names only.
 const h = vi.hoisted(() => ({ create: vi.fn(), save: vi.fn(), company: vi.fn(), createError: null as unknown }));
+vi.mock("@/components/ProjectWorkbookPanel", () => ({ ProjectWorkbookPanel: () => null, ProjectWorkbookDownload: () => null })); // Q-51: tested in its own file
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "t1" }), Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));

@@ -3,6 +3,8 @@ import fixtureDb from "./testing/pgCompat";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
+import { ENV } from "./_core/env";
+import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
 import { buildProjectWorkbook, FIRST_DATA_ROW, projectWorkbookSheets } from "./domain/projectWorkbook";
 
 // Q-51 batch 2a on a real database, as the restricted role: a company fills the workbook's PMC sheets and uploads it once — units, activities and
@@ -10,11 +12,12 @@ import { buildProjectWorkbook, FIRST_DATA_ROW, projectWorkbookSheets } from "./d
 // sheet with an error writes nothing and says where; another company cannot apply into this project. Synthetic data only.
 const SLUG = "q51-workbook-import";
 const P = "51b00000-0000-4000-8000-000000000001";
+const ROLE_PMC_ONLY = "51b00000-0000-4000-8000-0000000000a1"; const MEMBER_PMC_ONLY = "51b00000-0000-4000-8000-0000000000a2";
 const isUrl = (value: string | undefined) => { try { const url = new URL(value ?? ""); return /^postgres(?:ql)?:$/.test(url.protocol) && Boolean(url.hostname); } catch { return false; } };
-const KEYS = ["owner", "outsider"] as const;
+const KEYS = ["owner", "outsider", "planner"] as const;
 const ids = {} as Record<(typeof KEYS)[number], number>;
 const caller = (key: (typeof KEYS)[number]) => appRouter.createCaller({ user: { id: ids[key], openId: `q51-${key}`, name: `Q51 ${key}`, email: `q51-${key}@q51.example.test`, loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date() } } as unknown as TrpcContext);
-let connection: fixtureDb.Connection; let tenantId = "";
+let connection: fixtureDb.Connection; let tenantId = ""; let s3: FakeS3;
 const sheets = projectWorkbookSheets(); const spec = (key: string) => sheets.find(sheet => sheet.key === key)!;
 async function workbook(fill: Record<string, Array<Record<string, string | number>>>) {
   const book = new ExcelJS.Workbook(); await book.xlsx.load((await buildProjectWorkbook({ locale: "ar" })).bytes as unknown as ArrayBuffer);
@@ -44,11 +47,21 @@ const FULL = {
   status: [{ unitNumber: 101, activityCode: "A-01", status: "IN_PROGRESS" }],
   requests: [{ requestCode: "WIR-Q51-1", activityCode: "A-01", unitNumbers: "101", requestedAt: "2027-01-10" }],
 };
+// batch 2b: the other sheets, through their own importers
+const OTHERS = {
+  project: [{ code: "Q51-W", name: "Workbook", contractValue: 25000000, currency: "SAR", plannedStartAt: "2027-01-01", plannedFinishAt: "2028-06-30" }],
+  boq: [{ code: "BOQ-Q51-1", description: "Excavation (synthetic)", unitOfMeasure: "m3", quantity: 1200, unitRate: 18.5 }],
+  budget: [{ costCode: "Q51-CIVIL", originalAmount: 500000, currentAmount: 525000 }],
+  contracts: [{ code: "Q51-CON-1", title: "Civil works (synthetic)", counterparty: "Contractor (synthetic)", contractValue: 2500000, currency: "SAR" }],
+  materials: [{ code: "Q51-MAT-1", description: "Concrete (synthetic)", unitOfMeasure: "m3", category: "Concrete" }],
+  stock: [{ warehouseCode: "Q51-WH", materialCode: "Q51-MAT-1", quantity: 120, unitCost: 310 }],
+  team: [{ email: "engineer@q51.example.test", roleCode: "SITE_ENGINEER", scope: "project", name: "Engineer (synthetic)" }],
+};
 
 async function clear() {
   const [companies] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug LIKE ?", [`${SLUG}%`]);
   for (const { id } of companies) {
-    for (const table of ["audit_logs", "pmc_inspection_request_units", "pmc_inspection_steps", "pmc_inspection_requests", "pmc_plan_months", "pmc_baselines", "pmc_unit_activity_history", "pmc_unit_activity_progress", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones", "evm_snapshots"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
+    for (const table of ["warehouse_inventory_transactions", "project_warehouses", "project_material_overrides", "material_masters", "contracts", "budget_lines", "boq_items", "data_import_row_results", "data_import_errors", "data_imports", "membership_invitations", "audit_logs", "pmc_inspection_request_units", "pmc_inspection_steps", "pmc_inspection_requests", "pmc_plan_months", "pmc_baselines", "pmc_unit_activity_history", "pmc_unit_activity_progress", "pmc_activity_definitions", "pmc_activity_stages", "pmc_activity_groups", "pmc_units", "pmc_blocks", "pmc_zones", "evm_snapshots"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
     await connection.query("DELETE mr FROM membership_roles mr INNER JOIN memberships m ON m.id = mr.membershipId WHERE m.tenantId = ?", [id]);
     await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [id]);
     for (const table of ["role_template_removals", "roles", "memberships", "tenant_entitlements", "tenant_licenses", "subscriptions", "projects"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [id]).catch(() => undefined);
@@ -60,6 +73,8 @@ async function clear() {
 describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-51 batch 2a: applying the project workbook's PMC sheets", () => {
   beforeAll(async () => {
     connection = await fixtureDb.createConnection(process.env.TEST_DATABASE_URL!);
+    s3 = await startFakeS3();
+    Object.assign(ENV, { storageS3Endpoint: s3.endpoint, storageS3Region: "local", storageS3AccessKeyId: "AKIALOCALTEST", storageS3SecretAccessKey: "local-test-only-secret", storageBucket: s3.bucket });
     await clear();
     await connection.query(`INSERT INTO users (openId, name, email, role) VALUES ${KEYS.map(() => "(?, ?, ?, 'user')").join(",")}`, KEYS.flatMap(key => [`q51-${key}`, `Q51 ${key}`, `q51-${key}@q51.example.test`]));
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'q51-%'");
@@ -67,8 +82,15 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-51 batch 2a: applying 
     ({ tenantId } = await caller("owner").tenant.create({ legalName: "Q51 Workbook Co.", slug: SLUG, packageCode: "ALL-IN-ONE" }));
     await caller("outsider").tenant.create({ legalName: "Q51 Other Co.", slug: `${SLUG}-other`, packageCode: "ALL-IN-ONE" });
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'Q51-W', 'Workbook', 'villas', 'SAR', 'active')", [P, tenantId]);
+    // review of #531: a person who may import PMC data and nothing else (no cost, contract, material or base-file permission)
+    const [perms] = await connection.query<{ id: string; code: string }[]>("SELECT id, code FROM permissions WHERE code IN ('project.read', 'project.pmc.read', 'project.pmc.update', 'project.pmc.manage')");
+    await connection.query("INSERT INTO roles (id, tenantId, code, name, productCode) VALUES (?, ?, 'Q51_PMC_ONLY', 'PMC only (synthetic)', 'PROJECT')", [ROLE_PMC_ONLY, tenantId]);
+    for (const perm of perms as Array<{ id: string }>) await connection.query("INSERT INTO role_permissions (roleId, permissionId) VALUES (?, ?)", [ROLE_PMC_ONLY, perm.id]);
+    await connection.query("INSERT INTO memberships (id, tenantId, userId, status) VALUES (?, ?, ?, 'active')", [MEMBER_PMC_ONLY, tenantId, ids.planner]);
+    await connection.query("INSERT INTO membership_roles (id, membershipId, roleId, scopeType) VALUES (?, ?, ?, 'company')", ["51b00000-0000-4000-8000-0000000000a3", MEMBER_PMC_ONLY, ROLE_PMC_ONLY]);
+    await caller("owner").warehouses.create({ tenantId, projectId: P, code: "Q51-WH", name: "Store (synthetic)" }); // no sheet makes a warehouse: the screens do
   }, 120_000);
-  afterAll(async () => { if (connection) { await clear(); await connection.end(); } });
+  afterAll(async () => { if (connection) { await clear(); await connection.end(); } await s3?.close(); });
 
   it("review of #527 — PREVIEW: says what each sheet would do, computed as the save would (later sheets see earlier ones), and writes nothing; the save refuses another file than the one previewed", async () => {
     const before = [await count("pmc_units"), await count("pmc_activity_definitions"), await count("pmc_inspection_requests")];
@@ -88,7 +110,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-51 batch 2a: applying 
     const first = byKey(await previewThenApply("owner", file));
     for (const key of ["units", "activities", "baseline", "status", "requests"]) expect(first[key], key).toMatchObject({ status: "applied", errors: [] });
     expect(first.units).toMatchObject({ counts: { create: 2, update: 0 } });
-    expect(first.models).toMatchObject({ status: "not_applied_yet" }); // its models are read through the units and activities sheets
+    expect(first.models).toMatchObject({ status: "feeds_other_sheets" }); // its models are read through the units and activities sheets
     expect(first.budget).toMatchObject({ status: "empty" });
     expect([await count("pmc_units"), await count("pmc_activity_definitions"), await count("pmc_inspection_requests")]).toEqual([2, 3, 1]);
     const again = byKey(await previewThenApply("owner", file));
@@ -118,4 +140,68 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-51 batch 2a: applying 
     await expect(caller("outsider").dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64: await workbook(FULL), approvedHash: "0".repeat(64) })).rejects.toThrow();
     expect(await count("pmc_units")).toBe(units);
   });
+  it("Q-51 batch 2b POSITIVE: project data, BOQ, budget, contracts, materials and opening stock go through their own importers; the team is only listed; a second upload duplicates nothing", async () => {
+    const file = await workbook({ ...FULL, ...OTHERS });
+    const first = byKey(await previewThenApply("owner", file));
+    for (const key of ["project", "boq", "budget", "contracts", "materials", "stock"]) expect(first[key], key).toMatchObject({ status: "applied", errors: [] });
+    expect(first.team).toMatchObject({ status: "awaiting_confirmation", rows: 1 });
+    expect(first.models).toMatchObject({ status: "feeds_other_sheets" });
+    const tally = async () => [await count("budget_lines"), await count("contracts"), await count("boq_items"), Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM material_masters WHERE tenantId = ?", [tenantId]))[0] as Array<{ n: number }>)[0].n)];
+    expect(await tally()).toEqual([1, 1, 1, 1]);
+    // no invitation is sent from an upload
+    expect(Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM membership_invitations WHERE tenantId = ?", [tenantId]))[0] as Array<{ n: number }>)[0].n)).toBe(0);
+    const again = byKey(await previewThenApply("owner", await workbook({ ...FULL, ...OTHERS })));
+    for (const key of ["budget", "contracts", "materials"]) expect(again[key], key).toMatchObject({ status: "applied" });
+    expect(await tally()).toEqual([1, 1, 1, 1]);
+  });
+
+  it("Q-51 batch 2b NEGATIVE: a project row with a finish before its start, and a stock row naming a warehouse the project lacks, are refused as their sheets — the upload goes on", async () => {
+    const result = byKey(await previewThenApply("owner", await workbook({
+      project: [{ code: "Q51-W", name: "Workbook", contractValue: 25000000, currency: "SAR", plannedStartAt: "2028-06-30", plannedFinishAt: "2027-01-01" }],
+      stock: [{ warehouseCode: "NO-SUCH-WH", materialCode: "Q51-MAT-1", quantity: 1, unitCost: 1 }],
+      budget: [{ costCode: "Q51-CIVIL-2", originalAmount: 1000, currentAmount: 1000 }],
+    })));
+    expect(result.project).toMatchObject({ status: "refused", errors: [{ sheet: "project", code: "PROJECT_OS_CONTRACT_DATES_INVALID" }] });
+    expect(result.stock).toMatchObject({ status: "refused" });
+    expect(result.stock.errors[0]).toMatchObject({ sheet: "stock", rowNumber: FIRST_DATA_ROW, code: "IMPORT_REFERENCE_NOT_FOUND" });
+    expect(result.budget).toMatchObject({ status: "applied" });
+  });
+
+
+  it("review of #531 — NEGATIVE then POSITIVE: a code made of digits stays text («007» is not «7»), so a second upload updates the same material; the preview counts what each general sheet would create and update", async () => {
+    const file = () => workbook({ materials: [{ code: "007", description: "Steel (synthetic)", unitOfMeasure: "t", category: "Steel" }], budget: [{ costCode: "0100", originalAmount: 900, currentAmount: 900 }] });
+    const first = byKey(await caller("owner").dataImports.projectWorkbookPreview({ tenantId, projectId: P, fileBase64: await file() }));
+    expect(first.materials).toMatchObject({ status: "will_apply", counts: { create: 1, update: 0 } });
+    await previewThenApply("owner", await file());
+    const [stored] = await connection.query<{ code: string }[]>("SELECT code FROM material_masters WHERE tenantId = ? AND code IN ('007', '7')", [tenantId]);
+    expect((stored as Array<{ code: string }>).map(row => row.code)).toEqual(["007"]);
+    const [budget] = await connection.query<{ costCode: string }[]>("SELECT costCode FROM budget_lines WHERE tenantId = ? AND projectId = ? AND costCode IN ('0100', '100')", [tenantId, P]);
+    expect((budget as Array<{ costCode: string }>).map(row => row.costCode)).toEqual(["0100"]);
+    const again = byKey(await caller("owner").dataImports.projectWorkbookPreview({ tenantId, projectId: P, fileBase64: await file() }));
+    expect(again.materials).toMatchObject({ status: "will_apply", counts: { create: 0, update: 1 } });
+    expect(again.budget).toMatchObject({ status: "will_apply", counts: { create: 0, update: 1 } });
+    const applied = byKey(await previewThenApply("owner", await file()));
+    expect(applied.materials).toMatchObject({ status: "applied", counts: { create: 0, update: 1 } });
+    expect(Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM material_masters WHERE tenantId = ? AND code IN ('007', '7')", [tenantId]))[0] as Array<{ n: number }>)[0].n)).toBe(1);
+  });
+
+  it("review of #531 — NEGATIVE: a person who may import PMC data but not costs, contracts, materials or the base file sees those sheets refused in the preview for lack of permission; the save writes none of them and still applies and reports the PMC sheets", async () => {
+    const file = await workbook({ ...FULL, budget: [{ costCode: "Q51-NOPERM", originalAmount: 1, currentAmount: 1 }], materials: [{ code: "Q51-NOPERM-MAT", description: "x (synthetic)", unitOfMeasure: "t", category: "x" }], boq: [{ code: "BOQ-NOPERM", description: "x (synthetic)", unitOfMeasure: "m3", quantity: 1, unitRate: 1 }], project: [{ code: "Q51-W", name: "Workbook", contractValue: 1000, currency: "SAR", plannedStartAt: "2027-01-01", plannedFinishAt: "2027-02-01" }] });
+    const analysesBefore = Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM data_imports WHERE tenantId = ? AND projectId = ?", [tenantId, P]))[0] as Array<{ n: number }>)[0].n);
+    const preview = byKey(await caller("planner").dataImports.projectWorkbookPreview({ tenantId, projectId: P, fileBase64: file }));
+    for (const key of ["budget", "materials", "boq", "project"]) {
+      expect(preview[key], key).toMatchObject({ status: "refused" });
+      expect(preview[key].errors[0].code, key).toMatch(/^PROJECT_OS_(TENANT_ACCESS|PERMISSION)_DENIED$/);
+    }
+    expect(preview.units).toMatchObject({ status: "will_apply" });
+    const applied = byKey(await caller("planner").dataImports.projectWorkbookApply({ tenantId, projectId: P, fileBase64: file, approvedHash: (await caller("planner").dataImports.projectWorkbookPreview({ tenantId, projectId: P, fileBase64: file })).fileHash }));
+    for (const key of ["budget", "materials", "boq", "project"]) expect(applied[key], key).toMatchObject({ status: "refused" });
+    for (const key of ["units", "activities"]) expect(applied[key], key).toMatchObject({ status: "applied" });
+    expect(Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM budget_lines WHERE tenantId = ? AND costCode = 'Q51-NOPERM'", [tenantId]))[0] as Array<{ n: number }>)[0].n)).toBe(0);
+    expect(Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM material_masters WHERE tenantId = ? AND code = 'Q51-NOPERM-MAT'", [tenantId]))[0] as Array<{ n: number }>)[0].n)).toBe(0);
+    expect(Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM boq_items WHERE tenantId = ? AND code = 'BOQ-NOPERM'", [tenantId]))[0] as Array<{ n: number }>)[0].n)).toBe(0);
+    // no analysis record is left behind for a sheet the person may not save
+    expect(Number(((await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM data_imports WHERE tenantId = ? AND projectId = ?", [tenantId, P]))[0] as Array<{ n: number }>)[0].n)).toBe(analysesBefore);
+  });
+
 });
