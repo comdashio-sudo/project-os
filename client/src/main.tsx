@@ -8,6 +8,7 @@ import { OfflineCopyNotice } from "@/components/OfflineCopyNotice";
 import { shouldRetryQuery } from "@/components/ScreenStates";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { installCachedReads } from "@/lib/cachedReads";
+import { installReleaseReload } from "@/lib/chunkReload";
 import "./index.css";
 
 // Q-18: the web font is fetched after the first paint instead of blocking it (index.html used to hold this stylesheet in its head, so a slow second
@@ -21,6 +22,8 @@ if (typeof document !== "undefined" && !document.querySelector(`link[href="${FON
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetryQuery } } });
 // G-100: the shell's two allowlisted reads (who am I, which companies) survive an offline start; nothing financial is ever kept.
 const cachedReads = installCachedReads(queryClient);
+// Q-56 (7): a page opened before a new release reloads once for it instead of failing on a removed code file
+installReleaseReload();
 
 const trpcClient = trpc.createClient({
   links: [
