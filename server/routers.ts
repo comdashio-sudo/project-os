@@ -7,6 +7,7 @@ import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmati
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, exportProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES, MINUTES_EXPORT_FORMATS } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getScheduleVillaLinks } from "./scheduleVillaLinks";
+import { getScheduleStageMapping, saveScheduleStageMapping } from "./scheduleStageMapping";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
@@ -1137,6 +1138,12 @@ export const appRouter = router({
     live: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getLiveSchedule({ userId: ctx.user.id, ...input })),
     // Q-61 (2): which villa each P6 activity belongs to, and where the schedule and the villas disagree (read only)
     villaLinks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getScheduleVillaLinks({ userId: ctx.user.id, ...input })),
+    // Q-61 (3): which schedule stages each weight group follows, once per project (suggested by name; saved with project.pmc.manage, audited)
+    stageMapping: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getScheduleStageMapping({ userId: ctx.user.id, ...input })),
+    saveStageMapping: protectedProcedure.input(z.object({
+      tenantId: z.string().uuid(), projectId: z.string().uuid(),
+      links: z.array(z.object({ groupId: z.string().uuid(), stageCodes: z.array(z.string().trim().min(1).max(80)).max(20), anchor: z.enum(["span", "start", "end"]) })).min(1).max(200),
+    })).mutation(({ ctx, input }) => saveScheduleStageMapping({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),

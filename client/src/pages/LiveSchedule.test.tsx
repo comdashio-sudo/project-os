@@ -10,6 +10,8 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: f
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: ({ id, options, value, onValueChange }: { id?: string; options: Array<{ value: string; label: string }>; value: string; onValueChange: (value: string) => void }) => (
   <select id={id} value={value} onChange={event => onValueChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
 ) }));
+// Q-61 (3): the stage mapping has its own test (client/src/components/ScheduleStageMapping.test.tsx)
+vi.mock("@/components/ScheduleStageMapping", () => ({ ScheduleStageMapping: () => null }));
 vi.mock("@/lib/trpc", () => ({ trpc: { schedule: { live: { useQuery: () => ({ data: h.data, isLoading: false, isError: false, error: null, refetch: vi.fn() }) }, compare: { useQuery: () => ({ data: undefined, isLoading: false, isError: false, error: null, refetch: vi.fn() }) } } } }));
 
 import LiveSchedule from "./LiveSchedule";

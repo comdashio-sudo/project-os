@@ -55,6 +55,7 @@
     "0052_subcontract_activity_boq_links.sql": "4811be024f50d6c64a14da3d364bd43ffb4cd9dfb37073042b80cb2ffda9787b",
     "0053_site_reports_many_per_day.sql": "d110f1612b3ad5d50b5eaa1c3205c20c4d376684a676fdaa795b4cac4d3ce1f1",
     "0054_strategy_changes_erasure.sql": "4a8728f53db30e6c748745c95c998836c136436bcffed2c1b3fe6c77acb1435b",
-    "0055_master_plan_links_pmc_units.sql": "9fb631a6023be090e4c05c10dc3a4a930fa8538c9a6e3785db569ff62a81e9da"
+    "0055_pmc_schedule_stage_links.sql": "d22b465f537335fa725cb77fe0333ad9b5594ffcc0cef63a5dee9a68c56de4cf",
+    "0056_master_plan_links_pmc_units.sql": "9fb631a6023be090e4c05c10dc3a4a930fa8538c9a6e3785db569ff62a81e9da"
   }
 }
