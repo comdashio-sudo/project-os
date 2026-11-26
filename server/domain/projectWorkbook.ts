@@ -97,7 +97,8 @@ const INDIGO = "FF3730A3"; const LIGHT = "FFE0E7FF"; const RED = "FFFCA5A5"; con
 const letter = (index: number) => { let n = index; let out = ""; while (n > 0) { const m = (n - 1) % 26; out = String.fromCharCode(65 + m) + out; n = Math.floor((n - 1) / 26); } return out; };
 
 /** Builds the workbook in a language (the read-me, the third header row and the sheet names follow it; the two header rows are always Arabic and English). */
-export async function buildProjectWorkbook(input: { locale: WorkbookLocale }) {
+/** Q-51 batch 3: `fill` writes a project's own rows (by sheet key, cells by column key) from the first data row, below the examples. */
+export async function buildProjectWorkbook(input: { locale: WorkbookLocale; fill?: Record<string, Array<Record<string, string | number | null>>> }) {
   const t = T[input.locale]; const rtl = input.locale !== "en";
   const book = new ExcelJS.Workbook(); book.creator = "Dashio";
   const sheets = projectWorkbookSheets();
@@ -132,6 +133,7 @@ export async function buildProjectWorkbook(input: { locale: WorkbookLocale }) {
       row.values = [t.example, ...sheet.columns.map(column => example[column.key] ?? null)];
       row.font = { italic: true, color: { argb: "FF64748B" } };
     });
+    (input.fill?.[sheet.key] ?? []).forEach((values, index) => { ws.getRow(FIRST_DATA_ROW + index).values = ["", ...sheet.columns.map(column => values[column.key] ?? null)]; });
     // a key left empty on a row that has data is red; a repeated key (all its parts together) amber — on data rows only, never on the examples
     const lastCol = letter(sheet.columns.length + 1); const range = (col: string) => `$${col}$${FIRST_DATA_ROW}:$${col}$${LAST_ROW}`;
     const keyCols = sheet.keys.map(key => letter(sheet.columns.findIndex(column => column.key === key) + 2));

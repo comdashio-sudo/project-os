@@ -79,4 +79,12 @@ describe("Q-51 batch 2a: reading the project workbook", () => {
     expect(read.units).toMatchObject({ status: "errors", rows: [], errors: [{ code: "WORKBOOK_TOO_MANY_ROWS" }] });
     expect(read.models.status).toBe("empty");
   });
+  it("Q-51 batch 3 — POSITIVE: rows given to the generator as «fill» are written from the first data row and read back exactly; NEGATIVE: without fill nothing is read", async () => {
+    const fill = { models: [{ modelCode: "M1" }], units: [{ zoneCode: "Z1", blockCode: "B1", unitNumber: 101, modelCode: "M1", unitWeight: 1.5 }] };
+    const read = await report((await buildProjectWorkbook({ locale: "ur", fill })).bytes);
+    expect(read.units.rows).toEqual([{ row: FIRST_DATA_ROW, cells: expect.objectContaining({ zoneCode: "Z1", blockCode: "B1", unitNumber: "101", modelCode: "M1", unitWeight: "1.5" }) }]);
+    expect(read.models.status).toBe("complete");
+    const blank = await report((await buildProjectWorkbook({ locale: "ur" })).bytes);
+    expect(Object.values(blank).every(sheet => sheet.status === "empty")).toBe(true);
+  });
 });
