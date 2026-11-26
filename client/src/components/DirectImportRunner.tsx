@@ -49,7 +49,7 @@ const text = {
     uploadFailed: "تعذّر رفع الملف إلى التخزين. تحقق من الاتصال وأعد المحاولة.",
     uploading: "جارٍ رفع الملف", analyzing: "جارٍ تحليل الملف", importing: "جارٍ كتابة السجلات", progressLabel: "تقدم المعالجة",
     stage: { queued: "في الانتظار", downloading: "قراءة الملف من التخزين", parsing: "قراءة الصفوف", validating: "التحقق من الصفوف", writing: "حفظ النتيجة" } as Record<string, string>,
-    failedTitle: "فشلت المعالجة", errors: "أخطاء التحقق", row: "الصف", moreErrors: "تُعرض أول الأخطاء فقط؛ العدد الكامل أعلاه.",
+    failedTitle: "فشلت المعالجة", importedOn: "استُورد في", errors: "أخطاء التحقق", row: "الصف", moreErrors: "تُعرض أول الأخطاء فقط؛ العدد الكامل أعلاه.",
     rows: "الصفوف", created: "السجلات المنشأة", updated: "السجلات المحدّثة", skipped: "السجلات المتجاوزة", nothingToConfirm: "الملف سليم لكنه لا يغيّر شيئًا: المشروع يحمل هذه البيانات بالفعل.", done: "اكتمل الحفظ",
   },
   en: {
@@ -57,14 +57,14 @@ const text = {
     uploadFailed: "The file could not be uploaded to storage. Check your connection and try again.",
     uploading: "Uploading the file", analyzing: "Analysing the file", importing: "Writing the records", progressLabel: "Processing progress",
     stage: { queued: "Waiting to start", downloading: "Reading the file from storage", parsing: "Reading the rows", validating: "Validating the rows", writing: "Saving the result" } as Record<string, string>,
-    failedTitle: "Processing failed", errors: "Validation errors", row: "Row", moreErrors: "Only the first errors are listed; the full count is above.",
+    failedTitle: "Processing failed", importedOn: "Imported on", errors: "Validation errors", row: "Row", moreErrors: "Only the first errors are listed; the full count is above.",
     rows: "Rows", created: "Records created", updated: "Records updated", skipped: "Records skipped", nothingToConfirm: "The file is valid but changes nothing: the project already holds this data.", done: "Saved",
   }, ur: {
     noFile: "تجزیہ سے پہلے ایک فائل منتخب کریں۔", typeError: "قابلِ قبول فارمیٹ XLSX یا CSV ہیں۔", sizeError: `فائل ${MAX_IMPORT_UPLOAD_MB} MB کی حد سے بڑی ہے۔`,
     uploadFailed: "فائل اسٹوریج پر اپ لوڈ نہیں ہو سکی۔ اپنا کنکشن دیکھیں اور دوبارہ کوشش کریں۔",
     uploading: "فائل اپ لوڈ ہو رہی ہے", analyzing: "فائل کا تجزیہ ہو رہا ہے", importing: "ریکارڈ لکھے جا رہے ہیں", progressLabel: "کارروائی کی پیش رفت",
     stage: { queued: "شروع ہونے کا انتظار", downloading: "اسٹوریج سے فائل پڑھی جا رہی ہے", parsing: "قطاریں پڑھی جا رہی ہیں", validating: "قطاروں کی توثیق ہو رہی ہے", writing: "نتیجہ محفوظ ہو رہا ہے" } as Record<string, string>,
-    failedTitle: "کارروائی ناکام ہو گئی", errors: "توثیق کی غلطیاں", row: "قطار", moreErrors: "صرف پہلی غلطیاں دکھائی گئی ہیں؛ مکمل تعداد اوپر ہے۔",
+    failedTitle: "کارروائی ناکام ہو گئی", importedOn: "درآمد کی تاریخ", errors: "توثیق کی غلطیاں", row: "قطار", moreErrors: "صرف پہلی غلطیاں دکھائی گئی ہیں؛ مکمل تعداد اوپر ہے۔",
     rows: "قطاریں", created: "بنائے گئے ریکارڈ", updated: "اپ ڈیٹ ہونے والے ریکارڈ", skipped: "چھوڑے گئے ریکارڈ", nothingToConfirm: "فائل درست ہے مگر اس سے کچھ تبدیل نہیں ہوتا: پروجیکٹ میں یہ ڈیٹا پہلے سے موجود ہے۔", done: "محفوظ ہو گیا",
   },
 };
@@ -73,6 +73,13 @@ const text = {
  * The file travels browser → Storage by a signed URL (no request body carries it, so the host's 4.5 MB ceiling does not apply, up to 50 MB), then a background job
  * analyses it and, after confirmation, writes it; this component shows that progress. It is the PMC and master-plan screens' counterpart of the general importer's screen.
  */
+/** Q-62: «already imported» says when and under which file name (the server's ALREADY_IMPORTED entry: «2026-11-26 08:10 UTC · villas.xlsx»). */
+export function alreadyImportedWhen(error: unknown, label: string): string {
+  const issues = (error as { data?: { issues?: Array<{ code?: string; detail?: string }> } } | null)?.data?.issues;
+  const detail = Array.isArray(issues) ? issues.find(item => item.code === "ALREADY_IMPORTED")?.detail : undefined;
+  return detail ? ` ${label}: ${detail}` : "";
+}
+
 export function DirectImportRunner({ tenantId, projectId, moduleCode, context, isArabic, fileLabel, analyzeLabel, confirmLabel, autoConfirm = false, withDiff = false, fieldLabel, errorLabel, showErrors = true, renderReport, renderResult, onCompleted, dropzone = false, templates = false }: Props) {
   const lang = useOptionalLanguage() ?? resolveLanguage(isArabic);
   const t = text[lang];
@@ -122,7 +129,7 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
       await registerUpload.mutateAsync({ tenantId, projectId, moduleCode, fileName: file.name, sourceFormat: format, uploadKey: target.uploadKey, context });
     } catch (error) {
       setUploadPercent(null);
-      setUploadError(error instanceof UploadFailure ? t.uploadFailed : getLocalizedProjectError(error, lang));
+      setUploadError(error instanceof UploadFailure ? t.uploadFailed : `${getLocalizedProjectError(error, lang)}${alreadyImportedWhen(error, t.importedOn)}`);
     }
   };
 

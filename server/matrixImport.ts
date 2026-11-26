@@ -210,7 +210,7 @@ async function runTracker(tx: Tx, input: Scope, model: TrackerModel, fileHash: s
   const now = new Date();
   await syncPmcProgressToEvm(tx, input, now);
   if (source) {
-    await assertFileNotAlreadyImported(db as never, { tenantId: input.tenantId, fileHash });
+    await assertFileNotAlreadyImported(db as never, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: "pmcMatrix", fileHash });
     const importId = randomUUID();
     await tx.insert(dataImports).values({
       id: importId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: "pmcMatrix", templateCode: "pmcTracker_v1", sourceFormat: "xlsx", fileName: source.name, fileKey: source.key, fileHash, status: "completed",

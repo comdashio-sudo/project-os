@@ -2181,7 +2181,7 @@ export const dataImports = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }), completedAt: timestamp("completed_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   // Only a CONFIRMED import (confirmed / importing / completed) holds its file's hash. A rejected or unconfirmed analysis wrote nothing and releases it: the same file may be uploaded again.
-  table => [index("data_imports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), uniqueIndex("data_imports_tenant_file_hash_unique").on(table.tenantId, table.fileHash).where(sql`${table.status} IN ('confirmed', 'importing', 'completed')`)],
+  table => [index("data_imports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), uniqueIndex("data_imports_tenant_file_hash_unique").on(table.tenantId, table.projectId, table.moduleCode, table.fileHash).where(sql`${table.status} IN ('confirmed', 'importing', 'completed')`)],
 );
 
 export const dataImportErrorsSeverityEnum = pgEnum("data_import_errors_severity", ["error", "warning"]);
