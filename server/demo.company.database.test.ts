@@ -4,6 +4,8 @@ import fixtureDb, { type Connection } from "./testing/pgCompat";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 import { wbsProgressFromPmc } from "./domain/pmcEvmBridge";
 import { sdk } from "./_core/sdk";
+import { DEMO_PEOPLE } from "../scripts/demo/demoData";
+const DEMO_PEOPLE_COUNT = DEMO_PEOPLE.length;
 
 // Work order 15, item 1: the demonstration company "شركة العرض" is built on a real database, is built once, touches no other company, is complete enough to sell with,
 // and is erased by the platform's audited erasure with a verification that nothing of it is left. The seed runs as the OWNER role (it is a setup script, like a migration);
@@ -63,7 +65,7 @@ describe.skipIf(!run)("the demonstration company", () => {
     const [[snapshots]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM evm_snapshots WHERE tenantId = ? AND projectId = ?", [tenantId, projectId]);
     expect(Number(snapshots.n)).toBe(3);
     // work order 17, item 4: human resources, "my indicators", photos (only with a storage service), knowledge
-    expect(await count("employees")).toBe(16);
+    expect(await count("employees")).toBe(DEMO_PEOPLE_COUNT + 6); // the people of the demonstration (Q-55 (3) added the safety engineer and the operations manager) and six of the site's workforce
     expect(await count("employee_attendance")).toBeGreaterThanOrEqual(150);
     expect(await count("knowledge_articles", "AND status = 'published'")).toBe(5);
     const photos = await count("site_daily_report_photos");
@@ -72,7 +74,7 @@ describe.skipIf(!run)("the demonstration company", () => {
     const [keys] = await connection.query<{ k: string }[]>("SELECT storageKey AS k FROM site_daily_report_photos WHERE tenantId = ? UNION ALL SELECT fileKey AS k FROM data_imports WHERE tenantId = ? AND fileKey IS NOT NULL", [tenantId, tenantId]);
     for (const { k } of keys) expect(s3!.objects.has(k), `${k} among ${Array.from(s3!.objects.keys()).slice(0, 3).join(" , ")}`).toBe(true);
     const [[linked]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM employees WHERE tenantId = ? AND linkedUserId IS NOT NULL", [tenantId]);
-    expect(Number(linked.n)).toBe(10);
+    expect(Number(linked.n)).toBe(DEMO_PEOPLE_COUNT); // every person of the demonstration has an employee record linked to their account
     for (const email of ["site.engineer.1@show.example.test", "site.engineer.2@show.example.test", "quality.manager@show.example.test"]) {
       const mine = await (await asPerson(email)).performance.get({ tenantId, projectId });
       expect(mine.employee.isOwn, email).toBe(true);
@@ -175,6 +177,37 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect((await pm.pmcSite.comparison({ ...scope, limit: 1 })).notCompared).toBeGreaterThan(0);
     await owner.pmcSite.linkConsultantColumns({ ...scope, links: [{ columnId: matched.id, activityCode: matched.activityCode }] });
     expect((await pm.pmcSite.comparison({ ...scope, limit: 1 })).totals).toEqual(comparison.totals);
+  });
+
+  it("Q-55 (3a): the safety engineer's register (incidents, permits, rates) and the project manager's meetings with their minutes and actions, through the platform's own procedures", async () => {
+    const scope = { tenantId, projectId };
+    const pm = await asPerson("project.manager@show.example.test");
+    // the register is the reports-mode project's (its dailies give the man-hours), read by the safety engineer who keeps it
+    const register = await (await asPerson("safety.engineer@show.example.test")).safety.register({ tenantId, projectId: project2Id });
+    expect(register.incidents.map(incident => incident.incidentNumber).sort()).toEqual(["INC-001", "INC-002", "INC-003", "INC-004"]);
+    expect(register.incidents.filter(incident => incident.status === "closed")).toHaveLength(2);
+    expect(register.permits.map(permit => permit.permitNumber).sort()).toEqual(["PTW-101", "PTW-102", "PTW-103", "PTW-104", "PTW-105"]);
+    expect(register.permits.filter(permit => permit.state === "closed")).toHaveLength(2);
+    // the man-hours of the reports-mode project's approved dailies make the rates real numbers: one lost-time incident, which is also the one recordable (a first-aid case is not recordable)
+    expect(register.rates.manHours).toBeGreaterThan(0);
+    expect(register.rates).toMatchObject({ lostTime: 1, recordable: 1 });
+    expect(register.rates.ltifr).toBeGreaterThan(0);
+    // every incident is the safety engineer's, as the audit trail says
+    const [[hse]] = await connection.query<{ id: number }[]>("SELECT id FROM users WHERE email = ?", ["safety.engineer@show.example.test"]);
+    const [[recorded]] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM audit_logs WHERE tenantId = ? AND actorUserId = ? AND entityType IN ('safety_incident', 'work_permit')", [tenantId, hse.id]);
+    expect(recorded.n).toBeGreaterThanOrEqual(4 + 5);
+    const meetings = await pm.meetings.list(scope);
+    expect(meetings).toHaveLength(3);
+    expect(meetings.filter(meeting => meeting.status === "issued")).toHaveLength(2);
+    expect(meetings.reduce((sum, meeting) => sum + meeting.openActions, 0)).toBe(5);
+    const first = await pm.meetings.get({ ...scope, meetingId: meetings.find(meeting => meeting.title.startsWith("اجتماع التقدم"))!.id });
+    expect(first.items).toHaveLength(3);
+    // the operations manager reads every project of the company, the safety engineer only this one
+    const ops = await asPerson("operations.manager@show.example.test");
+    expect((await ops.operations.overview({ tenantId })).projects.length).toBeGreaterThanOrEqual(2);
+    // NEGATIVE: the operations manager writes no safety record (no project.hse.manage)
+    // (review of #530) the refusal is for the missing project.hse.manage, not any other error
+    await expect(ops.safety.recordIncident({ ...scope, incidentNumber: "INC-X", occurredOn: "2026-01-01", kind: "near_miss", title: "x (عرض)", description: "x (عرض)" })).rejects.toMatchObject({ message: "PROJECT_OS_PERMISSION_DENIED" });
   });
 
   it("Q-55 (2): the latest report of the reports-mode project exports as Word, with its parties and its sections", async () => {

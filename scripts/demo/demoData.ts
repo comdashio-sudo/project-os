@@ -45,6 +45,9 @@ export const DEMO_PEOPLE: readonly DemoPerson[] = [
   { key: "coord", email: "project.coordinator@show.example.test", name: "منسق المشروع (عرض)", role: "PROJECT_COORDINATOR", scope: "project", level: "التنسيق" },
   { key: "cost", email: "cost.controller@show.example.test", name: "مراقب التكاليف (عرض)", role: "COST_CONTROLLER", scope: "project", level: "التكلفة" },
   { key: "plan", email: "planning.engineer@show.example.test", name: "مهندس التخطيط (عرض)", role: "PLANNING_ENGINEER", scope: "project", level: "التخطيط" },
+  // Q-55 (3): the safety engineer who keeps the incidents and the permits to work, and the operations manager who follows every project (Q-53)
+  { key: "hse", email: "safety.engineer@show.example.test", name: "مهندس السلامة (عرض)", role: "HSE_MANAGER", scope: "project", level: "السلامة" },
+  { key: "ops", email: "operations.manager@show.example.test", name: "مدير العمليات (عرض)", role: "OPERATIONS_MANAGER", scope: "company", level: "التشغيل" },
 ];
 
 export const CONSULTANTS = ["استشاري العرض أ", "استشاري العرض ب", "استشاري العرض ج"] as const;
