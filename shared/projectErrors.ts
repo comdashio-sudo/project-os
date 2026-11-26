@@ -1847,9 +1847,9 @@ export const projectErrorMessages = {
     ur: "اکائی کی لاگت صفر سے زیادہ عدد ہونی چاہیے۔",
   },
   PROJECT_OS_IMPORT_DUPLICATE_DETECTED: {
-    ar: "هذا الملف مستورد سابقًا في هذا المشروع.",
-    en: "This file was already imported into this project.",
-    ur: "یہ فائل اس پروجیکٹ میں پہلے ہی درآمد ہو چکی ہے۔",
+    ar: "هذا الملف نفسه مستورد سابقًا في هذا المشروع بنوع الاستيراد نفسه. الملف نفسه بنوع استيراد آخر أو في مشروع آخر مقبول.",
+    en: "This same file was already imported into this project with this same kind of import. The same file with another kind of import, or into another project, is accepted.",
+    ur: "یہی فائل اس پروجیکٹ میں اسی قسم کی درآمد کے ساتھ پہلے درآمد ہو چکی ہے۔ یہی فائل کسی دوسری قسم کی درآمد یا دوسرے پروجیکٹ میں قبول ہے۔",
   },
   PROJECT_OS_CONSULTANT_EXPORT_NOT_RECOGNISED: {
     ar: "لم نتعرّف على هذا الملف كتصدير من نظام الاستشاري (نبحث عن صف فيه Zone وBlock وUnit وVilla Type، ثم الأنشطة ورقم WIR لكل نشاط).",
@@ -1920,6 +1920,21 @@ export const projectErrorMessages = {
     ar: "أحد الحضور المختارين ليس عضوًا نشطًا في هذه الشركة.",
     en: "One of the attendees chosen is not an active member of this company.",
     ur: "منتخب حاضرین میں سے ایک اس کمپنی کا فعال رکن نہیں۔",
+  },
+  PROJECT_OS_SCHEDULE_BASELINE_REASON_REQUIRED: {
+    ar: "اكتب سبب اعتماد خط الأساس الجديد (خمسة أحرف على الأقل).",
+    en: "Write why this becomes the new baseline (at least five characters).",
+    ur: "نیا بنیادی منصوبہ منظور کرنے کی وجہ لکھیں (کم از کم پانچ حروف)۔",
+  },
+  PROJECT_OS_SCHEDULE_BASELINE_NOT_IMPORT: {
+    ar: "يُعتمد خط أساس جديد من استيراد P6 كامل فقط، لا من تحديث أنشطة.",
+    en: "Only a full P6 import can become the new baseline, not an activity update.",
+    ur: "صرف مکمل P6 درآمد نیا بنیادی منصوبہ بن سکتی ہے، سرگرمیوں کی تازہ کاری نہیں۔",
+  },
+  PROJECT_OS_SCHEDULE_ALREADY_BASELINE: {
+    ar: "هذا الاستيراد هو خط الأساس الحالي.",
+    en: "This import is already the baseline.",
+    ur: "یہ درآمد پہلے ہی بنیادی منصوبہ ہے۔",
   },
   PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND: {
     ar: "إحدى لقطتي المقارنة غير موجودة في هذا المشروع.",

@@ -47,8 +47,9 @@ export async function unitsByVilla(db: Pick<Db, "select">, input: Scope) {
 
 export const chunks = <T,>(items: T[], size = 500) => Array.from({ length: Math.ceil(items.length / size) }, (_unused, index) => items.slice(index * size, (index + 1) * size));
 
-/** The same file is refused only once a copy of it was CONFIRMED (the rule of the import log: a refused or unconfirmed attempt never blocks it). */
-export async function assertNotImportedYet(db: Pick<Db, "select">, input: { tenantId: string; fileHash: string }) {
-  const [hit] = await db.select({ id: dataImports.id }).from(dataImports).where(and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.fileHash, input.fileHash), inArray(dataImports.status, ["confirmed", "importing", "completed"]))).limit(1);
-  if (hit) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED" });
+/** The same file is refused only once a copy of it was CONFIRMED (the rule of the import log: a refused or unconfirmed attempt never blocks it) — Q-62: for the
+ *  same company, project and kind of import, as the unique index now holds; the refusal says when and under which name. */
+export async function assertNotImportedYet(db: Pick<Db, "select">, input: { tenantId: string; projectId: string; moduleCode: string; fileHash: string }) {
+  const [hit] = await db.select({ id: dataImports.id, fileName: dataImports.fileName, createdAt: dataImports.createdAt, completedAt: dataImports.completedAt }).from(dataImports).where(and(eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), eq(dataImports.moduleCode, input.moduleCode), eq(dataImports.fileHash, input.fileHash), inArray(dataImports.status, ["confirmed", "importing", "completed"]))).limit(1);
+  if (hit) throw new TRPCError({ code: "CONFLICT", message: "PROJECT_OS_IMPORT_DUPLICATE_DETECTED", cause: { issues: [{ code: "ALREADY_IMPORTED", detail: `${(hit.completedAt ?? hit.createdAt).toISOString().slice(0, 16).replace("T", " ")} UTC · ${hit.fileName}` }] } as never });
 }

@@ -18,6 +18,9 @@ import { readGrid } from "./domain/smartImport/sheetReader";
 import { IMPORTED_BY, isSiteWorkbook, readSiteWorkbook, type SiteRejection, type SiteStatus, type SiteWorkbook } from "./domain/smartImport/siteWorkbook";
 import { assertNotImportedYet, chunks, FINANCIAL_PERMISSION, holds, pmcGate, siteToday, unitsByVilla, villaKey, type Db, type Scope } from "./wo22Shared";
 
+// Q-62: this importer's kind in the import log (data_imports.module_code) — the duplicate guard is per kind
+const importModule = "pmcSiteLegacy";
+
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 const ORDER: SiteStatus[] = ["NOT_STARTED", "IN_PROGRESS", "DONE", "INSPECTION_REQUESTED", "QC_APPROVED"];
 const DATE_COLUMN = { NOT_STARTED: "notStartedOn", IN_PROGRESS: "inProgressOn", DONE: "doneOn", INSPECTION_REQUESTED: "inspectionRequestedOn", QC_APPROVED: "qcApprovedOn" } as const;
@@ -207,7 +210,7 @@ export async function confirmSiteLegacyImport(input: Scope & { bytes: Uint8Array
   const { book, asOf, fileHash } = await read(input.bytes);
   if (input.approvedHash && input.approvedHash !== fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_IMPORT_FILE_CHANGED" });
   const db = await pmcGate(input, "project.pmc.manage");
-  await assertNotImportedYet(db, { tenantId: input.tenantId, fileHash });
+  await assertNotImportedYet(db, { tenantId: input.tenantId, projectId: input.projectId, moduleCode: importModule, fileHash });
   const plan = await inTransaction(input, book, asOf, fileHash, input.source, true);
   if (plan.errors.length || !plan.canConfirm || !(plan as { importId?: string }).importId) throw new TRPCError({ code: "BAD_REQUEST", message: plan.errors[0]?.code === "SITE_LEGACY_ALREADY_IMPORTED" ? "PROJECT_OS_SITE_LEGACY_ALREADY_IMPORTED" : "PROJECT_OS_IMPORT_VALIDATION_FAILED", cause: plan.errors });
   return plan;
