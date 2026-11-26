@@ -3,7 +3,7 @@ import { formatAmount, formatNumber } from "@/components/ds/format";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { formatPlanningAmount, formatPlanningPercent, planningHeadline, type PlanningControlResult } from "@/lib/planningControl";
+import { formatPlanningAmount, formatPlanningPercent, nextTwoWeeks, planningHeadline, type PlanningControlInput, type PlanningControlResult } from "@/lib/planningControl";
 import { pickLanguage } from "@/lib/language";
 
 type Props = {
@@ -12,6 +12,10 @@ type Props = {
   isLoading?: boolean;
   /** Opens the file upload. With it, a missing schedule or budget becomes one button («Upload the budget»); without it (no right to import) the step is only said. */
   onUpload?: () => void;
+  /** Q-64 batch 2: where the plan says the project should be today, and what the site has done (from the baseline's planned curve); absent until there is a baseline. */
+  plan?: { planned: number; actual: number | null } | null;
+  /** the schedule's activities, for the «next two weeks» section */
+  activities?: PlanningControlInput["activities"];
 };
 
 /** A quantity is written as it is: 12 not 12.000, 12.5 not 12.500. */
@@ -21,7 +25,7 @@ const quantity = (value: number) => formatAmount(value, 2);
  * Q-64: the planning page's top block, rebuilt so it reads at a glance. One sentence says where the project stands; then the sections in the order a planner asks —
  * schedule, cost, materials — and a section appears only when there is something to say. What is missing is one understandable step (with its button), never a card of zeroes.
  */
-export function PlanningControlCenter({ result, currency, isLoading = false, onUpload }: Props) {
+export function PlanningControlCenter({ result, currency, isLoading = false, onUpload, plan = null, activities = [] }: Props) {
   const { language } = useLanguage();
   const t = pickLanguage(language, {
     ar: {
@@ -31,6 +35,7 @@ export function PlanningControlCenter({ result, currency, isLoading = false, onU
       materials: "المواد والمستودع", issued: "المصروف من المطلوب", of: "من", onHand: "الرصيد في المستودع", openRequests: "طلبات مواد لم تكتمل",
       noScheduleTitle: "لا جدول زمني بعد", noScheduleAction: "ارفع الجدول", noBudgetTitle: "لا ميزانية بعد", noBudgetAction: "ارفع الميزانية",
       moneyHidden: "المبالغ مخفية عنك: تحتاج صلاحية قراءة التدفق النقدي.", next: "الخطوات التالية",
+      upcoming: "الأسبوعان القادمان", toStart: "تبدأ", toFinish: "تنتهي", more: (n: number) => `و${n} أخرى`,
       undated: (n: number) => `${n} نشاطًا بلا تواريخ: أضف تواريخها ليظهر الجدول كاملًا.`,
       unlinkedBoq: (n: number) => `${n} بندًا من جدول الكميات غير مربوط ببند في هيكل العمل.`,
       unlinkedCost: (n: number) => `${n} تكلفة فعلية غير مربوطة ببند في هيكل العمل.`,
@@ -42,6 +47,7 @@ export function PlanningControlCenter({ result, currency, isLoading = false, onU
       materials: "Materials and stores", issued: "Issued of requested", of: "of", onHand: "On hand in stores", openRequests: "Material requests not yet filled",
       noScheduleTitle: "No schedule yet", noScheduleAction: "Upload the schedule", noBudgetTitle: "No budget yet", noBudgetAction: "Upload the budget",
       moneyHidden: "The amounts are hidden from you: you need the cash-flow read permission.", next: "Next steps",
+      upcoming: "The next two weeks", toStart: "Due to start", toFinish: "Due to finish", more: (n: number) => `and ${n} more`,
       undated: (n: number) => `${n} activities have no dates: add them so the schedule is complete.`,
       unlinkedBoq: (n: number) => `${n} bill-of-quantities lines are not linked to a work-structure item.`,
       unlinkedCost: (n: number) => `${n} actual costs are not linked to a work-structure item.`,
@@ -53,6 +59,7 @@ export function PlanningControlCenter({ result, currency, isLoading = false, onU
       materials: "مواد اور گودام", issued: "مانگے گئے میں سے جاری", of: "میں سے", onHand: "گودام میں موجود", openRequests: "مواد کی نامکمل درخواستیں",
       noScheduleTitle: "ابھی کوئی شیڈول نہیں", noScheduleAction: "شیڈول اپ لوڈ کریں", noBudgetTitle: "ابھی کوئی بجٹ نہیں", noBudgetAction: "بجٹ اپ لوڈ کریں",
       moneyHidden: "رقمیں آپ سے پوشیدہ ہیں: نقد بہاؤ دیکھنے کی اجازت درکار ہے۔", next: "اگلے مراحل",
+      upcoming: "اگلے دو ہفتے", toStart: "شروع ہونی ہیں", toFinish: "ختم ہونی ہیں", more: (n: number) => `اور ${n} مزید`,
       undated: (n: number) => `${n} سرگرمیوں کی تاریخیں نہیں ہیں: انہیں شامل کریں تاکہ شیڈول مکمل ہو۔`,
       unlinkedBoq: (n: number) => `${n} سطریں کام کے ڈھانچے کی کسی شق سے نہیں جڑیں۔`,
       unlinkedCost: (n: number) => `${n} اصل لاگتیں کام کے ڈھانچے کی کسی شق سے نہیں جڑیں۔`,
@@ -62,6 +69,7 @@ export function PlanningControlCenter({ result, currency, isLoading = false, onU
   const hasSchedule = result.activityCount > 0;
   const hasBudget = result.moneyVisible && result.budget > 0;
   const hasMaterials = result.requestedQuantity > 0 || result.onHandQuantity > 0;
+  const upcoming = nextTwoWeeks(activities, result.asOf);
   const steps = [
     ...(result.undatedActivities > 0 ? [t.undated(result.undatedActivities)] : []),
     ...(result.unlinkedBoqLines > 0 ? [t.unlinkedBoq(result.unlinkedBoqLines)] : []),
@@ -70,7 +78,7 @@ export function PlanningControlCenter({ result, currency, isLoading = false, onU
 
   return <section aria-label={t.title} data-risk={result.riskLevel} className="rounded-[var(--radius-card)] border border-border bg-card p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0 flex-1 basis-64"><h2 className="sr-only">{t.title}</h2><p data-planning-headline="" className="max-w-3xl text-lg font-semibold leading-8 text-foreground">{planningHeadline(result, currency, language)}</p></div>
+      <div className="min-w-0 flex-1 basis-64"><h2 className="sr-only">{t.title}</h2><p data-planning-headline="" className="max-w-3xl text-lg font-semibold leading-8 text-foreground">{planningHeadline(result, currency, language, plan)}</p></div>
       {hasSchedule ? <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${result.riskLevel === "attention" ? "bg-warning/20 text-warning-soft-foreground" : "bg-success/20 text-success-soft-foreground"}`}>{result.riskLevel === "attention" ? <AlertTriangle aria-hidden="true" className="h-4 w-4" /> : <CheckCircle2 aria-hidden="true" className="h-4 w-4" />}{result.riskLevel === "attention" ? t.attention : t.controlled}</div> : null}
     </div>
     {isLoading ? <p role="status" className="mt-5 text-sm text-muted-foreground">{t.loading}</p> : <div className="mt-5 grid gap-5">
@@ -80,6 +88,14 @@ export function PlanningControlCenter({ result, currency, isLoading = false, onU
         <Metric label={t.late} value={formatNumber(result.overdueActivities)} tone={result.overdueActivities > 0 ? "warning" : undefined} />
         {result.blockedActivities > 0 ? <Metric label={t.blocked} value={formatNumber(result.blockedActivities)} tone="warning" /> : null}
       </Group> : <Step title={t.noScheduleTitle} action={onUpload ? { label: t.noScheduleAction, run: onUpload } : undefined} />}
+
+      {upcoming.startingCount + upcoming.finishingCount > 0 ? <div data-planning-upcoming=""><h3 className="text-sm font-semibold text-foreground">{t.upcoming}</h3><div className="mt-2 grid gap-3 md:grid-cols-2">
+        {([[t.toStart, upcoming.starting, upcoming.startingCount, "start"], [t.toFinish, upcoming.finishing, upcoming.finishingCount, "finish"]] as const).map(([label, rows, count, key]) => count > 0 ? <div key={key} data-upcoming={key} className="rounded-xl border border-border bg-white p-4">
+          <p className="text-xs font-semibold text-muted-foreground">{label} <bdi dir="ltr">({formatNumber(count)})</bdi></p>
+          <ul className="mt-2 grid gap-1.5 text-sm">{rows.map(row => <li key={row.id} className="flex items-baseline justify-between gap-3"><span className="min-w-0 truncate"><bdi dir="ltr" className="font-mono text-xs text-muted-foreground">{row.code}</bdi> {row.name}</span><bdi dir="ltr" className="shrink-0 text-xs text-muted-foreground">{row.date}</bdi></li>)}</ul>
+          {count > rows.length ? <p className="mt-2 text-xs text-muted-foreground">{t.more(count - rows.length)}</p> : null}
+        </div> : null)}
+      </div></div> : null}
 
       {!result.moneyVisible ? <Group title={t.cost}><p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-4">{t.moneyHidden}</p></Group> : hasBudget ? <Group title={t.cost}>
         <Metric label={t.budget} value={amount(result.budget)} />
