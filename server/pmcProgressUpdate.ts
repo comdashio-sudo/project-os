@@ -1,20 +1,22 @@
 // Q-4: the site engineer's progress update on the WEIGHTS table (the catalogue the progress is computed from): one activity (by its code, so one choice covers every
 // model that has it), several villas (a list, a range «268-272», or a whole block), one status (not started / in progress / complete) and its date, saved once.
 // Everything is checked before anything is written, and the whole entry is refused, villa by villa, when one villa is wrong (unknown, or its model has no such
-// activity), the date is in the future, or a field is missing. The cells are written by applyCellStatus — the same write as the single cell, with its history row
+// activity), the date is in the future, or a field is missing. The cells are written by applyCellStatuses — the single cell's write for many cells, with its history row
 // (from, to, who, when) and its audit row — all in ONE transaction; the villa's and the project's progress are then read from the weights and returned.
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcBlocks, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
-import { applyCellStatus, authorize, getPmcProgress, mine, type Scope } from "./pmcService";
+import { applyCellStatuses, authorize, getPmcProgress, mine, type Scope } from "./pmcService";
 import { expandVillaRange } from "./pmcSiteService";
 import { siteToday, villaKey } from "./wo22Shared";
 
 export const PROGRESS_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETE"] as const;
 export type ProgressStatus = (typeof PROGRESS_STATUSES)[number];
 export type ProgressIssue = { code: string; villa?: string; detail?: string };
-export const MAX_VILLAS_PER_UPDATE = 500;
+// Q-60 (the owner, 26-11): no artificial cap — the whole project may be updated at once (the bound is the project's villas). Above this many villas the
+// server asks for a confirmation that names the count, and writes only when the save carries that same count.
+export const CONFIRM_ABOVE_VILLAS = 100;
 const refuse = (issues: ProgressIssue[]) => new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SITE_UPDATE_INVALID", cause: { issues } });
 
 /** The activities of the weights table, once per code: its CSI section and its weight (the same code may weigh differently per model: the range is given). */
@@ -32,7 +34,7 @@ export async function listProgressActivities(input: Scope) {
   return Array.from(byCode.values()).sort((a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name));
 }
 
-export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; status: ProgressStatus; date: string; queuedAt?: string };
+export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; modelCode?: string; status: ProgressStatus; date: string; queuedAt?: string; confirmCount?: number };
 
 /**
  * Q-24 (P-120): a save kept on the phone while offline carries `queuedAt` — when it was kept. When it is finally sent, any target cell written AFTER that
@@ -59,12 +61,14 @@ export async function assertCellsNotChangedSince(tx: Parameters<Parameters<Await
 
 /** The checks every villa-batch shares (Q-4 progress, Q-5 QC): the fields, the date (not in the future, Riyadh's day), then the villas (a list, a range or a
  * block, never two at once) resolved against the project and the activity's models. Refused whole, villa by villa, before anything is written. */
-export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>>, input: Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; date: string }, extra: ProgressIssue[] = []) {
+/** QC receipts (Q-5) still write villa by villa, so they keep their cap; the progress update (Q-60) passes none. */
+export const MAX_QC_VILLAS_PER_SAVE = 500;
+export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>>, input: Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; modelCode?: string; date: string }, extra: ProgressIssue[] = [], maxVillas: number | null = MAX_QC_VILLAS_PER_SAVE) {
   const issues: ProgressIssue[] = [...extra];
   if (!input.activityCode?.trim()) issues.push({ code: "SITE_FIELD_MISSING", detail: "activity" });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date ?? "") || Number.isNaN(Date.parse(`${input.date}T00:00:00Z`))) issues.push({ code: "SITE_FIELD_MISSING", detail: "date" });
   else if (input.date > siteToday()) issues.push({ code: "SITE_DATE_IN_FUTURE", detail: input.date });
-  const chosen = [input.villas?.length ? 1 : 0, input.range ? 1 : 0, input.blockCode ? 1 : 0].reduce((a, b) => a + b, 0);
+  const chosen = [input.villas?.length ? 1 : 0, input.range ? 1 : 0, input.blockCode ? 1 : 0, input.modelCode ? 1 : 0].reduce((a, b) => a + b, 0);
   if (chosen === 0) issues.push({ code: "SITE_FIELD_MISSING", detail: "villas" });
   else if (chosen > 1) issues.push({ code: "SITE_TARGET_AMBIGUOUS" });
   if (issues.length) throw refuse(issues);
@@ -85,7 +89,13 @@ export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>
     if (!block) issues.push({ code: "SITE_BLOCK_UNKNOWN", detail: input.blockCode });
     else wanted = units.filter(unit => unit.blockId === block.id).map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
   }
-  if (wanted.length > MAX_VILLAS_PER_UPDATE) issues.push({ code: "SITE_TOO_MANY_VILLAS", detail: String(MAX_VILLAS_PER_UPDATE) });
+  // Q-60: every villa of one model (the owner chooses «all of model C»); an unknown model is said by name
+  if (input.modelCode) {
+    const ofModel = units.filter(unit => unit.modelCode === input.modelCode!.trim());
+    if (!ofModel.length) issues.push({ code: "SITE_MODEL_UNKNOWN", detail: input.modelCode });
+    else wanted = ofModel.map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
+  }
+  if (maxVillas !== null && wanted.length > maxVillas) issues.push({ code: "SITE_TOO_MANY_VILLAS", detail: String(maxVillas) });
   const targets: Array<{ unitId: string; villa: string; activityDefinitionId: string }> = [];
   for (const villa of wanted) {
     const unit = byVilla.get(villa);
@@ -100,19 +110,17 @@ export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>
 
 export async function updatePmcProgress(input: ProgressUpdateInput) {
   const db = await authorize(input, "project.pmc.update");
-  const targets = await resolveVillaBatch(db, input, PROGRESS_STATUSES.includes(input.status) ? [] : [{ code: "SITE_FIELD_MISSING", detail: "status" }]);
+  const targets = await resolveVillaBatch(db, input, PROGRESS_STATUSES.includes(input.status) ? [] : [{ code: "SITE_FIELD_MISSING", detail: "status" }], null);
 
   // the date the engineer chose is the moment of the change (noon of that day in Riyadh; today keeps the real time)
   const changedAt = input.date === siteToday() ? new Date() : new Date(`${input.date}T09:00:00Z`);
+  // Q-60: above CONFIRM_ABOVE_VILLAS the save is written only when it carries the count the person confirmed — the screen shows «N villas» first
+  if (targets.length > CONFIRM_ABOVE_VILLAS && input.confirmCount !== targets.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SITE_UPDATE_CONFIRM_COUNT", cause: { issues: [{ code: "SITE_CONFIRM_COUNT", detail: String(targets.length) }] } });
   const batchId = randomUUID();
   const result = await db.transaction(async tx => {
     await assertCellsNotChangedSince(tx, input, pmcUnitActivityProgress, targets);
-    let changed = 0; const warnings = new Set<string>();
-    for (const target of targets) {
-      const cell = await applyCellStatus(tx, { ...input, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, status: input.status, note: `batch ${batchId}` }, changedAt);
-      if (cell.changed) changed += 1;
-      for (const warning of cell.warnings) warnings.add(warning.code);
-    }
+    const cells = await applyCellStatuses(tx, { ...input, status: input.status, note: `batch ${batchId}` }, targets, changedAt);
+    const changed = cells.changed; const warnings = new Set<string>(cells.warnings.map(warning => warning.code));
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.progress_batch_updated", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ batchId, activityCode: input.activityCode, status: input.status, date: input.date, villas: targets.length, changed }) });
     return { changed, unchanged: targets.length - changed, warnings: Array.from(warnings) };
   });
