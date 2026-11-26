@@ -61,7 +61,7 @@ describe("PMC import: locations", () => {
     const stored = { zones: new Map([["Z1", { id: "z1" }], ["Z2", { id: "z2" }]]), blocks: new Map([["B1", { id: "b1", zoneCode: "Z1" }], ["B2", { id: "b2", zoneCode: "Z2" }]]), units: new Map([[1, { id: "u1", blockCode: "B1", modelCode: "A", saleStatus: null, unitWeight: 1 }], [2, { id: "u2", blockCode: "B1", modelCode: "A", saleStatus: "sold", unitWeight: 2 }], [3, { id: "u3", blockCode: "B2", modelCode: "B", saleStatus: null, unitWeight: 1 }]]) };
     expect(planLocations(file, stored).counts).toEqual({ create: 0, update: 0, unchanged: 3 });
     const changed = planLocations(rows({ zoneCode: "Z1", blockCode: "B1", unitNumber: "1", modelCode: "A", saleStatus: "reserved" }), stored);
-    expect(changed.updatedUnits).toEqual([{ id: "u1", unitNumber: 1, saleStatus: "reserved", unitWeight: 1 }]);
+    expect(changed.updatedUnits).toEqual([{ id: "u1", unitNumber: 1, saleStatus: "reserved", unitWeight: 1, phase: null, package: null, isMockup: null }]); // Q-60: no Phase / Package / Mock-up column keeps what is stored (none here)
   });
 
   it("rejects duplicates, a block in two zones, a model or block change on an existing unit, and bad numbers", () => {

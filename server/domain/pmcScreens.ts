@@ -4,7 +4,7 @@
 import { calculateUnitProgress, normalizeUnitRange, type PmcUnitActivityStatus as Status } from "./pmc";
 
 export const SCREEN_STATUSES: readonly Status[] = ["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"];
-export type PmcUnit = { id: string; number: number; modelCode: string; weight: number; zoneCode: string; blockCode: string; geometry?: unknown };
+export type PmcUnit = { id: string; number: number; modelCode: string; weight: number; zoneCode: string; blockCode: string; geometry?: unknown; phase?: string | null; package?: string | null; isMockup?: boolean | null };
 export type PmcDefinition = { id: string; modelCode: string; code: string; name: string; weightPercent: number; groupCode: string; groupName: string; stageCode: string; stageName: string; nameEn?: string | null; groupNameEn?: string | null; stageNameEn?: string | null };
 
 /**
@@ -285,7 +285,7 @@ export function siteMap(ds: PmcDataset, activityCode?: string) {
   return ds.units.slice().sort((a, b) => a.number - b.number).map(unit => {
     const definition = activityCode ? definitionOf.get(unit.modelCode + "\u0000" + activityCode) : undefined;
     const cell = definition ? cellOf.get(`${unit.id}:${definition.id}`) : undefined;
-    return { unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, geometry: unit.geometry ?? null, status: activityCode ? (definition ? (cell?.status ?? ("NOT_STARTED" as Status)) : null) : null, progressPercent: activityCode ? null : unitProgressOf(ds, unit),
+    return { unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, phase: unit.phase ?? null, geometry: unit.geometry ?? null, status: activityCode ? (definition ? (cell?.status ?? ("NOT_STARTED" as Status)) : null) : null, progressPercent: activityCode ? null : unitProgressOf(ds, unit),
       // Q-20: what the plan shows inside a villa when zoomed in: its weighted progress, and the first activity of its model (in order) not yet complete.
       overallPercent: unitProgressOf(ds, unit), currentActivity: currentActivityOf(ds, unit) };
   });
@@ -297,7 +297,7 @@ export function unitCard(ds: PmcDataset, unitNumber: number) {
   const cellOf = new Map(ds.cells.filter(c => c.unitId === unit.id).map(c => [c.definitionId, c]));
   const verification = new Map(ds.verification.map(v => [v.id, v.label]));
   return {
-    unitId: unit.id, unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, progressPercent: unitProgressOf(ds, unit),
+    unitId: unit.id, unitNumber: unit.number, modelCode: unit.modelCode, zoneCode: unit.zoneCode, blockCode: unit.blockCode, phase: unit.phase ?? null, package: unit.package ?? null, isMockup: unit.isMockup ?? null, progressPercent: unitProgressOf(ds, unit),
     activities: ds.definitions.filter(d => d.modelCode === unit.modelCode).map(d => { const cell = cellOf.get(d.id); return { definitionId: d.id, code: d.code, name: d.name, groupName: d.groupName, stageName: d.stageName, weightPercent: d.weightPercent, status: (cell?.status ?? "NOT_STARTED") as Status, verificationStatus: cell?.verificationStatusId ? (verification.get(cell.verificationStatusId) ?? null) : null, engineer: personName(ds, cell?.assignedUserId ?? null), lastChangedAt: cell?.lastChangedAt ?? null }; }).sort((a, b) => a.groupName.localeCompare(b.groupName, undefined, { numeric: true }) || a.code.localeCompare(b.code, undefined, { numeric: true })),
   };
 }
