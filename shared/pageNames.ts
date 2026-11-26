@@ -16,6 +16,7 @@ export const PAGE_NAMES = {
   team: { ar: "فريق المشروع", en: "Project team", ur: "پروجیکٹ ٹیم" },
   stalled: { ar: "الوحدات المتوقفة", en: "Stalled units", ur: "رکے ہوئے یونٹس" },
   progressLog: { ar: "سجل الإنجاز", en: "Progress log", ur: "پیش رفت لاگ" },
+  completionReport: { ar: "تقرير الإنجاز", en: "Completion report", ur: "تکمیل رپورٹ" },
   quality: { ar: "الجودة", en: "Quality", ur: "معیار" },
   submittals: { ar: "تسليمات الاستشاري", en: "Consultant submittals", ur: "کنسلٹنٹ سبمٹلز" },
   guide: { ar: "دليل الاستخدام", en: "User guide", ur: "استعمال کی رہنمائی" },
@@ -43,7 +44,7 @@ export type PageNameKey = keyof typeof PAGE_NAMES;
 
 /** The project sub-pages by the last part of their address (/projects/:t/:p/<part>), for the breadcrumb: workspace › project › page. */
 export const PROJECT_SUBPAGE_NAMES: Record<string, PageNameKey> = {
-  controls: "board", baseline: "baseline", team: "team", pmc: "pmc", stalled: "stalled", "progress-log": "progressLog", profitability: "profitability", commercial: "commercial",
+  controls: "board", baseline: "baseline", team: "team", pmc: "pmc", stalled: "stalled", "progress-log": "progressLog", "completion-report": "completionReport", profitability: "profitability", commercial: "commercial",
   quality: "quality", submittals: "submittals", "site-consultant": "siteConsultant", guide: "guide", "weekly-report": "weeklyReport",
   "monthly-report": "monthlyReport", "my-performance": "myPerformance", meetings: "meetings", risks: "risks", safety: "safety", schedule: "liveSchedule", site: "site", reports: "reports", import: "imports",
   planning: "planning", supply: "supply", "field-records": "fieldRecords", contracts: "contractsRecords",
