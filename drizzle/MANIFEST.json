@@ -53,6 +53,7 @@
     "0050_strategy_opportunities.sql": "4259243cd7547af3a686dc0c9295db06cac936110d6e79ce7a3ff19fb6cb1508",
     "0051_strategy_goals_variances.sql": "dcfb248c7b7a32c66e7de010d7f0d7daca6d322f9172624a0e1be2644f8de25e",
     "0052_subcontract_activity_boq_links.sql": "4811be024f50d6c64a14da3d364bd43ffb4cd9dfb37073042b80cb2ffda9787b",
-    "0053_site_reports_many_per_day.sql": "d110f1612b3ad5d50b5eaa1c3205c20c4d376684a676fdaa795b4cac4d3ce1f1"
+    "0053_site_reports_many_per_day.sql": "d110f1612b3ad5d50b5eaa1c3205c20c4d376684a676fdaa795b4cac4d3ce1f1",
+    "0054_strategy_changes_erasure.sql": "4a8728f53db30e6c748745c95c998836c136436bcffed2c1b3fe6c77acb1435b"
   }
 }
