@@ -144,6 +144,7 @@ vi.mock("@/lib/trpc", () => ({
       importSpatialEntities: { useMutation: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }) },
       // the saved drawing layout (G-189) is loaded by the drawing section of the plan screen
       drawingLayout: { useQuery: () => ({ isLoading: false, error: null, data: undefined, refetch: vi.fn() }) },
+      drawingUnits: { useQuery: () => ({ isLoading: false, error: null, data: undefined, refetch: vi.fn() }) },
       uploadDrawingVersion: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }) },
       saveDrawingLayout: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }) },
       linkDrawingUnit: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }) },

@@ -7,6 +7,7 @@ import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmati
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, exportProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES, MINUTES_EXPORT_FORMATS } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getScheduleVillaLinks } from "./scheduleVillaLinks";
+import { getScheduleStageMapping, saveScheduleStageMapping } from "./scheduleStageMapping";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
@@ -96,7 +97,7 @@ import { COMMENT_SEVERITIES, COMMENT_STATUSES, DESIGN_DISCIPLINES, SUBMITTAL_REP
 import { addTenderBidAdjustment, awardTender, createTenderPackage, disqualifyTenderBid, enterTenderBid, getTenderComparison, inviteTenderSupplier, listTenderInvitees, listTenderPackages, listTenderSuppliers, removeTenderBidAdjustment, reviseTenderBid, transitionTenderPackage, withdrawTenderBid } from "./tenderService";
 import { ADJUSTMENT_KINDS } from "./domain/tenders";
 import { setMasterPlanSnapshotSharing, setMasterPlanVersionGeometry, updateMasterPlanEntityLayout } from "./masterPlanTools";
-import { getMasterPlanDrawingLayout, linkMasterPlanDrawingUnit, listMasterPlanDrawingVersions, saveMasterPlanDrawingCalibration, saveMasterPlanDrawingLayout, unlinkMasterPlanDrawingUnit, uploadMasterPlanDrawingVersion } from "./masterPlanDrawing";
+import { getMasterPlanDrawingLayout, linkMasterPlanDrawingUnit, listMasterPlanDrawingUnits, listMasterPlanDrawingVersions, saveMasterPlanDrawingCalibration, saveMasterPlanDrawingLayout, unlinkMasterPlanDrawingUnit, uploadMasterPlanDrawingVersion } from "./masterPlanDrawing";
 
 import { masterPlanVisionRouter } from "./masterPlanVision";
 import { COOKIE_NAME } from "@shared/const";
@@ -483,7 +484,9 @@ export const appRouter = router({
     saveDrawingLayout: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), polygons: z.array(z.object({ id: z.string().uuid().optional(), ref: z.string().min(1).max(80), label: z.string().max(120), points: z.array(z.object({ x: z.number().finite(), y: z.number().finite() })).min(3).max(1000) })).max(5000), background: z.object({ width: z.number().int().min(1).max(20000), height: z.number().int().min(1).max(20000), page: z.number().int().min(1).max(10000) }).nullable().optional() })).mutation(({ ctx, input }) => saveMasterPlanDrawingLayout({ userId: ctx.user.id, ...input })),
     // Q-7: the two-point calibration (two points of the drawing and the real distance between them in metres).
     saveDrawingCalibration: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), calibration: z.object({ a: z.object({ x: z.number().finite(), y: z.number().finite() }), b: z.object({ x: z.number().finite(), y: z.number().finite() }), meters: z.number().finite() }) })).mutation(({ ctx, input }) => saveMasterPlanDrawingCalibration({ userId: ctx.user.id, ...input })),
-    linkDrawingUnit: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), polygonId: z.string().uuid(), entityId: z.string().uuid() })).mutation(({ ctx, input }) => linkMasterPlanDrawingUnit({ userId: ctx.user.id, ...input })),
+    // Q-62: the units a drawing is linked to — the version's own, or the project's PMC villas when the version has none
+    drawingUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid() })).query(({ ctx, input }) => listMasterPlanDrawingUnits({ userId: ctx.user.id, ...input })),
+    linkDrawingUnit: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), polygonId: z.string().uuid(), entityId: z.string().uuid().optional(), pmcUnitId: z.string().uuid().optional() }).refine(value => (value.entityId === undefined) !== (value.pmcUnitId === undefined), { message: "PROJECT_OS_MASTER_PLAN_UNIT_NOT_FOUND" })).mutation(({ ctx, input }) => linkMasterPlanDrawingUnit({ userId: ctx.user.id, ...input })),
     unlinkDrawingUnit: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), polygonId: z.string().uuid() })).mutation(({ ctx, input }) => unlinkMasterPlanDrawingUnit({ userId: ctx.user.id, ...input })),
     uploadDrawingVersion: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), masterPlanVersionId: z.string().uuid(), uploadKey: z.string().min(1).max(1024), fileName: z.string().trim().min(1).max(255) })).mutation(({ ctx, input }) => uploadMasterPlanDrawingVersion({ userId: ctx.user.id, ...input })),
   }),
@@ -1137,6 +1140,12 @@ export const appRouter = router({
     live: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getLiveSchedule({ userId: ctx.user.id, ...input })),
     // Q-61 (2): which villa each P6 activity belongs to, and where the schedule and the villas disagree (read only)
     villaLinks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getScheduleVillaLinks({ userId: ctx.user.id, ...input })),
+    // Q-61 (3): which schedule stages each weight group follows, once per project (suggested by name; saved with project.pmc.manage, audited)
+    stageMapping: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getScheduleStageMapping({ userId: ctx.user.id, ...input })),
+    saveStageMapping: protectedProcedure.input(z.object({
+      tenantId: z.string().uuid(), projectId: z.string().uuid(),
+      links: z.array(z.object({ groupId: z.string().uuid(), stageCodes: z.array(z.string().trim().min(1).max(80)).max(20), anchor: z.enum(["span", "start", "end"]) })).min(1).max(200),
+    })).mutation(({ ctx, input }) => saveScheduleStageMapping({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),

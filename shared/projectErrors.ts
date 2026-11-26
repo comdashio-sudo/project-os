@@ -2336,6 +2336,16 @@ export const projectErrorMessages = {
     en: "The inspection activity was not found.",
     ur: "معائنے کی سرگرمی نہیں ملی۔",
   },
+  PROJECT_OS_PMC_GROUP_NOT_FOUND: {
+    ar: "مجموعة الأوزان غير موجودة في هذا المشروع.",
+    en: "The weight group was not found in this project.",
+    ur: "وزن کا گروپ اس منصوبے میں نہیں ملا۔",
+  },
+  PROJECT_OS_PMC_STAGE_LINK_INVALID: {
+    ar: "لم يُحفظ الربط: مرحلة ليست في الجدول الحالي، أو ربط «بداية/نهاية» بأكثر من مرحلة واحدة.",
+    en: "The links were not saved: a stage is not in the current schedule, or a start/end link names more than one stage.",
+    ur: "ربط محفوظ نہیں ہوا: کوئی مرحلہ موجودہ شیڈول میں نہیں، یا آغاز/اختتام کا ربط ایک سے زیادہ مرحلوں کا نام لیتا ہے۔",
+  },
   PROJECT_OS_PMC_ACTIVITY_NOT_IN_UNIT_MODEL: {
     ar: "النشاط ليس من نموذج هذه الوحدة.",
     en: "The activity is not part of this unit's model.",

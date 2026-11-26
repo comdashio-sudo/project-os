@@ -4,12 +4,13 @@
 // A link or an unlink is one audit row each. The automatic proposals of the matcher are never written here; only what a person confirmed.
 import { createHash, randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import { auditLogs, masterPlanDrawingLinks, masterPlanDrawingPolygons, masterPlanDrawingVersions, masterPlanDrawings, masterPlanSpatialEntities, masterPlanVersions } from "../drizzle/schema";
+import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { auditLogs, masterPlanDrawingLinks, masterPlanDrawingPolygons, masterPlanDrawingVersions, masterPlanDrawings, masterPlanSpatialEntities, masterPlanVersions, pmcBlocks, pmcUnits } from "../drizzle/schema";
 import { countPdfPages, detectDrawingKind, layoutProblem, type DrawingPolygonInput } from "./domain/masterPlanDrawing";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb } from "./db";
 import { safeUploadFileName, takeDirectUpload } from "./directUploadKeys";
 import { storageGetSignedUrl, storagePut } from "./storage";
+import { authorize as authorizePmc } from "./pmcService";
 import { calibrationProblem, parseBackground, parseCalibration, type DrawingBackground, type DrawingCalibration } from "../shared/masterPlanCalibration";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -50,9 +51,57 @@ async function requirePolygon(db: Db, scope: Scope, drawingId: string, polygonId
 }
 
 async function requireLink(db: Db, scope: Scope, drawingId: string, polygonId: string) {
-  const [link] = await db.select({ id: masterPlanDrawingLinks.id, entityId: masterPlanDrawingLinks.entityId }).from(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.polygonId, polygonId), eq(masterPlanDrawingLinks.drawingId, drawingId), eq(masterPlanDrawingLinks.tenantId, scope.tenantId), eq(masterPlanDrawingLinks.projectId, scope.projectId))).limit(1);
+  const [link] = await db.select({ id: masterPlanDrawingLinks.id, entityId: masterPlanDrawingLinks.entityId, pmcUnitId: masterPlanDrawingLinks.pmcUnitId }).from(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.polygonId, polygonId), eq(masterPlanDrawingLinks.drawingId, drawingId), eq(masterPlanDrawingLinks.tenantId, scope.tenantId), eq(masterPlanDrawingLinks.projectId, scope.projectId))).limit(1);
   if (!link) throw refuse("NOT_FOUND", "PROJECT_OS_MASTER_PLAN_LINK_NOT_FOUND");
   return link;
+}
+
+/**
+ * Q-62: the units a drawing of this version is linked to. A version that holds units of its own (entered on the plan, or a project from before the PMC
+ * import) keeps them, so an existing drawing and its links are unchanged. A version with none takes the project's PMC villas — the ones the «villa list»
+ * import writes and the site update, the colouring and the reports already use — so the villas are never entered a second time. One source per drawing.
+ */
+export type DrawingUnitSource = "plan" | "pmc";
+async function unitSourceOf(db: Db, scope: Scope, masterPlanVersionId: string): Promise<DrawingUnitSource> {
+  // a drawing already linked to PMC villas stays on them, even if units are added to the version later (its links would otherwise vanish from the screen)
+  const drawing = await findDrawing(db, scope, masterPlanVersionId);
+  if (drawing) {
+    const [onVilla] = await db.select({ id: masterPlanDrawingLinks.id }).from(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.drawingId, drawing.id), isNotNull(masterPlanDrawingLinks.pmcUnitId), eq(masterPlanDrawingLinks.tenantId, scope.tenantId), eq(masterPlanDrawingLinks.projectId, scope.projectId))).limit(1);
+    if (onVilla) return "pmc";
+  }
+  const [own] = await db.select({ id: masterPlanSpatialEntities.id }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.masterPlanVersionId, masterPlanVersionId), eq(masterPlanSpatialEntities.entityType, "unit"), eq(masterPlanSpatialEntities.tenantId, scope.tenantId), eq(masterPlanSpatialEntities.projectId, scope.projectId))).limit(1);
+  return own ? "plan" : "pmc";
+}
+
+/**
+ * Review of #553 (D): the PMC villas are read everywhere else with project.pmc.read (and the PMC feature), so the master plan never shows or links them on
+ * project.read alone — that would widen a permission. Refused here means: no villas, said so; any other failure is thrown as it is.
+ */
+async function mayReadVillas(scope: Scope): Promise<boolean> {
+  try {
+    await authorizePmc(scope, "project.pmc.read");
+    return true;
+  } catch (error) {
+    if (error instanceof TRPCError && error.code === "FORBIDDEN") return false;
+    throw error;
+  }
+}
+
+/** The units the drawing screen matches shapes against, with where they come from. Read with the drawing's own permission (project.read). */
+export async function listMasterPlanDrawingUnits(input: Scope & { masterPlanVersionId: string }) {
+  const db = await open(input, "project.read");
+  await requireVersion(db, input, input.masterPlanVersionId);
+  const source = await unitSourceOf(db, input, input.masterPlanVersionId);
+  if (source === "plan") {
+    const rows = await db.select({ id: masterPlanSpatialEntities.id, code: masterPlanSpatialEntities.code, name: masterPlanSpatialEntities.name, status: masterPlanSpatialEntities.status, progressPercent: masterPlanSpatialEntities.progressPercent }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), eq(masterPlanSpatialEntities.entityType, "unit"), eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))).orderBy(asc(masterPlanSpatialEntities.code));
+    return { source, villasDenied: false, units: rows.map(row => ({ ...row, blockCode: null as string | null, modelCode: null as string | null })) };
+  }
+  if (!(await mayReadVillas(input))) return { source, villasDenied: true, units: [] as Array<{ id: string; code: string; name: string; status: string; progressPercent: string; blockCode: string | null; modelCode: string | null }> };
+  const rows = await db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, blockCode: pmcBlocks.code })
+    .from(pmcUnits).innerJoin(pmcBlocks, and(eq(pmcBlocks.id, pmcUnits.blockId), eq(pmcBlocks.tenantId, pmcUnits.tenantId), eq(pmcBlocks.projectId, pmcUnits.projectId)))
+    .where(and(eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId))).orderBy(asc(pmcUnits.unitNumber));
+  // the villa's code on the drawing is its number (the colouring and the villa card read it the same way); its site status comes from the colouring
+  return { source, villasDenied: false, units: rows.map(row => ({ id: row.id, code: String(row.unitNumber), name: String(row.unitNumber), status: "", progressPercent: "", blockCode: row.blockCode, modelCode: row.modelCode })) };
 }
 
 /** A unique-key clash from the database, whether the driver reports it directly or wrapped in the ORM's error. */
@@ -76,12 +125,13 @@ export async function getMasterPlanDrawingLayout(input: Scope & { masterPlanVers
   const [versions, polygons, links] = await Promise.all([
     versionsOf(db, input, drawing.id),
     db.select({ id: masterPlanDrawingPolygons.id, ref: masterPlanDrawingPolygons.ref, label: masterPlanDrawingPolygons.label, points: masterPlanDrawingPolygons.points }).from(masterPlanDrawingPolygons).where(and(eq(masterPlanDrawingPolygons.drawingId, drawing.id), eq(masterPlanDrawingPolygons.tenantId, input.tenantId), eq(masterPlanDrawingPolygons.projectId, input.projectId))).orderBy(asc(masterPlanDrawingPolygons.ref)),
-    db.select({ polygonId: masterPlanDrawingLinks.polygonId, entityId: masterPlanDrawingLinks.entityId, confirmedByUserId: masterPlanDrawingLinks.confirmedByUserId, confirmedAt: masterPlanDrawingLinks.confirmedAt }).from(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.drawingId, drawing.id), eq(masterPlanDrawingLinks.tenantId, input.tenantId), eq(masterPlanDrawingLinks.projectId, input.projectId))),
+    db.select({ polygonId: masterPlanDrawingLinks.polygonId, entityId: masterPlanDrawingLinks.entityId, pmcUnitId: masterPlanDrawingLinks.pmcUnitId, confirmedByUserId: masterPlanDrawingLinks.confirmedByUserId, confirmedAt: masterPlanDrawingLinks.confirmedAt }).from(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.drawingId, drawing.id), eq(masterPlanDrawingLinks.tenantId, input.tenantId), eq(masterPlanDrawingLinks.projectId, input.projectId))),
   ]);
   const background = parseBackground(drawing.background);
   // The picture under the shapes: a short-lived link to the newest file, only for a raster drawing (a DXF is drawn from its shapes).
   const backgroundUrl = background && versions[0] ? await latestFileUrl(db, input, versions[0].id) : null;
-  return { drawingId: drawing.id, latestVersion: versions[0] ?? null, versions, polygons: polygons.map(polygonView), links, calibration: parseCalibration(drawing.calibration), background, backgroundUrl };
+  // unitId: the linked unit whichever its source (Q-62), the id the drawing screen holds its units by
+  return { drawingId: drawing.id, latestVersion: versions[0] ?? null, versions, polygons: polygons.map(polygonView), links: links.map(link => ({ ...link, unitId: (link.entityId ?? link.pmcUnitId)! })), calibration: parseCalibration(drawing.calibration), background, backgroundUrl };
 }
 
 async function latestFileUrl(db: Db, scope: Scope, versionId: string) {
@@ -158,29 +208,43 @@ export async function saveMasterPlanDrawingLayout(input: Scope & { masterPlanVer
   return { drawingId, polygons: saved.map(polygonView) };
 }
 
-/** Confirm that a polygon of the drawing is this unit. One polygon holds one unit and one unit sits on one polygon. */
-export async function linkMasterPlanDrawingUnit(input: Scope & { masterPlanVersionId: string; polygonId: string; entityId: string }) {
+/**
+ * Confirm that a polygon of the drawing is this unit. One polygon holds one unit and one unit sits on one polygon. The unit is a unit of the version
+ * (`entityId`) or, for a version with none, one of the project's PMC villas (`pmcUnitId`) — whichever source the drawing uses (Q-62); the other is refused.
+ */
+export async function linkMasterPlanDrawingUnit(input: Scope & { masterPlanVersionId: string; polygonId: string; entityId?: string; pmcUnitId?: string }) {
   const db = await open(input, "project.write");
   await requireVersion(db, input, input.masterPlanVersionId);
   const drawingId = await requireDrawing(db, input, input.masterPlanVersionId);
   const polygon = await requirePolygon(db, input, drawingId, input.polygonId);
-  const [unit] = await db.select({ id: masterPlanSpatialEntities.id, code: masterPlanSpatialEntities.code }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.id, input.entityId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), eq(masterPlanSpatialEntities.entityType, "unit"), eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))).limit(1);
+  if ((input.entityId === undefined) === (input.pmcUnitId === undefined)) throw refuse("BAD_REQUEST", "PROJECT_OS_MASTER_PLAN_UNIT_NOT_FOUND");
+  const source = await unitSourceOf(db, input, input.masterPlanVersionId);
+  let unit: { id: string; code: string } | undefined;
+  if (input.entityId !== undefined && source === "plan") {
+    [unit] = await db.select({ id: masterPlanSpatialEntities.id, code: masterPlanSpatialEntities.code }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.id, input.entityId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), eq(masterPlanSpatialEntities.entityType, "unit"), eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))).limit(1);
+  } else if (input.pmcUnitId !== undefined && source === "pmc") {
+    if (!(await mayReadVillas(input))) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
+    const [villa] = await db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber }).from(pmcUnits).where(and(eq(pmcUnits.id, input.pmcUnitId), eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId))).limit(1);
+    unit = villa ? { id: villa.id, code: String(villa.unitNumber) } : undefined;
+  }
   if (!unit) throw refuse("NOT_FOUND", "PROJECT_OS_MASTER_PLAN_UNIT_NOT_FOUND");
+  const target = source === "plan" ? { entityId: unit.id } : { pmcUnitId: unit.id };
   const [onShape] = await db.select({ id: masterPlanDrawingLinks.id }).from(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.polygonId, polygon.id), eq(masterPlanDrawingLinks.tenantId, input.tenantId), eq(masterPlanDrawingLinks.projectId, input.projectId))).limit(1);
   if (onShape) throw refuse("CONFLICT", "PROJECT_OS_MASTER_PLAN_LINK_EXISTS");
-  const [onUnit] = await db.select({ id: masterPlanDrawingLinks.id }).from(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.drawingId, drawingId), eq(masterPlanDrawingLinks.entityId, unit.id), eq(masterPlanDrawingLinks.tenantId, input.tenantId), eq(masterPlanDrawingLinks.projectId, input.projectId))).limit(1);
+  const sameUnit = source === "plan" ? eq(masterPlanDrawingLinks.entityId, unit.id) : eq(masterPlanDrawingLinks.pmcUnitId, unit.id);
+  const [onUnit] = await db.select({ id: masterPlanDrawingLinks.id }).from(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.drawingId, drawingId), sameUnit, eq(masterPlanDrawingLinks.tenantId, input.tenantId), eq(masterPlanDrawingLinks.projectId, input.projectId))).limit(1);
   if (onUnit) throw refuse("CONFLICT", "PROJECT_OS_MASTER_PLAN_UNIT_ALREADY_LINKED");
   const id = randomUUID();
   try {
     await db.transaction(async tx => {
-      await tx.insert(masterPlanDrawingLinks).values({ id, tenantId: input.tenantId, projectId: input.projectId, drawingId, polygonId: polygon.id, entityId: unit.id, confirmedByUserId: input.userId });
-      await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.drawing_unit_linked", entityType: "master_plan_drawing_link", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, drawingId, polygonId: polygon.id, polygonRef: polygon.ref, entityId: unit.id, unitCode: unit.code }) });
+      await tx.insert(masterPlanDrawingLinks).values({ id, tenantId: input.tenantId, projectId: input.projectId, drawingId, polygonId: polygon.id, ...target, confirmedByUserId: input.userId });
+      await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.drawing_unit_linked", entityType: "master_plan_drawing_link", entityId: id, metadata: JSON.stringify({ projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, drawingId, polygonId: polygon.id, polygonRef: polygon.ref, ...target, unitSource: source, unitCode: unit!.code }) });
     });
   } catch (error) {
     if (isUniqueViolation(error)) throw refuse("CONFLICT", "PROJECT_OS_MASTER_PLAN_LINK_EXISTS");
     throw error;
   }
-  return { id, polygonId: polygon.id, entityId: unit.id };
+  return { id, polygonId: polygon.id, unitId: unit.id, unitSource: source, ...target };
 }
 
 /** Take a confirmed link away. The link row is deleted; its audit row says which polygon and which unit it had. */
@@ -192,9 +256,9 @@ export async function unlinkMasterPlanDrawingUnit(input: Scope & { masterPlanVer
   const link = await requireLink(db, input, drawingId, polygon.id);
   await db.transaction(async tx => {
     await tx.delete(masterPlanDrawingLinks).where(and(eq(masterPlanDrawingLinks.id, link.id), eq(masterPlanDrawingLinks.tenantId, input.tenantId), eq(masterPlanDrawingLinks.projectId, input.projectId)));
-    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.drawing_unit_unlinked", entityType: "master_plan_drawing_link", entityId: link.id, metadata: JSON.stringify({ projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, drawingId, polygonId: polygon.id, polygonRef: polygon.ref, entityId: link.entityId }) });
+    await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "master_plans.drawing_unit_unlinked", entityType: "master_plan_drawing_link", entityId: link.id, metadata: JSON.stringify({ projectId: input.projectId, masterPlanVersionId: input.masterPlanVersionId, drawingId, polygonId: polygon.id, polygonRef: polygon.ref, entityId: link.entityId, pmcUnitId: link.pmcUnitId }) });
   });
-  return { polygonId: polygon.id, entityId: link.entityId };
+  return { polygonId: polygon.id, entityId: link.entityId, pmcUnitId: link.pmcUnitId };
 }
 
 /**

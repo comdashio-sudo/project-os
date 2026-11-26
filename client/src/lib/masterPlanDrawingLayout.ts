@@ -6,7 +6,8 @@ import type { DxfDrawing, DxfPoint } from "./dxf/dxfReader";
 import type { ReviewItem } from "./dxf/dxfReview";
 
 export type SavedPolygon = { id: string; ref: string; label: string; points: DxfPoint[] };
-export type SavedLink = { polygonId: string; entityId: string };
+/** A confirmed link: `unitId` is the linked unit whichever its source — a unit of the plan version or a PMC villa (Q-62). */
+export type SavedLink = { polygonId: string; unitId: string };
 export type SavedVersion = { id: string; versionNumber: number; fileName: string; mimeType: string; sizeBytes: number; pageCount: number; checksumSha256: string; createdAt: string | Date };
 export type SavedLayout = { drawingId: string | null; latestVersion: SavedVersion | null; versions: SavedVersion[]; polygons: SavedPolygon[]; links: SavedLink[] };
 
@@ -27,7 +28,7 @@ export function layoutToReview(layout: SavedLayout, units: ProjectUnit[]): { dra
   const linkByRef = new Map<string, string>();
   for (const link of layout.links) {
     const ref = refById.get(link.polygonId);
-    if (ref !== undefined && unitById.has(link.entityId)) linkByRef.set(ref, link.entityId);
+    if (ref !== undefined && unitById.has(link.unitId)) linkByRef.set(ref, link.unitId);
   }
   const drawing: DxfDrawing = {
     layers: Array.from(new Set(layout.polygons.map(polygon => polygon.label).filter(Boolean))),
@@ -62,20 +63,20 @@ export function linkChanges(items: ReviewItem[], savedRefByPolygonId: ReadonlyMa
   const current = new Map<string, string>();
   for (const link of savedLinks) {
     const ref = savedRefByPolygonId.get(link.polygonId);
-    if (ref !== undefined) current.set(ref, link.entityId);
+    if (ref !== undefined) current.set(ref, link.unitId);
   }
   const unlink: string[] = [];
-  const link: { polygonId: string; entityId: string }[] = [];
-  for (const [ref, entityId] of Array.from(current.entries())) {
-    if (wanted.get(ref) !== entityId) {
+  const link: { polygonId: string; unitId: string }[] = [];
+  for (const [ref, unitId] of Array.from(current.entries())) {
+    if (wanted.get(ref) !== unitId) {
       const id = idByRef.get(ref);
       if (id !== undefined) unlink.push(id);
     }
   }
-  for (const [ref, entityId] of Array.from(wanted.entries())) {
-    if (current.get(ref) === entityId) continue;
+  for (const [ref, unitId] of Array.from(wanted.entries())) {
+    if (current.get(ref) === unitId) continue;
     const id = idByRef.get(ref);
-    if (id !== undefined) link.push({ polygonId: id, entityId });
+    if (id !== undefined) link.push({ polygonId: id, unitId });
   }
   return { unlink, link };
 }
