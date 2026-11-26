@@ -116,6 +116,11 @@ async function auditPage(browser, route, vp, token) {
       // An e-mail address is data (the synthetic *.example.test addresses are kept on purpose), and "PROJECT OS" is the product name.
       const text = raw.replace(/[\w.+-]+@[\w.-]+/g, " ").replace(/PROJECT OS/g, " ");
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      // Q-59 (6): content cut off at a side edge without a scroll bar (an RTL page wider than the screen shifts left, where nothing scrolls to it):
+      // a box inside the page's content that starts before the left edge or ends after the right one. Fixed bars and scrolling tables are not counted.
+      const vw = document.documentElement.clientWidth;
+      const insideScroller = element => { for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) { const style = getComputedStyle(node); if (/(auto|scroll)/.test(style.overflowX)) return true; } return false; };
+      const offscreen = [...document.querySelectorAll("[data-page-content] *")].filter(element => { const box = element.getBoundingClientRect(); return box.width > 0 && box.height > 0 && (box.left < -1 || box.right > vw + 1) && getComputedStyle(element).position !== "fixed" && !insideScroller(element); }).length;
       const targets = [...document.querySelectorAll("button, a[href], [role='button'], input, select, textarea")].filter(visible);
       // D-76: what a finger hits. A checkbox, a radio or a visually hidden input inside its <label> (or named by one) is tapped through that label, so the label's box is the target; an input the
       // keyboard and the screen reader skip (a hidden file input behind its own button) is not a target at all.
@@ -138,7 +143,7 @@ async function auditPage(browser, route, vp, token) {
       const denied = new RegExp(denialSource).test(text);
       // a section that still says it is loading after the network settled never reached a state (Arabic: جارٍ / جاري)
       const loading = /جارٍ|جاري/.test(text);
-      return { textLength: raw.trim().length, overflow, targets: targets.length, small, smallSample, easternDigits, latin, shortWords, attributeWords, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
+      return { textLength: raw.trim().length, overflow, offscreen, targets: targets.length, small, smallSample, easternDigits, latin, shortWords, attributeWords, denied, loading, dir: document.documentElement.dir, lang: document.documentElement.lang };
     }, [vp.mobile, NO_PERMISSION_TEXT.source, LANGUAGE_NAMES]);
     let screenshot = null;
     if (SCREENSHOTS) {
@@ -152,6 +157,7 @@ async function auditPage(browser, route, vp, token) {
     if (serverFailures.length) note("server-failure", route, vp.name, [...new Set(serverFailures)].slice(0, 5));
     if (measured.textLength < 30) note("blank-page", route, vp.name, `text length ${measured.textLength}`);
     if (vp.mobile && measured.overflow > 1) note("horizontal-scroll", route, vp.name, `overflow ${measured.overflow}px`);
+    if (vp.mobile && measured.offscreen > 0) note("offscreen-content", route, vp.name, `${measured.offscreen} boxes past the screen's edge`);
     if (vp.mobile && measured.small > 0) note("small-touch-target", route, vp.name, { summary: `${measured.small} of ${measured.targets} controls under 44px`, sample: measured.smallSample });
     if (measured.lang !== LANGUAGE) note("wrong-language", route, vp.name, `lang=${measured.lang}, audited ${LANGUAGE}`);
     if (measured.dir !== EXPECTED_DIR) note("not-rtl", route, vp.name, `dir=${measured.dir}, expected ${EXPECTED_DIR} in ${LANGUAGE}`);
@@ -198,12 +204,12 @@ try {
 // Work order 15 uses it for the four level dashboards, which belong to another agent: the demonstration company's data showed them overflowing a phone, and the order
 // forbids touching them, so the finding is recorded and handed over instead of being fixed here (docs/STATE.md). Remove the entry when they are fixed.
 const advisory = String(process.env.ADVISORY_ROUTES ?? "").split(",").map(item => item.trim()).filter(Boolean);
-for (const finding of findings) if (advisory.some(fragment => finding.route.includes(fragment)) && ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed"].includes(finding.kind)) finding.kind = `advisory-${finding.kind}`;
+for (const finding of findings) if (advisory.some(fragment => finding.route.includes(fragment)) && ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "offscreen-content", "navigation-failed"].includes(finding.kind)) finding.kind = `advisory-${finding.kind}`;
 // D-76: on the pages named here a control under 44px on a phone (measured where the finger lands) fails the run; elsewhere it stays a soft finding until
 // those pages are brought to 44px too. TOUCH_STRICT_ROUTES (comma-separated route fragments) replaces the list.
 const TOUCH_STRICT = String(process.env.TOUCH_STRICT_ROUTES ?? "/pmc,/controls,/site-update").split(",").map(item => item.trim()).filter(Boolean);
 for (const finding of findings) if (finding.kind === "small-touch-target" && TOUCH_STRICT.some(fragment => finding.route.includes(fragment))) finding.kind = "small-touch-target-strict";
-const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "navigation-failed", "small-touch-target-strict", "eastern-digits", "wrong-language"].includes(f.kind));
+const hard = findings.filter(f => ["console-error", "uncaught-error", "server-failure", "blank-page", "horizontal-scroll", "offscreen-content", "navigation-failed", "small-touch-target-strict", "eastern-digits", "wrong-language"].includes(f.kind));
 const soft = findings.filter(f => !hard.includes(f));
 const report = { role: ROLE, language: LANGUAGE, routes: ROUTES.length, viewports: VIEWPORTS.map(v => v.name), pages, hard, soft, summary: { hard: hard.length, soft: soft.length } };
 writeFileSync(path.join(OUT_DIR, "audit.json"), JSON.stringify(report, null, 2));
