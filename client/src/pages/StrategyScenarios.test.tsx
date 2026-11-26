@@ -46,4 +46,12 @@ describe("Q-21 (b): the scenarios section", () => {
     expect(container.querySelector("[data-strategy-download]")).toBeNull();
     expect(container.textContent).toContain("You do not have this permission");
   });
+
+  it("Q-21 limit — NEGATIVE then POSITIVE: in Arabic the calculation trace is said in Arabic, not the server's English words", () => {
+    const { container } = render(<StrategyScenarios tenantId="t" language="ar" />);
+    const step = container.querySelector('[data-trace-step="revenue"]')!;
+    expect(step.textContent).toContain("الإيراد");
+    expect(step.textContent).not.toContain("Synthetic formula");
+    expect(step.textContent).not.toMatch(/^revenue:/);
+  });
 });
