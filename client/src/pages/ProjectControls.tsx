@@ -42,6 +42,7 @@ import { ProjectDataExport as ProjectDataExportContent } from "./ProjectDataExpo
 import { ProjectMasterPlan as ProjectMasterPlanContent } from "./ProjectMasterPlan";
 import { MasterPlanDrawing as MasterPlanDrawingContent } from "@/components/MasterPlanDrawing";
 import { PlanningControlCenter } from "@/components/PlanningControlCenter";
+import { WbsTree } from "@/components/WbsTree";
 import { calculatePlanningControl } from "@/lib/planningControl";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
@@ -353,7 +354,7 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
                 <div className="mt-3"><GridEditor label={sheet.wbs} columns={[{ key: "code", label: t.code, required: true }, { key: "name", label: t.name, required: true, minLength: 2 }, { key: "plannedValue", label: t.planned, kind: "number", min: 0 }]}
                   onSaveRow={row => saveRow(() => sheetWbs.mutateAsync({ tenantId, projectId, code: row.code.trim(), name: row.name.trim(), ...(row.plannedValue.trim() ? { plannedValue: gridNumber(row.plannedValue) } : {}) }))} onSaved={refresh} /></div>
               </details></WriteGate>
-              {data.wbs.length ? <div className="mt-5 divide-y rounded-xl border">{data.wbs.map(item => <div key={item.id} className="flex items-center justify-between gap-4 p-4"><div><p className="font-semibold">{item.code} · {item.name}</p><p className="mt-1 text-xs text-muted-foreground">{t.planned}: {(item.plannedValue == null ? "—" : formatNumber(Number(item.plannedValue), 2))}</p></div><Badge variant="secondary">{formatNumber(Number(item.progressPercent), 2)}%</Badge></div>)}</div> : <p className="mt-5 text-sm text-muted-foreground">{t.emptyWbs}</p>}
+              <WbsTree items={data.wbs} activities={data.activities} empty={t.emptyWbs} />
             </section>
 
             <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border">
