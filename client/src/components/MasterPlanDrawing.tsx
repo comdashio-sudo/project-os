@@ -326,6 +326,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const [activityCode, setActivityCode] = useState("");
   const [blockFilter, setBlockFilter] = useState("");
   const [modelFilter, setModelFilter] = useState("");
+  const [phaseFilter, setPhaseFilter] = useState("");
   const [colourSource, setColourSource] = useState<"site" | "qc">("site");
   const siteMap = trpc.pmc.siteMap.useQuery({ tenantId, projectId, activityCode: activityCode || undefined }, { enabled: Boolean(drawing) });
   // Q-5's QC receipt for the same activity, coloured apart from the site's status
@@ -631,7 +632,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
               <MasterPlanColourPanel
                 activities={siteMap.data?.activities ?? []}
                 activityCode={activityCode}
-                onActivity={code => { setActivityCode(code); setBlockFilter(""); setModelFilter(""); }}
+                onActivity={code => { setActivityCode(code); setBlockFilter(""); setModelFilter(""); setPhaseFilter(""); }}
                 source={colourSource}
                 onSource={setColourSource}
                 blocks={Array.from(new Set((siteMap.data?.units ?? []).map(villa => villa.blockCode))).sort()}
@@ -640,6 +641,9 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 model={modelFilter}
                 onBlock={setBlockFilter}
                 onModel={setModelFilter}
+                phases={Array.from(new Set((siteMap.data?.units ?? []).map(villa => (villa as { phase?: string | null }).phase).filter((value): value is string => Boolean(value)))).sort()}
+                phase={phaseFilter}
+                onPhase={setPhaseFilter}
                 counts={colouring?.counts ?? null}
                 failed={Boolean(colourSource === "qc" ? qcMap.error : siteMap.error)}
                 onExportPng={() => { if (svgRef.current) void exportDrawingPng(svgRef.current, `master-plan-${activityCode ? `${activityCode}-${colourSource}` : "status"}-${new Date().toISOString().slice(0, 10)}.png`); }}
@@ -669,7 +673,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                       <polygon
                         points={points}
                         fill={colouring && item.state === "confirmed" && item.unitCode ? SITE_COLOUR[colouring.keyOf(item.unitCode)] : polygonFill(item, unit?.status ?? null)}
-                        fillOpacity={item.unitCode && !passesFilter(villa ?? null, blockFilter, modelFilter) ? 0.08 : background ? 0.45 : 0.75}
+                        fillOpacity={item.unitCode && !passesFilter(villa ?? null, blockFilter, modelFilter, phaseFilter) ? 0.08 : background ? 0.45 : 0.75}
                         data-colour={colouring && item.state === "confirmed" && item.unitCode ? colouring.keyOf(item.unitCode) : undefined}
                         stroke={isPicked ? "var(--primary)" : isSelected ? "var(--foreground)" : "var(--muted-foreground)"}
                         strokeWidth={isPicked ? 3 : isSelected ? 0.4 : 0.15}

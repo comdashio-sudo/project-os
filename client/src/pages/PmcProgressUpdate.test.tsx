@@ -68,6 +68,16 @@ describe("PmcProgressUpdate (Q-4)", () => {
     expect(h.mutate).toHaveBeenLastCalledWith(expect.objectContaining({ modelCode: "C", confirmCount: 1250 }));
   });
 
+  it("Q-60 batch 2c: a whole phase is chosen by its name and sent as phase", () => {
+    render(<PmcProgressUpdate />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Activity" }), { target: { value: "FOOT" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Whole phase" }));
+    fireEvent.change(screen.getByLabelText(/^Phase/), { target: { value: "PH1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    expect(h.mutate).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "PH1" }));
+    expect(h.mutate.mock.calls.at(-1)![0]).not.toHaveProperty("blockCode");
+  });
+
   it("Q-60 NEGATIVE: cancelling the count sends nothing more and gives the ordinary save back", () => {
     render(<PmcProgressUpdate />);
     fireEvent.change(screen.getByRole("combobox", { name: "Activity" }), { target: { value: "FOOT" } });
