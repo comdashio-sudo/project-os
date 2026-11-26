@@ -14,7 +14,7 @@ const MESSAGES = {
     IMPORT_REQUIRED_COLUMN_MISSING: "عمود مطلوب غير موجود في الملف", IMPORT_REQUIRED_VALUE_MISSING: "قيمة مطلوبة فارغة", IMPORT_INVALID_NUMBER: "الرقم غير صالح", IMPORT_EDIT_INVALID: "التصحيح لصف غير موجود في الجدول أو لحقل لا يُقرأ من أي عمود", IMPORT_FORMULA_ERROR: "خلية الوزن فيها خطأ صيغة من Excel: صحّح الصيغة أو اكتب الوزن رقمًا",
     IMPORT_UNSUPPORTED_COLUMN: "عمود غير معروف", PMC_CLASSIFICATION_BLANK: "القسم أو النموذج أو النشاط فارغ", PMC_DUPLICATE_ACTIVITY: "النشاط مكرر في الملف",
     PMC_MODEL_WEIGHTS_NOT_100: "مجموع أوزان النموذج ليس 100%", PMC_MODEL_ACTIVITY_OMITTED: "نشاط محفوظ في المشروع غائب عن الملف (الملف يجب أن يكون الجدول كاملًا)",
-    PMC_WEIGHTS_NEED_VILLAS: "لا عمود للنموذج والمشروع بلا فلل بعد: استورد قائمة الفلل أولًا، أو أضف عمود النموذج", PMC_STAGE_GROUP_CONFLICT: "البند الفرعي مسجل تحت قسم آخر",
+    PMC_WEIGHTS_NEED_VILLAS: "لا عمود للنموذج والمشروع بلا فلل بعد: استورد قائمة الفلل أولًا، أو أضف عمود النموذج", PMC_WEIGHTS_MODEL_UNKNOWN: "نموذج في جدول الأوزان لا توجد له فلل في المشروع: صحّح اسم العمود أو استورد فلله أولًا", PMC_STAGE_GROUP_CONFLICT: "البند الفرعي مسجل تحت قسم آخر",
     PMC_BLOCK_ZONE_CONFLICT: "البلوك مسجل تحت زون آخر",
   },
   en: {
@@ -27,7 +27,7 @@ const MESSAGES = {
     IMPORT_REQUIRED_COLUMN_MISSING: "A required column is missing from the file", IMPORT_REQUIRED_VALUE_MISSING: "A required value is empty", IMPORT_INVALID_NUMBER: "Not a valid number", IMPORT_EDIT_INVALID: "The correction is for a row the table does not have, or a field no column is read for", IMPORT_FORMULA_ERROR: "The weight cell holds an Excel formula error: fix the formula or type the weight as a number",
     IMPORT_UNSUPPORTED_COLUMN: "Unknown column", PMC_CLASSIFICATION_BLANK: "The section, model or activity is empty", PMC_DUPLICATE_ACTIVITY: "The activity appears twice in the file",
     PMC_MODEL_WEIGHTS_NOT_100: "The model's weights do not total 100%", PMC_MODEL_ACTIVITY_OMITTED: "An activity saved in the project is missing from the file (the file must be the whole table)",
-    PMC_WEIGHTS_NEED_VILLAS: "No model column and the project has no villas yet: import the villa list first, or add a model column", PMC_STAGE_GROUP_CONFLICT: "The sub-item is recorded under another section",
+    PMC_WEIGHTS_NEED_VILLAS: "No model column and the project has no villas yet: import the villa list first, or add a model column", PMC_WEIGHTS_MODEL_UNKNOWN: "A model in the weights table has no villas in the project: correct the column's name or import its villas first", PMC_STAGE_GROUP_CONFLICT: "The sub-item is recorded under another section",
     PMC_BLOCK_ZONE_CONFLICT: "The block is recorded under another zone",
   },
   ur: {
@@ -40,7 +40,7 @@ const MESSAGES = {
     IMPORT_REQUIRED_COLUMN_MISSING: "فائل میں لازمی کالم موجود نہیں", IMPORT_REQUIRED_VALUE_MISSING: "لازمی قدر خالی ہے", IMPORT_INVALID_NUMBER: "درست عدد نہیں", IMPORT_EDIT_INVALID: "درستی ایسی قطار کے لیے ہے جو جدول میں نہیں، یا ایسی فیلڈ کے لیے جو کسی کالم سے نہیں پڑھی جاتی", IMPORT_FORMULA_ERROR: "وزن کے خانے میں Excel فارمولے کی خرابی ہے: فارمولا درست کریں یا وزن عدد کے طور پر لکھیں",
     IMPORT_UNSUPPORTED_COLUMN: "نامعلوم کالم", PMC_CLASSIFICATION_BLANK: "سیکشن، ماڈل یا سرگرمی خالی ہے", PMC_DUPLICATE_ACTIVITY: "سرگرمی فائل میں دو بار ہے",
     PMC_MODEL_WEIGHTS_NOT_100: "ماڈل کے وزن کا مجموعہ 100% نہیں", PMC_MODEL_ACTIVITY_OMITTED: "منصوبے میں محفوظ ایک سرگرمی فائل میں نہیں (فائل پوری جدول ہونی چاہیے)",
-    PMC_WEIGHTS_NEED_VILLAS: "ماڈل کا کالم نہیں اور منصوبے میں ابھی ولاز نہیں: پہلے ولاز کی فہرست درآمد کریں، یا ماڈل کا کالم شامل کریں", PMC_STAGE_GROUP_CONFLICT: "ذیلی آئٹم کسی اور سیکشن کے تحت درج ہے",
+    PMC_WEIGHTS_NEED_VILLAS: "ماڈل کا کالم نہیں اور منصوبے میں ابھی ولاز نہیں: پہلے ولاز کی فہرست درآمد کریں، یا ماڈل کا کالم شامل کریں", PMC_WEIGHTS_MODEL_UNKNOWN: "وزن جدول میں ایسا ماڈل ہے جس کے ولاز منصوبے میں نہیں: کالم کا نام درست کریں یا پہلے اس کے ولاز درآمد کریں", PMC_STAGE_GROUP_CONFLICT: "ذیلی آئٹم کسی اور سیکشن کے تحت درج ہے",
     PMC_BLOCK_ZONE_CONFLICT: "بلاک کسی اور زون کے تحت درج ہے",
   },
 } as const;
