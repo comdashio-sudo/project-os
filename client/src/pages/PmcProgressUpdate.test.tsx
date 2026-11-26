@@ -54,6 +54,32 @@ describe("PmcProgressUpdate (Q-4)", () => {
     expect(current()).toBe("Villas");
   });
 
+  it("Q-60: a whole model is chosen by its code; above 100 villas the server's count is shown and the save is sent again carrying it", () => {
+    render(<PmcProgressUpdate />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Activity" }), { target: { value: "FOOT" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Whole model" }));
+    fireEvent.change(screen.getByLabelText(/^Model/), { target: { value: "C" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    expect(h.mutate).toHaveBeenLastCalledWith(expect.objectContaining({ modelCode: "C" }));
+    expect(h.mutate.mock.calls[0][0]).not.toHaveProperty("confirmCount");
+    act(() => { h.options.onError?.({ data: { issues: [{ code: "SITE_CONFIRM_COUNT", detail: "1250" }] } }); });
+    expect(screen.getByRole("alertdialog").textContent).toContain("1250 villas will be updated at once");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm saving 1250 villas" }));
+    expect(h.mutate).toHaveBeenLastCalledWith(expect.objectContaining({ modelCode: "C", confirmCount: 1250 }));
+  });
+
+  it("Q-60 NEGATIVE: cancelling the count sends nothing more and gives the ordinary save back", () => {
+    render(<PmcProgressUpdate />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Activity" }), { target: { value: "FOOT" } });
+    fireEvent.change(screen.getByLabelText(/^Villa numbers/), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    act(() => { h.options.onError?.({ data: { issues: [{ code: "SITE_CONFIRM_COUNT", detail: "300" }] } }); });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(h.mutate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /Save/ })).toBeTruthy();
+  });
+
   it("a refusal lists each wrong villa in the page's language", () => {
     render(<PmcProgressUpdate />);
     act(() => { h.options.onError?.({ data: { issues: [{ code: "SITE_VILLA_UNKNOWN", villa: "999" }, { code: "SITE_DATE_IN_FUTURE", detail: "2099-01-01" }] } }); });

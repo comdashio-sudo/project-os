@@ -1871,6 +1871,11 @@ export const projectErrorMessages = {
     en: "The stall threshold is a number of working days from 1 to 60.",
     ur: "رکاوٹ کی حد 1 سے 60 تک کام کے دنوں کی تعداد ہے۔",
   },
+  PROJECT_OS_SITE_UPDATE_CONFIRM_COUNT: {
+    ar: "لم يُحفظ شيء بعد: هذا التحديث يشمل أكثر من 100 فيلا، فأكّد عددها أولًا.",
+    en: "Nothing was saved yet: this update covers more than 100 villas, so confirm their number first.",
+    ur: "ابھی کچھ محفوظ نہیں ہوا: یہ اپ ڈیٹ 100 سے زیادہ ولاز پر ہے، پہلے ان کی تعداد کی تصدیق کریں۔",
+  },
   PROJECT_OS_SITE_UPDATE_INVALID: {
     ar: "لم يُحفظ شيء: في الإدخال ما يجب تصحيحه (فيلا غير موجودة، أو تاريخ في المستقبل، أو حقل ناقص، أو نشاط لا ينطبق على نموذج الفيلا). التفاصيل تحت النموذج.",
     en: "Nothing was saved: something in the entry must be corrected (a villa that does not exist, a date in the future, a missing field, or an activity that does not apply to the villa's type). The details are under the form.",
@@ -1920,6 +1925,21 @@ export const projectErrorMessages = {
     ar: "أحد الحضور المختارين ليس عضوًا نشطًا في هذه الشركة.",
     en: "One of the attendees chosen is not an active member of this company.",
     ur: "منتخب حاضرین میں سے ایک اس کمپنی کا فعال رکن نہیں۔",
+  },
+  PROJECT_OS_SCHEDULE_BASELINE_REASON_REQUIRED: {
+    ar: "اكتب سبب اعتماد خط الأساس الجديد (خمسة أحرف على الأقل).",
+    en: "Write why this becomes the new baseline (at least five characters).",
+    ur: "نیا بنیادی منصوبہ منظور کرنے کی وجہ لکھیں (کم از کم پانچ حروف)۔",
+  },
+  PROJECT_OS_SCHEDULE_BASELINE_NOT_IMPORT: {
+    ar: "يُعتمد خط أساس جديد من استيراد P6 كامل فقط، لا من تحديث أنشطة.",
+    en: "Only a full P6 import can become the new baseline, not an activity update.",
+    ur: "صرف مکمل P6 درآمد نیا بنیادی منصوبہ بن سکتی ہے، سرگرمیوں کی تازہ کاری نہیں۔",
+  },
+  PROJECT_OS_SCHEDULE_ALREADY_BASELINE: {
+    ar: "هذا الاستيراد هو خط الأساس الحالي.",
+    en: "This import is already the baseline.",
+    ur: "یہ درآمد پہلے ہی بنیادی منصوبہ ہے۔",
   },
   PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND: {
     ar: "إحدى لقطتي المقارنة غير موجودة في هذا المشروع.",
