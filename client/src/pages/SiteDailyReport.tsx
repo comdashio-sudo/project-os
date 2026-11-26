@@ -125,7 +125,8 @@ export default function SiteDailyReport() {
   const list = trpc.siteReports.list.useQuery(scope, { enabled });
   // Q-71 (2): the company's rule — off (the default), a sent report is final; on, it waits for the approver. Unknown (loading, failed): the neutral wording
   const policy = trpc.policy.effective.useQuery(scope, { enabled });
-  const approvalOn = policy.data?.dailyReportApproval === true;
+  // a failed read is not «off»: the wording stays neutral and the server decides on sending (its answer says final or waiting)
+  const approvalOn = !policy.isError && policy.data?.dailyReportApproval === true;
   const canWrite = useCan("project.field.manage", projectId);
   const canReview = useCan("project.manage", projectId);
   // Q-12: who does not hold the site's part (the HSE and QA/QC engineers, the planning engineer) gets their own section only, below
