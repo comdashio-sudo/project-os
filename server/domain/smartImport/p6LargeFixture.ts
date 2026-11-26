@@ -6,7 +6,7 @@ const day = (offset: number) => { const d = new Date(Date.UTC(2024, 0, 1)); d.se
 export const LARGE_P6_COUNTS = { activities: 16_469, wbs: 1_413, relationships: 46_592, codeAssignments: 181_148, codeTypes: 11 } as const;
 const TYPES = ["Stage", "Scope", "Weight Stage", "Zone", "Phase", "Trade", "CSI", "Block", "Villa Type", "Package", "Q Item"] as const;
 
-export function buildLargeP6Xer(options: { counts?: Partial<typeof LARGE_P6_COUNTS> } = {}) {
+export function buildLargeP6Xer(options: { counts?: Partial<typeof LARGE_P6_COUNTS>; /** activity names of about 200 characters: the file passes 10.5 MB, the size a base64 body could not carry */ longNames?: boolean } = {}) {
   const counts = { ...LARGE_P6_COUNTS, ...options.counts };
   const out: string[] = [];
   const table = (name: string, fields: string[], rows: Array<Array<string | number>>) => { out.push(`%T\t${name}`, `%F\t${fields.join("\t")}`); for (const row of rows) out.push(`%R\t${row.join("\t")}`); };
@@ -30,7 +30,7 @@ export function buildLargeP6Xer(options: { counts?: Partial<typeof LARGE_P6_COUN
   for (let i = 0; i < counts.activities; i++) {
     const wbs = villaWbs[i % villaWbs.length]; const villa = (wbs - 9000 - upper); const code = `V${pad(villa, 3)}.Q${pad(1 + (i % 13))}.${1000 + Math.floor(i / villaWbs.length)}`;
     const start = day(i % 900); const end = day((i % 900) + 14);
-    tasks.push([6000 + i, 500, wbs, 1, "TT_Task", "TK_NotStart", code, `Synthetic activity ${i + 1} of villa ${villa} with a long enough name to look real`, 120, 120, 0, 0, `${start} 08:00`, `${end} 17:00`, "", ""]);
+    tasks.push([6000 + i, 500, wbs, 1, "TT_Task", "TK_NotStart", code, `Synthetic activity ${i + 1} of villa ${villa} with a long enough name to look real${options.longNames ? " — " + "filler text of a long activity description ".repeat(4) : ""}`, 120, 120, 0, 0, `${start} 08:00`, `${end} 17:00`, "", ""]);
   }
   table("TASK", ["task_id", "proj_id", "wbs_id", "clndr_id", "task_type", "status_code", "task_code", "task_name", "target_drtn_hr_cnt", "remain_drtn_hr_cnt", "phys_complete_pct", "total_float_hr_cnt", "target_start_date", "target_end_date", "act_start_date", "act_end_date"], tasks);
   const preds: Array<Array<string | number>> = []; const seen = new Set<string>();
