@@ -1,5 +1,5 @@
 {
-  "id": "f5ffdb3e-bc49-4cb1-8d13-72314263cfb9",
+  "id": "09fde1b1-b8c0-4a2e-a14b-4cd606123652",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -10721,7 +10721,13 @@
           "name": "entity_id",
           "type": "varchar(36)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "pmc_unit_id": {
+          "name": "pmc_unit_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
         },
         "confirmed_by_user_id": {
           "name": "confirmed_by_user_id",
@@ -10738,6 +10744,27 @@
         }
       },
       "indexes": {
+        "master_plan_drawing_links_drawing_pmc_unit_unique": {
+          "name": "master_plan_drawing_links_drawing_pmc_unit_unique",
+          "columns": [
+            {
+              "expression": "drawing_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pmc_unit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "master_plan_drawing_links_polygon_unique": {
           "name": "master_plan_drawing_links_polygon_unique",
           "columns": [
@@ -10803,6 +10830,23 @@
         }
       },
       "foreignKeys": {
+        "mpdl_pmc_unit_fk": {
+          "name": "mpdl_pmc_unit_fk",
+          "tableFrom": "master_plan_drawing_links",
+          "tableTo": "pmc_units",
+          "columnsFrom": [
+            "pmc_unit_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "mpdl_tenant_fk": {
           "name": "mpdl_tenant_fk",
           "tableFrom": "master_plan_drawing_links",
@@ -10885,7 +10929,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "master_plan_drawing_links_one_unit_check": {
+          "name": "master_plan_drawing_links_one_unit_check",
+          "value": "(\"master_plan_drawing_links\".\"entity_id\" IS NULL) <> (\"master_plan_drawing_links\".\"pmc_unit_id\" IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.master_plan_drawing_polygons": {

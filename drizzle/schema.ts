@@ -1213,11 +1213,17 @@ export const masterPlanDrawingLinks = pgTable(
     projectId: varchar("project_id", { length: 36 }).notNull(),
     drawingId: varchar("drawing_id", { length: 36 }).notNull(),
     polygonId: varchar("polygon_id", { length: 36 }).notNull(),
-    entityId: varchar("entity_id", { length: 36 }).notNull(),
+    // Q-62 (0055): a link holds ONE unit — a unit of the plan version (entity_id) or, when the version has none, a villa of the project's PMC units
+    // (pmc_unit_id: the villas the «villa list» import writes), so the villas are never entered twice
+    entityId: varchar("entity_id", { length: 36 }),
+    pmcUnitId: varchar("pmc_unit_id", { length: 36 }),
     confirmedByUserId: integer("confirmed_by_user_id").notNull(),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }).defaultNow().notNull(),
   },
   table => [
+    check("master_plan_drawing_links_one_unit_check", sql`(${table.entityId} IS NULL) <> (${table.pmcUnitId} IS NULL)`),
+    foreignKey({ columns: [table.pmcUnitId, table.tenantId, table.projectId], foreignColumns: [pmcUnits.id, pmcUnits.tenantId, pmcUnits.projectId], name: "mpdl_pmc_unit_fk" }),
+    uniqueIndex("master_plan_drawing_links_drawing_pmc_unit_unique").on(table.drawingId, table.pmcUnitId),
     foreignKey({ columns: [table.tenantId], foreignColumns: [companies.id], name: "mpdl_tenant_fk" }),
     foreignKey({ columns: [table.projectId], foreignColumns: [projects.id], name: "mpdl_project_fk" }),
     foreignKey({ columns: [table.drawingId], foreignColumns: [masterPlanDrawings.id], name: "mpdl_drawing_fk" }),
