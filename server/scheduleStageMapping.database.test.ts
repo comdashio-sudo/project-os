@@ -73,13 +73,15 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-61 (3): sc
 
   it("POSITIVE (save, planning engineer with project.pmc.manage): the owner's kind of link — a group across several stages, factory production at the start of one stage — saved and audited with before and after; then ready", async () => {
     const saved = await a.callerFor(a.people.planner).schedule.saveStageMapping({ ...scope(), links: [
-      { groupId: groupIds.Q01, stageCodes: ["Q02"], anchor: "span", suggestedScore: 0.8 },
+      { groupId: groupIds.Q01, stageCodes: ["Q02"], anchor: "span" },
       { groupId: groupIds.Q06, stageCodes: ["Q06", "Q02"], anchor: "span" },
       { groupId: groupIds.Q05, stageCodes: ["q06"], anchor: "start" },
-      { groupId: groupIds.Q07, stageCodes: ["Q20"], anchor: "span", suggestedScore: 1 },
+      { groupId: groupIds.Q07, stageCodes: ["Q20"], anchor: "span" },
     ] });
     expect(saved).toMatchObject({ saved: 4, removed: 0, readiness: { ready: true, unlinked: [], stale: [] } });
     expect((await links(a.tenantId)).map(row => [row.stage_codes_json, row.anchor])).toEqual([['["Q02"]', "span"], ['["Q06","Q02"]', "span"], ['["Q06"]', "start"], ['["Q20"]', "span"]]);
+    // review of #550, note 2: «suggested» is the server's own decision — Q01 ← Q02 and Q07 ← Q20 are exactly its suggestions; the hand-picked ones are not
+    expect((await links(a.tenantId)).map(row => [row.stage_codes_json, row.suggested_score === null ? null : Number(row.suggested_score)])).toEqual([['["Q02"]', expect.any(Number)], ['["Q06","Q02"]', null], ['["Q06"]', null], ['["Q20"]', 1]]);
     // changed once more: fences removed → not ready again; the audit keeps both decisions with what was there before
     const again = await a.callerFor(a.people.planner).schedule.saveStageMapping({ ...scope(), links: [{ groupId: groupIds.Q07, stageCodes: [], anchor: "span" }] });
     expect(again).toMatchObject({ saved: 0, removed: 1, readiness: { ready: false, unlinked: ["Q07"] } });
@@ -116,4 +118,20 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-61 (3): sc
       await app.query("ROLLBACK");
     } finally { await app.end(); }
   });
+
+  it("review of #550, note 1: two people saving the same group at the same moment both succeed (no raw unique-index error), one link remains, and the second audit's «before» is the first save's «after»", async () => {
+    const planner = a.callerFor(a.people.planner); const owner = a.asOwner;
+    const results = await Promise.allSettled([
+      planner.schedule.saveStageMapping({ ...scope(), links: [{ groupId: groupIds.Q07, stageCodes: ["Q20"], anchor: "span" }] }),
+      owner.schedule.saveStageMapping({ ...scope(), links: [{ groupId: groupIds.Q07, stageCodes: ["Q20"], anchor: "end" }] }),
+    ]);
+    expect(results.map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
+    const { rows } = await client.query("SELECT anchor FROM pmc_schedule_stage_links WHERE tenant_id = $1 AND group_id = $2", [a.tenantId, groupIds.Q07]);
+    expect(rows).toHaveLength(1);
+    const { rows: audit } = await client.query("SELECT metadata FROM audit_logs WHERE tenant_id = $1 AND action = 'pmc.schedule_stage_links_saved' ORDER BY created_at DESC LIMIT 2", [a.tenantId]);
+    const [second, first] = audit.map(row => JSON.parse(row.metadata).changes[0]);
+    expect(second.before).toEqual({ stageCodes: first.after.stageCodes, anchor: first.after.anchor });
+    expect(rows[0].anchor).toBe(second.after.anchor);
+  });
 });
+

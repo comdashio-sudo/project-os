@@ -1133,7 +1133,7 @@ export const appRouter = router({
     stageMapping: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getScheduleStageMapping({ userId: ctx.user.id, ...input })),
     saveStageMapping: protectedProcedure.input(z.object({
       tenantId: z.string().uuid(), projectId: z.string().uuid(),
-      links: z.array(z.object({ groupId: z.string().uuid(), stageCodes: z.array(z.string().trim().min(1).max(80)).max(20), anchor: z.enum(["span", "start", "end"]), suggestedScore: z.number().min(0).max(1).nullable().optional() })).min(1).max(200),
+      links: z.array(z.object({ groupId: z.string().uuid(), stageCodes: z.array(z.string().trim().min(1).max(80)).max(20), anchor: z.enum(["span", "start", "end"]) })).min(1).max(200),
     })).mutation(({ ctx, input }) => saveScheduleStageMapping({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),

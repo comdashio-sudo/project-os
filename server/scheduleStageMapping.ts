@@ -3,7 +3,7 @@
 // audit row (before and after for each group) in one transaction. The screen also shows Q-61 (2)'s differences between the schedule and the villas.
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcScheduleStageLinks } from "../drizzle/schema";
 import { loadScheduleAndVillas } from "./scheduleVillaLinks";
 import { linkScheduleToVillas, villaOfEachActivity } from "./domain/scheduleVillas";
@@ -48,7 +48,7 @@ async function weightGroups(db: Db, scope: Scope): Promise<WeightGroup[]> {
   return groups.map(group => ({ ...group, weight: Math.round((weight.get(group.id) ?? 0) * 1e4) / 1e4 })).sort((a, b) => a.code.localeCompare(b.code, "en", { numeric: true }));
 }
 
-async function savedLinks(db: Db, scope: Scope): Promise<StageLink[]> {
+async function savedLinks(db: Pick<Db, "select">, scope: Scope): Promise<StageLink[]> {
   const rows = await db.select({ groupId: pmcScheduleStageLinks.groupId, stageCodesJson: pmcScheduleStageLinks.stageCodesJson, anchor: pmcScheduleStageLinks.anchor, suggestedScore: pmcScheduleStageLinks.suggestedScore }).from(pmcScheduleStageLinks).where(mine(pmcScheduleStageLinks, scope));
   return rows.map(row => ({ groupId: row.groupId, stageCodes: JSON.parse(row.stageCodesJson) as string[], anchor: row.anchor as StageAnchor, suggestedScore: row.suggestedScore === null ? null : Number(row.suggestedScore) }));
 }
@@ -68,19 +68,32 @@ export async function getScheduleStageMapping(input: Scope) {
   };
 }
 
-/** A person's decision for some groups: each replaces that group's link (an empty stage list removes it). Refused whole, before anything is written, when a group is not this project's, a stage is not in the schedule, or a start/end anchor names more than one stage. */
-export async function saveScheduleStageMapping(input: Scope & { links: Array<{ groupId: string; stageCodes: string[]; anchor: StageAnchor; suggestedScore?: number | null }> }) {
+/**
+ * A person's decision for some groups: each replaces that group's link (an empty stage list removes it). Refused whole, before anything is written, when a
+ * group is not this project's, a stage is not in the schedule, or a start/end anchor names more than one stage. Whether a link is the platform's suggestion
+ * is decided here, not taken from the request: it is when it is exactly the suggestion this server makes for the group (review of #550, note 2). Two saves
+ * of the same project wait for each other (a lock on the project), and «before» is read inside the transaction, so the audit's before is the real one and
+ * the unique index never answers with a raw error (review of #550, note 1).
+ */
+export async function saveScheduleStageMapping(input: Scope & { links: Array<{ groupId: string; stageCodes: string[]; anchor: StageAnchor }> }) {
   const db = await pmcGate(input, "project.pmc.manage");
-  const links: StageLink[] = input.links.map(link => ({ groupId: link.groupId, stageCodes: Array.from(new Set(link.stageCodes.map(code => code.trim().toUpperCase()).filter(Boolean))), anchor: link.anchor, suggestedScore: link.suggestedScore ?? null }));
-  const groupIds = Array.from(new Set(links.map(link => link.groupId)));
+  const groupIds = Array.from(new Set(input.links.map(link => link.groupId)));
   const known = new Set((await db.select({ id: pmcActivityGroups.id }).from(pmcActivityGroups).where(and(mine(pmcActivityGroups, input), inArray(pmcActivityGroups.id, groupIds.length ? groupIds : ["-"])))).map(row => row.id));
   if (groupIds.some(id => !known.has(id))) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_PMC_GROUP_NOT_FOUND" });
   const stages = scheduleStages(await loadScheduleAndVillas(db, input));
+  const suggestion = new Map(suggestStageLinks(await weightGroups(db, input), stages).map(item => [item.groupId, item]));
+  const links: StageLink[] = input.links.map(link => {
+    const stageCodes = Array.from(new Set(link.stageCodes.map(code => code.trim().toUpperCase()).filter(Boolean)));
+    const offered = suggestion.get(link.groupId);
+    const isSuggestion = Boolean(offered) && link.anchor === "span" && stageCodes.length === 1 && stageCodes[0] === offered!.stageCode;
+    return { groupId: link.groupId, stageCodes, anchor: link.anchor, suggestedScore: isSuggestion ? offered!.score : null };
+  });
   const issues = validateStageLinks(links, stages);
   if (issues.length) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_PMC_STAGE_LINK_INVALID", cause: { issues } });
-  const before = new Map((await savedLinks(db, input)).map(link => [link.groupId, link]));
   let saved = 0; let removed = 0;
   await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`pmc-stage-links:${input.projectId}`}))`);
+    const before = new Map((await savedLinks(tx, input)).map(link => [link.groupId, link]));
     for (const link of links) {
       await tx.delete(pmcScheduleStageLinks).where(and(mine(pmcScheduleStageLinks, input), eq(pmcScheduleStageLinks.groupId, link.groupId)));
       if (!link.stageCodes.length) { if (before.has(link.groupId)) removed += 1; continue; }
