@@ -12,8 +12,8 @@ vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<t
   <select id={id} value={value} onChange={event => onValueChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
 ) }));
 const rows = [
-  { unitId: "u1", villa: "1", blockCode: "B1", modelCode: "A", lastMovedOn: "2026-10-15", workingDays: 20, state: "long", lastActivity: { code: "WALL", name: "Walls" }, nextActivity: { code: "PAINT", name: "Paint" } },
-  { unitId: "u2", villa: "2", blockCode: "B2", modelCode: "A", lastMovedOn: "2026-11-05", workingDays: 5, state: "stalled", lastActivity: { code: "FOOT", name: "Footings" }, nextActivity: { code: "WALL", name: "Walls" } },
+  { unitId: "u1", villa: "1", blockCode: "B1", modelCode: "A", phase: "PH1", lastMovedOn: "2026-10-15", workingDays: 20, state: "long", lastActivity: { code: "WALL", name: "Walls" }, nextActivity: { code: "PAINT", name: "Paint" } },
+  { unitId: "u2", villa: "2", blockCode: "B2", modelCode: "A", phase: "PH2", lastMovedOn: "2026-11-05", workingDays: 5, state: "stalled", lastActivity: { code: "FOOT", name: "Footings" }, nextActivity: { code: "WALL", name: "Walls" } },
   { unitId: "u3", villa: "3", blockCode: "B2", modelCode: "B", lastMovedOn: "2026-11-11", workingDays: 1, state: "active", lastActivity: { code: "FOOT", name: "Footings" }, nextActivity: { code: "WALL", name: "Walls" } },
 ];
 vi.mock("@/lib/trpc", () => ({ trpc: { pmc: {
@@ -45,5 +45,18 @@ describe("StalledUnits (Q-14 a)", () => {
     fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "Save the threshold" }));
     expect(h.save).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", thresholdDays: 5 });
+  });
+
+  it("Q-60 batch 2c: filters by phase, shown because the villas carry phases", () => {
+    render(<StalledUnits />);
+    fireEvent.change(document.getElementById(screen.getByText("Phase").closest("label")!.getAttribute("for")!)!, { target: { value: "PH1" } });
+    expect(Array.from(document.querySelectorAll("[data-stall-rows] a")).map(item => item.getAttribute("href"))).toEqual(["/m/t/p/unit/1"]);
+  });
+
+  it("Q-60 batch 2c NEGATIVE: villas without a phase show no phase filter", () => {
+    const saved = rows.map(row => (row as { phase?: string }).phase);
+    rows.forEach(row => { delete (row as { phase?: string }).phase; });
+    try { render(<StalledUnits />); expect(screen.queryByText("Phase")).toBeNull(); }
+    finally { rows.forEach((row, index) => { if (saved[index]) (row as { phase?: string }).phase = saved[index]; }); }
   });
 });
