@@ -15,7 +15,8 @@ const NO_VERSION = "00000000-0000-4000-8000-000000000000";
 
 export type SaveOutcome = { ok: true } | { ok: false; code: string };
 
-export function useMasterPlanDrawingLayout(input: { tenantId: string; projectId: string; masterPlanVersionId: string | null; units: ProjectUnit[] }) {
+// unitSource (Q-62): where the drawing's units come from — the plan version's own units, or the project's PMC villas — so a link names the right one
+export function useMasterPlanDrawingLayout(input: { tenantId: string; projectId: string; masterPlanVersionId: string | null; units: ProjectUnit[]; unitSource: "plan" | "pmc" }) {
   const { tenantId, projectId } = input;
   const masterPlanVersionId = input.masterPlanVersionId ?? NO_VERSION;
   const scope = { tenantId, projectId, masterPlanVersionId };
@@ -51,7 +52,7 @@ export function useMasterPlanDrawingLayout(input: { tenantId: string; projectId:
       const savedIdByRef = new Map(saved.polygons.map(polygon => [polygon.ref, polygon.id]));
       const changes = linkChanges(args.items, refByPolygonId, remainingLinks, savedIdByRef);
       for (const polygonId of changes.unlink) await unlinkUnit.mutateAsync({ ...scope, polygonId });
-      for (const link of changes.link) await linkUnit.mutateAsync({ ...scope, ...link });
+      for (const link of changes.link) await linkUnit.mutateAsync({ ...scope, polygonId: link.polygonId, ...(input.unitSource === "pmc" ? { pmcUnitId: link.unitId } : { entityId: link.unitId }) });
       await utils.masterPlans.drawingLayout.invalidate(scope);
       return { ok: true };
     } catch (error) {

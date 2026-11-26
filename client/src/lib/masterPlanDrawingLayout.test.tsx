@@ -11,7 +11,7 @@ const layout: SavedLayout = {
   latestVersion: null,
   versions: [],
   polygons: [{ id: "srv-1", ref: "P1", label: "B1", points: square }, { id: "srv-2", ref: "P2", label: "", points: square }],
-  links: [{ polygonId: "srv-1", entityId: "unit-1" }],
+  links: [{ polygonId: "srv-1", unitId: "unit-1" }],
 };
 
 describe("the newest version a drawing is kept under", () => {
@@ -55,13 +55,13 @@ describe("what is saved from the screen", () => {
   const refs = new Map([["srv-1", "P1"], ["srv-2", "P2"]]);
 
   it("links only what is confirmed, and leaves a proposal out", () => {
-    expect(linkChanges([confirmed("P2", "unit-2"), proposed("P1", "unit-1")], refs, [], savedIds)).toEqual({ unlink: [], link: [{ polygonId: "srv-2", entityId: "unit-2" }] });
+    expect(linkChanges([confirmed("P2", "unit-2"), proposed("P1", "unit-1")], refs, [], savedIds)).toEqual({ unlink: [], link: [{ polygonId: "srv-2", unitId: "unit-2" }] });
   });
 
   it("unlinks a link that was cleared or moved before it links the unit to its new shape", () => {
-    const saved = [{ polygonId: "srv-1", entityId: "unit-1" }];
+    const saved = [{ polygonId: "srv-1", unitId: "unit-1" }];
     expect(linkChanges([confirmed("P1", "unit-1")], refs, saved, savedIds)).toEqual({ unlink: [], link: [] });
     expect(linkChanges([], refs, saved, savedIds)).toEqual({ unlink: ["srv-1"], link: [] });
-    expect(linkChanges([confirmed("P2", "unit-1")], refs, saved, savedIds)).toEqual({ unlink: ["srv-1"], link: [{ polygonId: "srv-2", entityId: "unit-1" }] });
+    expect(linkChanges([confirmed("P2", "unit-1")], refs, saved, savedIds)).toEqual({ unlink: ["srv-1"], link: [{ polygonId: "srv-2", unitId: "unit-1" }] });
   });
 });
