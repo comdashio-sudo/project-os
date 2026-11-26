@@ -76,7 +76,7 @@ export default function ExecutiveDashboard() {
         success: "تم حفظ مسودة القرار.",
         noProjects:
           "أنشئ مشروعًا ضمن نطاقك أولًا حتى يمكن ربط القرار بسجل مشروع محدد.",
-       projectOs: "PROJECT OS", projectProfitability: "ربحية المشاريع" }, en: { notAssessed: "Not assessed",
+       projectOs: "Dashio", projectProfitability: "ربحية المشاريع" }, en: { notAssessed: "Not assessed",
         back: "Workspace",
         level: "Level 1 · Executive Leadership",
         title: "Leadership view",
@@ -100,7 +100,7 @@ export default function ExecutiveDashboard() {
         success: "Decision draft saved.",
         noProjects:
           "Create a project in your scope first so the decision can be linked to a specific project record.",
-       projectOs: "PROJECT OS", projectProfitability: "Project profitability" }, ur: { notAssessed: "جانچا نہیں گیا",
+       projectOs: "Dashio", projectProfitability: "Project profitability" }, ur: { notAssessed: "جانچا نہیں گیا",
         back: "ورک اسپیس",
         level: "سطح 1 · انتظامی قیادت",
         title: "قیادت کا منظر",
@@ -124,7 +124,7 @@ export default function ExecutiveDashboard() {
         success: "فیصلے کا مسودہ محفوظ ہو گیا۔",
         noProjects:
           "پہلے اپنے دائرے میں ایک پروجیکٹ بنائیں تاکہ فیصلہ کسی مخصوص پروجیکٹ کے ریکارڈ سے جوڑا جا سکے۔",
-       projectOs: "PROJECT OS", projectProfitability: "پروجیکٹ منافع بخشی" } });
+       projectOs: "Dashio", projectProfitability: "پروجیکٹ منافع بخشی" } });
   if (metricsQuery.error && projectsQuery.error && decisionsQuery.error) {
     return <PageMain className="min-h-screen bg-muted p-8 text-danger-soft-foreground">{getLocalizedProjectError(metricsQuery.error, isArabic)}</PageMain>;
   }
