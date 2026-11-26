@@ -14,6 +14,7 @@ import { trpc } from "@/lib/trpc";
 import { PAGE_NAMES } from "@shared/pageNames";
 import { ScheduleCompare } from "@/components/ScheduleCompare";
 import { ScheduleStageMapping } from "@/components/ScheduleStageMapping";
+import { VillaPlannedCurve } from "@/components/VillaPlannedCurve";
 
 type Filter = "all" | "critical" | "late" | "lookAhead" | "open";
 const text = {
@@ -125,6 +126,8 @@ export default function LiveSchedule() {
         <ScheduleCompare key={data.snapshots.map(snapshot => snapshot.id).join(",")} tenantId={tenantId} projectId={projectId} snapshots={data.snapshots} sourceLabel={source => t.source[source as keyof typeof t.source] ?? source} />
         {/* Q-61 (3): schedule stages linked to the weight groups (schedule.stageMapping), with Q-61 (2)'s differences */}
         <ScheduleStageMapping tenantId={tenantId} projectId={projectId} />
+        {/* Q-61 (4): the planned S-curve per villa / block / model / project and the villas behind plan (schedule.plannedCurve) */}
+        <VillaPlannedCurve tenantId={tenantId} projectId={projectId} />
       </>}
     </PageMain>
   );

@@ -14,6 +14,17 @@ describe("vercel.json and the Vercel build", () => {
     expect(JSON.parse(text("package.json")).scripts["build:vercel"]).toBe("node --import tsx scripts/build-vercel.mjs");
   });
 
+  it("only main and production create a Vercel deployment: no other branch does (the free plan allows 100 a day, and each push to each branch used one), and Vercel's bot stays silent on pull requests", () => {
+    // Vercel's rule (docs: project-configuration/git-configuration): patterns are minimatch; a branch matching several rules deploys when at least one is true; a branch matching none deploys.
+    // «*» does not cross a slash, so «claude/x» needs «**» — the reason both are listed.
+    const rules = (vercel.git as { deploymentEnabled: Record<string, boolean> }).deploymentEnabled;
+    const deploys = (branch: string) => { const hits = Object.entries(rules).filter(([pattern]) => path.matchesGlob(branch, pattern)); return hits.length ? hits.some(([, enabled]) => enabled) : true; };
+    for (const branch of ["main", "production"]) expect(deploys(branch), branch).toBe(true); // main's Preview is kept (the release check needs it); production is built from this branch
+    for (const branch of ["claude/q-57-export-print-xax28c", "codex/dashio-review-fixes", "q51-workbook-prefill", "feature/a/b", "dependabot/npm_and_yarn/x"]) expect(deploys(branch), branch).toBe(false);
+    expect(vercel.github).toEqual({ silent: true });
+    expect(vercel.ignoreCommand).toBe("bash scripts/ci/vercel-ignore.sh"); // the build-skip script stays as a second layer
+  });
+
   it("holds no secret: vercel.json and the build script carry no key, password, token or connection string", () => {
     for (const file of ["vercel.json", "scripts/build-vercel.mjs"]) expect(text(file), file).not.toMatch(/postgres(ql)?:\/\/[^\s'"`]*@|eyJ[A-Za-z0-9_-]{20,}|sk_[a-z]+_|service_role/);
   });
