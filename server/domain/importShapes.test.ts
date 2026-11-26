@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
-import { IMPORT_SHAPES } from "../testing/importShapes";
+import { BOQ_SHAPES, IMPORT_SHAPES } from "../testing/importShapes";
+import { analyzeBoqFile, boqRefusal } from "./boqFile";
 import { parsePmcImportFile, planCatalog, weightsToCatalogRows } from "./pmcImport";
 
 // Q-50 batch 6: every shape in the library imports as it is — no mapping, no correction — and reads to what the library says. Synthetic data only.
@@ -40,5 +41,45 @@ describe("the library of file shapes (Q-50 batch 6)", () => {
     const out = weightsToCatalogRows(parsed.rows, ["A"]);
     expect(out.errors.map(error => `${error.rowNumber}:${error.code}`)).toEqual(["6:IMPORT_FORMULA_ERROR"]);
     expect(planCatalog(out.rows, emptyContext).errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the library's priced bills of quantities (Q-50)", () => {
+  for (const shape of BOQ_SHAPES) {
+    it(`«${shape.name}» reads with no mapping and no correction; headings and non-item lines are left out and named`, async () => {
+      const read = await analyzeBoqFile(await shape.build(), "xlsx");
+      expect(read.fileError).toBeNull();
+      expect(read.issues).toEqual([]);
+      expect(boqRefusal(read)).toBeNull();
+      expect(read.items.length).toBe(shape.expect.items);
+      expect(read.totalAmount).toBe(shape.expect.totalAmount);
+      expect(read.leftOut.filter(row => row.kind === "heading").length).toBe(shape.expect.headings);
+      expect(read.leftOut.filter(row => row.kind === "line").length).toBe(shape.expect.lines);
+      expect(read.leftOut.every(row => row.text.length > 0 && row.rowNumber > 0)).toBe(true);
+    });
+  }
+
+  it("NEGATIVE: a row with only some of unit, quantity and rate is still an error on its row — never left out as a heading", async () => {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load((await BOQ_SHAPES[0].build()) as unknown as ArrayBuffer);
+    const sheet = workbook.worksheets[0];
+    sheet.getCell("D6").value = null; // item 1.1 keeps its unit and rate but loses its quantity
+    sheet.getCell("C7").value = null; sheet.getCell("D7").value = null; sheet.getCell("E7").value = null; sheet.getCell("F7").value = null; sheet.getCell("C7").value = "m2"; // 1.2: a unit only
+    sheet.getCell("A10").value = null; // item 2.1 loses its code but keeps unit, quantity and rate
+    const read = await analyzeBoqFile(new Uint8Array(await workbook.xlsx.writeBuffer()), "xlsx");
+    expect(read.issues.map(issue => `${issue.rowNumber}:${issue.code}`)).toEqual(["6:BOQ_QUANTITY_INVALID", "7:BOQ_QUANTITY_INVALID", "10:BOQ_CODE_MISSING"]);
+    expect(boqRefusal(read)).toBe("BOQ_ROWS_INVALID");
+    expect(read.leftOut.map(row => row.rowNumber)).toEqual([5, 8, 9, 11, 12]); // only the headings and the totals
+  });
+
+  it("review of #544 — NEGATIVE: an item with a code and an amount but no unit, quantity or rate (a lump sum written as an amount) is an error on its row, never left out; a totals line with an amount and no code is still left out", async () => {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load((await BOQ_SHAPES[0].build()) as unknown as ArrayBuffer);
+    const sheet = workbook.worksheets[0];
+    sheet.getRow(13).values = ["3", "Preliminaries (lump sum)", "", null, null, 50000];
+    const read = await analyzeBoqFile(new Uint8Array(await workbook.xlsx.writeBuffer()), "xlsx");
+    expect(read.issues).toEqual([{ rowNumber: 13, code: "BOQ_LUMP_SUM_UNPRICED", value: "50000" }]);
+    expect(boqRefusal(read)).toBe("BOQ_ROWS_INVALID");
+    expect(read.leftOut.map(row => `${row.rowNumber}:${row.kind}`)).toEqual(["5:heading", "8:line", "9:heading", "11:line", "12:line"]); // the totals with amounts are still lines
   });
 });

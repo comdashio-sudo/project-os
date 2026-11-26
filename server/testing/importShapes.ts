@@ -84,3 +84,43 @@ export const IMPORT_SHAPES: ImportShape[] = [
     expect: { activities: 4, groups: 2, skippedTotals: 3 },
   },
 ];
+
+// Q-50 (the library's open row): priced bills of quantities in the shapes contractors send them. Each must read with no mapping and no correction: the section
+// headings and the lines that are not items (totals carried to the summary, a grand total) are left out and named, the items are read with their rates.
+export type BoqShape = { name: string; build: () => Promise<Uint8Array>; expect: { items: number; headings: number; lines: number; totalAmount: number } };
+export const BOQ_SHAPES: BoqShape[] = [
+  {
+    name: "priced BOQ with title rows, section headings and totals carried to the summary",
+    build: () => book([{ name: "BOQ", rows: [
+      ["Synthetic Contracting Co."], ["Bill of Quantities — Villa type A (synthetic)"], [],
+      ["Item No", "Description", "Unit", "Qty", "Rate", "Amount"],
+      ["1", "SUBSTRUCTURE", "", null, null, null],
+      ["1.1", "Excavation in any soil", "m3", 1200, 18.5, 22200],
+      ["1.2", "Plain concrete blinding 50mm", "m2", 400, 32, 12800],
+      ["", "Total carried to summary", "", null, null, 35000],
+      ["2", "SUPERSTRUCTURE", "", null, null, null],
+      ["2.1", "Reinforced concrete columns", "m3", 85, 950, 80750],
+      ["", "Total carried to summary", "", null, null, 80750],
+      ["", "GRAND TOTAL", "", null, null, 115750],
+    ], merges: ["A1:F1", "A2:F2"] }]),
+    expect: { items: 3, headings: 2, lines: 3, totalAmount: 115750 },
+  },
+  {
+    name: "Arabic priced BOQ after a cover sheet, with page totals",
+    build: () => book([
+      { name: "الغلاف", rows: [["شركة مقاولات مختلقة"], ["جدول الكميات المسعّر"]] },
+      { name: "جدول الكميات", rows: [
+        ["رقم البند", "الوصف", "الوحدة", "الكمية", "سعر الوحدة", "المبلغ"],
+        ["أ", "أعمال الخرسانة", "", null, null, null],
+        ["أ-1", "خرسانة مسلحة للقواعد", "م3", 60, 900, 54000],
+        ["أ-2", "خرسانة مسلحة للأعمدة", "م3", 40, 950, 38000],
+        ["", "مجموع الصفحة", "", null, null, 92000],
+        ["ب", "أعمال التشطيبات", "", null, null, null],
+        ["ب-1", "دهان داخلي", "م2", 1500, 22, 33000],
+        ["", "الإجمالي العام", "", null, null, 125000],
+      ] },
+    ]),
+    expect: { items: 3, headings: 2, lines: 2, totalAmount: 125000 },
+  },
+];
+
