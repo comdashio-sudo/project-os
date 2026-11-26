@@ -71,6 +71,9 @@ const SECTION_TITLES: Record<string, { ar: string; en: string; ur: string }> = {
   setup: { ar: "الإعداد", en: "Setup", ur: "ترتیب" },
 };
 const WORKSPACE = { ar: "مساحة العمل", en: "Workspace", ur: "ورک اسپیس" };
+/** Q-59 (5): the phone's bar — the site's daily pages, each only if the menu (already filtered by the server) holds it; «More» opens the menu */
+const BOTTOM_BAR_IDS = ["project-daily-report", "project-progress", "project-qc"] as const;
+const MORE = { ar: "المزيد", en: "More", ur: "مزید" };
 // Q-36 (step 2): the two groups of the side menu, the open project's first
 const GROUP_TITLES = { project: { ar: "المشروع", en: "Project", ur: "منصوبہ" }, company: { ar: "الشركة", en: "Company", ur: "کمپنی" } };
 const SOURCE_TITLES = {
@@ -168,6 +171,7 @@ export function ProductShell({ tenantId, projectId, children }: { tenantId: stri
         project={projectId ?? ""}
         onProject={value => setLocation(projectSwitchHref(location, tenantId, projectId, value))}
         breadcrumbs={crumbs}
+        bottomBar={{ items: BOTTOM_BAR_IDS.map(id => nav.find(item => item.id === id)).filter((item): item is NavItem => Boolean(item)), moreLabel: pickLanguage(language, MORE) }}
         headerTools={<QuickSearch tenantId={tenantId} projectId={projectId} pages={nav.map(item => ({ id: item.id, label: item.label, href: item.href }))} onOpen={href => setLocation(href)} />}
         actions={<PageActions company={companyName} project={projectName} pageTitle={pageTitle} />}
         printHeader={<PrintHeader company={companyName} project={projectName} pageTitle={pageTitle} user={user?.name ?? undefined} />}

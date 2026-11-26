@@ -31,6 +31,8 @@ type Props = {
   breadcrumbs: Crumb[]; user: { name: string; email: string }; onSignOut?: () => void; onMyCompanies?: () => void;
   mode?: Mode; onModeChange?: (mode: Mode) => void;
   children: React.ReactNode;
+  /** Q-59 (5): on a phone, a bar at the foot of the screen with the site's daily pages and «More» (the menu); none on a wider screen */
+  bottomBar?: { items: NavItem[]; moreLabel: string };
   /** Q-59 (3): tools at the start of the top bar's actions (the quick search) */
   headerTools?: React.ReactNode;
 };
@@ -176,12 +178,24 @@ export function AppShell(props: Props) {
             </button>
           </div>
         </aside>
-        <main className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7 print:p-0"><div className="mx-auto flex max-w-5xl flex-col gap-5 print:max-w-none [&>*]:min-w-0">
+        <main className={cn("min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7 print:p-0", props.bottomBar?.items.length && "pb-24 md:pb-7")}><div className="mx-auto flex max-w-5xl flex-col gap-5 print:max-w-none [&>*]:min-w-0">
           {props.printHeader}
           <div className="flex flex-wrap items-center justify-between gap-3 print:hidden" data-page-toolbar-row><Breadcrumbs items={props.breadcrumbs} onNavigate={href => props.onNavigate?.({ id: href, label: href, icon: MenuIcon, href })} />{props.actions}</div>
           <div data-page-content className="flex min-w-0 flex-col gap-5 [&>*]:min-w-0">{props.children}</div>
         </div></main>
       </div>
+      {props.bottomBar?.items.length ? (
+        <nav aria-label={props.bottomBar.moreLabel} data-bottom-bar className="fixed inset-x-0 bottom-0 z-30 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden print:hidden" style={{ gridTemplateColumns: `repeat(${props.bottomBar.items.length + 1}, minmax(0, 1fr))` }}>
+          {props.bottomBar.items.map(item => { const Icon = item.icon; const active = item.id === props.activeId; return (
+            <a key={item.id} href={item.href ?? "#"} data-bottom-item={item.id} aria-current={active ? "page" : undefined} onClick={event => { if (props.onNavigate) { event.preventDefault(); props.onNavigate(item); } }}
+              className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium", active ? "text-primary" : "text-muted-foreground")}>
+              <Icon className="h-5 w-5" aria-hidden="true" /><span className="max-w-full truncate">{item.label}</span>
+            </a>); })}
+          <button type="button" data-bottom-more onClick={() => setDrawer(true)} className="flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium text-muted-foreground">
+            <MenuIcon className="h-5 w-5" aria-hidden="true" /><span>{props.bottomBar.moreLabel}</span>
+          </button>
+        </nav>
+      ) : null}
     </div>
   );
 }
