@@ -18,8 +18,9 @@ const state = vi.hoisted(() => ({
 }));
 
 // The raster path is exercised for real in rasterPipeline.test.tsx; here only its wiring to the screen is under test.
-const raster = vi.hoisted(() => ({ readRasterImage: vi.fn(), readPdfPage: vi.fn(), analyseRaster: vi.fn(), createOcrWorker: vi.fn() }));
+const raster = vi.hoisted(() => ({ readRasterImage: vi.fn(), readPdfPage: vi.fn(), analyseRaster: vi.fn(), createOcrWorker: vi.fn(), readPdfVector: vi.fn(async () => null) }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: 7, name: "Planner" } }) })); // Q-20: the kept map view is per person
+vi.mock("@/lib/raster/pdfVector", () => ({ readPdfVector: raster.readPdfVector }));
 vi.mock("@/lib/raster/rasterFile", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/raster/rasterFile")>()), readRasterImage: raster.readRasterImage, readPdfPage: raster.readPdfPage }));
 vi.mock("@/lib/raster/ocrWorker", () => ({ createOcrWorker: raster.createOcrWorker }));
 vi.mock("@/lib/raster/rasterAnalysis", () => ({ analyseRaster: raster.analyseRaster }));
@@ -635,6 +636,33 @@ describe("MasterPlanDrawing", () => {
     await waitFor(() => expect(raster.readPdfPage).toHaveBeenLastCalledWith(expect.any(Uint8Array), 2));
     await waitFor(() => screen.getByText(/Found 3 shapes/));
     expect(raster.readPdfPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("Q-62 batch 3: a vector PDF is read from its own drawing — no picture, no OCR — and «confirm all» confirms every proposal at once", async () => {
+    state.data = plan(); // villas B1-U-0001 … 0003
+    const square = (id: string, x: number) => ({ id, layer: "PDF", points: [{ x, y: 0 }, { x: x + 10, y: 0 }, { x: x + 10, y: 10 }, { x, y: 10 }], source: "lwpolyline" as const });
+    const label = (text: string, x: number) => ({ layer: "PDF", position: { x: x + 5, y: 5 }, text });
+    raster.readPdfVector.mockResolvedValueOnce({ drawing: { layers: ["PDF"], polygons: [square("pdf-1", 0), square("pdf-2", 20), square("pdf-3", 40)], texts: [label("B1-U-0001", 0), label("B1-U-0002", 20), label("B1-U-0003", 40)], warnings: [], ignoredEntities: {} }, pageCount: 1, polygonCount: 3, textCount: 3, outlinesSetAside: 1 } as never);
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(container, "%PDF synthetic", "plan.pdf");
+    await waitFor(() => expect(container.querySelector("[data-vector-note]")?.textContent).toMatch(/vector drawing: 3 shapes \(1 surrounding outline set aside\), and 3 of 3 villas are proposed/));
+    expect(raster.readPdfPage).not.toHaveBeenCalled();
+    expect(raster.analyseRaster).not.toHaveBeenCalled();
+    fireEvent.click(container.querySelector("[data-confirm-all]")!);
+    await waitFor(() => expect(screen.getByText(/Confirmed: 3 · Proposed: 0/)).toBeTruthy());
+  });
+
+  it("Q-62 batch 3 NEGATIVE: a PDF with no closed shapes goes to the image reading as before", async () => {
+    state.data = plan();
+    const blank: GrayImage = { width: 1, height: 1, data: new Uint8Array(1) };
+    raster.readPdfVector.mockResolvedValueOnce(null as never);
+    raster.readPdfPage.mockResolvedValue({ image: blank, pageCount: 1 });
+    raster.createOcrWorker.mockResolvedValue({ recognize: vi.fn(), terminate: vi.fn(async () => undefined) });
+    raster.analyseRaster.mockResolvedValue({ drawing: buildRasterDrawing([], [], 1), shapeCount: 0, labelCount: 0 });
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    await upload(container, "%PDF synthetic", "plan.pdf");
+    await waitFor(() => expect(raster.analyseRaster).toHaveBeenCalled());
+    expect(container.querySelector("[data-vector-note]")).toBeNull();
   });
 
   it("shows no page choice for a one-page PDF", async () => {
