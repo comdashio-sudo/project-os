@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Q-36 (step 3 c): ONE entry for every import — each kind of file sent where it is imported, each card only for whoever may open that page.
 const h = vi.hoisted(() => ({ allowed: new Set<string>(), language: "en" as "ar" | "en" | "ur" }));
+vi.mock("@/components/ProjectWorkbookPanel", () => ({ ProjectWorkbookPanel: () => null, ProjectWorkbookDownload: () => null })); // Q-51: tested in its own file
 vi.mock("wouter", () => ({ Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ language: h.language, isArabic: h.language === "ar", isRtl: h.language !== "en", setLanguage: vi.fn() }) }));
 vi.mock("@/lib/permissions", () => ({ useCanPage: (page: string) => h.allowed.has(page) }));

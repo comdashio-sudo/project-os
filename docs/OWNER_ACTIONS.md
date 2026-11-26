@@ -240,3 +240,44 @@
 - يدخل الموقع بها، وينشئ مشروعًا، ويستورد فللًا وأنشطة مختلقة، ويسجّل إنجازًا واستلام QC لفيلا، ويقارن ما تقرؤه المنصة بما أُدخل، ويلتقط 390 و1280.
 - يسحب كلمة المرور في النهاية دائمًا. لا يلمس حسابك ولا أي شركة أخرى.
 - **للحذف لاحقًا:** امحُ الشركة من «إدارة الشركة» ← «بيانات الشركة».
+
+## 20. كلمات مرور لحسابات العرض المختلقة (`BLOCKED_BY_OWNER` — اختياري، 10 دقائق، 26 نوفمبر 2026، Q-55)
+
+**لماذا عليك:** حسابات شركة العرض مختلقة (`*@show.example.test`)، فلا يصلها بريد رمز الدخول. ولا تملك المنصة صلاحية إنشاء كلمة مرور في Supabase، فهي لا تستعمل `service_role` أبدًا. لذلك يضيفها مالك مشروع Supabase بنفسه، لمن يريد الدخول بهم أثناء العرض. لا تكتب كلمة المرور في أي ملف أو محادثة.
+
+**حسابات العرض للعرض فقط:** الدخول بها لا يُحتسب جولة أدوار للقبول النهائي، فالقبول يتطلب حسابات حقيقية لأشخاص حقيقيين (CLAUDE.md §1 و§3، `STATE.md:109`).
+
+**بالنقر (لكل حساب تريد الدخول به):**
+1. supabase.com ← مشروع **dashio** ← **Authentication** ← **Users** ← **Add user** ← **Create new user**.
+2. **Email:** أحد العناوين في الجدول أدناه، كما هو.
+3. **Password:** كلمة مرور قوية تحفظها عندك فقط.
+4. فعّل **Auto Confirm User** ← **Create user**.
+5. **للتحقق:** صفحة دخول المنصة ← «طريقة الدخول»: **«كلمة المرور»** ← البريد وكلمة المرور. تظهر **شركة العرض** بالدور المكتوب أمامه.
+
+**الحسابات** (كل دور له حساب، اختبار `demo.company.database.test.ts` يمنع نقص أي دور):
+
+| البريد | الاسم | الدور |
+|---|---|---|
+| `board.member@show.example.test` | عضو مجلس الإدارة (عرض) | `EXECUTIVE` |
+| `portfolio.lead@show.example.test` | مدير المحفظة (عرض) | `PMO_LEAD` |
+| `project.manager@show.example.test` | مدير المشروع (عرض) | `PROJECT_MANAGER` |
+| `warehouse.keeper@show.example.test` | أمين المستودع (عرض) | `WAREHOUSE_CUSTODIAN` |
+| `site.engineer.1@show.example.test` | مهندس الموقع الأول (عرض) | `SITE_ENGINEER` |
+| `site.engineer.2@show.example.test` | مهندس الموقع الثاني (عرض) | `SITE_ENGINEER` |
+| `quality.manager@show.example.test` | مدير الجودة (عرض) | `QA_QC_MANAGER` |
+| `project.coordinator@show.example.test` | منسق المشروع (عرض) | `PROJECT_COORDINATOR` |
+| `cost.controller@show.example.test` | مراقب التكاليف (عرض) | `COST_CONTROLLER` |
+| `planning.engineer@show.example.test` | مهندس التخطيط (عرض) | `PLANNING_ENGINEER` |
+| `safety.engineer@show.example.test` | مهندس السلامة (عرض) | `HSE_MANAGER` |
+| `operations.manager@show.example.test` | مدير العمليات (عرض) | `OPERATIONS_MANAGER` |
+| `procurement.officer@show.example.test` | مسؤول المشتريات (عرض) | `PROCUREMENT_OFFICER` |
+| `contracts.manager@show.example.test` | مدير العقود (عرض) | `CONTRACTS_MANAGER` |
+| `design.architectural@show.example.test` | منسق التصميم المعماري (عرض) | `DESIGN_COORDINATOR_ARCHITECTURAL` |
+| `design.technical@show.example.test` | منسق التصميم الفني (عرض) | `DESIGN_COORDINATOR_TECHNICAL` |
+| `finance.manager@show.example.test` | المدير المالي (عرض) | `FINANCE_MANAGER` |
+| `accountant@show.example.test` | المحاسب (عرض) | `ACCOUNTANT` |
+| `hr.manager@show.example.test` | مدير الموارد البشرية (عرض) | `HR_MANAGER` |
+| `management.viewer@show.example.test` | مطّلع الإدارة (عرض) | `MANAGEMENT_VIEWER` |
+
+**للسحب لاحقًا:** من الشاشة نفسها ← المستخدم ← **Delete user**. محو شركة العرض لا يحذف الأشخاص، وإنما يزيل عضويتهم.
+

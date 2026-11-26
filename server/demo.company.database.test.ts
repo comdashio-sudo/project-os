@@ -210,6 +210,19 @@ describe.skipIf(!run)("the demonstration company", () => {
     await expect(ops.safety.recordIncident({ ...scope, incidentNumber: "INC-X", occurredOn: "2026-01-01", kind: "near_miss", title: "x (عرض)", description: "x (عرض)" })).rejects.toMatchObject({ message: "PROJECT_OS_PERMISSION_DENIED" });
   });
 
+  it("Q-55 (3b): every role template has a made-up account in the demonstration, a member of the company with that role", async () => {
+    const { operationalRoleDefinitions } = await import("./domain/operationalRoles");
+    const templates = operationalRoleDefinitions.map(role => role.code).filter(code => code !== "TENANT_OWNER");
+    expect(templates.filter(code => !DEMO_PEOPLE.some(person => person.role === code))).toEqual([]);
+    const [rows] = await connection.query<{ email: string; code: string; scopeType: string }[]>(
+      `SELECT u.email, r.code, mr.scopeType FROM memberships m JOIN users u ON u.id = m.userId JOIN membership_roles mr ON mr.membershipId = m.id JOIN roles r ON r.id = mr.roleId
+       WHERE m.tenantId = ? AND m.status = 'active'`, [tenantId]);
+    // the role at the level the person is shown at (a company role given on a project, or the reverse, would show a different page set)
+    for (const person of DEMO_PEOPLE) expect(rows.some(row => row.email === person.email && row.code === person.role && row.scopeType === person.scope), `${person.email} as ${person.role} on ${person.scope}`).toBe(true);
+    // every one of them is an obviously made-up address
+    expect(DEMO_PEOPLE.every(person => person.email.endsWith("@show.example.test"))).toBe(true);
+  });
+
   it("Q-55 (2): the latest report of the reports-mode project exports as Word, with its parties and its sections", async () => {
     const { startFakeS3 } = await import("./testing/fakeS3"); const { ENV } = await import("./_core/env"); const JSZip = (await import("jszip")).default;
     const s3 = await startFakeS3();
