@@ -535,7 +535,13 @@ export const appRouter = router({
         eacMethod: z.enum(["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]),
         manualEac: z.number().finite().nonnegative().optional(),
       }))
-      .query(({ input }) => calculateEvm(input)),
+      // a figure the rules refuse (EV above BAC, a zero CPI for a method that divides by it) is the person's input to fix, not a server fault: a BAD_REQUEST with a reason they can read
+      .query(({ input }) => {
+        try { return calculateEvm(input); } catch (error) {
+          if (!(error instanceof RangeError)) throw error;
+          throw new TRPCError({ code: "BAD_REQUEST", message: /EV cannot exceed BAC/.test(error.message) ? "PROJECT_OS_EVM_EV_EXCEEDS_BAC" : /CPI and SPI/.test(error.message) ? "PROJECT_OS_EVM_CPI_SPI_NOT_POSITIVE" : /CPI must be/.test(error.message) ? "PROJECT_OS_EVM_CPI_NOT_POSITIVE" : "PROJECT_OS_EVM_INVALID" });
+        }
+      }),
     saveEvmSnapshot: protectedProcedure
       .input(z.object({
         tenantId: z.string().uuid(), projectId: z.string().uuid(), periodAt: z.date(),
