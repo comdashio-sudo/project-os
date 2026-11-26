@@ -39,8 +39,8 @@ vi.mock("@/lib/trpc", () => {
         // Q-62: the server's units of the newest version (its own units here; the PMC case is tested on the database and in drawingUnits below)
         drawingUnits: { useQuery: (input: { masterPlanVersionId: string }) => {
           const data = state.data as { entities?: Array<{ id: string; masterPlanVersionId: string; entityType: string; code: string; name: string; status: string; progressPercent: string }> } | undefined;
-          if (state.drawingUnits) return { data: state.drawingUnits, error: null };
-          return { data: data ? { source: "plan", units: (data.entities ?? []).filter(entity => entity.masterPlanVersionId === input.masterPlanVersionId && entity.entityType === "unit").map(entity => ({ ...entity, blockCode: null, modelCode: null })) } : undefined, error: null };
+          if (state.drawingUnits) return { data: state.drawingUnits, error: null, refetch: vi.fn() };
+          return { data: data ? { source: "plan", units: (data.entities ?? []).filter(entity => entity.masterPlanVersionId === input.masterPlanVersionId && entity.entityType === "unit").map(entity => ({ ...entity, blockCode: null, modelCode: null })) } : undefined, error: null, refetch: vi.fn() };
         } },
         drawingLayout: { useQuery: () => ({ data: state.layout, isLoading: false, error: null, refetch: vi.fn() }) },
         uploadDrawingVersion: mutation(),

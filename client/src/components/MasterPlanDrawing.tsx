@@ -528,6 +528,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       </div>
 
       {plansQuery.error ? <SectionMessage title={t.title} isArabic={isArabic} language={language} kind="error" error={plansQuery.error} onRetry={() => plansQuery.refetch()} /> : null}
+      {!plansQuery.error && unitsQuery.error ? <SectionMessage title={t.title} isArabic={isArabic} language={language} kind="error" error={unitsQuery.error} onRetry={() => unitsQuery.refetch()} /> : null}
 
       {plansQuery.data && !hasVersion ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noPlan}</p> : null}
       {plansQuery.data && hasVersion && unitsQuery.data && units.length === 0 ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noUnits}</p> : null}
