@@ -19,6 +19,7 @@ import { analyzeMatrixImport, confirmMatrixImport, type MatrixPlan } from "./mat
 import { analyzeConsultantImport, confirmConsultantImport, type ConsultantPlan } from "./consultantImport";
 import { analyzeSiteLegacyImport, confirmSiteLegacyImport, type SiteLegacyPlan } from "./siteLegacyImport";
 import { analyzeP6Import, confirmP6Import, type P6Plan } from "./p6Import";
+import { startP6ImportJob } from "./importJobs";
 import { analyzeScheduleUpdate, confirmScheduleUpdate, type ScheduleUpdatePlan } from "./p6Update";
 import { readTableWithAi, smartReadingQuote } from "./smartReading";
 import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageDelete, storageGetSignedUrl, storageHead, storagePut, storageRead } from "./storage";
@@ -141,6 +142,9 @@ export async function analyzeSmartUpload(input: Identity & { uploadKey: string; 
   return { understanding: strip(result), profile };
 }
 
+/** A Primavera file above this size is written by a background job (a 10 MB export takes tens of seconds to read and write: not a request's work). */
+export const P6_BACKGROUND_MIN_BYTES = 2 * 1024 * 1024;
+
 export type SmartConfirmation = { importId: string; status: string; module: string; rowsSent: number; rowsExcluded: number; excluded: Array<{ rowNumber: number; reason: string }>; notes: string[]; profileId: string | null; matrixChanges?: MatrixPlan["changes"]; consultantPlan?: ConsultantPlan; siteLegacyPlan?: SiteLegacyPlan; p6Counts?: P6Plan["counts"]; scheduleUpdate?: Pick<ScheduleUpdatePlan, "updated" | "started" | "finished" | "moved" | "unknown" | "unchanged"> };
 
 /** Step 3: the person approved. The rows go to the existing importer in its own template; the original file is kept and linked to the import. */
@@ -189,7 +193,12 @@ export async function confirmSmartImport(input: Identity & { uploadKey: string; 
   let mapping: ColumnMap = {}; let mergedFilled = 0; let sheetName: string | null = input.sheet ?? null; let headers: string[] = [];
 
   if (format === "xer") {
-    // a Primavera export is read whole (the WBS tree, activities, relationships, resources, assignments, codes, calendars) and written in one transaction
+    // a Primavera export is read whole (the WBS tree, activities, relationships, resources, assignments, codes, calendars) and written in ONE transaction.
+    // A small file finishes inside the request. A large one (Q-61) becomes a background job: the answer is the import in `importing`, the screen polls `imports.progress` until `completed` or `failed` (with a reason).
+    if (bytes.length > P6_BACKGROUND_MIN_BYTES) {
+      const started = await startP6ImportJob({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, uploadKey: input.uploadKey, fileName: input.fileName, bytes, approvedHash: input.approvedHash });
+      return { importId: started.id, status: started.status, module: "p6", rowsSent: 0, rowsExcluded: 0, excluded: [], notes: [], profileId: null };
+    }
     const plan = await confirmP6Import({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes, approvedHash: input.approvedHash, source: { key: input.uploadKey, name: input.fileName } });
     return { importId: plan.importId!, status: "completed", module: "p6", rowsSent: plan.summary.activities, rowsExcluded: 0, excluded: [], notes: plan.warnings, profileId: null, p6Counts: plan.counts };
   } else if (format === "pdf" || format === "image" || format === "unknown") {
