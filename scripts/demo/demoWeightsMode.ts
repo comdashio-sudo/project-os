@@ -99,6 +99,39 @@ export async function seedWeightsModeProject(input: {
       if (links.length) await input.owner.pmcSite.linkConsultantColumns({ ...scope, links });
     }
   }
-  input.log(`weights mode: ${receipts.length} QC receipts, ${siteCells.length} site cells, consultant exports ${imports.map(item => `${item.day} (+${item.newlyReceived})`).join(", ")}`);
-  return { qcReceipts: receipts.length, siteCells: siteCells.length, imports };
+  // 5. a sound project with a few problems in sight (adviser, I57): most villas under way moved in the last days; about ten have stopped
+  const stalled = await keepAFewStalled(client, tenantId, projectId, STALLED_IN_DEMO);
+  input.log(`weights mode: ${receipts.length} QC receipts, ${siteCells.length} site cells, consultant exports ${imports.map(item => `${item.day} (+${item.newlyReceived})`).join(", ")}, ${stalled.kept} villas left stalled of ${stalled.underWay} under way`);
+  return { qcReceipts: receipts.length, siteCells: siteCells.length, imports, stalled };
+}
+
+/** How many villas the demonstration shows as stopped (adviser 25-11 19:50: between 8 and 12; the stall rule itself is not changed). */
+export const STALLED_IN_DEMO = 10;
+
+/**
+ * Q-55 (adviser, I57): the made-up history left most villas under way untouched for weeks, so the stall rule (server/domain/stalledUnits.ts: started, not complete,
+ * no movement for more than the project's threshold of working days) called 226 of 389 stalled. Here every villa under way but `keep` of them gets a recent
+ * movement — the last change of one of its unfinished cells, 0 to 2 days ago — and the `keep` left alone are spread over the project among those already quiet
+ * for more than a week. Only a cell's «last changed» moment moves: statuses, history, QC receipts and the progress figures (computed from the statuses) stay.
+ */
+export async function keepAFewStalled(client: PoolClient, tenantId: string, projectId: string, keep: number) {
+  const { rows } = await client.query<{ unit_id: string; last: Date; open_cell: string }>(
+    `WITH models AS (SELECT model_code, count(*)::int AS activities FROM pmc_activity_definitions WHERE tenant_id = $1 AND project_id = $2 GROUP BY model_code),
+          units AS (SELECT p.unit_id, count(*) FILTER (WHERE p.status = 'COMPLETE')::int AS done, max(p.last_changed_at) AS last,
+                           (array_agg(p.id ORDER BY p.last_changed_at DESC) FILTER (WHERE p.status <> 'COMPLETE'))[1] AS open_cell
+                    FROM pmc_unit_activity_progress p WHERE p.tenant_id = $1 AND p.project_id = $2 AND p.status <> 'NOT_STARTED' GROUP BY p.unit_id)
+     -- a QC receipt is a movement too (the stall rule reads both)
+     SELECT units.unit_id, greatest(units.last, (SELECT max(q.updated_at) FROM pmc_qc_receipts q WHERE q.tenant_id = $1 AND q.unit_id = units.unit_id)) AS last, units.open_cell
+     FROM units JOIN pmc_units u ON u.id = units.unit_id AND u.tenant_id = $1 JOIN models m ON m.model_code = u.model_code
+     WHERE units.done < m.activities AND units.open_cell IS NOT NULL ORDER BY u.unit_number`, [tenantId, projectId]);
+  const weekAgo = Date.now() - 7 * 86_400_000;
+  const quiet = rows.filter(row => new Date(row.last).getTime() < weekAgo);
+  const stays = new Set(Array.from({ length: Math.min(keep, quiet.length) }, (_unused, index) => quiet[Math.floor((index * quiet.length) / Math.min(keep, quiet.length))]!.unit_id));
+  let moved = 0;
+  for (const [index, row] of rows.entries()) {
+    if (stays.has(row.unit_id)) continue;
+    await client.query("UPDATE pmc_unit_activity_progress SET last_changed_at = $1 WHERE id = $2 AND tenant_id = $3", [new Date(Date.now() - (index % 3) * 86_400_000), row.open_cell, tenantId]);
+    moved += 1;
+  }
+  return { underWay: rows.length, kept: stays.size, moved };
 }

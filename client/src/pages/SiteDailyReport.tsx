@@ -5,20 +5,22 @@ import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { useCan, usePermissionsLoading, WriteGate } from "@/lib/permissions";
+import { projectErrorCode } from "@/lib/errorCode";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
 import { useDirectUpload } from "@/lib/useDirectUpload";
 import { CheckedForm } from "@/components/CheckedForm";
 import { SourceNotice } from "@/components/SectionResilience";
 import { ReportSection } from "@/components/dailyReport/ReportSection";
+import { ReportsHeader, SectionStrip, StepButtons, sectionNumber, useLayoutText, type SectionKey, type SectionState } from "@/components/dailyReport/ReportLayout";
 import { EquipmentOfDay, HeaderExtras, LabourMatrix, equipmentBody, equipmentFrom, equipmentProblems, labourBody, labourFrom, labourProblems, labourTotal, useCoreText, type EquipmentRows, type LabourCells } from "@/components/dailyReport/CoreSections";
 import { DailyReportDocument, ReportExports } from "@/components/dailyReport/DailyReportDocument";
 import { ApprovalChain, InspectionsSection, PhotoPlace, photoPlaceText } from "@/components/dailyReport/ApprovalSections";
 import { OwnReportNote, WhoApproves } from "@/components/dailyReport/ApprovalWho";
 import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
-import { formatWeekday } from "@/components/ds";
+import { formatDateTime, formatWeekday } from "@/components/ds";
 import { SectionOnlyReport, useReportSections } from "@/components/dailyReport/SectionOnlyReport";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
 import { isNetworkError, type QueueItem, type SendResult } from "@/lib/offlineQueue";
 import { useOfflineQueue } from "@/lib/useOfflineQueue";
@@ -30,6 +32,14 @@ import { useParams } from "wouter";
 // computes progress: the server moves the cells when the report is approved, and says which lines it left alone and why.
 // "None" in a list: the custom list (Radix) cannot hold an empty value, so it carries this one and the screen reads it as empty.
 const NONE = "__none";
+// Q-58 (2): how long after the last change the draft saves itself
+const AUTOSAVE_MS = 4000;
+// Q-58 (1): several reports of one day — the label that tells them apart, and «copy from which report?» when the previous day holds two or more
+const manyText = {
+  ar: { label: "الوردية / المنطقة / المقاول (اختياري)", labelHint: "يميّز تقارير اليوم الواحد.", copyWhich: "لليوم السابق أكثر من تقرير: من أيّها تنسخ؟", noLabel: "بلا وصف" },
+  en: { label: "Shift / area / contractor (optional)", labelHint: "Tells reports of the same day apart.", copyWhich: "The previous day has more than one report: copy from which one?", noLabel: "No label" },
+  ur: { label: "شفٹ / علاقہ / ٹھیکیدار (اختیاری)", labelHint: "ایک دن کی رپورٹس میں فرق کرتا ہے۔", copyWhich: "پچھلے دن کی ایک سے زیادہ رپورٹس ہیں: کس سے نقل کریں؟", noLabel: "بغیر وضاحت" },
+};
 const text = {
   ar: {
     keptOffline: "حُفظ التقرير على هذا الهاتف وسيُرسل عند عودة الاتصال.", notKept: "تعذّر حفظ التقرير على الهاتف (مساحة ممتلئة أو محظورة). أعد الحفظ عند الاتصال.",
@@ -99,6 +109,15 @@ export default function SiteDailyReport() {
   const { language } = useLanguage();
   const isArabic = language === "ar";
   const t = pickLanguage(language, text);
+  const many = pickLanguage(language, manyText);
+  const layout = useLayoutText();
+  // Q-58 (2): the section in hand — on a phone the only one drawn, on a desk the one the strip last took the reader to
+  const [current, setCurrent] = useState<SectionKey>("header");
+  const goTo = useCallback((key: SectionKey) => {
+    setCurrent(key);
+    // open it (a section may have been folded) and bring it into view once drawn
+    requestAnimationFrame(() => { const element = document.getElementById(`report-section-${key}`) as HTMLDetailsElement | null; if (!element) return; element.open = true; element.scrollIntoView?.({ block: "start", behavior: "smooth" }); });
+  }, []);
   const scope = { tenantId, projectId };
   const enabled = Boolean(tenantId && projectId);
   const utils = trpc.useUtils();
@@ -118,6 +137,10 @@ export default function SiteDailyReport() {
   const seedRoles = trpc.projects.labourRoles.seedDefaults.useMutation({ onSuccess: () => { setMessage(t.seeded); void roles.refetch(); } });
 
   const [reportId, setReportId] = useState<string | null>(null);
+  const [label, setLabel] = useState("");
+  // Q-58 (1): the id of the report this form will create — chosen here, so a save sent twice (or kept offline twice) changes it instead of making a second one
+  const [newReportId, setNewReportId] = useState(() => crypto.randomUUID());
+  const [copyChoices, setCopyChoices] = useState<Array<{ id: string; reportNumber: string | null; label: string | null }> | null>(null);
   const [locked, setLocked] = useState(false);
   const [rejectedNote, setRejectedNote] = useState<string | null>(null);
   const [date, setDate] = useState(today());
@@ -140,7 +163,15 @@ export default function SiteDailyReport() {
   const [workHours, setWorkHours] = useState("");
   const [labourCells, setLabourCells] = useState<LabourCells>({});
   const [dayEquipment, setDayEquipment] = useState<EquipmentRows>({});
-  const copy = trpc.siteReports.copyFromYesterday.useMutation({ onSuccess: result => { void utils.siteReports.list.invalidate(); void openReport(result.id); } });
+  const copy = trpc.siteReports.copyFromYesterday.useMutation({
+    onSuccess: result => { setCopyChoices(null); void utils.siteReports.list.invalidate(); void openReport(result.id); },
+    // Q-58 (1): the previous day holds two or more of my reports — the server asks which; the choices are that day's reports of mine
+    onError: error => {
+      if (projectErrorCode(error) !== "PROJECT_OS_SITE_REPORT_COPY_WHICH") return;
+      const earlier = (list.data ?? []).filter(row => row.preparedByUserId === me.data?.id && row.reportDate < date).map(row => row.reportDate).sort().pop();
+      setCopyChoices((list.data ?? []).filter(row => row.preparedByUserId === me.data?.id && row.reportDate === earlier).map(row => ({ id: row.id, reportNumber: (row as { reportNumber?: string | null }).reportNumber ?? null, label: (row as { label?: string | null }).label ?? null })));
+    },
+  });
   // Q-9 (c): the report as a document, for the PDF and Word exports; the labour sheet is the server's (D-47 a)
   const documentRef = useRef<HTMLElement | null>(null);
   const exportSheet = trpc.siteReports.export.useMutation();
@@ -159,9 +190,17 @@ export default function SiteDailyReport() {
   const client = utils.client;
   const sendKept = useCallback(async (item: QueueItem): Promise<SendResult> => { await client.siteReports.save.mutate({ ...item.payload, clientRequestId: item.id } as never); }, [client]);
   const queue = useOfflineQueue(me.data?.id ? `${me.data.id}:${tenantId}:${projectId}:siteReport` : null, sendKept);
+  // Q-58 (2): the draft saves itself a few seconds after a change (autoSaving marks those saves: no «saved» banner, no offline queue)
+  const autoSaving = useRef(false);
+  // the form's content as it was sent: once the server has it, that is the saved state the autosave compares with
+  const sending = useRef<string | null>(null);
+  const [autoSavedAt, setAutoSavedAt] = useState<Date | null>(null);
   const save = trpc.siteReports.save.useMutation({
-    onSuccess: result => { setReportId(result.id); setMessage(t.saved); void utils.siteReports.list.invalidate(); },
+    onSuccess: result => { setReportId(result.id); if (sending.current !== null) { setSavedSignature(sending.current); sending.current = null; } if (autoSaving.current) setAutoSavedAt(new Date()); else setMessage(t.saved); autoSaving.current = false; void utils.siteReports.list.invalidate(); },
     onError: (error, variables) => {
+      sending.current = null;
+      // an automatic save that fails is retried by the next change or by «save draft»; only the person's own save goes to the offline queue
+      if (autoSaving.current) { autoSaving.current = false; return; }
       if (!isNetworkError(error) || !variables.clientRequestId) return;
       setMessage(queue.keep({ id: variables.clientRequestId, kind: "siteReport", payload: { ...variables, queuedAt: new Date().toISOString() }, summary: `${t.title} · ${variables.reportDate}` }) ? t.keptOffline : t.notKept);
     },
@@ -177,7 +216,8 @@ export default function SiteDailyReport() {
   }).concat(sectionProblems(sections), labourProblems(labourCells), equipmentProblems(dayEquipment), workHours.trim() !== "" && !(Number(workHours) >= 0 && Number(workHours) <= 24) ? ["workHours"] : []), [lines, units, sections, labourCells, dayEquipment, workHours]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const body = () => ({
-    ...scope, reportDate: date, weather: weather || undefined, temperatureC: num(temperature), summary: summary.trim() || undefined, obstacles: obstacles.trim() || undefined,
+    // Q-58 (1): an opened report is named (several reports of one day are allowed); none is a new report
+    ...scope, reportDate: date, ...(reportId ? { reportId } : { newReportId }), ...(label.trim() ? { label: label.trim() } : {}), weather: weather || undefined, temperatureC: num(temperature), summary: summary.trim() || undefined, obstacles: obstacles.trim() || undefined,
     lines: lines.map(line => ({
       lineType: line.lineType, label: line.lineType === "work" ? undefined : line.label.trim(), quantity: line.lineType === "work" ? undefined : num(line.quantity), hours: line.lineType === "labour" ? num(line.hours) : undefined,
       description: line.description.trim() || undefined, pmcUnitId: line.lineType === "work" ? unitOf(line.unitNumber)?.id : undefined,
@@ -191,11 +231,11 @@ export default function SiteDailyReport() {
     ...(machines.data ? { equipment: equipmentBody(dayEquipment) } : {}),
   });
 
-  const startNew = () => { setReportId(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setSections(emptySections()); setWind(""); setWorkHours(""); setLabourCells({}); setDayEquipment({}); setMessage(null); setPhotoMessage(null); };
+  const startNew = () => { setBaselinePending(true); setAutoSavedAt(null); setCurrent("header"); setReportId(null); setNewReportId(crypto.randomUUID()); setLabel(""); setCopyChoices(null); setLocked(false); setRejectedNote(null); setDate(today()); setWeather(""); setTemperature(""); setSummary(""); setObstacles(""); setLines([]); setSections(emptySections()); setWind(""); setWorkHours(""); setLabourCells({}); setDayEquipment({}); setMessage(null); setPhotoMessage(null); };
   const openReport = async (id: string) => {
     const full = await utils.siteReports.get.fetch({ ...scope, reportId: id });
     const unitNumber = (unitId: string | null) => String(units.find(unit => unit.id === unitId)?.number ?? "");
-    setReportId(id); setDate(full.report.reportDate); setWeather(full.report.weather ?? ""); setTemperature(full.report.temperatureC === null || full.report.temperatureC === undefined ? "" : String(full.report.temperatureC));
+    setBaselinePending(true); setAutoSavedAt(null); setCurrent("header"); setReportId(id); setLabel((full.report as { label?: string | null }).label ?? ""); setDate(full.report.reportDate); setWeather(full.report.weather ?? ""); setTemperature(full.report.temperatureC === null || full.report.temperatureC === undefined ? "" : String(full.report.temperatureC));
     setSummary(full.report.summary ?? ""); setObstacles(full.report.obstacles ?? ""); setSections(sectionsFrom(full));
     setWind(full.report.wind ?? ""); setWorkHours(full.report.workHours === null || full.report.workHours === undefined ? "" : String(full.report.workHours));
     setLabourCells(labourFrom(full.labour ?? [])); setDayEquipment(equipmentFrom(full.equipment ?? []));
@@ -226,6 +266,39 @@ export default function SiteDailyReport() {
   const machineNames = (machines.data ?? []).filter(item => item.active).map(item => [item.equipmentType, item.model, item.plateOrSize].filter(Boolean).join(" · "));
   // live totals for what can be counted now (the figure the server approves is its own)
   const total = (lineType: "labour" | "equipment") => section(lineType).reduce((sum, line) => sum + (num(line.quantity) ?? 0), 0);
+  // Q-58 (2): each section's state in the strip — filled once it holds something; the safety, materials and inspections sections, while empty, are the HSE and
+  // QA/QC engineers' to fill (shared/dailyReportSections.ts), so they say so instead of «empty»
+  const sectionTitles: Record<SectionKey, string> = { header: t.header, work: t.work, labour: t.labour, equipment: t.equipment, materials: t.materials, inspections: t.inspections, hse: t.hse, obstacles: t.obstacles, tomorrow: t.tomorrow, photos: t.photos, review: t.approval };
+  const filledOr = (filled: boolean, otherwise: SectionState = "empty"): SectionState => (filled ? "filled" : otherwise);
+  const inspectionCount = (detail.data?.inspections?.wir.submitted ?? 0) + (detail.data?.inspections?.rfi.submitted ?? 0);
+  const sectionStates: Record<SectionKey, SectionState> = {
+    header: filledOr(Boolean(weather || temperature || summary.trim() || label.trim() || wind || workHours)),
+    work: filledOr(section("work").length > 0),
+    labour: filledOr(total("labour") + labourTotal(labourCells) > 0),
+    equipment: filledOr(total("equipment") > 0 || Object.keys(dayEquipment).length > 0),
+    materials: filledOr(sections.materials.length > 0, "other"),
+    inspections: filledOr(Boolean(reportId) && inspectionCount > 0, "other"),
+    hse: filledOr(sections.hse.length > 0, "other"),
+    obstacles: filledOr(sections.obstacleItems.length > 0 || Boolean(obstacles.trim())),
+    tomorrow: filledOr(sections.tomorrow.length > 0),
+    photos: filledOr(Boolean(reportId) && (detail.data?.photos.length ?? 0) > 0),
+    review: filledOr(locked),
+  };
+  // what the form holds, without the report's id: the autosave compares it with what was last saved (or opened), so opening a report — or one sent back,
+  // whose reason a save would clear — never saves anything by itself
+  const signature = JSON.stringify(body(), (key, value) => (key === "reportId" || key === "newReportId" ? undefined : value));
+  const [savedSignature, setSavedSignature] = useState<string | null>(null);
+  const [baselinePending, setBaselinePending] = useState(true);
+  useEffect(() => { if (baselinePending) { setSavedSignature(signature); setBaselinePending(false); } }, [baselinePending, signature]);
+  const somethingWritten = Object.entries(sectionStates).some(([key, state]) => key !== "review" && state === "filled");
+  useEffect(() => {
+    if (baselinePending || locked || !canWrite || save.isPending || problems.length > 0 || signature === savedSignature || (!reportId && !somethingWritten)) return;
+    const timer = window.setTimeout(() => {
+      autoSaving.current = true;
+      sending.current = signature; save.mutate({ ...body(), clientRequestId: crypto.randomUUID() });
+    }, AUTOSAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [signature, savedSignature, baselinePending, locked, canWrite, save.isPending, problems.length, reportId, somethingWritten]); // eslint-disable-line react-hooks/exhaustive-deps -- body() is read when the timer fires
   const lineBox = (line: Line) => {
     const unit = line.lineType === "work" ? unitOf(line.unitNumber) : undefined;
     const choices = unit ? activities.filter(activity => activity.modelCode === unit.modelCode) : activities;
@@ -285,24 +358,35 @@ export default function SiteDailyReport() {
   return (
     <FieldShell wide tenantId={tenantId} projectId={projectId} current="report" title={t.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={t.back}>
       <OfflineQueuePanel identityError={me.error} items={queue.items} online={queue.online} flushing={queue.flushing} onFlush={() => void queue.flush()} onDiscard={queue.discard} reason={item => offlineReasons(item.error, {}, language)} language={language} />
+      {/* Q-58 (2): the page opens with «new report» and the reports with what each waits for */}
+      <ReportsHeader scope={scope} reports={reports} me={me.data?.id ?? null} activeId={reportId} showDate={day => showDate(day, language)} onNew={startNew} newDisabled={!canWrite}
+        onOpen={id => { void openReport(id); }} />
       <WriteGate permission="project.field.manage" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
         {/* specification §3: sections 0 to 10 in order; one column on a phone (the site engineer), two on a desk (the planning engineer) */}
         {/* room under the last section for the save bar, which is fixed to the bottom of a phone's screen (a sticky bar would be lost in an overflow ancestor) */}
-        <CheckedForm className="space-y-3 pb-24 lg:pb-0" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); save.mutate({ ...body(), clientRequestId: crypto.randomUUID() }); }}>
+        <CheckedForm className="space-y-3 pb-24 lg:pb-0" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); autoSaving.current = false; sending.current = signature; save.mutate({ ...body(), clientRequestId: crypto.randomUUID() }); }}>
           {!reportId && !locked && (
             <div className="space-y-1 rounded-xl border bg-card p-3" data-copy-yesterday>
               <Button type="button" variant="outline" className={tap} disabled={copy.isPending} onClick={() => { setMessage(null); copy.mutate({ ...scope, reportDate: date }); }}>{coreText.copy}</Button>
               <p className="text-xs text-muted-foreground">{coreText.copyHint}</p>
+              {copyChoices && copyChoices.length > 0 && (
+                <div role="group" aria-label={many.copyWhich} data-copy-which className="space-y-2">
+                  <p className="text-sm font-semibold">{many.copyWhich}</p>
+                  {copyChoices.map(choice => <Button key={choice.id} type="button" variant="outline" className={`${tap} w-full justify-start`} disabled={copy.isPending} onClick={() => { setMessage(null); copy.mutate({ ...scope, reportDate: date, sourceReportId: choice.id }); }}>{[choice.reportNumber, choice.label ?? many.noLabel].filter(Boolean).join(" · ")}</Button>)}
+                </div>
+              )}
             </div>
           )}
-          {reportId && <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">{showDate(date, language)}</span><Button type="button" variant="outline" className={tap} onClick={startNew}>{t.newReport}</Button></div>}
           {rejectedNote && <p role="note" className="rounded-xl bg-warning-soft p-3 text-sm text-warning-soft-foreground"><b>{t.rejectedNote}:</b> {rejectedNote}</p>}
           {locked && <p role="note" className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{t.locked}</p>}
+          {/* Q-58 (2): every section with its state; a tap goes there (on a phone it becomes the one on screen) */}
+          <SectionStrip titles={sectionTitles} states={sectionStates} current={current} onPick={goTo} />
           {/* two independent columns on a desk (the sections flow down the first, then the second), so a long section never leaves a hole beside a short one */}
           <div className="space-y-3 lg:columns-2 lg:gap-3 lg:space-y-0 [&>*]:break-inside-avoid lg:[&>*]:mb-3">
-            <ReportSection number={0} title={t.header} summary={showDate(date, language)}>
+<ReportSection sectionKey="header" number={sectionNumber("header")} onPhone={current === "header"} footer={<StepButtons at="header" onGo={goTo} />} required={layout.required} title={t.header} summary={showDate(date, language)}>
               <label className="block text-sm font-medium">{t.day}<input className={`${fieldInput} mt-1`} type="date" value={date} max={today()} disabled={locked || Boolean(reportId)} onChange={event => setDate(event.target.value)} /></label>
               <p className="text-sm"><span className="text-muted-foreground">{t.weekday}: </span>{formatWeekday(date, language)}</p>
+              <label className="block text-sm font-medium">{many.label}<input className={`${fieldInput} mt-1`} value={label} maxLength={120} disabled={locked} onChange={event => setLabel(event.target.value)} /><span className="mt-1 block text-xs font-normal text-muted-foreground">{many.labelHint}</span></label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block text-sm font-medium">{t.weather}
                   <Select className="mt-1" value={weather || NONE} disabled={locked} onValueChange={value => setWeather(value === NONE ? "" : value)}
@@ -312,33 +396,33 @@ export default function SiteDailyReport() {
               <label className="block text-sm font-medium">{t.summary}<textarea className="mt-1 min-h-[88px] w-full rounded-xl border bg-card p-3 text-base" value={summary} disabled={locked} onChange={event => setSummary(event.target.value)} /></label>
               <HeaderExtras wind={wind} workHours={workHours} onWind={setWind} onHours={setWorkHours} locked={locked} />
             </ReportSection>
-            <ReportSection number={1} title={t.labour} summary={t.workers(total("labour") + labourTotal(labourCells))}>
+            <ReportSection sectionKey="work" number={sectionNumber("work")} onPhone={current === "work"} footer={<StepButtons at="work" onGo={goTo} />} title={t.work} summary={t.lineCount(section("work").length)}>{group("work", t.work, t.addWork)}</ReportSection>
+            <ReportSection sectionKey="labour" number={sectionNumber("labour")} onPhone={current === "labour"} footer={<StepButtons at="labour" onGo={goTo} />} title={t.labour} summary={t.workers(total("labour") + labourTotal(labourCells))}>
               {group("labour", t.labour, t.addLabour)}
               <SourceNotice query={companies} isArabic={isArabic} title={coreText.matrix} />
               <LabourMatrix companies={companies.data ?? []} roles={roles.data ?? []} cells={labourCells} onChange={setLabourCells} locked={locked} />
             </ReportSection>
-            <ReportSection number={2} title={t.equipment} summary={t.units(total("equipment"))}>{group("equipment", t.equipment, t.addEquipment)}<EquipmentOfDay machines={machines.data ?? []} rows={dayEquipment} onChange={setDayEquipment} locked={locked} /></ReportSection>
-            <ReportSection number={3} title={t.work} summary={t.lineCount(section("work").length)}>{group("work", t.work, t.addWork)}</ReportSection>
-            <ReportSection number={4} title={t.inspections} summary={detail.data?.inspections ? `WIR ${detail.data.inspections.wir.submitted} · RFI ${detail.data.inspections.rfi.submitted}` : undefined} defaultOpen={false}><InspectionsSection inspections={reportId ? detail.data?.inspections : undefined} /></ReportSection>
-            <ReportSection number={5} title={t.materials} summary={t.lineCount(sections.materials.length)}>
+            <ReportSection sectionKey="equipment" number={sectionNumber("equipment")} onPhone={current === "equipment"} footer={<StepButtons at="equipment" onGo={goTo} />} title={t.equipment} summary={t.units(total("equipment"))}>{group("equipment", t.equipment, t.addEquipment)}<EquipmentOfDay machines={machines.data ?? []} rows={dayEquipment} onChange={setDayEquipment} locked={locked} /></ReportSection>
+            <ReportSection sectionKey="materials" number={sectionNumber("materials")} onPhone={current === "materials"} footer={<StepButtons at="materials" onGo={goTo} />} title={t.materials} summary={t.lineCount(sections.materials.length)}>
               {/* a list of approvals that failed to load says so; the choice stays at «no approval» meanwhile */}
               <SourceNotice query={submittals} isArabic={isArabic} title={sectionText.approval} />
               <MaterialsSection title={t.materials} rows={sections.materials} onChange={put("materials")} locked={locked} submittals={submittals.data ?? []} />
             </ReportSection>
-            <ReportSection number={6} title={t.hse} summary={hseSummary(sections.hse, sectionText) || t.lineCount(0)}><HseSection title={t.hse} rows={sections.hse} onChange={put("hse")} locked={locked} /></ReportSection>
-            <ReportSection number={7} title={t.obstacles} summary={t.lineCount(sections.obstacleItems.length)}>
+            <ReportSection sectionKey="inspections" number={sectionNumber("inspections")} onPhone={current === "inspections"} footer={<StepButtons at="inspections" onGo={goTo} />} title={t.inspections} summary={detail.data?.inspections ? `WIR ${detail.data.inspections.wir.submitted} · RFI ${detail.data.inspections.rfi.submitted}` : undefined} defaultOpen={false}><InspectionsSection inspections={reportId ? detail.data?.inspections : undefined} /></ReportSection>
+            <ReportSection sectionKey="hse" number={sectionNumber("hse")} onPhone={current === "hse"} footer={<StepButtons at="hse" onGo={goTo} />} title={t.hse} summary={hseSummary(sections.hse, sectionText) || t.lineCount(0)}><HseSection title={t.hse} rows={sections.hse} onChange={put("hse")} locked={locked} /></ReportSection>
+            <ReportSection sectionKey="obstacles" number={sectionNumber("obstacles")} onPhone={current === "obstacles"} footer={<StepButtons at="obstacles" onGo={goTo} />} title={t.obstacles} summary={t.lineCount(sections.obstacleItems.length)}>
               <ObstaclesSection title={t.obstacles} rows={sections.obstacleItems} onChange={put("obstacleItems")} locked={locked} />
               <label className="block text-sm font-medium">{sectionText.freeText}<textarea className="mt-1 min-h-[64px] w-full rounded-xl border bg-card p-3 text-base" value={obstacles} disabled={locked} onChange={event => setObstacles(event.target.value)} /></label>
             </ReportSection>
-            <ReportSection number={8} title={t.tomorrow} summary={t.lineCount(sections.tomorrow.length)}><TomorrowSection title={t.tomorrow} rows={sections.tomorrow} onChange={put("tomorrow")} locked={locked} /></ReportSection>
-            <ReportSection number={9} title={t.photos}>
+            <ReportSection sectionKey="tomorrow" number={sectionNumber("tomorrow")} onPhone={current === "tomorrow"} footer={<StepButtons at="tomorrow" onGo={goTo} />} title={t.tomorrow} summary={t.lineCount(sections.tomorrow.length)}><TomorrowSection title={t.tomorrow} rows={sections.tomorrow} onChange={put("tomorrow")} locked={locked} /></ReportSection>
+            <ReportSection sectionKey="photos" number={sectionNumber("photos")} onPhone={current === "photos"} footer={<StepButtons at="photos" onGo={goTo} />} title={t.photos}>
             {!reportId && <p className="text-sm text-muted-foreground">{t.photoNeedsSave}</p>}
             {reportId && !locked && <PhotoPlace zone={photoZone} unitNumber={photoUnit} onZone={setPhotoZone} onUnit={setPhotoUnit} unitKnown={Boolean(unitOf(photoUnit))} />}
             {reportId && !locked && <CameraCapture label={t.takePhoto} disabled={upload.busy || attach.isPending || (photoUnit.trim() !== "" && !unitOf(photoUnit))} onFile={file => { void addPhoto(file); }} />}
             {photoMessage && <p role="status" className="text-sm text-success-soft-foreground">{photoMessage}</p>}
             {reportId && (detail.data?.photos.length ? <ul className="grid grid-cols-3 gap-2">{detail.data.photos.map(photo => { const place = photoPlaceText(language, photo.zone ?? null, photo.pmcUnitId ? String(units.find(unit => unit.id === photo.pmcUnitId)?.number ?? "") || null : null); return <li key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.caption ?? photo.fileName} className="aspect-square w-full rounded-lg object-cover" /> : <span className="text-xs text-muted-foreground">{photo.fileName}</span>}{place ? <span className="block text-xs text-muted-foreground" data-photo-place>{place}</span> : null}</li>; })}</ul> : <p className="text-sm text-muted-foreground">{t.noPhotos}</p>)}
             </ReportSection>
-            <ReportSection number={10} title={t.approval} summary={reportId ? (locked ? t.pending : t.draft) : t.newReport} defaultOpen={false}>
+            <ReportSection sectionKey="review" number={sectionNumber("review")} onPhone={current === "review"} footer={<StepButtons at="review" onGo={goTo} />} title={t.approval} summary={reportId ? (locked ? t.pending : t.draft) : t.newReport} defaultOpen={current === "review"}>
               <p className="text-sm"><span className="text-muted-foreground">{t.statusNow}: </span>{reportId ? (locked ? t.pending : t.draft) : t.newReport}</p>
               <p className="text-sm font-medium">{t.chain}</p>
               <ApprovalChain scope={scope} reportId={reportId} status={detail.data?.report.status ?? null} approval={detail.data?.approval} onChanged={() => { void detail.refetch(); void utils.siteReports.list.invalidate(); }} />
@@ -350,7 +434,9 @@ export default function SiteDailyReport() {
           {reportId && locked && (detail.data?.report.status ?? "submitted") === "submitted" && <WhoApproves scope={scope} preparedBy={detail.data?.report.preparedByUserId ?? me.data?.id ?? null} />}
           {!locked && (
             // the save bar stays in reach of the thumb while the site engineer scrolls the sections
-            <div data-save-bar className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t bg-background p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] lg:static lg:border-0 lg:p-0 lg:shadow-none">
+            // Q-58 (2): one bar for the whole report, fixed to a phone's screen and held at the bottom of a desk's view while the sections scroll
+            <div data-save-bar className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t bg-background p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] lg:sticky lg:px-0 lg:shadow-none">
+              <p className="col-span-2 text-xs text-muted-foreground" role="status" data-autosaved={autoSavedAt ? "" : undefined}>{autoSavedAt ? layout.autosaved(formatDateTime(autoSavedAt, language)) : layout.autosaveHint}</p>
               <Button type="submit" variant="outline" className={`${tap} text-base`} disabled={problems.length > 0 || save.isPending}>{save.isPending ? t.saving : t.save}</Button>
               <Button type="button" className={`${tap} text-base`} disabled={!reportId || problems.length > 0 || submit.isPending} onClick={() => { setMessage(null); if (reportId) submit.mutate({ ...scope, reportId }); }}>{submit.isPending ? t.submitting : t.submit}</Button>
             </div>
@@ -373,18 +459,6 @@ export default function SiteDailyReport() {
       )}
 
       {list.data && <DailyRangeExport tenantId={tenantId} projectId={projectId} />}
-      <section className="space-y-2" aria-label={t.recent}>
-        <h2 className="text-base font-semibold">{t.recent}</h2>
-        {reports.length === 0 && <p className="text-sm text-muted-foreground">{t.noReports}</p>}
-        <ul className="space-y-2">
-          {reports.slice(0, 15).map(report => (
-            <li key={report.id} className="flex items-center justify-between gap-2 rounded-xl border bg-card p-3" data-report-status={report.status}>
-              <span><span className="block text-sm font-semibold">{showDate(report.reportDate, language)}</span><span className="block text-xs text-muted-foreground">{statusName(report.status)}{report.weather ? ` · ${weatherName[report.weather] ?? report.weather}` : ""}</span></span>
-              <Button type="button" variant="outline" className={tap} onClick={() => { void openReport(report.id); }}>{canWrite && (report.status === "draft" || report.status === "rejected") ? t.edit : t.view}</Button>
-            </li>
-          ))}
-        </ul>
-      </section>
 
       {canReview && <ReviewPanel scope={scope} waiting={waiting} me={me.data?.id ?? null} t={t} language={language} isArabic={isArabic} onDone={() => { void utils.siteReports.list.invalidate(); }} />}
     </FieldShell>
@@ -406,7 +480,7 @@ function ReviewPanel({ scope, waiting, me, t, language, isArabic, onDone }: { sc
       setPreview(null); setDone(variables.decision === "approve" ? t.approvedDone : t.rejectedDone); onDone();
     },
     // Q-56 (4b): a refusal for QC opens the list of what holds it, with the way to approve without moving those villas
-    onError: (error, variables) => { if (error.message === "PROJECT_OS_QC_NOT_ACCEPTED" && !variables.dryRun) review.mutate({ ...variables, dryRun: true }); },
+    onError: (error, variables) => { if (projectErrorCode(error) === "PROJECT_OS_QC_NOT_ACCEPTED" && !variables.dryRun) review.mutate({ ...variables, dryRun: true }); },
   });
   const cellName = (cell: Cell) => {
     const unit = options.data?.units.find(item => item.id === cell.unitId); const activity = options.data?.activities.find(item => item.id === cell.activityDefinitionId);
@@ -417,7 +491,7 @@ function ReviewPanel({ scope, waiting, me, t, language, isArabic, onDone }: { sc
       <h2 className="text-base font-semibold">{t.review}</h2>
       <p className="text-sm text-muted-foreground">{t.reviewHint}</p>
       {done && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{done}</p>}
-      {review.error && !(review.error.message === "PROJECT_OS_QC_NOT_ACCEPTED" && preview) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(review.error, isArabic)}</p>}
+      {review.error && !(projectErrorCode(review.error) === "PROJECT_OS_QC_NOT_ACCEPTED" && preview) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(review.error, isArabic)}</p>}
       {waiting.length === 0 && <p className="text-sm text-muted-foreground">{t.nothingToReview}</p>}
       <ul className="space-y-3">
         {waiting.map(report => (

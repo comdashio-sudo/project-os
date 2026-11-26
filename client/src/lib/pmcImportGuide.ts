@@ -46,7 +46,7 @@ const ar: Record<PmcGuideKind, KindGuide> = {
     after: "تتغيّر حالة الأنشطة وتُسجَّل في السجل، فتتغيّر النسب والألوان.",
     where: "«آخر التحديثات» و«الأنشطة» وألوان «المخطط».",
     columns: [c("رقم الوحدة", true, "رقم الفيلا"), c("رمز النشاط", true, ""), c("الحالة", true, "لم يبدأ / قيد التنفيذ / قيد المراجعة / مكتمل"), c("حالة التحقق", false, ""), c("بريد المهندس", false, ""), c("التاريخ", false, "")],
-    example: [["رقم الوحدة", "رمز النشاط", "الحالة"], [1, "A-01", "مكتمل"], [2, "A-01", "قيد التنفيذ"]],
+    example: [["رقم الوحدة", "رمز النشاط", "الحالة"], [1, "A-01", "مكتمل"], [1, "A-02", "قيد التنفيذ"]],
   },
   requests: {
     purpose: "طلبات الفحص والاستلام وردود الاستشاري عليها.",
@@ -55,7 +55,7 @@ const ar: Record<PmcGuideKind, KindGuide> = {
     after: "تُنشأ الطلبات أو يُحدَّث ردها برقم الطلب.",
     where: "«الاعتمادات» و«المعلّق» و«الفحوصات».",
     columns: [c("رقم الطلب", true, ""), c("رمز النشاط", true, ""), c("الوحدات", true, "مثل 1-5, 8"), c("تاريخ الطلب", true, ""), c("المقاول", false, ""), c("الاستشاري", false, ""), c("رمز الرد", false, ""), c("ملاحظات", false, "")],
-    example: [["رقم الطلب", "رمز النشاط", "الوحدات", "تاريخ الطلب"], ["WIR-001", "A-01", "1-5, 8", "2027-01-10"]],
+    example: [["رقم الطلب", "رمز النشاط", "الوحدات", "تاريخ الطلب"], ["WIR-001", "A-01", "1", "2027-01-10"]],
   },
   baseline: {
     purpose: "خط الأساس الشهري: النسبة المخططة لكل نشاط في كل شهر، ومنه منحنى S المخطط.",
@@ -112,7 +112,7 @@ const en: Record<PmcGuideKind, KindGuide> = {
     after: "Activity statuses change and are logged, so percentages and colours change.",
     where: "«Latest updates», «Activities» and the «Site plan» colours.",
     columns: [c("unit number", true, "villa number"), c("activity code", true, ""), c("status", true, "not started / in progress / under review / complete"), c("verification status", false, ""), c("engineer email", false, ""), c("date", false, "")],
-    example: [["unit number", "activity code", "status"], [1, "A-01", "complete"], [2, "A-01", "in progress"]],
+    example: [["unit number", "activity code", "status"], [1, "A-01", "complete"], [1, "A-02", "in progress"]],
   },
   requests: {
     purpose: "Inspection and handover requests and the consultant's replies.",
@@ -121,7 +121,7 @@ const en: Record<PmcGuideKind, KindGuide> = {
     after: "Requests are created, or their reply updated by request number.",
     where: "«Approvals», «Pending» and «Inspections».",
     columns: [c("request number", true, ""), c("activity code", true, ""), c("units", true, "e.g. 1-5, 8"), c("request date", true, ""), c("contractor", false, ""), c("consultant", false, ""), c("response code", false, ""), c("notes", false, "")],
-    example: [["request number", "activity code", "units", "request date"], ["WIR-001", "A-01", "1-5, 8", "2027-01-10"]],
+    example: [["request number", "activity code", "units", "request date"], ["WIR-001", "A-01", "1", "2027-01-10"]],
   },
   baseline: {
     purpose: "The monthly baseline: each activity's planned percent per month, from which the planned S-curve is drawn.",

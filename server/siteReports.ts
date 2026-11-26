@@ -37,7 +37,7 @@ export type ReportHseInput = { kind: (typeof HSE_KINDS)[number]; description: st
 export type ReportObstacleInput = { issue: string; impact?: string; responsible?: string; action?: string; dueDate?: string };
 export type ReportTomorrowInput = { area?: string; activity: string; quantity?: number; unit?: string; resources?: string };
 type Sections = { materials?: ReportMaterialInput[]; hse?: ReportHseInput[]; obstacleItems?: ReportObstacleInput[]; tomorrow?: ReportTomorrowInput[] };
-export type ReportInput = Sections & { reportDate: string; queuedAt?: string; weather?: string; temperatureC?: number; wind?: string; workHours?: number; summary?: string; obstacles?: string; lines: ReportLineInput[]; labour?: ReportLabourInput[]; equipment?: ReportEquipmentInput[] };
+export type ReportInput = Sections & { reportDate: string; reportId?: string; newReportId?: string; label?: string; queuedAt?: string; weather?: string; temperatureC?: number; wind?: string; workHours?: number; summary?: string; obstacles?: string; lines: ReportLineInput[]; labour?: ReportLabourInput[]; equipment?: ReportEquipmentInput[] };
 
 export async function authorize(input: Scope, permission: string | readonly string[]) {
   const db = await getDb();
@@ -162,14 +162,32 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
   await validateLines(db, input, input.lines);
   await validateResources(db, input, input.labour ?? [], input.equipment ?? []);
   await validateSections(db, input, input);
-  const [existing] = await db.select().from(siteDailyReports).where(and(ownDayReports(input), eq(siteDailyReports.reportDate, input.reportDate))).limit(1);
+  // Q-58 (1): several reports of one day — a save names the report it changes (reportId), or the id the screen chose for a new one (newReportId: created
+  // by its first save, changed by every later one, so a save sent twice or kept offline twice never makes a second report). A save that says neither comes
+  // from a screen of before this change (a cached page, a save kept offline): it keeps that screen's meaning — the preparer's report of that day when there is
+  // exactly one, a new one when there is none — and, with two or more, it is refused (SAVE_WHICH): never a guess, never a third report (review of #523).
+  let existing: typeof siteDailyReports.$inferSelect | undefined;
+  if (input.reportId) {
+    [existing] = await db.select().from(siteDailyReports).where(and(ownDayReports(input), eq(siteDailyReports.id, input.reportId))).limit(1);
+    if (!existing) throw refuse("NOT_FOUND", "PROJECT_OS_SITE_REPORT_NOT_FOUND");
+    if (existing.reportDate !== input.reportDate) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FIXED");
+  } else if (input.newReportId) {
+    [existing] = await db.select().from(siteDailyReports).where(and(ownDayReports(input), eq(siteDailyReports.id, input.newReportId))).limit(1);
+    if (existing && existing.reportDate !== input.reportDate) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FIXED");
+    // an id that is another person's report is not taken over, nor made into a second report of the same id
+    if (!existing && (await db.select({ id: siteDailyReports.id }).from(siteDailyReports).where(and(mine(siteDailyReports, input), eq(siteDailyReports.id, input.newReportId))).limit(1)).length) throw refuse("NOT_FOUND", "PROJECT_OS_SITE_REPORT_NOT_FOUND");
+  } else {
+    const sameDay = await db.select().from(siteDailyReports).where(and(ownDayReports(input), eq(siteDailyReports.reportDate, input.reportDate))).limit(2);
+    if (sameDay.length > 1) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_SAVE_WHICH");
+    existing = sameDay[0];
+  }
   if (existing && (existing.status === "submitted" || existing.status === "approved")) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
   // Q-24 (P-120): a report kept on the phone while offline does not overwrite one saved after it was kept — shown to the person, never swallowed
   if (input.queuedAt && new Date(input.queuedAt).getTime() > Date.now() + 5 * 60_000) throw refuse("BAD_REQUEST", "PROJECT_OS_CLIENT_CLOCK_AHEAD"); // review of #407: a clock ahead must not switch the check off
   if (existing && input.queuedAt && existing.updatedAt.getTime() > new Date(input.queuedAt).getTime()) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_CHANGED_SINCE");
-  const id = existing?.id ?? crypto.randomUUID();
+  const id = existing?.id ?? input.newReportId ?? crypto.randomUUID();
   await oneReportPerDay(db.transaction(async tx => {
-    const header = { weather: input.weather?.trim() || null, temperatureC: input.temperatureC === undefined ? null : String(input.temperatureC), wind: input.wind?.trim() || null, workHours: input.workHours === undefined ? null : String(input.workHours), summary: input.summary?.trim() || null, obstacles: input.obstacles?.trim() || null };
+    const header = { label: input.label?.trim() || null, weather: input.weather?.trim() || null, temperatureC: input.temperatureC === undefined ? null : String(input.temperatureC), wind: input.wind?.trim() || null, workHours: input.workHours === undefined ? null : String(input.workHours), summary: input.summary?.trim() || null, obstacles: input.obstacles?.trim() || null };
     if (existing) {
       await tx.update(siteDailyReports).set({ ...header, status: "draft", reviewNote: null, checkedByUserId: null, checkedAt: null, checkNote: null, ...(existing.reportNumber ? {} : { reportNumber: await nextReportNumber(tx, input) }) }).where(eq(siteDailyReports.id, id));
       await tx.delete(siteDailyReportLines).where(eq(siteDailyReportLines.reportId, id));
@@ -356,7 +374,7 @@ export const READ_PERMISSIONS = DAILY_REPORT_READERS;
 /** Q-57 (4): `from` and `to` (inclusive, YYYY-MM-DD) bound the list for the period export; with a bound the read holds up to REPORT_RANGE_CAP + 1 reports (the extra one tells the screen the period is over the cap), otherwise the 60 most recent as before. The gate is the same. */
 export async function listSiteDailyReportsForTenant(input: Scope & { status?: "draft" | "submitted" | "approved" | "rejected"; limit?: number; from?: string; to?: string }) {
   const db = await authorize(input, READ_PERMISSIONS);
-  return db.select({ id: siteDailyReports.id, reportDate: siteDailyReports.reportDate, status: siteDailyReports.status, weather: siteDailyReports.weather, preparedByUserId: siteDailyReports.preparedByUserId, submittedAt: siteDailyReports.submittedAt, reviewedAt: siteDailyReports.reviewedAt, reviewNote: siteDailyReports.reviewNote })
+  return db.select({ id: siteDailyReports.id, reportDate: siteDailyReports.reportDate, reportNumber: siteDailyReports.reportNumber, label: siteDailyReports.label, status: siteDailyReports.status, weather: siteDailyReports.weather, preparedByUserId: siteDailyReports.preparedByUserId, submittedAt: siteDailyReports.submittedAt, reviewedAt: siteDailyReports.reviewedAt, reviewNote: siteDailyReports.reviewNote })
     .from(siteDailyReports).where(and(mine(siteDailyReports, input), input.status ? eq(siteDailyReports.status, input.status) : undefined, input.from ? gte(siteDailyReports.reportDate, input.from) : undefined, input.to ? lte(siteDailyReports.reportDate, input.to) : undefined))
     .orderBy(desc(siteDailyReports.reportDate), desc(siteDailyReports.createdAt)).limit(input.from || input.to ? REPORT_RANGE_CAP + 1 : Math.min(input.limit ?? 60, 200));
 }
@@ -467,14 +485,22 @@ export async function listFieldOptionsForTenant(input: Scope) {
  * D-45 (a): today's draft starts from the preparer's last report (same contractor): its labour matrix and its equipment, nothing else (no work lines, no photos —
  * what was done yesterday is not what is done today). Refused when the preparer already has a report for that day. The new draft takes the next number.
  */
-export async function copySiteDailyReportFromYesterday(input: Scope & { reportDate: string }) {
+export async function copySiteDailyReportFromYesterday(input: Scope & { reportDate: string; sourceReportId?: string }) {
   const db = await authorize(input, "project.field.manage");
   if (!realDate(input.reportDate)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_INVALID");
   if (input.reportDate > today()) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FUTURE");
   const mineAndPreparer = ownDayReports(input);
-  const [exists] = await db.select({ id: siteDailyReports.id }).from(siteDailyReports).where(and(mineAndPreparer, eq(siteDailyReports.reportDate, input.reportDate))).limit(1);
-  if (exists) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_EXISTS");
-  const [source] = await db.select({ id: siteDailyReports.id, reportDate: siteDailyReports.reportDate }).from(siteDailyReports).where(and(mineAndPreparer, sql`${siteDailyReports.reportDate} < ${input.reportDate}`)).orderBy(desc(siteDailyReports.reportDate)).limit(1);
+  // Q-58 (1): a day may hold several reports, so a report of that day no longer stops the copy; the source is the one named, or — when the last earlier day
+  // holds one report — that one. With two or more there, the screen asks which (PROJECT_OS_SITE_REPORT_COPY_WHICH), never a guess.
+  let source: { id: string; reportDate: string } | undefined;
+  if (input.sourceReportId) {
+    [source] = await db.select({ id: siteDailyReports.id, reportDate: siteDailyReports.reportDate }).from(siteDailyReports).where(and(mineAndPreparer, eq(siteDailyReports.id, input.sourceReportId), sql`${siteDailyReports.reportDate} < ${input.reportDate}`)).limit(1);
+  } else {
+    const [last] = await db.select({ reportDate: siteDailyReports.reportDate }).from(siteDailyReports).where(and(mineAndPreparer, sql`${siteDailyReports.reportDate} < ${input.reportDate}`)).orderBy(desc(siteDailyReports.reportDate)).limit(1);
+    const thatDay = last ? await db.select({ id: siteDailyReports.id, reportDate: siteDailyReports.reportDate }).from(siteDailyReports).where(and(mineAndPreparer, eq(siteDailyReports.reportDate, last.reportDate))).limit(2) : [];
+    if (thatDay.length > 1) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_COPY_WHICH");
+    source = thatDay[0];
+  }
   if (!source) throw refuse("NOT_FOUND", "PROJECT_OS_SITE_REPORT_NOTHING_TO_COPY");
   const [labour, equipment] = await Promise.all([
     db.select({ companyId: siteDailyReportLabour.companyId, labourRoleId: siteDailyReportLabour.labourRoleId, shift: siteDailyReportLabour.shift, headcount: siteDailyReportLabour.headcount }).from(siteDailyReportLabour).where(and(mine(siteDailyReportLabour, input), eq(siteDailyReportLabour.reportId, source.id))),
