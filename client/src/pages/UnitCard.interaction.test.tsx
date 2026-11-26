@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UnitCard from "./UnitCard";
 
-const h = vi.hoisted(() => ({ language: "en" as "ar" | "en" | "ur", unit: "12", search: "", navigate: vi.fn(), cardInput: vi.fn(), held: false, events: 3 }));
+const h = vi.hoisted(() => ({ unitExtra: {} as Record<string, unknown>, language: "en" as "ar" | "en" | "ur", unit: "12", search: "", navigate: vi.fn(), cardInput: vi.fn(), held: false, events: 3 }));
 const options = {
   units: [{ id: "u12", number: 12, modelCode: "A", block: "B1", zone: "Z1" }, { id: "u21", number: 21, modelCode: "B", block: "B2", zone: "Z1" }],
   activities: [{ id: "a-walls", modelCode: "A", code: "WALLS", name: "Walls" }, { id: "a-paint", modelCode: "A", code: "PAINT", name: "Paint" }, { id: "b-walls", modelCode: "B", code: "WALLS", name: "Walls" }],
@@ -26,13 +26,31 @@ vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "localiz
 vi.mock("@/lib/trpc", () => ({ trpc: {
   siteReports: { options: { useQuery: () => ({ data: options, isLoading: false, error: null, refetch: vi.fn() }) } },
   pmc: { stalledUnits: { useQuery: () => ({ data: { threshold: 3, longDays: 14, counts: { stalled: 1, long: 0, active: 0 }, rows: [{ unitId: "u12", villa: "12", blockCode: "B1", modelCode: "A", lastMovedOn: "2026-11-01", workingDays: 7, state: "stalled", lastActivity: { code: "WALLS", name: "Walls" }, nextActivity: { code: "PAINT", name: "Paint" } }] }, isError: false, error: null }) }, villaStates: { useQuery: () => ({ data: { villa: "12", modelCode: "A", activities: [{ code: "WALLS", name: "Walls", siteStatus: "COMPLETE", qcReceived: true, qcOn: "2026-11-11" }] }, isError: false, error: null }) } },
-  cells: { card: { useQuery: (input: { unitId: string; activityDefinitionId?: string }) => { h.cardInput(input); return { data: { unit: { id: "u12", number: 12, modelCode: "A", block: "B1", zone: "Z1" }, activity: input.activityDefinitionId ? { id: "a-walls", code: "WALLS", name: "Walls" } : null, status: input.activityDefinitionId ? "COMPLETE" : null, qc: input.activityDefinitionId ? { policy: "block", accepted: !h.held, ncrMode: "block", heldByNcr: h.held } : null, openNcrs: 1, events: all().slice(0, h.events) }, isLoading: false, error: null, refetch: vi.fn() }; } } },
+  cells: { card: { useQuery: (input: { unitId: string; activityDefinitionId?: string }) => { h.cardInput(input); return { data: { unit: { id: "u12", number: 12, modelCode: "A", block: "B1", zone: "Z1", ...h.unitExtra }, activity: input.activityDefinitionId ? { id: "a-walls", code: "WALLS", name: "Walls" } : null, status: input.activityDefinitionId ? "COMPLETE" : null, qc: input.activityDefinitionId ? { policy: "block", accepted: !h.held, ncrMode: "block", heldByNcr: h.held } : null, openNcrs: 1, events: all().slice(0, h.events) }, isLoading: false, error: null, refetch: vi.fn() }; } } },
 } }));
 
 beforeEach(() => { h.language = "en"; h.unit = "12"; h.search = ""; h.held = false; h.events = 6; h.navigate.mockReset(); h.cardInput.mockReset(); });
 afterEach(cleanup);
 
 describe("UnitCard", () => {
+  it("Q-60: the villa's phase and package from the register, and a mock-up villa marked as such", () => {
+    h.unitExtra = { phase: "PH2", package: "Diamond", isMockup: true };
+    try {
+      render(<UnitCard />);
+      expect(document.querySelector("[data-unit-phase]")?.textContent).toMatch(/PH2.*Diamond/);
+      expect(document.querySelector("[data-mockup]")).toBeTruthy();
+    } finally { h.unitExtra = {}; }
+  });
+
+  it("Q-60 NEGATIVE: a villa without them shows «—», and no mock-up mark", () => {
+    h.unitExtra = { phase: null, package: null, isMockup: null };
+    try {
+      render(<UnitCard />);
+      expect(document.querySelector("[data-unit-phase]")?.textContent).toContain("— / —");
+      expect(document.querySelector("[data-mockup]")).toBeNull();
+    } finally { h.unitExtra = {}; }
+  });
+
   it("shows the unit's one timeline, newest first, every kind in words, and no money", () => {
     const { container } = render(<UnitCard />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Unit card 12");
