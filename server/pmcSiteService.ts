@@ -17,6 +17,7 @@ import { resolveScopedAccess } from "./scopeAccess";
 import { effectiveStatusFactors, type PmcUnitActivityStatus } from "./domain/pmc";
 import { SITE_STATUSES, type SiteStatus } from "./domain/smartImport/siteWorkbook";
 import { PMC_INSPECTION_STEPS } from "./pmcService";
+import { matchBlock, toLatinDigits } from "./domain/blockMatch";
 import { chunks, daysBetween, FINANCIAL_PERMISSION, holds, pmcGate, siteToday, villaKey, type Db, type Scope } from "./wo22Shared";
 
 const refuse = (code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT", message: string, issues?: unknown[]) => new TRPCError({ code, message, cause: issues ? { issues } : undefined });
@@ -76,8 +77,9 @@ export type SiteUpdateIssue = { code: string; villa?: string; detail?: string };
 
 /** «268-272» → the villas between them that exist (by number); a single «268» is itself. */
 export function expandVillaRange(range: string, known: string[]): string[] | null {
-  const match = range.trim().match(/^(\d+)\s*[-–—]\s*(\d+)$/);
-  if (!match) return /^\d+$/.test(range.trim()) ? [String(Number(range.trim()))] : null;
+  const text = toLatinDigits(range.trim()); // «٢٦٨-٢٧٢» is read as «268-272»
+  const match = text.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+  if (!match) return /^\d+$/.test(text) ? [String(Number(text))] : null;
   const [from, to] = [Number(match[1]), Number(match[2])].sort((a, b) => a - b);
   return known.filter(label => /^\d+$/.test(label) && Number(label) >= from && Number(label) <= to).sort((a, b) => Number(a) - Number(b));
 }
@@ -103,9 +105,11 @@ export async function updateSiteStatus(input: SiteUpdateInput) {
   if (input.range) { const expanded = expandVillaRange(input.range, Array.from(byVilla.keys())); if (!expanded) issues.push({ code: "SITE_RANGE_INVALID", detail: input.range }); else if (!expanded.length) issues.push({ code: "SITE_RANGE_EMPTY", detail: input.range }); else wanted = expanded; }
   if (input.blockCode) {
     const blocks = await db.select({ id: pmcBlocks.id, code: pmcBlocks.code, name: pmcBlocks.name }).from(pmcBlocks).where(mine(pmcBlocks, input));
-    const block = blocks.find(item => item.code === input.blockCode || item.name === input.blockCode || item.code.endsWith(`-${input.blockCode}`));
-    if (!block) issues.push({ code: "SITE_BLOCK_UNKNOWN", detail: input.blockCode });
-    else wanted = units.filter(unit => unit.blockId === block.id).map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
+    // Q-67 (a): the same matcher as the progress update (domain/blockMatch.ts); the old «ends with -33» rule is one case of it
+    const found = matchBlock(blocks, input.blockCode);
+    if (found.ok) wanted = units.filter(unit => unit.blockId === found.block.id).map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
+    else if (found.reason === "ambiguous") issues.push({ code: "SITE_BLOCK_AMBIGUOUS", detail: found.options.join(" / ") });
+    else { issues.push({ code: "SITE_BLOCK_UNKNOWN", detail: input.blockCode }); if (found.suggestion) issues.push({ code: "SITE_BLOCK_DID_YOU_MEAN", detail: found.suggestion }); }
   }
   const allowed = activity.modelCodesJson ? new Set(JSON.parse(activity.modelCodesJson) as string[]) : null;
   const targets: typeof units = [];

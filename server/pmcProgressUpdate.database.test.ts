@@ -115,6 +115,15 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-4: the site engineer's
     expect((await manager().pmc.updateProgress({ ...scope, activityCode: "PAINT", blockCode: "B2", status: "COMPLETE", date: today })).changed).toBe(0);
   });
 
+  it("Q-67 (a): the block can be written as a bare number, with another prefix or in Arabic digits, and finds the same block; one that is not there is refused with its name", async () => {
+    // «2», «b-2» and «٢» all mean the block the project calls «B2» (the owner typed 33 for «BLK 33» and was told it does not exist)
+    for (const spelling of ["2", "b-2", "B 2", "٢"]) {
+      expect((await manager().pmc.updateProgress({ ...scope, activityCode: "PAINT", blockCode: spelling, status: "COMPLETE", date: today })).changed, spelling).toBe(0); // the block B2 is already complete in the test above: the same two villas, nothing new
+    }
+    const refused = await manager().pmc.updateProgress({ ...scope, activityCode: "PAINT", blockCode: "77", status: "COMPLETE", date: today }).then(() => null, caught => caught);
+    expect(JSON.stringify((refused as { cause?: unknown }).cause ?? refused.message)).toContain("SITE_BLOCK_UNKNOWN");
+  });
+
   it("atomic: one unknown villa refuses the whole entry and names it; nothing is written", async () => {
     const before = await count("pmc_unit_activity_history");
     const error = await manager().pmc.updateProgress({ ...scope, activityCode: "FOOT", villas: ["2", "999"], status: "COMPLETE", date: today }).then(() => null, caught => caught);

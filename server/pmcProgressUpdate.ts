@@ -10,6 +10,7 @@ import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcBlocks, pmcQcR
 import { applyCellStatuses, authorize, getPmcProgress, mine, type Scope } from "./pmcService";
 import { expandVillaRange } from "./pmcSiteService";
 import { siteToday, villaKey } from "./wo22Shared";
+import { matchBlock } from "./domain/blockMatch";
 
 export const PROGRESS_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETE"] as const;
 export type ProgressStatus = (typeof PROGRESS_STATUSES)[number];
@@ -85,9 +86,11 @@ export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>
   if (input.range) { const expanded = expandVillaRange(input.range, Array.from(byVilla.keys())); if (!expanded) issues.push({ code: "SITE_RANGE_INVALID", detail: input.range }); else if (!expanded.length) issues.push({ code: "SITE_RANGE_EMPTY", detail: input.range }); else wanted = expanded; }
   if (input.blockCode) {
     const blocks = await db.select({ id: pmcBlocks.id, code: pmcBlocks.code, name: pmcBlocks.name }).from(pmcBlocks).where(mine(pmcBlocks, input));
-    const block = blocks.find(item => item.code === input.blockCode || item.name === input.blockCode);
-    if (!block) issues.push({ code: "SITE_BLOCK_UNKNOWN", detail: input.blockCode });
-    else wanted = units.filter(unit => unit.blockId === block.id).map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
+    // Q-67 (a): «33» means «BLK 33» (domain/blockMatch.ts); two blocks for one number are refused with both, never guessed
+    const found = matchBlock(blocks, input.blockCode);
+    if (found.ok) wanted = units.filter(unit => unit.blockId === found.block.id).map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
+    else if (found.reason === "ambiguous") issues.push({ code: "SITE_BLOCK_AMBIGUOUS", detail: found.options.join(" / ") });
+    else { issues.push({ code: "SITE_BLOCK_UNKNOWN", detail: input.blockCode }); if (found.suggestion) issues.push({ code: "SITE_BLOCK_DID_YOU_MEAN", detail: found.suggestion }); }
   }
   // Q-60: every villa of one model (the owner chooses «all of model C»); an unknown model is said by name
   // Q-60 batch 2c: every villa of one construction phase (PH1–PH4, from the villa register); an unknown phase is said by name

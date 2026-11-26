@@ -135,4 +135,24 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-58 (1): several daily 
     await expect(callers.pm.siteReports.copyFromYesterday({ ...scope(), reportDate: daysAgo(0), sourceReportId: zoneB.id })).rejects.toThrow("PROJECT_OS_SITE_REPORT_NOTHING_TO_COPY");
     await expect(callers.engineer.siteReports.copyFromYesterday({ ...scope(), reportDate: daysAgo(3), sourceReportId: zoneB.id })).rejects.toThrow("PROJECT_OS_SITE_REPORT_NOTHING_TO_COPY");
   });
+
+  it("Q-72 (5): a figure outside what a daily report can hold is refused by name (labour above 5,000, a machine count above 1,000, a temperature outside -20..70), the limits themselves are accepted, a future date is refused, and a sent report is frozen", async () => {
+    const day = daysAgo(8);
+    const base = { ...scope(), reportDate: day, summary: "Limits (synthetic)", lines: [] };
+    await expect(callers.engineer.siteReports.save({ ...base, labour: crew(5001) })).rejects.toThrow("PROJECT_OS_SITE_REPORT_LABOUR_TOO_MANY");
+    await expect(callers.engineer.siteReports.save({ ...base, equipment: [{ equipmentId: machineId, count: 1001 }] })).rejects.toThrow("PROJECT_OS_SITE_REPORT_EQUIPMENT_TOO_MANY");
+    await expect(callers.engineer.siteReports.save({ ...base, temperatureC: 71 })).rejects.toThrow("PROJECT_OS_SITE_REPORT_TEMPERATURE_RANGE");
+    await expect(callers.engineer.siteReports.save({ ...base, temperatureC: -21 })).rejects.toThrow("PROJECT_OS_SITE_REPORT_TEMPERATURE_RANGE");
+    expect((await callers.engineer.siteReports.list(scope())).filter(row => row.reportDate === day)).toHaveLength(0); // nothing was written by a refused save
+    // the limits themselves are fine
+    const saved = await callers.engineer.siteReports.save({ ...base, labour: crew(5000), equipment: [{ equipmentId: machineId, count: 1000 }], temperatureC: 70 });
+    expect(saved.status).toBe("draft");
+    expect((await callers.engineer.siteReports.save({ ...base, reportId: saved.id, temperatureC: -20 })).id).toBe(saved.id);
+    // a date after today is refused
+    await expect(callers.engineer.siteReports.save({ ...scope(), reportDate: daysAgo(-1), summary: "Tomorrow (synthetic)", lines: [] })).rejects.toThrow("PROJECT_OS_SITE_REPORT_DATE_FUTURE");
+    // sending freezes it: a later save of the same report is refused, never a silent overwrite
+    await callers.engineer.siteReports.submit({ ...scope(), reportId: saved.id });
+    await expect(callers.engineer.siteReports.save({ ...base, reportId: saved.id, summary: "Edited after sending (synthetic)" })).rejects.toThrow("PROJECT_OS_SITE_REPORT_LOCKED");
+    expect((await callers.engineer.siteReports.get({ ...scope(), reportId: saved.id })).report.summary).toBe("Limits (synthetic)");
+  });
 });
