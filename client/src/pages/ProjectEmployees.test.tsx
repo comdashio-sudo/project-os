@@ -2,6 +2,8 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const exported = vi.hoisted(() => ({ build: vi.fn(async (..._args: unknown[]) => new ArrayBuffer(8)) }));
+vi.mock("@/lib/excelExport", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/excelExport")>()), buildTableWorkbook: exported.build, downloadWorkbook: vi.fn() }));
 import { ProjectEmployees } from "./ProjectEmployees";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
@@ -10,7 +12,7 @@ const state = vi.hoisted(() => ({ denied: new Set<string>(), identityQuery: vi.f
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: (false) ? "ar" : "en", isRtl: false }) }));
 vi.mock("@/lib/permissions", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/permissions")>()), useCan: (code: string) => !state.denied.has(code) }));
 vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localized employee error" }));
-vi.mock("@/lib/trpc", () => ({ trpc: { employees: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner", jobTitle: "Planner", department: "Planning", hireDate: new Date("2026-08-01"), employmentStatus: "active", nationality: "Saudi", retentionPolicy: "standard", archivedAt: null }], refetch: vi.fn() }) }, identity: { useQuery: (...args: unknown[]) => { state.identityQuery(...args); return { data: { id: "employee-1", identityDocumentType: "National ID", identityReference: "ID-REDACTED-001" }, error: null }; } }, create: { useMutation: () => ({ mutate: state.create, isPending: false, error: null }) }, archive: { useMutation: () => ({ mutate: state.archive, isPending: false, error: null }) }, contracts: { list: { useQuery: () => ({ data: [], error: null, refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.createContract, isPending: false, error: null }) } } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { employees: { list: { useQuery: () => ({ isLoading: false, error: null, data: [{ id: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner", identityReference: "POISON-ID-9999", linkedUserId: 4242, jobTitle: "Planner", department: "Planning", hireDate: new Date("2026-08-01"), employmentStatus: "active", nationality: "Saudi", retentionPolicy: "standard", archivedAt: null }], refetch: vi.fn() }) }, identity: { useQuery: (...args: unknown[]) => { state.identityQuery(...args); return { data: { id: "employee-1", identityDocumentType: "National ID", identityReference: "ID-REDACTED-001" }, error: null }; } }, create: { useMutation: () => ({ mutate: state.create, isPending: false, error: null }) }, archive: { useMutation: () => ({ mutate: state.archive, isPending: false, error: null }) }, contracts: { list: { useQuery: () => ({ data: [], error: null, refetch: vi.fn() }) }, create: { useMutation: () => ({ mutate: state.createContract, isPending: false, error: null }) } } } } }));
 
 describe("ProjectEmployees", () => {
   beforeEach(() => { cleanup(); state.denied.clear(); state.identityQuery.mockReset(); state.create.mockReset(); state.archive.mockReset(); state.createContract.mockReset(); });
@@ -74,5 +76,21 @@ describe("Q-38 (P1-06): fields named, sensitive reads asked for only by whom the
     expect(screen.getByText("EMP-01 · Amina Planner")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "View protected identity" })).toBeNull();
     expect(state.identityQuery.mock.calls.every(([, options]) => !(options as { enabled?: boolean }).enabled)).toBe(true);
+  });
+
+  // Q-57: the register exports what its cards show; the protected identity never enters a file
+  it("Q-57: the employee register exports number, name, title, department and status — never identity data", async () => {
+    exported.build.mockClear();
+    render(<ProjectEmployees tenantId="tenant-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
+    await vi.waitFor(() => expect(exported.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    const call = exported.build.mock.calls[0][0] as { rows: unknown[]; columns: Array<{ header: string; value: (row: unknown) => unknown }> };
+    expect(call.columns.map(column => column.header)).toEqual(["Employee number", "Name", "Job title", "Department", "Status"]);
+    const values = call.columns.map(column => column.value(call.rows[0]));
+    expect(values.slice(0, 4)).toEqual(["EMP-01", "Amina Planner", "Planner", "Planning"]);
+    expect(typeof values[4]).toBe("string"); expect(values[4]).not.toBe("");
+    // the row the screen holds carries fields the card does not show; none of them reaches any column
+    expect(JSON.stringify(values)).not.toMatch(/POISON|4242/);
+    expect(state.identityQuery.mock.calls.every(([, options]) => !(options as { enabled?: boolean }).enabled)).toBe(true); // exporting asks for no protected read
   });
 });
