@@ -24,6 +24,8 @@ export const PAGE_ACCESS = {
   team: [["project.manage", "project.team.invite"]],
   pmc: [["project.pmc.read"]],
   stalled: [["project.pmc.read"]],
+  // pmc.completionReport — getPmcCompletionReport (server/pmcCompletionReport.ts), Q-70 (2)
+  completionReport: [["project.pmc.read"]],
   // meetings.list — listProjectMeetings (server/meetings.ts), Q-25: a reader of the project, or whoever records its minutes (assertDecisionRecorder:
   // pmo.write on the project, tenant.manage for the company) — who writes the minutes reads them (batch 2)
   meetings: [["project.read", "project.manage", "pmo.write", "tenant.manage"]],

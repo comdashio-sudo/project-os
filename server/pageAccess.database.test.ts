@@ -31,6 +31,7 @@ const READS: Record<PageKey, Array<(c: ReturnType<typeof callerFor>) => Promise<
   team: [c => c.projects.team.list({ tenantId, projectId: P })],
   pmc: [c => c.pmc.inspections({ tenantId, projectId: P })],
   stalled: [c => c.pmc.stalledUnits({ tenantId, projectId: P })],
+  completionReport: [c => c.pmc.completionReport({ tenantId, projectId: P, limit: 1 })],
   meetings: [c => c.meetings.list({ tenantId, projectId: P })],
   risks: [c => c.pmo.projectRisks({ tenantId, projectId: P })],
   safety: [c => c.safety.register({ tenantId, projectId: P })],
