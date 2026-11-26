@@ -15,9 +15,9 @@ import { trpc } from "@/lib/trpc";
 
 const ALL = "__all";
 const text = {
-  ar: { title: "الوحدات المتوقفة", intro: "الفلل التي بدأ العمل فيها ولم تكتمل، ولم يتحرك فيها إنجاز ولا QC منذ أكثر من الحد بأيام العمل (لا تُحسب العطل).", stalled: "متوقفة", long: "متوقفة طويلًا", active: "نشطة", block: "البلوك", model: "النموذج", lastActivity: "آخر بند تحرّك", all: "الكل", villa: "فيلا", days: "أيام عمل", lastMoved: "آخر حركة", next: "البند التالي", threshold: "حد التوقف (أيام عمل)", save: "حفظ الحد", saved: "حُفظ الحد.", none: "لا وحدات متوقفة بهذا التصفية.", showActive: "أظهر النشطة أيضًا" },
-  en: { title: "Stalled units", intro: "Villas where work has started, not complete, with no progress or QC movement for more than the threshold in working days (days off are not counted).", stalled: "Stalled", long: "Long stalled", active: "Active", block: "Block", model: "Model", lastActivity: "Last activity moved", all: "All", villa: "Villa", days: "working days", lastMoved: "Last movement", next: "Next activity", threshold: "Stall threshold (working days)", save: "Save the threshold", saved: "The threshold was saved.", none: "No stalled units with this filter.", showActive: "Show the active ones too" },
-  ur: { title: "رکی ہوئی یونٹس", intro: "وہ ولاز جن پر کام شروع ہوا، مکمل نہیں، اور حد سے زیادہ کام کے دنوں سے کوئی پیش رفت یا کیو سی نہیں (چھٹیاں شمار نہیں)۔", stalled: "رکی ہوئی", long: "طویل عرصے سے رکی ہوئی", active: "فعال", block: "بلاک", model: "ماڈل", lastActivity: "آخری متحرک سرگرمی", all: "سب", villa: "ولا", days: "کام کے دن", lastMoved: "آخری حرکت", next: "اگلی سرگرمی", threshold: "رکاوٹ کی حد (کام کے دن)", save: "حد محفوظ کریں", saved: "حد محفوظ ہو گئی۔", none: "اس فلٹر کے ساتھ کوئی رکی ہوئی یونٹ نہیں۔", showActive: "فعال بھی دکھائیں" },
+  ar: { title: "الوحدات المتوقفة", intro: "الفلل التي بدأ العمل فيها ولم تكتمل، ولم يتحرك فيها إنجاز ولا QC منذ أكثر من الحد بأيام العمل (لا تُحسب العطل).", stalled: "متوقفة", long: "متوقفة طويلًا", active: "نشطة", block: "البلوك", model: "النموذج", phase: "المرحلة", lastActivity: "آخر بند تحرّك", all: "الكل", villa: "فيلا", days: "أيام عمل", lastMoved: "آخر حركة", next: "البند التالي", threshold: "حد التوقف (أيام عمل)", save: "حفظ الحد", saved: "حُفظ الحد.", none: "لا وحدات متوقفة بهذا التصفية.", showActive: "أظهر النشطة أيضًا" },
+  en: { title: "Stalled units", intro: "Villas where work has started, not complete, with no progress or QC movement for more than the threshold in working days (days off are not counted).", stalled: "Stalled", long: "Long stalled", active: "Active", block: "Block", model: "Model", phase: "Phase", lastActivity: "Last activity moved", all: "All", villa: "Villa", days: "working days", lastMoved: "Last movement", next: "Next activity", threshold: "Stall threshold (working days)", save: "Save the threshold", saved: "The threshold was saved.", none: "No stalled units with this filter.", showActive: "Show the active ones too" },
+  ur: { title: "رکی ہوئی یونٹس", intro: "وہ ولاز جن پر کام شروع ہوا، مکمل نہیں، اور حد سے زیادہ کام کے دنوں سے کوئی پیش رفت یا کیو سی نہیں (چھٹیاں شمار نہیں)۔", stalled: "رکی ہوئی", long: "طویل عرصے سے رکی ہوئی", active: "فعال", block: "بلاک", model: "ماڈل", phase: "مرحلہ", lastActivity: "آخری متحرک سرگرمی", all: "سب", villa: "ولا", days: "کام کے دن", lastMoved: "آخری حرکت", next: "اگلی سرگرمی", threshold: "رکاوٹ کی حد (کام کے دن)", save: "حد محفوظ کریں", saved: "حد محفوظ ہو گئی۔", none: "اس فلٹر کے ساتھ کوئی رکی ہوئی یونٹ نہیں۔", showActive: "فعال بھی دکھائیں" },
 };
 
 export default function StalledUnits() {
@@ -26,12 +26,12 @@ export default function StalledUnits() {
   const t = pickLanguage(language, text);
   const scope = { tenantId, projectId };
   const query = trpc.pmc.stalledUnits.useQuery(scope, { enabled: Boolean(tenantId && projectId) });
-  const [block, setBlock] = useState(ALL); const [model, setModel] = useState(ALL); const [activity, setActivity] = useState(ALL); const [showActive, setShowActive] = useState(false);
+  const [block, setBlock] = useState(ALL); const [model, setModel] = useState(ALL); const [phase, setPhase] = useState(ALL); const [activity, setActivity] = useState(ALL); const [showActive, setShowActive] = useState(false);
   const [threshold, setThreshold] = useState("");
   const save = trpc.pmc.setStallThreshold.useMutation({ onSuccess: () => void query.refetch() });
   const rows = query.data?.rows ?? [];
   const options = (values: string[]) => [{ value: ALL, label: t.all }, ...Array.from(new Set(values.filter(Boolean))).sort().map(value => ({ value, label: value }))];
-  const shown = useMemo(() => rows.filter(row => (showActive || row.state !== "active") && (block === ALL || row.blockCode === block) && (model === ALL || row.modelCode === model) && (activity === ALL || row.lastActivity?.code === activity)), [rows, block, model, activity, showActive]);
+  const shown = useMemo(() => rows.filter(row => (showActive || row.state !== "active") && (block === ALL || row.blockCode === block) && (model === ALL || row.modelCode === model) && (phase === ALL || (row.phase ?? "") === phase) && (activity === ALL || row.lastActivity?.code === activity)), [rows, block, model, phase, activity, showActive]);
   // Q-57: the table the screen shows (after its filters) as Excel; the day the villa last moved stays a date, the working days a number
   const exportColumns = [
     { header: t.villa, value: (row: (typeof rows)[number]) => row.villa },
@@ -59,6 +59,8 @@ export default function StalledUnits() {
       <Card>
         <CardBody className="grid gap-3 sm:grid-cols-3">
           <Field label={t.block}>{props => <Select id={props.id} options={options(rows.map(row => row.blockCode))} value={block} onValueChange={setBlock} />}</Field>
+          {/* Q-60 batch 2c: the phase, only when the villa register gave the villas one */}
+          {rows.some(row => row.phase) ? <Field label={t.phase}>{props => <Select id={props.id} options={options(rows.map(row => row.phase ?? "").filter(Boolean))} value={phase} onValueChange={setPhase} />}</Field> : null}
           <Field label={t.model}>{props => <Select id={props.id} options={options(rows.map(row => row.modelCode))} value={model} onValueChange={setModel} />}</Field>
           <Field label={t.lastActivity}>{props => <Select id={props.id} options={options(rows.map(row => row.lastActivity?.code ?? ""))} value={activity} onValueChange={setActivity} />}</Field>
           <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" className="h-5 w-5" checked={showActive} onChange={event => setShowActive(event.target.checked)} />{t.showActive}</label>
