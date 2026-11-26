@@ -8,6 +8,7 @@ import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, e
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getScheduleVillaLinks } from "./scheduleVillaLinks";
 import { getScheduleStageMapping, saveScheduleStageMapping } from "./scheduleStageMapping";
+import { getPlannedCurve } from "./plannedCurveService";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
@@ -1146,6 +1147,8 @@ export const appRouter = router({
       tenantId: z.string().uuid(), projectId: z.string().uuid(),
       links: z.array(z.object({ groupId: z.string().uuid(), stageCodes: z.array(z.string().trim().min(1).max(80)).max(20), anchor: z.enum(["span", "start", "end"]) })).min(1).max(200),
     })).mutation(({ ctx, input }) => saveScheduleStageMapping({ userId: ctx.user.id, ...input })),
+    // Q-61 (4): the planned S-curve per villa / block / model / project from the baseline and the weights, against the site's actual (project.pmc.read)
+    plannedCurve: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPlannedCurve({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),

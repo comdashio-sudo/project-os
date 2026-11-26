@@ -8,6 +8,7 @@ import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 import { TYPING_TEST } from "@/test/typing";
 
 // the master-plan files go browser → Storage on a signed URL and are applied by a background job (G-139); `imp` stands in for the dataImports hooks they use
+const villas = vi.hoisted(() => ({ data: undefined as unknown, error: null as unknown, enabled: [] as boolean[] }));
 const imp = vi.hoisted(() => ({ put: vi.fn(), state: { list: [] as unknown[], detail: null as unknown, progress: undefined as unknown, createUpload: vi.fn(), registerUpload: vi.fn(), reanalyze: vi.fn(), confirm: vi.fn() } }));
 const state = vi.hoisted(() => ({ isArabic: false, data: { plans: [{ id: "plan-1", code: "MP-1", title: "Delivery map", status: "active", createdAt: new Date() }], versions: [{ id: "version-1", masterPlanId: "plan-1", versionNumber: 1, versionKind: "original", description: null, changeSummary: null, sourceFileName: "baseline.png", sourceUrl: "https://signed.test/baseline.png", createdAt: new Date() }], entities: [{ id: "entity-1", masterPlanVersionId: "version-1", parentEntityId: null as string | null, code: "ZONE-A", name: "Zone A", entityType: "zone", geometry: JSON.stringify({ x: 5, y: 10, width: 25, height: 20 }), status: "in_progress", progressPercent: "45", plannedValue: "100", actualValue: "40", forecastValue: "110", wbsItemId: null as string | null, activityId: null as string | null }] }, snapshots: [] as Array<{ id: string; masterPlanVersionId: string; label: string; metric: "progress" | "status" | "cost"; filters: { status?: Array<"not_started" | "in_progress" | "completed" | "blocked">; search?: string; wbsItemId?: string; activityId?: string }; viewport: { x: number; y: number; zoom: number }; layers: string[] }>, visualizationRules: [{ id: null, metric: "progress", rules: { lowMax: 39.99, mediumMax: 79.99, lowColor: "#b91c1c", mediumColor: "#b45309", highColor: "#047857" }, configured: false, updatedAt: null }, { id: null, metric: "status", rules: { notStartedColor: "#475569", inProgressColor: "#b45309", completedColor: "#047857", blockedColor: "#b91c1c" }, configured: false, updatedAt: null }, { id: null, metric: "cost", rules: { favorableMax: 0, warningMax: 10, favorableColor: "#047857", warningColor: "#b45309", unfavorableColor: "#b91c1c" }, configured: false, updatedAt: null }], refetch: vi.fn(), snapshotRefetch: vi.fn(), visualizationRefetch: vi.fn(), mutate: vi.fn(), versionMutate: vi.fn(), entityMutate: vi.fn(), mappingMutate: vi.fn(), spatialImportMutate: vi.fn(), snapshotMutate: vi.fn(), visualizationMutate: vi.fn() }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
@@ -32,6 +33,8 @@ vi.mock("@/lib/trpc", async () => ({
       updateEntityLayout: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       setSnapshotSharing: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
     },
+    // Q-62: the PMC site map the board falls back to when the version has no units of its own
+    pmc: { siteMap: { useQuery: (_input: unknown, options: { enabled: boolean }) => { villas.enabled.push(options.enabled); return { isLoading: false, error: options.enabled ? villas.error : null, data: options.enabled ? villas.data : undefined, refetch: vi.fn() }; } } },
     projects: { getControls: { useQuery: () => ({ data: { wbs: [{ id: "wbs-1", code: "1.0", name: "Civil works" }, { id: "wbs-2", code: "2.0", name: "Steel works" }], activities: [{ id: "activity-1", wbsItemId: "wbs-1", code: "A-01", name: "Mobilize crew" }, { id: "activity-2", wbsItemId: "wbs-2", code: "A-02", name: "Install steel" }] } }) } },
   },
 }));
@@ -226,5 +229,35 @@ describe("ProjectMasterPlan checks its forms in the page's language (D-65)", () 
     const form = screen.getAllByRole("button", { name: "Add entity" }).at(-1)!.closest("form")!;
     for (const field of Array.from(form.querySelectorAll<HTMLInputElement>("input[required]"))) fireEvent.change(field, { target: { value: "" } });
     expectEmptySubmitRefused(form, "en", state.entityMutate);
+  });
+
+  it("Q-62: a version with no units of its own shows the project's PMC villas on the board, by block, with their progress", () => {
+    const saved = state.data;
+    state.data = { ...saved, entities: [] } as typeof saved;
+    villas.data = { activities: [], units: [{ unitNumber: 700, blockCode: "BLK 33", overallPercent: 100 }, { unitNumber: 701, blockCode: "BLK 33", overallPercent: 0 }, { unitNumber: 750, blockCode: "BLK 34", overallPercent: 40 }] };
+    try {
+      const { container } = render(<ProjectMasterPlan tenantId="00000000-0000-4000-8000-000000000001" projectId="00000000-0000-4000-8000-000000000002" />);
+      expect(container.querySelector('[data-master-plan-board="empty"]')).toBeNull();
+      expect(container.querySelectorAll("[data-board-unit]")).toHaveLength(3);
+      expect(container.querySelector('[data-board-unit="complete"]')?.getAttribute("aria-label")).toContain("700");
+      expect(document.body.textContent).toContain("BLK 33");
+      expect(document.body.textContent).not.toContain("Block BLK 33"); // a code that already says «block» is not prefixed again
+    } finally { state.data = saved; villas.data = undefined; }
+  });
+
+  it("Q-62 NEGATIVE: a version with its own units does not ask for the villas; without the PMC read the board says why, not «no units»", () => {
+    const saved = state.data;
+    villas.enabled.length = 0;
+    state.data = { ...saved, entities: [...saved.entities, { ...saved.entities[0], id: "unit-1", code: "U-01", name: "Unit U-01", entityType: "unit", parentEntityId: "entity-1" }] } as typeof saved;
+    render(<ProjectMasterPlan tenantId="00000000-0000-4000-8000-000000000001" projectId="00000000-0000-4000-8000-000000000002" />);
+    expect(villas.enabled.length).toBeGreaterThan(0);
+    expect(villas.enabled.every(enabled => enabled === false)).toBe(true);
+    cleanup();
+    state.data = { ...saved, entities: [] } as typeof saved;
+    villas.error = { message: "PROJECT_OS_PERMISSION_DENIED", data: { code: "FORBIDDEN" } };
+    try {
+      render(<ProjectMasterPlan tenantId="00000000-0000-4000-8000-000000000001" projectId="00000000-0000-4000-8000-000000000002" />);
+      expect(document.body.textContent).toMatch(/PMC read permission/);
+    } finally { state.data = saved; villas.error = null; }
   });
 });
