@@ -223,6 +223,28 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect(DEMO_PEOPLE.every(person => person.email.endsWith("@show.example.test"))).toBe(true);
   });
 
+  it("Q-55 (3b): contractor work confirmations on SC-002 — two approved by the contracts manager and pulled into draft IPC-004 (priced from the BOQ), one sent back with its reason, one waiting; NEGATIVE: the site engineer cannot approve", async () => {
+    const site = await asPerson("site.engineer.1@show.example.test");
+    const listed = await site.workConfirmations.list({ tenantId, projectId });
+    expect(listed.map(item => [item.number, item.status, item.subcontractCode]).sort()).toEqual([["WC-001", "approved", "SC-002"], ["WC-002", "approved", "SC-002"], ["WC-003", "rejected", "SC-002"], ["WC-004", "submitted", "SC-002"]]);
+    // the separation of duties held: nobody reviewed what they prepared; the one sent back says why
+    expect(listed.filter(item => item.reviewedByUserId !== null && item.reviewedByUserId === item.preparedByUserId)).toEqual([]);
+    expect(listed.find(item => item.number === "WC-003")!.rejectionReason).toBeTruthy();
+    const pulled = listed.filter(item => item.certificateId);
+    expect(pulled.map(item => item.number).sort()).toEqual(["WC-001", "WC-002"]);
+    const contracts = await asPerson("contracts.manager@show.example.test");
+    const certificates = await contracts.subcontracts.listCertificates({ tenantId, projectId, subcontractId: pulled[0].subcontractId });
+    const ipc = certificates.find(item => item.certificateNumber === "IPC-004")!;
+    expect(ipc.status).toBe("draft");
+    expect(ipc.id).toBe(pulled[0].certificateId);
+    // one line per BOQ item: 12 + 15 of BOQ-08 and 9 + 11 of BOQ-09, each at its BOQ rate
+    expect(ipc.lines.map(line => Number(line.currentQuantity)).sort((x, y) => x - y)).toEqual([20, 27]);
+    expect(ipc.lines.every(line => Number(line.unitRate) > 0 && Math.abs(Number(line.currentAmount) - Number(line.currentQuantity) * Number(line.unitRate)) < 0.01)).toBe(true);
+    const waiting = listed.find(item => item.number === "WC-004")!;
+    await expect(site.workConfirmations.transition({ tenantId, projectId, confirmationId: waiting.id, nextStatus: "approved" })).rejects.toThrow();
+    expect((await site.workConfirmations.list({ tenantId, projectId })).find(item => item.number === "WC-004")!.status).toBe("submitted");
+  });
+
   it("Q-55 (3b): the planning centre — twelve assumptions (ten approved by someone other than their writer), three competitors and their SWOT, five opportunities, four goals and six initiatives", async () => {
     const owner = await asPerson(OWNER);
     const assumptions = await owner.strategy.assumptions({ tenantId });

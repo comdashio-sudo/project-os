@@ -16,6 +16,7 @@ import { seedReportsModeProject } from "./demoReportsProject";
 import { seedWeightsModeProject } from "./demoWeightsMode";
 import { seedSafetyAndMeetings } from "./demoSafetyMeetings";
 import { seedPlanningCentre } from "./demoPlanningCentre";
+import { seedWorkConfirmations } from "./demoWorkConfirmations";
 import { storageConfiguration, storageDelete, storagePut } from "../../server/storage";
 import { calculateEvm } from "../../server/domain/evm";
 import { fpac } from "../../server/domain/profitability";
@@ -529,10 +530,13 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
     const planningCentre = await seedPlanningCentre({ tenantId, now, ownerCaller: ownerCaller as never, approverCaller: callerFor(people.get("board")!) as never,
       approverMembershipId: memberships.get(people.get("board")!.id)!, ownerUserId: owner.id, peopleIds: Object.fromEntries(Array.from(people.entries()).map(([key, person]) => [key, person.id])), log });
 
+    // ---------------------------------------------------------------------------------------------------------- 13. Q-55 batch 3 (b): contractor work confirmations and the claim
+    const workConfirmations = await seedWorkConfirmations({ tenantId, projectId, subcontractId: subIds[1], now, callerOf: key => callerFor(people.get(key)!) as never, log });
+
     // the audit trail records that this is the demonstration
     await client.query("INSERT INTO audit_logs (id, tenant_id, actor_user_id, action, entity_type, entity_id, metadata) VALUES ($1,$2,$3,'demo.seeded','company',$2,$4)", [randomUUID(), tenantId, owner.id, JSON.stringify({ units: UNIT_COUNT, reports: reportRows.length, submittals: submittalRows.length, inspections: inspections.length, ncrs: ncrRows.length, issues })]);
     client0.release();
-    return { created: true as const, tenantId, projectId, project2Id, portfolioId, reportsMode, weightsMode, safetyAndMeetings, planningCentre, owner: { email: ownerEmail }, people: DEMO_PEOPLE.map(person => ({ level: person.level, email: person.email })), evm: { pv: evmNow.pv, ev: evmNow.ev, ac: evmNow.ac, cpi: evmNow.cpi, spi: evmNow.spi, eac: evmNow.eac } };
+    return { created: true as const, tenantId, projectId, project2Id, portfolioId, reportsMode, weightsMode, safetyAndMeetings, planningCentre, workConfirmations, owner: { email: ownerEmail }, people: DEMO_PEOPLE.map(person => ({ level: person.level, email: person.email })), evm: { pv: evmNow.pv, ev: evmNow.ev, ac: evmNow.ac, cpi: evmNow.cpi, spi: evmNow.spi, eac: evmNow.eac } };
   } catch (error) {
     await client0.query("ROLLBACK").catch(() => undefined);
     client0.release();
