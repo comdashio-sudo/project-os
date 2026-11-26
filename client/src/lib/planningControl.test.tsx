@@ -27,7 +27,7 @@ describe("planning control calculations", () => {
     expect(result.costUtilization).toBe(1);
     expect(result.riskLevel).toBe("controlled");
     expect(result.dataGaps).toEqual([]);
-    expect(formatPlanningPercent(result.progressCoverage)).toBe("100.0%");
+    expect(formatPlanningPercent(result.progressCoverage)).toBe("100%");
   });
 
   it("localizes data-gap labels", () => {

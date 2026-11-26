@@ -32,11 +32,13 @@ export async function readLabels(
 
 // The part of the shape inside its outline, enlarged LABEL_SCALE times by bilinear sampling. Null when the shape is too small.
 export function cropScaled(image: GrayImage, shape: RasterShape): GrayImage | null {
-  const width = shape.width - 2 * INSET;
-  const height = shape.height - 2 * INSET;
+  // Q-62: a small villa of a coloured plan (20 to 40 pixels) would lose its number to a fixed inset: the inset shrinks with the shape
+  const inset = Math.min(INSET, Math.floor(Math.min(shape.width, shape.height) * 0.12));
+  const width = shape.width - 2 * inset;
+  const height = shape.height - 2 * inset;
   if (width < 4 || height < 4) return null;
-  const x0 = shape.x + INSET;
-  const y0 = shape.y + INSET;
+  const x0 = shape.x + inset;
+  const y0 = shape.y + inset;
   const outWidth = width * LABEL_SCALE;
   const outHeight = height * LABEL_SCALE;
   const data = new Uint8Array(outWidth * outHeight);

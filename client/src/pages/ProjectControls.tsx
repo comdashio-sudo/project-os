@@ -42,6 +42,7 @@ import { ProjectDataExport as ProjectDataExportContent } from "./ProjectDataExpo
 import { ProjectMasterPlan as ProjectMasterPlanContent } from "./ProjectMasterPlan";
 import { MasterPlanDrawing as MasterPlanDrawingContent } from "@/components/MasterPlanDrawing";
 import { PlanningControlCenter } from "@/components/PlanningControlCenter";
+import { WbsTree } from "@/components/WbsTree";
 import { calculatePlanningControl } from "@/lib/planningControl";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
 import { SectionErrorBoundary, SectionMessage } from "@/components/SectionResilience";
@@ -249,9 +250,9 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
   const addRecords = canWriteRecords ? () => goToOverviewLane("manager-schedule", true) : undefined;
   // an empty section says what is missing and, when the person can act, what to do; "not in your access scope" is for a real refusal only
   const emptyText = pickLanguage(language, {
-    ar: { schedule: "لم تُسجَّل جدولة بعد.", scheduleAct: "أضف نشاطًا أو ارفع البرنامج الزمني.", records: "لم تُسجَّل ميزانية ولا تكلفة ولا إنجاز بعد.", recordsAct: "أضف بندًا أو ارفع ملفًا.", performance: "لا توجد لقطة أداء بعد: تُحسب بعد تسجيل الجدولة والميزانية والإنجاز." },
-    en: { schedule: "No schedule recorded yet.", scheduleAct: "Add an activity or upload the programme.", records: "No budget, cost or progress recorded yet.", recordsAct: "Add a line or upload a file.", performance: "No performance snapshot yet: it is calculated once the schedule, budget and progress are recorded." },
-    ur: { schedule: "ابھی کوئی شیڈول درج نہیں ہوا۔", scheduleAct: "کوئی سرگرمی شامل کریں یا پروگرام اپ لوڈ کریں۔", records: "ابھی کوئی بجٹ، لاگت یا پیش رفت درج نہیں ہوئی۔", recordsAct: "کوئی سطر شامل کریں یا فائل اپ لوڈ کریں۔", performance: "ابھی کارکردگی کا کوئی اسنیپ شاٹ نہیں: یہ شیڈول، بجٹ اور پیش رفت درج ہونے کے بعد نکالا جاتا ہے۔" },
+    ar: { schedule: "لم تُسجَّل جدولة بعد.", scheduleAct: "أضف نشاطًا أو ارفع البرنامج الزمني.", records: "لم تُسجَّل ميزانية ولا تكلفة ولا إنجاز بعد.", recordsAct: "أضف بندًا أو ارفع ملفًا.", performance: "لا توجد قراءة لأداء الجدول والتكلفة بعد: تظهر بعد تسجيل الجدولة والميزانية والإنجاز." },
+    en: { schedule: "No schedule recorded yet.", scheduleAct: "Add an activity or upload the programme.", records: "No budget, cost or progress recorded yet.", recordsAct: "Add a line or upload a file.", performance: "No schedule-and-cost performance reading yet: it appears once the schedule, budget and progress are recorded." },
+    ur: { schedule: "ابھی کوئی شیڈول درج نہیں ہوا۔", scheduleAct: "کوئی سرگرمی شامل کریں یا پروگرام اپ لوڈ کریں۔", records: "ابھی کوئی بجٹ، لاگت یا پیش رفت درج نہیں ہوئی۔", recordsAct: "کوئی سطر شامل کریں یا فائل اپ لوڈ کریں۔", performance: "ابھی شیڈول اور لاگت کی کارکردگی کی کوئی پیمائش نہیں: یہ شیڈول، بجٹ اور پیش رفت درج ہونے کے بعد سامنے آتی ہے۔" },
   });
   const jumpToManagerLane = (id: string) => { const target = document.getElementById(id);
     // Q-59 (2): a group that is not on this page (the board is a summary) is opened on its level's page
@@ -318,7 +319,7 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
         {(!focus || focus === "planning") && <>
 
         <div>
-          <PlanningControlCenter result={planningControl} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} isLoading={boqQuery.isLoading || procurementQuery.isLoading || warehouseQuery.isLoading || contractsQuery.isLoading} />
+          <PlanningControlCenter result={planningControl} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} isLoading={boqQuery.isLoading || procurementQuery.isLoading || warehouseQuery.isLoading || contractsQuery.isLoading} onUpload={upload} />
         </div>
 
         {apiError && <p className="mt-5 rounded-xl bg-danger-soft p-4 text-sm text-danger-soft-foreground">{getLocalizedProjectError(apiError, isArabic)}</p>}
@@ -331,7 +332,7 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
         {performanceQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="loading" /></div>}
         {performanceQuery.error && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="error" error={performanceQuery.error} onRetry={() => void performanceQuery.refetch()} /></div>}
         {performanceQuery.data && !latestEvm && !latestHealth && !cashFlow && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="empty" detail={emptyText.performance} /></div>}
-        {performanceQuery.data && (latestEvm || latestHealth || cashFlow) && (!latestEvm || !latestHealth) && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="partial" detail={pickLanguage(language, { ar: `المتاح: ${cashFlow ? "التدفق النقدي" : "جزء من الأداء"}. الناقص: ${!latestEvm ? "لقطة EVM" : ""}${!latestEvm && !latestHealth ? " و" : ""}${!latestHealth ? "لقطة الصحة" : ""}.`, en: `Available: ${cashFlow ? "cash flow" : "part of the performance data"}. Missing: ${!latestEvm ? "EVM snapshot" : ""}${!latestEvm && !latestHealth ? " and " : ""}${!latestHealth ? "health snapshot" : ""}.`, ur: `دستیاب: ${cashFlow ? "نقد بہاؤ" : "کارکردگی کے ڈیٹا کا ایک حصہ"}۔ غائب: ${!latestEvm ? "EVM اسنیپ شاٹ" : ""}${!latestEvm && !latestHealth ? " اور " : ""}${!latestHealth ? "صحت کا اسنیپ شاٹ" : ""}۔` })} /></div>}
+        {performanceQuery.data && (latestEvm || latestHealth || cashFlow) && (!latestEvm || !latestHealth) && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "بيانات أداء المشروع", en: "Project performance data", ur: "پروجیکٹ کی کارکردگی کا ڈیٹا" })} isArabic={isArabic} kind="partial" detail={(() => { const gaps = { ar: [!latestEvm ? "قياس أداء الجدول والتكلفة (القيمة المكتسبة)" : "", !latestHealth ? "تقييم صحة المشروع" : ""].filter(Boolean), en: [!latestEvm ? "a schedule-and-cost performance reading (earned value)" : "", !latestHealth ? "a project health assessment" : ""].filter(Boolean), ur: [!latestEvm ? "شیڈول اور لاگت کی کارکردگی کی پیمائش (حاصل شدہ قدر)" : "", !latestHealth ? "پروجیکٹ کی صحت کا جائزہ" : ""].filter(Boolean) }; return pickLanguage(language, { ar: `ما زال ناقصًا: ${gaps.ar.join(" و")}.`, en: `Still missing: ${gaps.en.join(" and ")}.`, ur: `ابھی باقی ہے: ${gaps.ur.join(" اور ")}۔` }); })()} /></div>}
         </>}
 
         {/* D-84: a grid item's minimum width is its content's, so a wide table inside a section (even inside its own scroller) pushed the whole column past a phone's width; min-w-0 lets the scroller scroll */}
@@ -353,7 +354,7 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
                 <div className="mt-3"><GridEditor label={sheet.wbs} columns={[{ key: "code", label: t.code, required: true }, { key: "name", label: t.name, required: true, minLength: 2 }, { key: "plannedValue", label: t.planned, kind: "number", min: 0 }]}
                   onSaveRow={row => saveRow(() => sheetWbs.mutateAsync({ tenantId, projectId, code: row.code.trim(), name: row.name.trim(), ...(row.plannedValue.trim() ? { plannedValue: gridNumber(row.plannedValue) } : {}) }))} onSaved={refresh} /></div>
               </details></WriteGate>
-              {data.wbs.length ? <div className="mt-5 divide-y rounded-xl border">{data.wbs.map(item => <div key={item.id} className="flex items-center justify-between gap-4 p-4"><div><p className="font-semibold">{item.code} · {item.name}</p><p className="mt-1 text-xs text-muted-foreground">{t.planned}: {(item.plannedValue == null ? "—" : formatNumber(Number(item.plannedValue), 2))}</p></div><Badge variant="secondary">{formatNumber(Number(item.progressPercent), 2)}%</Badge></div>)}</div> : <p className="mt-5 text-sm text-muted-foreground">{t.emptyWbs}</p>}
+              <WbsTree items={data.wbs} activities={data.activities} empty={t.emptyWbs} />
             </section>
 
             <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border">
@@ -462,7 +463,12 @@ function OperationsGroup({ id, level, title, children, defaultOpen = false, lazy
   // Q-36 (step 4): a link to the group's level (/controls#supply) opens the groups of that level too; the level's section scrolls itself into view
   const focus = React.useContext(FocusContext);
   const linked = (Boolean(id) && hash === `#${id}`) || (Boolean(level) && hash === `#${level}`) || (Boolean(level) && focus === level && !lazy); // a group that loads only when opened stays closed until asked for
-  React.useEffect(() => { if (id && hash === `#${id}`) document.getElementById(id)?.scrollIntoView?.({ block: "start" }); }, [hash, id]);
+  React.useEffect(() => {
+    if (!id || hash !== `#${id}`) return;
+    document.getElementById(id)?.scrollIntoView?.({ block: "start" });
+    // Q-64: the group is open and in view; its internal name stays out of the address (it read «planning#manager-assurance»). The page keeps the group open from its own state.
+    if (id.startsWith("manager-") && typeof window !== "undefined") window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+  }, [hash, id]);
   return <details id={id} className="scroll-mt-5 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" open={defaultOpen || linked} onToggle={event => { if ((event.currentTarget as HTMLDetailsElement).open) setOpened(true); }}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{title}</span><span className="text-xs font-medium text-primary">+</span></summary><div className="space-y-5 border-t border-border p-4 sm:p-5">{!lazy || opened || defaultOpen || linked ? children : null}</div></details>;
 }
 
