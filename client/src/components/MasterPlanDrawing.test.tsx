@@ -8,6 +8,7 @@ import { buildRasterDrawing, type GrayImage } from "@/lib/raster/rasterCore";
 
 const state = vi.hoisted(() => ({
   data: undefined as unknown,
+  drawingUnits: undefined as unknown,
   isLoading: false,
   error: null as unknown,
   layout: undefined as unknown,
@@ -35,6 +36,12 @@ vi.mock("@/lib/trpc", () => {
       pmc: { qcMap: { useQuery: (_input: unknown, config: { enabled: boolean }) => ({ data: config.enabled ? [{ unitNumber: 1, modelCode: "A", blockCode: "B1", status: "RECEIVED" }, { unitNumber: 2, modelCode: "B", blockCode: "B2", status: "NOT_RECEIVED" }] : undefined, error: null }) }, siteMap: { useQuery: (input: { activityCode?: string }) => ({ data: state.siteMapError ? undefined : input.activityCode ? { activities: [{ code: "BLK", name: "Blockwork" }], units: (state.siteMap as { units: unknown[] }).units } : { activities: [{ code: "BLK", name: "Blockwork" }], units: [] }, error: state.siteMapError }) } },
       masterPlans: {
         list: { useQuery: () => ({ data: state.data, isLoading: state.isLoading, error: state.error, refetch: vi.fn() }) },
+        // Q-62: the server's units of the newest version (its own units here; the PMC case is tested on the database and in drawingUnits below)
+        drawingUnits: { useQuery: (input: { masterPlanVersionId: string }) => {
+          const data = state.data as { entities?: Array<{ id: string; masterPlanVersionId: string; entityType: string; code: string; name: string; status: string; progressPercent: string }> } | undefined;
+          if (state.drawingUnits) return { data: state.drawingUnits, error: null, refetch: vi.fn() };
+          return { data: data ? { source: "plan", units: (data.entities ?? []).filter(entity => entity.masterPlanVersionId === input.masterPlanVersionId && entity.entityType === "unit").map(entity => ({ ...entity, blockCode: null, modelCode: null })) } : undefined, error: null, refetch: vi.fn() };
+        } },
         drawingLayout: { useQuery: () => ({ data: state.layout, isLoading: false, error: null, refetch: vi.fn() }) },
         uploadDrawingVersion: mutation(),
         saveDrawingLayout: mutation(),
@@ -83,6 +90,7 @@ async function upload(container: HTMLElement, content: string, name = "plan.dxf"
 afterEach(() => {
   cleanup();
   state.data = undefined;
+  state.drawingUnits = undefined;
   state.isLoading = false;
   state.error = null;
   state.layout = undefined;
@@ -95,7 +103,24 @@ describe("MasterPlanDrawing", () => {
   it("tells the reviewer that the plan has no units yet", () => {
     state.data = { plans: [PLAN], versions: [VERSION], entities: [] };
     render(<MasterPlanDrawing tenantId="t" projectId="p" />);
-    expect(screen.getByRole("note").textContent).toMatch(/no units/);
+    expect(screen.getByRole("note").textContent).toMatch(/no villas yet/);
+  });
+
+  it("Q-62, review of #553: without PMC read the villas are not listed, and the screen says which permission links them", () => {
+    state.data = { plans: [PLAN], versions: [VERSION], entities: [] };
+    state.drawingUnits = { source: "pmc", villasDenied: true, units: [] };
+    render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    expect(screen.getByRole("note").textContent).toMatch(/needs the PMC read permission/);
+    expect(screen.queryByText(/no villas yet/)).toBeNull();
+  });
+
+  it("Q-62: a version with no units of its own matches the drawing against the project's PMC villas, by number", async () => {
+    state.data = { plans: [PLAN], versions: [VERSION], entities: [] };
+    state.drawingUnits = { source: "pmc", units: ["B1-U-0001", "B1-U-0002", "B1-U-0003"].map((code, i) => ({ id: `villa-${i}`, code, name: code, status: "", progressPercent: "", blockCode: "B1", modelCode: "C" })) };
+    const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    expect(screen.queryByText(/no villas yet/)).toBeNull();
+    await upload(container, DRAWING);
+    await waitFor(() => expect(screen.getByText(/Confirmed: 0 · Proposed: 2 · Unlinked: 1 · Units remaining: 3 of 3/)).toBeTruthy());
   });
 
   it("Q-7: a project with no master plan says so, still shows an uploaded drawing, and offers no save", async () => {
@@ -152,7 +177,7 @@ describe("MasterPlanDrawing", () => {
         { id: "srv-1", ref: "P1", label: "B1", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }] },
         { id: "srv-2", ref: "P2", label: "", points: [{ x: 20, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 10 }] },
       ],
-      links: [{ polygonId: "srv-1", entityId: "unit-1", confirmedByUserId: 1, confirmedAt: new Date("2026-10-20") }],
+      links: [{ polygonId: "srv-1", entityId: "unit-1", pmcUnitId: null, unitId: "unit-1", confirmedByUserId: 1, confirmedAt: new Date("2026-10-20") }],
     };
     render(<MasterPlanDrawing tenantId="t" projectId="p" />);
     await waitFor(() => screen.getByText("Saved drawing: version 2, saved-plan.dxf"));
@@ -592,7 +617,9 @@ describe("MasterPlanDrawing", () => {
     raster.analyseRaster.mockResolvedValue({ drawing: buildRasterDrawing([], [], 1), shapeCount: 0, labelCount: 0 });
     const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
     await upload(container, "%PDF synthetic", "plan.pdf");
-    await waitFor(() => screen.getByText(/Found 0 shapes/));
+    // Q-62 (3): no shape found says what to do instead — a DXF or a vector PDF, or linking by tap — not «Found 0 shapes»
+    await waitFor(() => screen.getByText(/No villa shapes were found in this image\. For a more exact result upload a DXF or a vector PDF/));
+    expect(screen.queryByText(/Found 0 shapes/)).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
   });
 });

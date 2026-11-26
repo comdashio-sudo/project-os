@@ -3,9 +3,9 @@
 // the reason returned by name — while a weighted group is unlinked, a linked stage has left the schedule, or there is no baseline. Against it, each villa's
 // actual percentage from the site's own record (pmcSourcePercentages) when the site's activities are set up, and the villas behind plan today.
 // Read with project.pmc.read (pmcGate), every query by tenant and project.
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { scheduleSnapshotActivities, scheduleSnapshots } from "../drizzle/schema";
-import { plannedCurves, type CurveActivity } from "./domain/plannedCurve";
+import { plannedCurves, unitWeightOf, type CurveActivity } from "./domain/plannedCurve";
 import { stageMappingReadiness, stageOfActivity } from "./domain/scheduleStageMapping";
 import { villaOfEachActivity } from "./domain/scheduleVillas";
 import { pmcSourcePercentages } from "./pmcSiteService";
@@ -20,7 +20,7 @@ export async function getPlannedCurve(input: Scope & { now?: Date }) {
   const now = input.now ?? new Date();
   const [schedule, groups, links, [baseline]] = await Promise.all([
     loadScheduleAndVillas(db, input), weightGroups(db, input), savedLinks(db, input),
-    db.select({ id: scheduleSnapshots.id, dataDate: scheduleSnapshots.dataDate, createdAt: scheduleSnapshots.createdAt }).from(scheduleSnapshots).where(and(mine(scheduleSnapshots, input), eq(scheduleSnapshots.isBaseline, true))).limit(1),
+    db.select({ id: scheduleSnapshots.id, dataDate: scheduleSnapshots.dataDate, createdAt: scheduleSnapshots.createdAt }).from(scheduleSnapshots).where(and(mine(scheduleSnapshots, input), eq(scheduleSnapshots.isBaseline, true))).orderBy(desc(scheduleSnapshots.createdAt)).limit(1),
   ]);
   const stages = scheduleStages(schedule);
   const readiness = stageMappingReadiness(groups, links, stages);
@@ -42,7 +42,7 @@ export async function getPlannedCurve(input: Scope & { now?: Date }) {
     if (!row.start || !row.finish) { withoutDates += 1; continue; }
     activities.push({ villa, stage, start: row.start, finish: row.finish < row.start ? row.start : row.finish });
   }
-  const villas = schedule.villas.map(villa => ({ unitNumber: villa.unitNumber, modelCode: villa.modelCode, blockCode: villa.blockCode, unitWeight: Number(villa.unitWeight) || 1 }));
+  const villas = schedule.villas.map(villa => ({ unitNumber: villa.unitNumber, modelCode: villa.modelCode, blockCode: villa.blockCode, unitWeight: unitWeightOf(villa.unitWeight) }));
   const curves = plannedCurves({ villas, activities, groups: groups.map(group => ({ id: group.id, code: group.code, weightByModel: group.weightByModel })), links, at: now });
 
   // the actual percentage from the site's record (0..1 of a villa), only when the site's activities are set up: otherwise there is no actual to compare
@@ -51,12 +51,13 @@ export async function getPlannedCurve(input: Scope & { now?: Date }) {
   const unitNumberOf = new Map(schedule.villas.map(villa => [villa.id, villa.unitNumber]));
   const actualOf = new Map(sources.byUnit.map(row => [unitNumberOf.get(row.unitId), Math.round(row.site * 10_000) / 100]));
   const villaRows = curves.villas.map(villa => {
-    const actual = hasActual ? actualOf.get(villa.unitNumber) ?? 0 : null;
+    // a villa the site record does not carry is unknown (null), never 0 — left out of the project's actual and of «behind» (review of #556, A, note 1)
+    const actual = hasActual ? actualOf.get(villa.unitNumber) ?? null : null;
     return { unitNumber: villa.unitNumber, modelCode: villa.modelCode, blockCode: villa.blockCode, unitWeight: villa.unitWeight, scheduled: villa.scheduled, plannedNow: villa.plannedNow, actual, gap: actual === null || !villa.scheduled ? null : Math.round((actual - villa.plannedNow) * 100) / 100, curve: villa.curve };
   });
   const counted = villaRows.filter(row => row.scheduled);
-  const weight = counted.reduce((sum, row) => sum + row.unitWeight, 0);
-  const projectActual = hasActual && weight ? Math.round(counted.reduce((sum, row) => sum + row.unitWeight * (row.actual ?? 0), 0) / weight * 100) / 100 : null;
+  const measured = counted.filter(row => row.actual !== null); const measuredWeight = measured.reduce((sum, row) => sum + row.unitWeight, 0);
+  const projectActual = hasActual && measuredWeight ? Math.round(measured.reduce((sum, row) => sum + row.unitWeight * row.actual!, 0) / measuredWeight * 100) / 100 : null;
   return {
     ready: true as const, readiness,
     baseline: { id: baseline.id, dataDate: baseline.dataDate, createdAt: baseline.createdAt },

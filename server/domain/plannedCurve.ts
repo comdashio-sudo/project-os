@@ -82,3 +82,5 @@ export function plannedCurves(input: { villas: CurveVilla[]; activities: CurveAc
   return { months: months.map(m => m.month), villas, blocks: groupBy(row => row.blockCode), models: groupBy(row => row.modelCode), project: average(villas), projectNow, gaps };
 }
 
+// a villa's weight as stored: a real 0 stays 0 (a villa not counted), only a missing or unreadable weight reads as 1 (the column's default) — review of #556 (A), note 2
+export const unitWeightOf = (value: unknown) => { const n = Number(value); return value === null || value === undefined || value === "" || !Number.isFinite(n) || n < 0 ? 1 : n; };
