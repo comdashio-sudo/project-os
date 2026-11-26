@@ -9,6 +9,7 @@ const allowedFrameworkExceptions = new Map([
   ["auth.logout", "إلغاء جلسة في الخادم ثم مسح ملف الارتباط؛ اختبار وحدة مستقل واختبار حي في auth.session.database.test.ts."],
   ["auth.logoutEverywhere", "إنهاء كل جلسات المستخدم؛ اختبار حي في auth.session.database.test.ts (يتحقق أن كل نسخ ملف الارتباط تموت)."],
   ["system.health", "فحص مراقبة عام بلا نطاق أعمال أو كتابة."],
+  ["diagnostics.renderFailed", "Q-56 (7): سطر سجل واحد برمز خطأ العرض في المتصفح، بلا قاعدة ولا كتابة؛ لمن سجّل الدخول فقط بحقول مغلقة. اختبار وحدة في server/diagnostics.test.ts (إيجابي، ورفض الحقول الزائدة والمجهول)."],
   ["mfa.verify", "الخطوة الثانية (MFA) أُزيلت من الدخول (D-81) والإجراء باقٍ لمن فعّلها؛ منطقه verifySecondStep مختبَر مباشرة على القاعدة في mfa.database.test.ts (الرمز الصحيح، ومنع إعادة الاستعمال في جلسة أخرى، والقفل)."],
 ]);
 const validate = process.argv.includes("--validate");

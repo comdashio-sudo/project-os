@@ -49,7 +49,7 @@ const STATUS: Record<string, "not_started" | "in_progress" | "completed"> = { TK
 
 type Syncable = { id: string };
 /** One entity: what exists (by the source's key) against what the file wants. Writes only what differs — inserts and updates both in batches of ≤500 rows — and returns the counts. */
-async function sync<E extends Syncable, D extends Syncable>(input: { created?: string[]; desired: D[]; existing: Map<string, E>; key: (item: D) => string; same: (stored: E, wanted: D) => boolean; insert: (rows: D[]) => Promise<void>; update: (rows: Array<{ stored: E; wanted: D }>) => Promise<void> }): Promise<EntityCount> {
+export async function sync<E extends Syncable, D extends Syncable>(input: { created?: string[]; desired: D[]; existing: Map<string, E>; key: (item: D) => string; same: (stored: E, wanted: D) => boolean; insert: (rows: D[]) => Promise<void>; update: (rows: Array<{ stored: E; wanted: D }>) => Promise<void> }): Promise<EntityCount> {
   const toCreate: D[] = []; const toUpdate: Array<{ stored: E; wanted: D }> = []; let unchanged = 0; const seen = new Set<string>();
   for (const item of input.desired) {
     const stored = input.existing.get(input.key(item)); seen.add(input.key(item));
@@ -58,7 +58,7 @@ async function sync<E extends Syncable, D extends Syncable>(input: { created?: s
     else toUpdate.push({ stored, wanted: item });
   }
   for (const batch of chunks(toCreate)) await input.insert(batch);
-  input.created?.push(...toCreate.map(item => item.id)); // Q-23: what this import created, so it can be undone exactly (importAttempts.ts)
+  if (input.created) for (const item of toCreate) input.created.push(item.id); // a loop, not push(...ids): a file with 181,000 code assignments overflowed the call stack (Q-61) // Q-23: what this import created, so it can be undone exactly (importAttempts.ts)
   for (const batch of chunks(toUpdate)) await input.update(batch);
   return { create: toCreate.length, update: toUpdate.length, unchanged, absent: Array.from(input.existing.keys()).filter(key => !seen.has(key)).length };
 }

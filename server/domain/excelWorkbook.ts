@@ -7,6 +7,16 @@ export const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
 export const MAX_IMPORT_ROWS = 50_000;
 /** A Primavera XER carries one line per activity; 150,000 lines is about 100 MB of text, so the byte ceiling binds first for wide rows. */
 export const MAX_XER_ROWS = 150_000;
+/**
+ * Q-61: the row limit is PER TABLE, not the sum of two. A large villa schedule has few activities and many lines in the tables that hang off them (a file with 16,000 activities
+ * and 181,000 activity-code lines is normal), so the activity and WBS tables keep the 150,000 ceiling each, and the link tables, which are several per activity, a larger one.
+ * The 50 MB byte ceiling still binds first on any real file; these only keep a pathological one from filling memory.
+ */
+export const XER_TABLE_ROW_LIMITS: Readonly<Record<string, number>> = { TASK: MAX_XER_ROWS, PROJWBS: MAX_XER_ROWS, TASKPRED: 600_000, TASKACTV: 1_000_000, TASKRSRC: 600_000 };
+/** The first table of a Primavera file over its own limit, or null. `rowsOf` gives a table's row count (0 when it is not in the file). */
+export function xerTableOverLimit(rowsOf: (table: string) => number): string | null {
+  return Object.entries(XER_TABLE_ROW_LIMITS).find(([table, limit]) => rowsOf(table) > limit)?.[0] ?? null;
+}
 /** What a workbook may expand to once unzipped. A 50 MB .xlsx that inflates past this is a zip bomb, not a spreadsheet. */
 export const MAX_WORKBOOK_UNCOMPRESSED_BYTES = 400 * 1024 * 1024;
 export const MAX_IMPORT_COLUMNS = 60;
