@@ -98,6 +98,7 @@ const text = {
     dwg: "ملفات DWG لا تُقرأ في المتصفح. افتح الرسم في برنامج التصميم واحفظه بصيغة DXF أو PDF ثم ارفعه.",
     rasterFailed: "تعذّرت قراءة الصورة. جرّب ملفًا أوضح أو ملف DXF.",
     busy: (done: number, total: number) => (total === 0 ? "جارٍ قراءة الرسم…" : `جارٍ قراءة الوحدات: ${done} من ${total}`),
+    rasterNone: "لم يُعثر على أشكال فلل في هذه الصورة. لنتيجة أدق ارفع ملف DXF أو PDF متجهيًا مُصدَّرًا من برنامج الكاد، أو اربط الفلل بالنقر على الرسم.",
     rasterNote: (shapes: number, labels: number) => `وُجد ${shapes} شكلًا وقُرئ رمز ${labels} منها. كل ربط مقترح من قراءة الصورة، فأكِّده أو غيّره قبل الحساب.`,
     tooLarge: "الملف أكبر من الحد المسموح به",
     empty: "لم يُرفع رسم بعد.",
@@ -150,6 +151,7 @@ const text = {
     dwg: "DWG files cannot be read in the browser. Open the drawing in your design program, save it as DXF or PDF, then upload it.",
     rasterFailed: "The image could not be read. Try a clearer file or a DXF.",
     busy: (done: number, total: number) => (total === 0 ? "Reading the drawing…" : `Reading units: ${done} of ${total}`),
+    rasterNone: "No villa shapes were found in this image. For a more exact result upload a DXF or a vector PDF exported from the CAD program, or link the villas by tapping the drawing.",
     rasterNote: (shapes: number, labels: number) => `Found ${shapes} shapes and read the code in ${labels} of them. Each proposed link comes from reading the image: confirm or change it before it counts.`,
     tooLarge: "The file is larger than the allowed limit",
     empty: "No drawing uploaded yet.",
@@ -202,6 +204,7 @@ const text = {
     dwg: "DWG فائلیں براؤزر میں نہیں پڑھی جا سکتیں۔ ڈرائنگ کو ڈیزائن پروگرام میں کھول کر DXF یا PDF کے طور پر محفوظ کریں، پھر اپ لوڈ کریں۔",
     rasterFailed: "تصویر پڑھی نہیں جا سکی۔ زیادہ واضح فائل یا DXF آزمائیں۔",
     busy: (done: number, total: number) => (total === 0 ? "ڈرائنگ پڑھی جا رہی ہے…" : `یونٹ پڑھے جا رہے ہیں: ${done} از ${total}`),
+    rasterNone: "اس تصویر میں ولا کی کوئی شکل نہیں ملی۔ زیادہ درست نتیجے کے لیے CAD پروگرام سے برآمد شدہ DXF یا ویکٹر PDF اپ لوڈ کریں، یا ڈرائنگ پر ٹیپ کر کے ولاز جوڑیں۔",
     rasterNote: (shapes: number, labels: number) => `${shapes} شکلیں ملیں اور ان میں سے ${labels} کا کوڈ پڑھا گیا۔ ہر تجویز شدہ جوڑ تصویر پڑھ کر بنایا گیا ہے: شمار ہونے سے پہلے اس کی تصدیق کریں یا اسے بدلیں۔`,
     tooLarge: "فائل اجازت شدہ حد سے بڑی ہے",
     empty: "ابھی تک کوئی ڈرائنگ اپ لوڈ نہیں ہوئی۔",
@@ -546,7 +549,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       {!drawing ? <p className="text-sm text-muted-foreground">{t.empty}</p> : (
         <>
           <p className="text-sm font-medium" aria-live="polite">{t.summary(summary)}</p>
-          {rasterStats ? <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.rasterNote(rasterStats.shapes, rasterStats.labels)}</p> : null}
+          {rasterStats ? <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground" data-raster-note={rasterStats.shapes === 0 ? "none" : "found"}>{rasterStats.shapes === 0 ? t.rasterNone : t.rasterNote(rasterStats.shapes, rasterStats.labels)}</p> : null}
           {ignoredCount > 0 ? <p className="text-xs text-muted-foreground">{t.ignored}: {ignoredCount}</p> : null}
 
           {geometry ? (
