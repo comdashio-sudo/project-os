@@ -138,7 +138,7 @@ export async function previewProjectBoq(input: Scope & { fileBase64: string; for
   const refusal = boqRefusal(analysis);
   const codes = analysis.items.map(item => item.code);
   const existing = codes.length ? (await db.select({ code: boqItems.code }).from(boqItems).where(and(mine(boqItems, input), inArray(boqItems.code, codes)))).length : 0;
-  return { count: analysis.items.length, items: analysis.items.slice(0, 20), issues: analysis.issues, totalAmount: analysis.totalAmount, newCount: analysis.items.length - existing, updateCount: existing, columns: analysis.columns, fileErrorDetail: analysis.fileErrorDetail, fileError: analysis.fileError ? fileCode(analysis.fileError) : null, refusal: refusal ? fileCode(refusal) : null };
+  return { count: analysis.items.length, items: analysis.items.slice(0, 20), issues: analysis.issues, leftOut: analysis.leftOut.slice(0, 50), leftOutCount: analysis.leftOut.length, totalAmount: analysis.totalAmount, newCount: analysis.items.length - existing, updateCount: existing, columns: analysis.columns, fileErrorDetail: analysis.fileErrorDetail, fileError: analysis.fileError ? fileCode(analysis.fileError) : null, refusal: refusal ? fileCode(refusal) : null };
 }
 
 /** Write the file's items: a new code is added, an existing code (same project) is updated in place. Nothing is deleted: an item no longer in the file stays (a certificate may cite it). */
