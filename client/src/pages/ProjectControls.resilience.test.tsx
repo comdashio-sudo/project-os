@@ -97,7 +97,7 @@ describe("ProjectControls section resilience", () => {
   it("names the missing health input when performance data is only partial", () => {
     state.performancePartial = true;
     render(<ProjectControls focus="planning" />);
-    expect(screen.getByText("Available: part of the performance data. Missing: health snapshot.")).toBeTruthy();
+    expect(screen.getByText("Still missing: a project health assessment.")).toBeTruthy();
     expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
   });
 
@@ -114,7 +114,7 @@ describe("ProjectControls section resilience", () => {
     state.performanceEmpty = true;
     render(<ProjectControls />);
     expect(within(screen.getAllByLabelText("Cost and progress records")[0]).getByText("No budget, cost or progress recorded yet. Add a line or upload a file.")).toBeTruthy();
-    expect(within(screen.getAllByLabelText("Project performance data")[0]).getByText("No performance snapshot yet: it is calculated once the schedule, budget and progress are recorded.")).toBeTruthy();
+    expect(within(screen.getAllByLabelText("Project performance data")[0]).getByText("No schedule-and-cost performance reading yet: it appears once the schedule, budget and progress are recorded.")).toBeTruthy();
   });
 
   it("keeps an empty PROJECT source distinct from a source error", () => {
@@ -191,7 +191,7 @@ describe("ProjectControls section resilience", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("Q-56 (2): «Planning» and «Supply» are pages of their own — their title, their level's groups open, and nothing of the board's other levels or head", () => {
+  it("Q-56 (2): «Planning» and «Supply» are pages of their own — their title, their level's groups open, and nothing of the board's other levels or head", async () => {
     render(<ProjectControls focus="supply" />);
     expect(document.querySelector("[data-focus-title]")!.textContent).toBe("Warehouses and procurement");
     expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["supply"]);
@@ -203,6 +203,12 @@ describe("ProjectControls section resilience", () => {
     expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["planning"]);
     expect((document.getElementById("manager-schedule") as HTMLDetailsElement).open).toBe(true);
     expect((document.getElementById("manager-assurance") as HTMLDetailsElement).open).toBe(true);
+    // Q-64: a link that names a group (/planning#manager-assurance) opens it, and the address then drops the group's internal name
+    cleanup();
+    window.history.replaceState(null, "", "/projects/t/p/planning#manager-assurance");
+    render(<ProjectControls focus="planning" />);
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    expect((document.getElementById("manager-assurance") as HTMLDetailsElement).open).toBe(true); // still open: it is the page's own state now
     // Q-59 (2): the board is a summary — no level's groups, what needs attention, and a card that opens each level's page
     cleanup();
     render(<ProjectControls />);
@@ -282,7 +288,7 @@ describe("ProjectControls section resilience", () => {
     state.scheduleEmpty = true;
     render(<ProjectControls />);
     expect(document.body.textContent).toContain("No schedule recorded yet. Add an activity or upload the programme.");
-    expect(document.body.textContent).toContain("No performance snapshot yet");
+    expect(document.body.textContent).toContain("No schedule-and-cost performance reading yet");
     expect(document.body.textContent).not.toContain("current access scope");
     cleanup();
     state.performanceEmpty = false;
@@ -290,7 +296,7 @@ describe("ProjectControls section resilience", () => {
     render(<ProjectControls />);
     const refused = screen.getAllByLabelText("Project performance data").find(node => node.getAttribute("class")?.includes("bg-danger-soft")) as HTMLElement;
     expect(refused).toBeTruthy();
-    expect(refused.textContent).not.toContain("No performance snapshot yet");
+    expect(refused.textContent).not.toContain("No schedule-and-cost performance reading yet");
     expect(refused.textContent).not.toContain("recorded yet");
   });
 
