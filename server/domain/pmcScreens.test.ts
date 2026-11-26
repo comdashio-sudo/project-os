@@ -173,4 +173,17 @@ describe("PMC screens, checked against the hand calculations", () => {
     expect(unrecorded.actualToDate).toBe(65); // the history still says 65 ...
     expect(unrecorded.progressFromCells).toBe(75); // ... while the cells say 75: the gap is visible, not hidden
   });
+
+  // Q-68: the «latest updates» screen is the PMC page's first tab. One engineer who has made tens of thousands of updates (a project's whole history, as the owner's will be) must not make it
+  // wait: the old code copied the engineer's whole list for every update (quadratic), 95,000 updates took 52 seconds.
+  it("screen 1 with 60,000 updates by one engineer answers in well under a second, with the same numbers", () => {
+    const history = Array.from({ length: 60_000 }, (_unused, index) => ({ unitId: `u${(index % 4) + 1}`, definitionId: index % 2 ? "d1" : "d2", from: null, to: "COMPLETE" as const, userId: 10, at: at("2026-10-13") }));
+    const started = performance.now();
+    const result = latestUpdates({ ...ds, history });
+    const took = performance.now() - started;
+    expect(result.engineers).toHaveLength(1);
+    expect(result.engineers[0]).toMatchObject({ updates: 60_000, activeDays: 1, unitFrom: 1, unitTo: 4 });
+    expect(result.totals.updates).toBe(60_000);
+    expect(took).toBeLessThan(2_000); // the quadratic copy took tens of seconds here; the linear one takes a few milliseconds
+  }, 120_000);
 });

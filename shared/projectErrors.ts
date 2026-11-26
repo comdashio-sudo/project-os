@@ -2381,6 +2381,26 @@ export const projectErrorMessages = {
     en: "The activity is not part of this unit's model.",
     ur: "یہ سرگرمی اس یونٹ کے ماڈل کا حصہ نہیں ہے۔",
   },
+  PROJECT_OS_EVM_EV_EXCEEDS_BAC: {
+    ar: "القيمة المكتسبة (EV) لا تتجاوز الميزانية عند الإنجاز (BAC): صحّح الرقمين.",
+    en: "Earned value (EV) cannot exceed the budget at completion (BAC): correct the two figures.",
+    ur: "حاصل شدہ قدر (EV) تکمیل پر بجٹ (BAC) سے زیادہ نہیں ہو سکتی؛ دونوں اعداد درست کریں۔",
+  },
+  PROJECT_OS_EVM_CPI_NOT_POSITIVE: {
+    ar: "هذه الطريقة تقسم على مؤشر أداء التكلفة (CPI)، وهو صفر هنا: أدخل التكلفة الفعلية (AC) والقيمة المكتسبة (EV) أكبر من صفر، أو اختر طريقة أخرى.",
+    en: "This method divides by the cost performance index (CPI), which is zero here: enter actual cost (AC) and earned value (EV) above zero, or pick another method.",
+    ur: "یہ طریقہ لاگت کارکردگی اشاریہ (CPI) پر تقسیم کرتا ہے جو یہاں صفر ہے؛ حقیقی لاگت (AC) اور حاصل شدہ قدر (EV) صفر سے زیادہ دیں یا دوسرا طریقہ چنیں۔",
+  },
+  PROJECT_OS_EVM_CPI_SPI_NOT_POSITIVE: {
+    ar: "هذه الطريقة تقسم على CPI وSPI معًا، وأحدهما صفر هنا: أدخل التكلفة الفعلية والقيمة المخططة والمكتسبة أكبر من صفر، أو اختر طريقة أخرى.",
+    en: "This method divides by both CPI and SPI, and one of them is zero here: enter actual cost, planned value and earned value above zero, or pick another method.",
+    ur: "یہ طریقہ CPI اور SPI دونوں پر تقسیم کرتا ہے اور ان میں سے ایک صفر ہے؛ حقیقی لاگت، منصوبہ بند قدر اور حاصل شدہ قدر صفر سے زیادہ دیں یا دوسرا طریقہ چنیں۔",
+  },
+  PROJECT_OS_EVM_INVALID: {
+    ar: "أرقام الحساب غير صالحة: راجعها وأعد المحاولة.",
+    en: "The figures cannot be calculated: check them and try again.",
+    ur: "ان اعداد سے حساب نہیں ہو سکتا؛ انہیں جانچ کر دوبارہ کوشش کریں۔",
+  },
   PROJECT_OS_PMC_IMPORT_FILE_CHANGED: {
     ar: "تغيّر الملف منذ المعاينة؛ أعد رفعه ومعاينته.",
     en: "The file changed since the preview; upload and preview it again.",

@@ -15,7 +15,7 @@ import { useLocation, useParams, useSearch } from "wouter";
 // not decide anything; it shows the answer of the same functions the server and the database use (is the activity accepted, is an NCR holding it).
 const text = {
   ar: {
-    title: "بطاقة الوحدة", back: "العودة إلى الإدخال الميداني", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", unitUnknown: "لا وحدة بهذا الرقم في هذا المشروع.", unitLabel: "الوحدة", zone: "المنطقة", block: "البلوك", model: "النموذج",
+    title: "بطاقة الوحدة", back: "العودة إلى الإدخال الميداني", loading: "جارٍ التحميل…", retry: "إعادة المحاولة", unitUnknown: "لا وحدة بهذا الرقم في هذا المشروع.", unitLabel: "الوحدة", zone: "المنطقة", block: "البلوك", model: "النموذج", phase: "المرحلة", package: "الباقة", mockup: "فيلا نموذجية",
     activity: "النشاط", allActivities: "كل الأنشطة (سجل الوحدة)", status: "الحالة", openNcrs: "NCR مفتوحة", quality: "الجودة",
     qcReceipt: "استلام QC", qcReceived: "مستلم", qcNotReceived: "غير مستلم", qcNone: "لم يُسجَّل بعد", stalled: "متوقفة", longStalled: "متوقفة طويلًا", workingDays: "أيام عمل بلا حركة", nextActivity: "البند التالي", accepted: "فحص مقبول", notAccepted: "لا فحص مقبول", heldByNcr: "الفحص مقبول لكن NCR مفتوح يمنع احتسابه", policy: "قاعدة الإكمال", ncrRule: "قاعدة NCR",
     modeoff: "معطّلة", modewarn: "تحذير", modeblock: "منع",
@@ -25,7 +25,7 @@ const text = {
     quantity: "الكمية", reply: "الرد", noReply: "بلا رد", answer: "الرد", consultant: "الاستشاري", noAnswer: "بلا رد بعد", state: "الحالة", more: "المزيد", showAll: "عرض أقدم", label: "البند",
   },
   en: {
-    title: "Unit card", back: "Back to quick entry", loading: "Loading…", retry: "Retry", unitUnknown: "No unit with that number in this project.", unitLabel: "Unit", zone: "Zone", block: "Block", model: "Model",
+    title: "Unit card", back: "Back to quick entry", loading: "Loading…", retry: "Retry", unitUnknown: "No unit with that number in this project.", unitLabel: "Unit", zone: "Zone", block: "Block", model: "Model", phase: "Phase", package: "Package", mockup: "Mock-up villa",
     activity: "Activity", allActivities: "All activities (the unit's record)", status: "Status", openNcrs: "Open NCRs", quality: "Quality",
     qcReceipt: "QC receipt", qcReceived: "Received", qcNotReceived: "Not received", qcNone: "Not recorded yet", stalled: "Stalled", longStalled: "Long stalled", workingDays: "working days without movement", nextActivity: "Next activity", accepted: "Inspection accepted", notAccepted: "No accepted inspection", heldByNcr: "The inspection is accepted, but an open NCR keeps it from counting", policy: "Completion rule", ncrRule: "NCR rule",
     modeoff: "Off", modewarn: "Warn", modeblock: "Block",
@@ -35,7 +35,7 @@ const text = {
     quantity: "Quantity", reply: "Reply", noReply: "No reply", answer: "Answer", consultant: "Consultant", noAnswer: "No answer yet", state: "Status", more: "More", showAll: "Show older", label: "Item",
   },
   ur: {
-    title: "یونٹ کارڈ", back: "فوری اندراج پر واپس", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش", unitUnknown: "اس پروجیکٹ میں اس نمبر کا کوئی یونٹ نہیں۔", unitLabel: "یونٹ", zone: "زون", block: "بلاک", model: "ماڈل",
+    title: "یونٹ کارڈ", back: "فوری اندراج پر واپس", loading: "لوڈ ہو رہا ہے…", retry: "دوبارہ کوشش", unitUnknown: "اس پروجیکٹ میں اس نمبر کا کوئی یونٹ نہیں۔", unitLabel: "یونٹ", zone: "زون", block: "بلاک", model: "ماڈل", phase: "مرحلہ", package: "پیکج", mockup: "نمونے کا ولا",
     activity: "سرگرمی", allActivities: "تمام سرگرمیاں (یونٹ کا ریکارڈ)", status: "حالت", openNcrs: "کھلے NCR", quality: "معیار",
     qcReceipt: "کیو سی وصولی", qcReceived: "وصول شدہ", qcNotReceived: "وصول نہیں ہوا", qcNone: "ابھی درج نہیں", stalled: "رکی ہوئی", longStalled: "طویل عرصے سے رکی ہوئی", workingDays: "کام کے دن بغیر حرکت", nextActivity: "اگلی سرگرمی", accepted: "معائنہ قبول شدہ", notAccepted: "کوئی قبول شدہ معائنہ نہیں", heldByNcr: "معائنہ قبول ہے، مگر کھلا NCR اسے شمار ہونے سے روکتا ہے", policy: "تکمیل کا قاعدہ", ncrRule: "NCR کا قاعدہ",
     modeoff: "بند", modewarn: "تنبیہ", modeblock: "روک",
@@ -104,7 +104,9 @@ export default function UnitCard() {
       <section aria-label={t.unitLabel} className="grid gap-2 rounded-xl border bg-white p-3 sm:grid-cols-4">
         <p><span className="block text-xs text-muted-foreground">{t.unitLabel}</span><b className="text-lg">{data.unit.number}</b></p>
         <p><span className="block text-xs text-muted-foreground">{t.zone} / {t.block}</span><b>{data.unit.zone} / {data.unit.block}</b></p>
-        <p><span className="block text-xs text-muted-foreground">{t.model}</span><b>{data.unit.modelCode}</b></p>
+        <p><span className="block text-xs text-muted-foreground">{t.model}</span><b>{data.unit.modelCode}</b>{data.unit.isMockup ? <span data-mockup className="ms-2 rounded-full bg-info-soft px-2 py-0.5 text-xs text-info-soft-foreground">{t.mockup}</span> : null}</p>
+        {/* Q-60: the phase and the package from the villa register, when the file had them ("—" when not, never empty) */}
+        <p data-unit-phase><span className="block text-xs text-muted-foreground">{t.phase} / {t.package}</span><b><bdi dir="ltr">{data.unit.phase ?? "—"}</bdi> / <bdi dir="ltr">{data.unit.package ?? "—"}</bdi></b></p>
         <p><span className="block text-xs text-muted-foreground">{t.openNcrs}</span><b className={data.openNcrs > 0 ? "text-danger-soft-foreground" : ""}>{data.openNcrs}</b></p>
         <label className="block text-sm font-medium sm:col-span-4">{t.activity}
           <Select className="mt-1" aria-label={t.allActivities} value={activity?.code ?? ALL_ACTIVITIES} onValueChange={value => { setShownCount(PAGE); navigate(`${back}/unit/${encodeURIComponent(unitNumber)}${value !== ALL_ACTIVITIES ? `?activity=${encodeURIComponent(value)}` : ""}`); }} options={[{ value: ALL_ACTIVITIES, label: t.allActivities }, ...activities.map(item => ({ value: item.code, label: `${item.code} — ${item.name}` }))]} /></label>
