@@ -4,7 +4,7 @@ import { CheckCircle2, CircleDashed, FileUp, Download, MinusCircle } from "lucid
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, TextInput, formatNumber } from "@/components/ds";
 import type { BadgeTone } from "@/components/ds";
 import { CheckedForm } from "@/components/CheckedForm";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageHeader, PageMain, PageTitle } from "@/components/pageFrame";
 import { SectionErrorBoundary, SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { projectErrorCode } from "@/lib/errorCode";
@@ -127,11 +127,8 @@ export default function ProjectBaseline() {
   return (
     <PageMain className="py-2 text-foreground" dir={isRtl ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-4xl space-y-4">
-        <PageHeader>
-          <h1 className="text-2xl font-semibold">{t.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t.intro}</p>
-          {data ? <p role="status" data-testid="baseline-progress" className="mt-2 text-sm font-medium">{t.progress(data.ready, data.required)}</p> : null}
-        </PageHeader>
+        <PageTitle title={t.title} description={t.intro} />
+        {data ? <p role="status" data-testid="baseline-progress" className="text-sm font-medium">{t.progress(data.ready, data.required)}</p> : null}
         <ol className="space-y-3" aria-label={t.title}>
           {ITEMS.map((code, index) => {
             const item = data?.items.find(entry => entry.code === code);

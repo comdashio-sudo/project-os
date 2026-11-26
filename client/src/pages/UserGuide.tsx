@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PageMain, PageHeader } from "@/components/pageFrame";
+import { PageHeader, PageMain, PageTitle } from "@/components/pageFrame";
 import { Link, useParams } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -29,8 +29,7 @@ export default function UserGuide() {
     <PageMain className="min-h-screen bg-muted text-foreground" dir={isRtl ? "rtl" : "ltr"}>
       <PageHeader className="border-b bg-white"><div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4"><Link href={`/projects/${tenantId}/${projectId}/controls`} className="inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft className="h-4 w-4" />{t.back}</Link><LanguageToggle /></div></PageHeader>
       <div className="mx-auto max-w-5xl px-5 py-8">
-        <h1 className="text-3xl font-semibold">{t.title}</h1>
-        <p className="mt-2 text-muted-foreground">{t.sub}</p>
+        <PageTitle title={t.title} description={t.sub} />
         <nav aria-label={t.roles} className="mt-5"><ul className="flex flex-wrap gap-2">
           {userGuide.map(item => <li key={item.id}><button type="button" aria-current={item.id === active ? "true" : undefined} onClick={() => pick(item.id)} className={`min-h-[44px] rounded-xl border px-4 text-sm font-semibold ${item.id === active ? "border-primary bg-primary text-white" : "border-border bg-white text-foreground"}`}>{item.title[lang]}</button></li>)}
         </ul></nav>
