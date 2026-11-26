@@ -6,6 +6,7 @@ import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, sa
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions , listActivityBoqLinks, setActivityBoqLinks} from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, exportProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES, MINUTES_EXPORT_FORMATS } from "./meetings";
 import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
+import { getScheduleVillaLinks } from "./scheduleVillaLinks";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
 import { getMyDeadlinesForTenant } from "./deadlineAlerts";
@@ -1125,6 +1126,8 @@ export const appRouter = router({
   schedule: router({
     // Q-23: the live schedule — today against the baseline snapshot, critical by P6 float, planned against actual at the data date, a two-week look-ahead
     live: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getLiveSchedule({ userId: ctx.user.id, ...input })),
+    // Q-61 (2): which villa each P6 activity belongs to, and where the schedule and the villas disagree (read only)
+    villaLinks: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getScheduleVillaLinks({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),
