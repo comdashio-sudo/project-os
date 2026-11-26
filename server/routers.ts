@@ -105,6 +105,7 @@ import { sdk } from "./_core/sdk";
 import { sessionStore } from "./_core/sessionStore";
 import { systemRouter } from "./_core/systemRouter";
 import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { logWarn, safePath } from "./_core/logger";
 import { createCompanyLogoUpload, getCompanyProfile, updateCompanyProfile } from "./companyProfile";
 import { listPmcQcHistory, pmcQcCounters, pmcVillaStates, updatePmcQcReceipts, pmcQcMap } from "./pmcQcReceipts";
 import { getStalledUnits, setStallThreshold } from "./stalledUnits";
@@ -221,6 +222,12 @@ export const appRouter = router({
   languagePreference: router({
     get: protectedProcedure.query(({ ctx }) => getAccountLanguage(ctx.user.id)),
     set: protectedProcedure.input(z.object({ language: z.enum(INTERFACE_LANGUAGES) })).mutation(({ ctx, input }) => setAccountLanguage(ctx.user.id, input.language)),
+  }),
+  // Q-56 (7): a page that failed to render in the browser, by its short code — one log line so a person's report finds it. Signed-in only; every
+  // field is closed and bounded (no error message ever leaves the browser), and the path goes through the log's own scrubber. Writes nothing.
+  diagnostics: router({
+    renderFailed: protectedProcedure.input(z.object({ code: z.string().regex(/^R-[A-Z0-9]{5}$/), errorName: z.string().regex(/^[A-Za-z]{1,60}$/), route: z.string().max(200), chunk: z.boolean() }).strict())
+      .mutation(({ ctx, input }) => { logWarn("client.render_failed", { code: input.code, errorName: input.errorName, route: safePath(input.route), chunk: input.chunk, userId: ctx.user.id }); return { logged: true }; }),
   }),
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

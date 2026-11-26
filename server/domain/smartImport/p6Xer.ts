@@ -1,7 +1,7 @@
 // A Primavera P6 export (.xer) read whole: the activities AND the WBS tree, the relationships, the resources and their assignments, the activity codes and the calendars.
 // The older schedule importer accepted two tables (PROJWBS, TASK) and refused a real export for having any other; this reads what a real export holds.
 // Pure: no database, no clock. The money in the file is in the project's currency on the platform (the header's currency is the P6 default and is only compared, never trusted).
-import { MAX_XER_ROWS } from "../excelWorkbook";
+import { xerTableOverLimit } from "../excelWorkbook";
 
 export type XerTable = { name: string; fields: string[]; rows: Array<Record<string, string>> };
 export type XerFile = { version: string | null; exportedAt: string | null; currency: string | null; encoding: "utf-8" | "windows-1252"; tables: Map<string, XerTable> };
@@ -80,7 +80,8 @@ export function readP6(file: XerFile): P6Model {
   const issues: P6Model["issues"] = []; const warnings: string[] = [];
   const tasks = table("TASK");
   if (!tasks.length) issues.push({ code: "XER_NO_ACTIVITIES" });
-  if (tasks.length + table("PROJWBS").length > MAX_XER_ROWS) issues.push({ code: "IMPORT_TOO_MANY_ROWS" });
+  const overLimit = xerTableOverLimit(name => table(name).length); // Q-61: per table, not the activities and the WBS added together
+  if (overLimit) issues.push({ code: "IMPORT_TOO_MANY_ROWS", detail: overLimit });
   const projectIds = Array.from(new Set(tasks.map(row => row.proj_id)));
   if (projectIds.length > 1) issues.push({ code: "XER_MULTIPLE_PROJECTS", detail: String(projectIds.length) });
   const projectRow = table("PROJECT").find(row => row.proj_id === projectIds[0]) ?? table("PROJECT")[0];
