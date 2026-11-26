@@ -129,7 +129,9 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report's core 
     const copies = await Promise.all(Array.from({ length: 5 }, () => code(callers.engineer2.siteReports.copyFromYesterday({ ...at(), reportDate: "2026-11-04" }))));
     expect(copies).toEqual(["no error", "no error", "no error", "no error", "no error"]);
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate = '2026-11-04'", [tenantId, ids.engineer2])).toBe(5);
-    const saves = await Promise.all(Array.from({ length: 5 }, (_v, i) => code(callers.engineer2.siteReports.save({ ...at(), reportDate: "2026-10-25", workHours: i + 1, lines: [], labour: [labour()[0]] }))));
+    // five new reports as the screen saves them since Q-58 (1): each with the id it chose (a save naming no report means «the day's only one», whose outcome
+    // under five saves at once depends on their timing — that older screen's path is checked one save at a time in siteReports.q58.database.test.ts)
+    const saves = await Promise.all(Array.from({ length: 5 }, (_v, i) => code(callers.engineer2.siteReports.save({ ...at(), newReportId: crypto.randomUUID(), reportDate: "2026-10-25", workHours: i + 1, lines: [], labour: [labour()[0]] }))));
     expect(saves).toEqual(["no error", "no error", "no error", "no error", "no error"]);
     expect(await count("SELECT COUNT(*) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate = '2026-10-25'", [tenantId, ids.engineer2])).toBe(5);
     expect(await count("SELECT COUNT(DISTINCT reportNumber) AS n FROM site_daily_reports WHERE tenantId = ? AND preparedByUserId = ? AND reportDate IN ('2026-10-25', '2026-11-04')", [tenantId, ids.engineer2])).toBe(10);
