@@ -92,6 +92,16 @@ async function nextReportNumber(tx: Tx, input: Scope) {
   return `${profile?.prefix ?? "DR"}-${String(row.lastNumber).padStart(4, "0")}`;
 }
 
+/**
+ * Q-72 (5): what one daily report can plausibly hold. The screen's own limits were far wider (a labour cell up to 100,000 people, a machine count up to 10,000, a temperature from -50): a typo
+ * («5000» for «50», «8» for «80 °C») went through and then fed every weekly and monthly total. A figure outside these is refused by name, never trimmed or corrected silently.
+ */
+export const DAILY_REPORT_LIMITS = { labourPerCell: 5000, equipmentCount: 1000, temperatureMin: -20, temperatureMax: 70 } as const;
+function validateRanges(input: { labour?: ReportLabourInput[]; equipment?: ReportEquipmentInput[]; temperatureC?: number }) {
+  if ((input.labour ?? []).some(row => row.headcount > DAILY_REPORT_LIMITS.labourPerCell)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_LABOUR_TOO_MANY");
+  if ((input.equipment ?? []).some(row => row.count > DAILY_REPORT_LIMITS.equipmentCount)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_EQUIPMENT_TOO_MANY");
+  if (input.temperatureC !== undefined && (input.temperatureC < DAILY_REPORT_LIMITS.temperatureMin || input.temperatureC > DAILY_REPORT_LIMITS.temperatureMax)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_TEMPERATURE_RANGE");
+}
 /** The labour matrix and the equipment name only this project's companies, roles and machines (the composite foreign keys hold the same; this says it first, translated). */
 async function validateResources(db: Db, input: Scope, labour: ReportLabourInput[], equipment: ReportEquipmentInput[]) {
   const cells = new Set<string>();
@@ -160,6 +170,7 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
   if (!access.edit.includes("site") || (input.hse?.length && !access.edit.includes("hse")) || (input.materials?.length && !access.edit.includes("qc"))) throw notYours();
   if (!realDate(input.reportDate)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_INVALID");
   if (input.reportDate > today()) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FUTURE");
+  validateRanges(input);
   await validateLines(db, input, input.lines);
   await validateResources(db, input, input.labour ?? [], input.equipment ?? []);
   await validateSections(db, input, input);

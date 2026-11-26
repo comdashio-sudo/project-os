@@ -1249,6 +1249,21 @@ export const projectErrorMessages = {
     en: "This step cannot be taken now: the order is prepare, then review, then approve, and the report is not at this step.",
     ur: "یہ مرحلہ ابھی نہیں ہو سکتا: ترتیب تیاری، پھر جائزہ، پھر منظوری ہے، اور رپورٹ اس مرحلے پر نہیں ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_LABOUR_TOO_MANY: {
+    ar: "عدد العمالة في خلية واحدة أكثر من 5000: راجع الرقم (غالبًا زيادة صفر).",
+    en: "A labour cell holds more than 5,000 people: check the figure (often an extra zero).",
+    ur: "ایک خانے میں 5,000 سے زیادہ مزدور ہیں؛ عدد جانچیں (اکثر ایک صفر زیادہ ہوتا ہے)۔",
+  },
+  PROJECT_OS_SITE_REPORT_EQUIPMENT_TOO_MANY: {
+    ar: "عدد المعدّات لآلة واحدة أكثر من 1000: راجع الرقم.",
+    en: "A machine count is above 1,000: check the figure.",
+    ur: "ایک مشین کی تعداد 1,000 سے زیادہ ہے؛ عدد جانچیں۔",
+  },
+  PROJECT_OS_SITE_REPORT_TEMPERATURE_RANGE: {
+    ar: "درجة الحرارة خارج المعقول (من -20 إلى 70 مئوية): راجع الرقم.",
+    en: "The temperature is out of range (-20 to 70 °C): check the figure.",
+    ur: "درجہ حرارت حد سے باہر ہے (-20 سے 70 °C)؛ عدد جانچیں۔",
+  },
   PROJECT_OS_SITE_REPORT_LABOUR_DUPLICATE: {
     ar: "خلية العمالة نفسها (الشركة والدور والوردية) مكررة في التقرير. اجمعها في سطر واحد.",
     en: "The same labour cell (company, role and shift) appears twice in the report. Put it on one row.",
