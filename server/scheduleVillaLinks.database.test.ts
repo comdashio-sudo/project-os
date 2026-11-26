@@ -65,13 +65,16 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-61 (2): th
     ]);
   });
 
-  it("NEGATIVE: the differences are shown and nothing is changed; another company reads nothing", async () => {
+  it("NEGATIVE: the differences are shown and nothing is changed; project.read without PMC read (accountant, procurement) and another company read nothing", async () => {
     const links = await a.callerFor(a.people.pm).schedule.villaLinks({ tenantId: a.tenantId, projectId: a.projectId });
     expect(links.mismatches).toEqual([{ unitNumber: 607, field: "model", schedule: "type D", project: "C", activities: 1 }]);
     expect(links.missingInProject).toEqual([999]);
     expect(links.withoutActivities).toEqual([702]);
     const { rows: [unit] } = await client.query("SELECT model_code FROM pmc_units WHERE tenant_id = $1 AND project_id = $2 AND unit_number = 607", [a.tenantId, a.projectId]);
     expect(unit.model_code).toBe("C"); // read only: the project's villa keeps its model
+    // review of #550 (B): the villas are PMC data — project.read alone does not open them
+    await expect(a.callerFor(a.people.accountant).schedule.villaLinks({ tenantId: a.tenantId, projectId: a.projectId })).rejects.toThrow(/PERMISSION|FORBIDDEN|denied/i);
+    await expect(a.callerFor(a.people.procurement).schedule.villaLinks({ tenantId: a.tenantId, projectId: a.projectId })).rejects.toThrow(/PERMISSION|FORBIDDEN|denied/i);
     await expect(b.asOwner.schedule.villaLinks({ tenantId: a.tenantId, projectId: a.projectId })).rejects.toThrow();
     await expect(b.asOwner.schedule.villaLinks({ tenantId: b.tenantId, projectId: a.projectId })).rejects.toThrow();
   });
