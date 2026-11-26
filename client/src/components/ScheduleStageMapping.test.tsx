@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Q-61 (3): the stage mapping shows what schedule.stageMapping returned, suggests by name, and saves only the groups a person changed. Synthetic data only.
-const h = vi.hoisted(() => ({ data: undefined as unknown, can: new Set<string>(), save: vi.fn(), saveError: null as unknown }));
+const h = vi.hoisted(() => ({ data: undefined as unknown, queryError: null as unknown, can: new Set<string>(), save: vi.fn(), saveError: null as unknown }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("@/lib/permissions", () => ({ useCan: (permission: string) => h.can.has(permission) }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: ({ options, value, onValueChange, disabled, "aria-label": label }: { options: Array<{ value: string; label: string }>; value: string; onValueChange: (value: string) => void; disabled?: boolean; "aria-label"?: string }) => (
@@ -13,7 +13,7 @@ vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<t
 vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ schedule: { stageMapping: { invalidate: vi.fn() } } }),
   schedule: {
-    stageMapping: { useQuery: (_: unknown, options: { enabled: boolean }) => ({ data: options.enabled ? h.data : undefined }) },
+    stageMapping: { useQuery: (_: unknown, options: { enabled: boolean }) => ({ data: options.enabled && !h.queryError ? h.data : undefined, error: options.enabled ? h.queryError : null, refetch: vi.fn() }) },
     saveStageMapping: { useMutation: () => ({ mutate: h.save, isPending: false, error: h.saveError }) },
   },
 } }));
@@ -30,7 +30,7 @@ const view = {
   readiness: { ready: false, unlinked: ["Q01", "Q05"], stale: [], stagesWithoutGroup: ["Q02", "Q06"] },
   differences: { activities: 10, unlinkedActivities: 1, villasMatched: 2, missingInProject: [999], withoutActivities: [702], mismatches: [{ unitNumber: 607, field: "model", schedule: "type D", project: "C", activities: 2 }] },
 };
-afterEach(() => { cleanup(); h.save.mockReset(); h.saveError = null; });
+afterEach(() => { cleanup(); h.save.mockReset(); h.saveError = null; h.queryError = null; });
 
 describe("ScheduleStageMapping (Q-61 (3))", () => {
   it("hidden for someone without project.pmc.read", () => {
@@ -76,5 +76,12 @@ describe("ScheduleStageMapping (Q-61 (3))", () => {
     h.saveError = { message: "x", data: { projectError: { code: "PROJECT_OS_PMC_STAGE_LINK_INVALID" } } };
     render(<ScheduleStageMapping tenantId="t" projectId="p" />);
     expect(document.querySelector("[data-stage-mapping-error]")!.textContent).toMatch(/not in the current schedule/);
+  });
+
+  it("NEGATIVE: a failed read is said (Could not load), never shown as an empty mapping", () => {
+    h.data = view; h.can = new Set(["project.pmc.read"]); h.queryError = { message: "boom" };
+    render(<ScheduleStageMapping tenantId="t" projectId="p" />);
+    expect(screen.getByRole("alert").textContent).toMatch(/Could not load/);
+    expect(document.querySelector("[data-group]")).toBeNull();
   });
 });

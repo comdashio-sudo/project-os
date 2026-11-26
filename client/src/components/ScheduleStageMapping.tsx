@@ -5,6 +5,7 @@
 // Hidden for someone without project.pmc.read.
 import React, { useMemo, useState } from "react";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Checkbox, Select } from "@/components/ds";
+import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { projectErrorCode } from "@/lib/errorCode";
 import { pickLanguage } from "@/lib/language";
@@ -40,7 +41,10 @@ export function ScheduleStageMapping({ tenantId, projectId }: { tenantId: string
   const save = trpc.schedule.saveStageMapping.useMutation({ onSuccess: async () => { setEdits({}); setDone(true); await utils.schedule.stageMapping.invalidate({ tenantId, projectId }); } });
   const data = query.data;
   const saved = useMemo(() => Object.fromEntries((data?.groups ?? []).filter(group => group.link).map(group => [group.id, { stageCodes: group.link!.stageCodes, anchor: group.link!.anchor as Anchor, suggestedScore: group.link!.suggestedScore }])) as Record<string, Draft>, [data]);
-  if (!canRead || !data) return null;
+  if (!canRead) return null;
+  // a failed read is said, never shown as an empty mapping
+  if (query.error) return <Card data-stage-mapping><CardHeader><CardTitle>{t.title}</CardTitle></CardHeader><CardBody><SourceNotice query={query} isArabic={language === "ar"} title={t.title} /></CardBody></Card>;
+  if (!data) return null;
 
   const current = (groupId: string): Draft => edits[groupId] ?? saved[groupId] ?? { stageCodes: [], anchor: "span", suggestedScore: null };
   const change = (groupId: string, next: Draft) => { setDone(false); setEdits(previous => ({ ...previous, [groupId]: next })); };

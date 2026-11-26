@@ -30,13 +30,20 @@ export function villaNumberFromActivityCode(code: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-// P6 activity-code type names, in English and Arabic, as owners name them
-const TYPE_ALIASES = { model: ["villa type", "unit type", "type", "model", "نوع الفيلا", "النموذج"], block: ["block", "البلوك", "المبنى"], qItem: ["q item", "q-item", "item"] } as const;
+// P6 activity-code type names, in English and Arabic, as owners name them. The broad names («type», «item») are read only when the explicit one
+// («Villa Type», «Q Item») is not on the activity (review of #549, note 3).
+const TYPE_ALIASES = {
+  model: { primary: ["villa type", "unit type", "model", "نوع الفيلا", "النموذج"], fallback: ["type"] },
+  block: { primary: ["block", "البلوك", "المبنى"], fallback: [] },
+  qItem: { primary: ["q item", "q-item", "qitem"], fallback: ["item"] },
+} as const;
+type Aliases = { primary: readonly string[]; fallback: readonly string[] };
 const typeKey = (name: string) => name.trim().toLowerCase();
-const pick = (codes: Record<string, string>, aliases: readonly string[]) => {
-  for (const [type, value] of Object.entries(codes)) if ((aliases as readonly string[]).includes(typeKey(type)) && value.trim()) return value.trim();
+const pickFrom = (codes: Record<string, string>, names: readonly string[]) => {
+  for (const [type, value] of Object.entries(codes)) if (names.includes(typeKey(type)) && value.trim()) return value.trim();
   return null;
 };
+const pick = (codes: Record<string, string>, aliases: Aliases) => pickFrom(codes, aliases.primary) ?? pickFrom(codes, aliases.fallback);
 /** «type C», «C», «Type-C» → «C»; «BLK 25», «B25», «Block 25» → «25» — the comparable part of a value */
 const comparableModel = (value: string) => value.trim().replace(/^type[\s\-_]*/i, "").toUpperCase();
 const comparableBlock = (value: string) => value.trim().replace(/^(?:blk|block|b)[\s\-_]*/i, "").replace(/^0+(?=\d)/, "").toUpperCase();
@@ -87,15 +94,19 @@ export function linkScheduleToVillas(input: { wbs: ScheduleWbs[]; activities: Sc
     villas.push({ unitNumber: number, activities: activities.length, inProject: Boolean(villa), qItems });
     if (!villa) continue;
     // the value most of the villa's activities carry (one stray activity does not decide it)
-    const majority = (aliases: readonly string[], normalise: (value: string) => string) => {
+    // a tie that includes the project's own value is not a difference (review of #549, note 4)
+    const differs = (aliases: Aliases, normalise: (value: string) => string, projectValue: string) => {
       const counts = new Map<string, { raw: string; n: number }>();
       for (const activity of activities) { const raw = pick(activity.codes, aliases); if (!raw) continue; const key = normalise(raw); const entry = counts.get(key) ?? { raw, n: 0 }; entry.n += 1; counts.set(key, entry); }
-      return Array.from(counts.entries()).sort((a, b) => b[1].n - a[1].n)[0] ?? null;
+      const ranked = Array.from(counts.entries()).sort((a, b) => b[1].n - a[1].n);
+      if (!ranked.length) return null;
+      const top = ranked.filter(entry => entry[1].n === ranked[0][1].n);
+      return top.some(entry => entry[0] === normalise(projectValue)) ? null : ranked[0][1].raw;
     };
-    const model = majority(TYPE_ALIASES.model, comparableModel);
-    if (model && model[0] !== comparableModel(villa.modelCode)) mismatches.push({ unitNumber: number, field: "model", schedule: model[1].raw, project: villa.modelCode, activities: activities.length });
-    const block = majority(TYPE_ALIASES.block, comparableBlock);
-    if (block && block[0] !== comparableBlock(villa.blockCode)) mismatches.push({ unitNumber: number, field: "block", schedule: block[1].raw, project: villa.blockCode, activities: activities.length });
+    const model = differs(TYPE_ALIASES.model, comparableModel, villa.modelCode);
+    if (model !== null) mismatches.push({ unitNumber: number, field: "model", schedule: model, project: villa.modelCode, activities: activities.length });
+    const block = differs(TYPE_ALIASES.block, comparableBlock, villa.blockCode);
+    if (block !== null) mismatches.push({ unitNumber: number, field: "block", schedule: block, project: villa.blockCode, activities: activities.length });
   }
   const named = new Set(byVilla.keys());
   return {

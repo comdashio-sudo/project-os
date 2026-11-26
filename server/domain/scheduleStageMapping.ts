@@ -14,10 +14,11 @@ export type StageLink = { groupId: string; stageCodes: string[]; anchor: StageAn
 export type StageSuggestion = { groupId: string; stageCode: string; score: number };
 export const STAGE_SUGGEST_THRESHOLD = 0.5;
 
-const QITEM_TYPES = new Set(["q item", "q-item", "qitem", "item", "stage", "المرحلة", "البند"]);
+// «Q Item» first; the broad names only when the explicit one is not on the activity (review of #549, note 3)
+const QITEM_TYPES = [new Set(["q item", "q-item", "qitem", "البند"]), new Set(["item"])];
 /** The activity's stage: its «Q Item» code value when it has one, else the segment after the villa in its code («V606.Q02» / «V606-Q02-010» → «Q02»). */
 export function stageOfActivity(activity: { code: string; codes: Record<string, string> }): string | null {
-  for (const [type, value] of Object.entries(activity.codes)) if (QITEM_TYPES.has(type.trim().toLowerCase()) && value.trim()) return value.trim().toUpperCase();
+  for (const names of QITEM_TYPES) for (const [type, value] of Object.entries(activity.codes)) if (names.has(type.trim().toLowerCase()) && value.trim()) return value.trim().toUpperCase();
   const match = /^(?:v|villa)[\s\-_]*\d{1,6}[.\-_]([A-Za-z]{1,4}\d{1,4})/i.exec(activity.code.trim());
   return match ? match[1].toUpperCase() : null;
 }

@@ -23,6 +23,9 @@ describe("Q-61 (3): schedule stage ← weight group", () => {
     expect(stageOfActivity({ code: "V606.Q07", codes: {} })).toBe("Q07");
     expect(stageOfActivity({ code: "V606-Q20-010", codes: { "Villa Type": "C" } })).toBe("Q20");
     expect(stageOfActivity({ code: "MOB-010", codes: {} })).toBeNull();
+    // review of #549: the broad «Item» only when «Q Item» is not there
+    expect(stageOfActivity({ code: "V606.010", codes: { Item: "X1", "Q Item": "Q08" } })).toBe("Q08");
+    expect(stageOfActivity({ code: "V606.010", codes: { Item: "Q09" } })).toBe("Q09");
   });
 
   it("suggests by name (Arabic or English), never by code: weights Q06 «concrete structure» is not given schedule Q06 «roof installation»; a group with no fitting name gets nothing", () => {
