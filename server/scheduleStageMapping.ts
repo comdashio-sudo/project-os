@@ -16,7 +16,7 @@ import { pmcGate, type Db, type Scope } from "./wo22Shared";
 const mine = <T extends { tenantId: unknown; projectId: unknown }>(table: T, scope: Scope) => and(eq(table.tenantId as never, scope.tenantId), eq(table.projectId as never, scope.projectId));
 
 /** The schedule's stages: every activity that belongs to a villa, grouped by its stage; the name from the «Q Item» value, else the activity name most of them carry (villa number taken out). */
-function scheduleStages(schedule: Awaited<ReturnType<typeof loadScheduleAndVillas>>): ScheduleStage[] {
+export function scheduleStages(schedule: Awaited<ReturnType<typeof loadScheduleAndVillas>>): ScheduleStage[] {
   const villaOf = villaOfEachActivity(schedule.wbs, schedule.activities);
   const byStage = new Map<string, { activities: number; villas: Set<number>; names: Map<string, number> }>();
   for (const activity of schedule.activities) {
@@ -36,19 +36,23 @@ function scheduleStages(schedule: Awaited<ReturnType<typeof loadScheduleAndVilla
 }
 
 /** The weight groups with the weight each carries: the largest share of one villa over the models (a group may weigh 0 on one model and 12% on another). */
-async function weightGroups(db: Db, scope: Scope): Promise<WeightGroup[]> {
+export async function weightGroups(db: Db, scope: Scope): Promise<Array<WeightGroup & { weightByModel: Record<string, number> }>> {
   const [groups, definitions] = await Promise.all([
     db.select({ id: pmcActivityGroups.id, code: pmcActivityGroups.code, name: pmcActivityGroups.name, nameEn: pmcActivityGroups.nameEn }).from(pmcActivityGroups).where(mine(pmcActivityGroups, scope)),
     db.select({ groupId: pmcActivityDefinitions.groupId, modelCode: pmcActivityDefinitions.modelCode, weightPercent: pmcActivityDefinitions.weightPercent }).from(pmcActivityDefinitions).where(mine(pmcActivityDefinitions, scope)),
   ]);
   const perModel = new Map<string, number>();
   for (const row of definitions) { const key = `${row.groupId}\u0000${row.modelCode}`; perModel.set(key, (perModel.get(key) ?? 0) + Number(row.weightPercent)); }
-  const weight = new Map<string, number>();
-  for (const [key, value] of Array.from(perModel.entries())) { const groupId = key.split("\u0000")[0]; weight.set(groupId, Math.max(weight.get(groupId) ?? 0, value)); }
-  return groups.map(group => ({ ...group, weight: Math.round((weight.get(group.id) ?? 0) * 1e4) / 1e4 })).sort((a, b) => a.code.localeCompare(b.code, "en", { numeric: true }));
+  const weight = new Map<string, number>(); const byModel = new Map<string, Record<string, number>>();
+  for (const [key, value] of Array.from(perModel.entries())) {
+    const [groupId, modelCode] = key.split("\u0000");
+    weight.set(groupId, Math.max(weight.get(groupId) ?? 0, value));
+    (byModel.get(groupId) ?? byModel.set(groupId, {}).get(groupId)!)[modelCode] = Math.round(value * 1e4) / 1e4;
+  }
+  return groups.map(group => ({ ...group, weight: Math.round((weight.get(group.id) ?? 0) * 1e4) / 1e4, weightByModel: byModel.get(group.id) ?? {} })).sort((a, b) => a.code.localeCompare(b.code, "en", { numeric: true }));
 }
 
-async function savedLinks(db: Db, scope: Scope): Promise<StageLink[]> {
+export async function savedLinks(db: Db, scope: Scope): Promise<StageLink[]> {
   const rows = await db.select({ groupId: pmcScheduleStageLinks.groupId, stageCodesJson: pmcScheduleStageLinks.stageCodesJson, anchor: pmcScheduleStageLinks.anchor, suggestedScore: pmcScheduleStageLinks.suggestedScore }).from(pmcScheduleStageLinks).where(mine(pmcScheduleStageLinks, scope));
   return rows.map(row => ({ groupId: row.groupId, stageCodes: JSON.parse(row.stageCodesJson) as string[], anchor: row.anchor as StageAnchor, suggestedScore: row.suggestedScore === null ? null : Number(row.suggestedScore) }));
 }
