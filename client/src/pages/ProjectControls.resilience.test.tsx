@@ -51,6 +51,7 @@ vi.mock("@/lib/trpc", () => {
     siteReports: { list: { useQuery: () => ({ data: [] }) }, get: { useQuery: () => ({ data: undefined }) } }, // Q-54: the labour card beside the hero
     pmc: { stalledUnits: { useQuery: () => ({ data: { threshold: 3, longDays: 14, counts: { stalled: 2, long: 1, active: 4 }, rows: [] }, isError: false, error: null }) } },
     reportPeriods: { monthly: { useQuery: () => ({ isLoading: false, error: null, data: undefined }) } },
+    schedule: { plannedCurve: { useQuery: () => ({ data: undefined, isLoading: false, error: null }) } }, // Q-64 batch 2: the planning sentence reads the baseline's curve
     projects: {
       getControls: { useQuery: () => ({ isLoading: false, error: null, refetch: vi.fn(), data: { project: { code: "P-01", name: "Delivery evidence" }, wbs: [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], activities: [], budgets: [], costs: [], progress: [], latestEvm: null, latestHealth: null, cashFlow: null } }) },
       getControlsSchedule: { useQuery: () => ({ isLoading: state.scheduleLoading, error: state.scheduleError, refetch: vi.fn(), data: state.scheduleError || state.scheduleLoading ? undefined : { project: { code: "P-01", name: "Delivery evidence" }, wbs: state.scheduleEmpty ? [] : [{ id: "wbs-1", code: "W-01", name: "Still available", plannedValue: 100, progressPercent: 0 }], activities: [] } }) },

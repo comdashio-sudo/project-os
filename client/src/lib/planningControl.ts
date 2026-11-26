@@ -49,6 +49,7 @@ export function calculatePlanningControl(input: PlanningControlInput) {
   ];
   const riskLevel = dataGaps.length > 0 || overdueActivities.length > 0 || (costUtilization !== null && costUtilization > 1) || unfulfilledRequisitions.length > 0 ? "attention" : "controlled";
   return {
+    asOf,
     budget,
     postedActual,
     openCommitments,
@@ -78,6 +79,24 @@ export function calculatePlanningControl(input: PlanningControlInput) {
 
 export type PlanningControlResult = ReturnType<typeof calculatePlanningControl>;
 
+export type UpcomingActivity = { id: string; code: string; name: string; date: string };
+const DAY_MS = 24 * 60 * 60 * 1000;
+const dayOf = (value: Date | string) => new Date(value).toISOString().slice(0, 10);
+
+/**
+ * Q-64 batch 2: what the planner looks at next — the activities that should START and the ones that should FINISH in the next two weeks (today included, a late one excluded:
+ * it is already counted as late). A started activity is not «to start», a completed one is not «to finish». Sorted by date, then code; `starting` and `finishing` hold at most `limit` each
+ * and `startingCount` / `finishingCount` say how many there are in all.
+ */
+export function nextTwoWeeks(activities: PlanningControlInput["activities"], asOf: Date = new Date(), limit = 6) {
+  const from = dayOf(asOf); const to = dayOf(new Date(asOf.getTime() + 14 * DAY_MS));
+  const within = (value: Date | string | null | undefined) => (value ? (() => { const day = dayOf(value); return day >= from && day <= to; })() : false);
+  const order = (a: UpcomingActivity, b: UpcomingActivity) => a.date.localeCompare(b.date) || a.code.localeCompare(b.code, "en", { numeric: true });
+  const starting = activities.filter(item => item.status === "not_started" && within(item.plannedStartAt)).map(item => ({ id: item.id, code: item.code, name: item.name, date: dayOf(item.plannedStartAt!) })).sort(order);
+  const finishing = activities.filter(item => item.status !== "completed" && within(item.plannedFinishAt)).map(item => ({ id: item.id, code: item.code, name: item.name, date: dayOf(item.plannedFinishAt!) })).sort(order);
+  return { starting: starting.slice(0, limit), finishing: finishing.slice(0, limit), startingCount: starting.length, finishingCount: finishing.length };
+}
+
 export function formatPlanningPercent(value: number | null) {
   return value === null ? "—" : `${formatAmount(value * 100, 1)}%`; // 37.5% and 100%, not 100.0%
 }
@@ -103,7 +122,7 @@ export function planningControlLabel(code: string, language: Language | boolean)
  * Q-64: the planning page's one sentence, from the data and in a planner's words: how many activities there are, how many have started, how many are late
  * and blocked, and — only when there is a budget the reader may see — what has been spent against it. With no activities it says what is missing, never a zero.
  */
-export function planningHeadline(result: PlanningControlResult, currency: string, language: Language | boolean) {
+export function planningHeadline(result: PlanningControlResult, currency: string, language: Language | boolean, plan?: { planned: number; actual: number | null } | null) {
   const lang = resolveLanguage(language);
   const amount = (value: number) => formatPlanningAmount(value, currency, language);
   if (result.activityCount === 0) {
@@ -117,5 +136,12 @@ export function planningHeadline(result: PlanningControlResult, currency: string
     en: `${n} activities, ${s} started (${started}), ${result.overdueActivities > 0 ? `${late} past their planned finish` : "none behind"}${result.blockedActivities > 0 ? `, ${blocked} blocked` : ""}.`,
     ur: `${n} سرگرمیاں، ${s} شروع ہو چکی ہیں (${started})، ${result.overdueActivities > 0 ? `${late} طے شدہ تاریخ سے پیچھے` : "کوئی پیچھے نہیں"}${result.blockedActivities > 0 ? `، ${blocked} رکی ہوئی` : ""}۔`,
   }[lang];
-  return text + spent;
+  // Q-64 batch 2: where the plan says the project should be today, against what the site has done (the baseline's curve; absent until there is a baseline and every weighted group is linked)
+  const planned = plan ? formatAmount(plan.planned, 1) : ""; const actual = plan && plan.actual !== null ? formatAmount(plan.actual, 1) : "";
+  const against = plan ? ({
+    ar: ` المخطط حتى اليوم ${planned}%${plan.actual !== null ? `، والفعلي ${actual}%` : "، ولا إنجاز مسجَّل بعد"}.`,
+    en: ` Planned to date ${planned}%${plan.actual !== null ? `, actual ${actual}%` : ", no progress recorded yet"}.`,
+    ur: ` آج تک منصوبہ ${planned}%${plan.actual !== null ? `، اصل ${actual}%` : "، ابھی کوئی پیش رفت درج نہیں"}۔`,
+  }[lang]) : "";
+  return text + against + spent;
 }
