@@ -143,7 +143,8 @@ export default function SiteDailyReport() {
   const [copyChoices, setCopyChoices] = useState<Array<{ id: string; reportNumber: string | null; label: string | null }> | null>(null);
   const [locked, setLocked] = useState(false);
   const [rejectedNote, setRejectedNote] = useState<string | null>(null);
-  const [date, setDate] = useState(today());
+  // Q-59 (3): the quick search opens a report on its date (/m/…/report?date=2026-11-20); any other value is ignored
+  const [date, setDate] = useState(() => { const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date"); return asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) ? asked : today(); });
   const [weather, setWeather] = useState("");
   const [temperature, setTemperature] = useState("");
   const [summary, setSummary] = useState("");

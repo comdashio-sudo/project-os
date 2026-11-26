@@ -126,6 +126,7 @@ vi.mock("@/lib/trpc", () => ({
       executiveCashFlow: { useQuery: () => ({ isLoading: false, error: null, data: { cashFlow: state.executiveData.cashFlow, cashFlowByProject: state.executiveData.cashFlowByProject, cashFlowByPortfolio: state.executiveData.cashFlowByPortfolio } }) },
       reportSectionIssue: { useMutation: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null }) },
     },
+    search: { quick: { useQuery: () => ({ data: undefined, error: null, isFetching: false }) } },
     navigation: { get: { useQuery: () => ({ isLoading: false, error: null, data: [] }) } },
     pmc: { siteMap: { useQuery: () => ({ data: undefined, error: null }) }, qcMap: { useQuery: () => ({ data: undefined, error: null }) }, stalledUnits: { useQuery: () => ({ data: undefined, isError: false, error: null }) } },
     reportPeriods: { monthly: { useQuery: () => ({ isLoading: false, error: null, data: undefined }) } },

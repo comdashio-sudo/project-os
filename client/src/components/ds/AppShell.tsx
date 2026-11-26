@@ -31,6 +31,8 @@ type Props = {
   breadcrumbs: Crumb[]; user: { name: string; email: string }; onSignOut?: () => void; onMyCompanies?: () => void;
   mode?: Mode; onModeChange?: (mode: Mode) => void;
   children: React.ReactNode;
+  /** Q-59 (3): tools at the start of the top bar's actions (the quick search) */
+  headerTools?: React.ReactNode;
 };
 
 /** Q-54: a switcher on the dark menu — a dark card (#151B3A, edge #1C2350) with a small label over the chosen name, as the approved reference draws it; never the
@@ -136,6 +138,7 @@ export function AppShell(props: Props) {
         <Logo variant="horizontal" size={28} className="shrink-0 md:hidden" />
         <div className="hidden md:block"><Select aria-label={text.project} options={props.projects} value={props.project} onValueChange={props.onProject} className="min-h-9 w-56 md:min-h-9" /></div>
         <div className="ms-auto flex items-center gap-1">
+          {props.headerTools}
           <Menu.Root>
             <Menu.Trigger aria-label={text.language} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-muted"><Languages className="h-5 w-5" aria-hidden="true" /></Menu.Trigger>
             <Menu.Portal><Menu.Content align="end" sideOffset={6} className="z-50 min-w-40 rounded-[var(--radius)] border border-border bg-popover p-1 text-popover-foreground shadow-lg">
