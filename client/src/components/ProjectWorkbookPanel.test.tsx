@@ -9,12 +9,14 @@ const h = vi.hoisted(() => ({
   language: "ar" as "ar" | "en",
   preview: { data: undefined as unknown, mutate: vi.fn(), reset: vi.fn(), isPending: false, error: null },
   apply: { data: undefined as unknown, mutate: vi.fn(), reset: vi.fn(), isPending: false, error: null },
+  filled: { mutate: vi.fn(), isPending: false, error: null as unknown },
 }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ language: h.language, isArabic: h.language === "ar", isRtl: h.language === "ar", setLanguage: vi.fn() }) }));
 vi.mock("@/lib/trpc", () => ({ trpc: { dataImports: {
   projectWorkbook: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
   projectWorkbookPreview: { useMutation: () => h.preview },
   projectWorkbookApply: { useMutation: () => h.apply },
+  projectWorkbookFilled: { useMutation: () => h.filled },
 } } }));
 
 import { ProjectWorkbookPanel } from "./ProjectWorkbookPanel";
@@ -29,7 +31,7 @@ async function pick() {
   const input = document.querySelector('input[type="file"]') as HTMLInputElement;
   await act(async () => { fireEvent.change(input, { target: { files: [new File(["x"], "workbook.xlsx")] } }); await new Promise(resolve => setTimeout(resolve, 20)); });
 }
-beforeEach(() => { h.language = "ar"; h.preview.data = undefined; h.apply.data = undefined; h.preview.mutate.mockReset(); h.apply.mutate.mockReset(); });
+beforeEach(() => { h.language = "ar"; h.preview.data = undefined; h.apply.data = undefined; h.preview.mutate.mockReset(); h.apply.mutate.mockReset(); h.filled.mutate.mockReset(); h.filled.error = null; });
 afterEach(() => cleanup());
 
 describe("Q-51 batch 2b: the project workbook panel", () => {
@@ -58,5 +60,17 @@ describe("Q-51 batch 2b: the project workbook panel", () => {
     const refused = document.querySelector('[data-workbook-sheet="requests"]')!;
     expect(refused.getAttribute("data-workbook-state")).toBe("refused");
     expect(refused.textContent).toContain("الصف 6"); expect(refused.querySelector("[data-workbook-error=PMC_UNIT_NOT_FOUND]")).not.toBeNull(); expect(refused.textContent).not.toContain("PMC_UNIT_NOT_FOUND"); // said in words, not the code
+  });
+
+  it("Q-51 batch 3 — POSITIVE: «download with what the project holds» asks for this project's workbook in the reader's language; NEGATIVE: a refusal is said in words", () => {
+    h.language = "en";
+    const { rerender } = render(<ProjectWorkbookPanel tenantId="t1" projectId="p1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Download the workbook with what the project holds now/ }));
+    expect(h.filled.mutate).toHaveBeenCalledWith({ tenantId: "t1", projectId: "p1", locale: "en" });
+    expect(document.querySelector("[data-workbook-filled-download]")!.textContent).toContain("unchanged");
+    h.filled.error = { message: "PROJECT_OS_PERMISSION_DENIED", data: { code: "FORBIDDEN" } };
+    rerender(<ProjectWorkbookPanel tenantId="t1" projectId="p1" />);
+    const alert = document.querySelector("[data-workbook-filled-download] [role=alert]")!;
+    expect(alert.textContent).not.toBe(""); expect(alert.textContent).not.toContain("PROJECT_OS_PERMISSION_DENIED");
   });
 });
