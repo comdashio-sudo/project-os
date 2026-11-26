@@ -3,7 +3,7 @@
 // source are lists chosen on the screen, and the Excel export is exactly the rows the screen shows. Q-69 layout: the log first and wide, the filters beside it.
 import React, { useMemo, useState } from "react";
 import { useParams } from "wouter";
-import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput } from "@/components/ds";
+import { Badge, Button, Field, Select, TextInput } from "@/components/ds";
 import { formatDateTime } from "@/components/ds/format";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { PageMain, PageTitle } from "@/components/pageFrame";
@@ -60,12 +60,15 @@ const daysBefore = (day: string, days: number) => new Date(Date.parse(`${day}T12
 
 export default function ProgressLog() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
-  const { language, isArabic } = useLanguage();
+  const { language, isArabic, isRtl } = useLanguage();
+  const arrow = isRtl ? "←" : "→"; // before → after, read in the page's own direction
   const t = pickLanguage(language, text);
   const today = siteToday();
   const [from, setFrom] = useState(() => daysBefore(siteToday(), 30)); const [to, setTo] = useState(today);
   const [person, setPerson] = useState(ALL); const [block, setBlock] = useState(ALL); const [activity, setActivity] = useState(ALL); const [source, setSource] = useState(ALL);
   const [shownCount, setShownCount] = useState(PAGE);
+  const [filtersOpen, setFiltersOpen] = useState(() => { try { return window.matchMedia("(min-width: 1024px)").matches; } catch { return false; } });
+  const activeFilters = [person, block, activity, source].filter(value => value !== ALL).length;
   const query = trpc.pmc.progressLog.useQuery({ tenantId, projectId, from: from || undefined, to: to || undefined }, { enabled: Boolean(tenantId && projectId) });
   const entries = query.data?.entries ?? [];
   type Entry = (typeof entries)[number];
@@ -87,7 +90,7 @@ export default function ProgressLog() {
     { header: t.villas, value: (row: Entry) => villaRanges(row.villas) },
     { header: t.count, kind: "number" as const, value: (row: Entry) => row.villaCount },
     { header: t.block, value: (row: Entry) => row.blocks.join(", ") },
-    { header: t.change, value: (row: Entry) => `${statusLabel(row.from)} ← ${statusLabel(row.to)}` },
+    { header: t.change, value: (row: Entry) => `${statusLabel(row.from)} ${arrow} ${statusLabel(row.to)}` },
     { header: t.source, value: (row: Entry) => sourceLabel(row.source) },
   ];
 
@@ -109,7 +112,7 @@ export default function ProgressLog() {
                   <span className="font-medium">{entry.activityCode} — {entry.activityName}</span>
                   <Badge tone={entry.source === "undo" ? "warning" : entry.source === "qc" ? "info" : "neutral"}>{sourceLabel(entry.source)}</Badge>
                 </div>
-                <p className="mt-1 text-sm">{statusLabel(entry.from)} ← <strong>{statusLabel(entry.to)}</strong> · <bdi dir="ltr">{entry.villaCount}</bdi> {t.count}: <bdi dir="ltr">{villaRanges(entry.villas)}</bdi></p>
+                <p className="mt-1 text-sm">{statusLabel(entry.from)} {arrow} <strong>{statusLabel(entry.to)}</strong> · {t.villas} (<bdi dir="ltr">{entry.villaCount}</bdi>): <bdi dir="ltr">{villaRanges(entry.villas)}</bdi></p>
                 <p className="mt-1 text-xs text-muted-foreground"><bdi>{when(entry.at)}</bdi> · {entry.byName ?? t.unknown}{entry.blocks.length ? <> · {entry.blocks.join(", ")}</> : null}</p>
               </li>
             ))}
@@ -117,18 +120,19 @@ export default function ProgressLog() {
           </ul>
           {shown.length > shownCount ? <div><Button variant="secondary" onClick={() => setShownCount(count => count + PAGE)}>{t.more}</Button></div> : null}
         </section>
+        {/* on a phone the filters fold into one line above the log (the log is what matters first); on a laptop they stand open beside it */}
         <aside className="order-first lg:order-last">
-          <Card>
-            <CardHeader><CardTitle>{t.filters}</CardTitle></CardHeader>
-            <CardBody className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+          <details open={filtersOpen} onToggle={event => setFiltersOpen((event.target as HTMLDetailsElement).open)} className="rounded-[var(--radius)] border border-border bg-card" data-log-filters>
+            <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 px-4 py-2 font-semibold">{t.filters}{activeFilters ? <Badge tone="primary"><bdi dir="ltr">{activeFilters}</bdi></Badge> : null}</summary>
+            <div className="grid gap-3 border-t border-border p-4 sm:grid-cols-2 lg:grid-cols-1">
               <Field label={t.from}>{props => <TextInput {...props} type="date" dir="ltr" max={to || today} value={from} onChange={event => setFrom(event.target.value)} />}</Field>
               <Field label={t.to}>{props => <TextInput {...props} type="date" dir="ltr" min={from || undefined} max={today} value={to} onChange={event => setTo(event.target.value)} />}</Field>
               <Field label={t.person}>{props => <Select id={props.id} options={people} value={person} onValueChange={setPerson} />}</Field>
               <Field label={t.block}>{props => <Select id={props.id} options={blocks} value={block} onValueChange={setBlock} />}</Field>
               <Field label={t.activity}>{props => <Select id={props.id} options={activityOptions} value={activity} onValueChange={setActivity} />}</Field>
               <Field label={t.source}>{props => <Select id={props.id} options={sources} value={source} onValueChange={setSource} />}</Field>
-            </CardBody>
-          </Card>
+            </div>
+          </details>
         </aside>
       </div>
     </PageMain>

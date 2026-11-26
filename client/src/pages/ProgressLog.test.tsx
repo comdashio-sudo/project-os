@@ -28,7 +28,7 @@ describe("ProgressLog (Q-70 1)", () => {
     const rows = Array.from(document.querySelectorAll("[data-log-entry]"));
     expect(rows.map(row => row.getAttribute("data-log-entry"))).toEqual(["manual", "qc"]);
     expect(rows[0].textContent).toContain("700–703, 705");
-    expect(rows[0].textContent).toContain("— ← Complete");
+    expect(rows[0].textContent).toContain("— → Complete");
     expect(rows[1].textContent).toContain("QC receipt");
     expect(h.exported.rows).toHaveLength(2);
     const villas = h.exported.columns.find(column => column.header === "Villas")!;
