@@ -59,7 +59,7 @@ import { confirmTenantDeletion, previewTenantData, requestTenantDeletion } from 
 import { PMC_IMPORT_KINDS } from "./domain/pmcImport";
 import { withClientRequest } from "./clientRequests";
 import { exportPmcScreen, getPmcScreen } from "./pmcScreensService";
-import { getPmcSiteMap, getPmcUnitCard, savePmcUnitGeometries, uploadPmcSitePlan } from "./pmcPlanService";
+import { getPmcProgressBoard, getPmcSiteMap, getPmcUnitCard, savePmcUnitGeometries, uploadPmcSitePlan } from "./pmcPlanService";
 import { getPmcProgramme } from "./pmcProgrammeService";
 import { PMC_SCREEN_NAMES, type PmcScreenName } from "./domain/pmcScreenExport";
 import { analyzePmcImport, confirmPmcImport } from "./pmcImportService";
@@ -340,6 +340,8 @@ export const appRouter = router({
     pendingAtVerifier: pmcScreen("pending"),
     stagesView: pmcScreen("stages"),
     programme: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgramme({ userId: ctx.user.id, ...input })),
+    // Q-63: the progress board (KPI bar, villa counts, each villa's progress and this month's increase); the same PMC read gate as the site map
+    progressBoard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgressBoard({ userId: ctx.user.id, ...input })),
     siteMap: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().max(80).optional(), names: z.enum(["ar", "en"]).optional(), language: z.enum(EXPORT_LOCALES).optional() })).query(({ ctx, input }) => getPmcSiteMap({ userId: ctx.user.id, ...input })),
     unitCard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitNumber: z.number().int().min(0), names: z.enum(["ar", "en"]).optional(), language: z.enum(EXPORT_LOCALES).optional() })).query(({ ctx, input }) => getPmcUnitCard({ userId: ctx.user.id, ...input })),
     uploadSitePlan: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileName: z.string().trim().min(1).max(255) }).and(z.union([z.object({ base64: z.string().min(1).max(12_000_000) }), z.object({ uploadKey: z.string().min(1).max(1024) })]))).mutation(({ ctx, input }) => uploadPmcSitePlan({ userId: ctx.user.id, ...input })),

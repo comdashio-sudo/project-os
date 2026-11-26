@@ -7,7 +7,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { auditLogs, pmcSitePlans, pmcUnits, projects } from "../drizzle/schema";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb } from "./db";
 import { imageSize, parseGeoJsonUnits } from "./domain/pmcGeometry";
-import { siteMap, unitCard, withActivityNames, datasetHasEnglishNames } from "./domain/pmcScreens";
+import { progressBoard, siteMap, unitCard, withActivityNames, datasetHasEnglishNames } from "./domain/pmcScreens";
 import { authorizePmcRead, loadPmcDataset } from "./pmcScreensService";
 import { takeDirectUpload } from "./directUploadKeys";
 import { storageGetSignedUrl, storagePut } from "./storage";
@@ -83,6 +83,12 @@ export async function getPmcSiteMap(input: Scope & { activityCode?: string; now?
     withoutPolygon: dataset.units.filter(unit => !unit.geometry).length,
     hasEnglishNames: datasetHasEnglishNames(dataset),
   };
+}
+
+/** Q-63: the progress board — the KPI bar, the villa counts and each villa's progress and this month's increase — behind the PMC read gate. */
+export async function getPmcProgressBoard(input: Scope & { now?: Date }) {
+  const db = await authorizePmcRead(input);
+  return progressBoard(await loadPmcDataset(db, input, input.now ?? new Date()));
 }
 
 export async function getPmcUnitCard(input: Scope & { unitNumber: number; now?: Date; names?: "ar" | "en"; language?: "ar" | "en" | "ur" }) {
