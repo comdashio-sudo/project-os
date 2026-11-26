@@ -56,6 +56,21 @@ describe("FieldEntry (phone entry)", () => {
     expect(screen.getByText("Record another")).toBeTruthy();
   });
 
+  it("Q-71 (1): an item PMC computes is shown with its percent and source and cannot be picked; a manual item still can", () => {
+    load({ ...context, wbs: [{ ...context.wbs[0], computedFromPmc: true, pmcActivityCodes: ["WALLS", "SLAB"] }, { ...context.wbs[1], computedFromPmc: false, pmcActivityCodes: [] }] } as never);
+    const computed = screen.getByText("1 · Foundations").closest("li")!;
+    expect(computed.querySelector("button")).toBeNull();
+    expect(computed.textContent).toContain("40%");
+    expect(computed.textContent).toContain("computed from the villas' PMC cells");
+    expect(computed.textContent).toContain("WALLS، SLAB");
+    fireEvent.click(screen.getByText("1 · Foundations"));
+    expect(screen.queryByText("75%")).toBeNull(); // no percentage buttons opened for it
+    fireEvent.click(screen.getByText("2 · Structure"));
+    fireEvent.click(screen.getByText("75%"));
+    fireEvent.click(screen.getByText("Save"));
+    expect(state.progress).toHaveBeenCalledWith(expect.objectContaining({ wbsItemId: "x2", percentComplete: 75 }));
+  });
+
   it("cannot save progress before a percentage is chosen, and steps by five from the last value", () => {
     load();
     expect((screen.getByText("Save") as HTMLButtonElement).disabled).toBe(true);
