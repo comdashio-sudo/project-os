@@ -389,8 +389,8 @@ describe("MasterPlanDrawing", () => {
     async function colouredDrawing() {
       state.data = plan();
       (state.siteMap as { units: unknown[] }).units = [
-        { unitNumber: 1, modelCode: "A", blockCode: "B1", status: "COMPLETE" },
-        { unitNumber: 2, modelCode: "B", blockCode: "B2", status: "IN_PROGRESS" },
+        { unitNumber: 1, modelCode: "A", blockCode: "B1", status: "COMPLETE", phase: "PH1" },
+        { unitNumber: 2, modelCode: "B", blockCode: "B2", status: "IN_PROGRESS", phase: "PH2" },
       ];
       const { container } = render(<MasterPlanDrawing tenantId="t" projectId="p" />);
       await upload(container, DRAWING);
@@ -419,6 +419,15 @@ describe("MasterPlanDrawing", () => {
       expect(second!.getAttribute("fill-opacity")).not.toBe("0.08");
       fireEvent.click(screen.getByRole("button", { name: /Shape 1 · Confirmed/ }));
       expect(screen.getByRole("link", { name: "Villa card" }).getAttribute("href")).toBe("/m/t/p/unit/1?activity=BLK");
+    });
+
+    it("Q-60 batch 2c: the phase filter (shown because the villas carry phases) dims the villas of the other phase", async () => {
+      const container = await colouredDrawing();
+      expect(container.querySelector("[data-phase-filter]")).toBeTruthy();
+      fireEvent.change(screen.getByLabelText("Phase"), { target: { value: "PH2" } });
+      const [first, second] = Array.from(container.querySelectorAll("polygon[data-colour]"));
+      expect(first!.getAttribute("fill-opacity")).toBe("0.08");
+      expect(second!.getAttribute("fill-opacity")).not.toBe("0.08");
     });
 
     it("the QC source colours the same shapes by receipt, apart from the site's status", async () => {
