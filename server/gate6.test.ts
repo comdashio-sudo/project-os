@@ -57,7 +57,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   generateProjectAdvisoryForTenant: "records the advisor usage against the tenant's quota; the text is not stored as a record",
   setAccountLanguage: "a person's own interface-language preference (user_language_preferences, one row per signed-in person): not tenant data and not a protected business write, so no audit row (G-203)",
 };
-const PROJECT_GUARD = /assertProjectWithinTenant|resolveScopedAccess|authorizeInventory|authorizeNewImport|assertImportAccess|authorizeUpload|importAccess|authorizeExternalImport|authorizeDirectUpload|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
+const PROJECT_GUARD = /assertProjectWithinTenant|pmcGate\(|resolveScopedAccess|authorizeInventory|authorizeNewImport|assertImportAccess|authorizeUpload|importAccess|authorizeExternalImport|authorizeDirectUpload|assertDesignAccess|assertTenderAccess|assertAttendanceAccess|assertPerformance|assertWbsItemWithinProject|where\(and\(eq\(projects\.id, input\.projectId\), eq\(projects\.tenantId, input\.tenantId\)\)\)|getProjectControlsForTenant/;
 
 describe("Gate 6, static part (G-110)", () => {
   it("finds the mutations it is meant to guard (the scan is not vacuous)", () => {
@@ -79,6 +79,15 @@ describe("Gate 6, static part (G-110)", () => {
       if (!PROJECT_GUARD.test(body)) unguarded.push(name);
     }
     expect(unguarded).toEqual([]);
+  });
+
+  it("the PMC gate counted above proves the project itself: pmcGate calls assertProjectWithinTenant and the PMC feature check", () => {
+    const shared = readFileSync(join(import.meta.dirname, "wo22Shared.ts"), "utf8");
+    const start = shared.search(/export async function pmcGate\b/);
+    expect(start).toBeGreaterThan(-1);
+    const body = shared.slice(start, start + shared.slice(start).search(/\n}\n/) + 2);
+    expect(body).toMatch(/assertProjectWithinTenant\(/);
+    expect(body).toMatch(/assertTenantFeatureAccess\(/);
   });
 
   it("keeps the audit exemption list honest", () => {
