@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useParams } from "wouter";
 import { CalendarClock, FileSpreadsheet, FolderInput, LayoutGrid, ListChecks, Map as MapIcon, type LucideIcon } from "lucide-react";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { ProjectWorkbookPanel } from "@/components/ProjectWorkbookPanel";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -49,7 +49,7 @@ export default function ProjectImportHub() {
   const shown = KINDS.filter(kind => can[kind.page]);
   return (
     <PageMain className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-6">
-      <PageHeader><h1 className="text-2xl font-semibold">{pickLanguage(language, PAGE_NAMES.imports)}</h1><p className="mt-1 text-sm text-muted-foreground">{pickLanguage(language, text.intro)}</p></PageHeader>
+      <PageTitle title={pickLanguage(language, PAGE_NAMES.imports)} description={pickLanguage(language, text.intro)} />
       {shown.length ? (
         <ul className="grid gap-3 sm:grid-cols-2" data-import-cards>
           {shown.map(({ key, icon: Icon, path, title, files }) => (

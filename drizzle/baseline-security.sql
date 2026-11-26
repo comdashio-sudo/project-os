@@ -89,13 +89,25 @@ END $$;
 --> statement-breakpoint
 CREATE TRIGGER strategy_assumption_changes_refuse_update BEFORE UPDATE ON strategy_assumption_changes FOR EACH ROW EXECUTE FUNCTION project_os_append_only_refuse();
 --> statement-breakpoint
-CREATE TRIGGER strategy_assumption_changes_refuse_delete BEFORE DELETE ON strategy_assumption_changes FOR EACH ROW EXECUTE FUNCTION project_os_append_only_refuse();
+-- I57 (0054): DELETE is refused except by the company's own erasure, inside its transaction (project_os.erasing_tenant, SET LOCAL), for its rows, after its freeze
+CREATE FUNCTION project_os_strategy_changes_delete_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF current_setting('project_os.erasing_tenant', true) IS NOT DISTINCT FROM OLD.tenant_id
+     AND EXISTS (SELECT 1 FROM companies c WHERE c.id = OLD.tenant_id AND c.status <> 'active') THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION '% is append-only: % is refused', TG_TABLE_NAME, TG_OP USING ERRCODE = 'insufficient_privilege';
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION project_os_strategy_changes_delete_guard() FROM PUBLIC;
+--> statement-breakpoint
+CREATE TRIGGER strategy_assumption_changes_delete_on_erasure BEFORE DELETE ON strategy_assumption_changes FOR EACH ROW EXECUTE FUNCTION project_os_strategy_changes_delete_guard();
 --> statement-breakpoint
 CREATE TRIGGER strategy_assumption_changes_refuse_truncate BEFORE TRUNCATE ON strategy_assumption_changes FOR EACH STATEMENT EXECUTE FUNCTION project_os_append_only_refuse();
 --> statement-breakpoint
 ALTER TABLE strategy_assumption_changes ENABLE ALWAYS TRIGGER strategy_assumption_changes_refuse_update;
 --> statement-breakpoint
-ALTER TABLE strategy_assumption_changes ENABLE ALWAYS TRIGGER strategy_assumption_changes_refuse_delete;
+ALTER TABLE strategy_assumption_changes ENABLE ALWAYS TRIGGER strategy_assumption_changes_delete_on_erasure;
 --> statement-breakpoint
 ALTER TABLE strategy_assumption_changes ENABLE ALWAYS TRIGGER strategy_assumption_changes_refuse_truncate;
 --> statement-breakpoint

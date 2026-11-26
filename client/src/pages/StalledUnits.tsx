@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput } from "@/components/ds";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -47,7 +47,7 @@ export default function StalledUnits() {
 
   return (
     <PageMain className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-6">
-      <PageHeader><h1 className="text-2xl font-semibold">{t.title}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+      <PageTitle title={t.title} description={t.intro} />
       <SourceNotice query={query} isArabic={isArabic} title={t.title} />
       {query.data && (
         <div className="flex flex-wrap gap-2" data-stall-counts>
