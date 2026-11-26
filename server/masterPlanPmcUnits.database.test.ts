@@ -101,4 +101,18 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-62: the ma
     await expect(a.asOwner.masterPlans.linkDrawingUnit({ tenantId: a.tenantId, projectId: a.projectId, masterPlanVersionId: planVersionId, polygonId: shapes[0].id, pmcUnitId: villa[701] })).rejects.toThrow();
     expect(await a.asOwner.masterPlans.linkDrawingUnit({ tenantId: a.tenantId, projectId: a.projectId, masterPlanVersionId: planVersionId, polygonId: shapes[0].id, entityId: entity.id })).toMatchObject({ unitSource: "plan", entityId: entity.id });
   });
+
+  it("NEGATIVE (review of #553): project.read and project.write without project.pmc.read see no villas and cannot link one — no permission is widened", async () => {
+    // a custom role that may draw the master plan but not read PMC; given to the procurement person of the fixture (whose own templates have no PMC read)
+    const role = await a.asOwner.tenant.createRole({ tenantId: a.tenantId, code: "Q62_DRAWER", name: "Draws the plan (synthetic)", productCode: "PROJECT", permissionCodes: ["project.read", "project.write"] });
+    const { rows: [membership] } = await client.query("SELECT id FROM memberships WHERE tenant_id = $1 AND user_id = $2", [a.tenantId, a.people.procurement.id]);
+    await a.asOwner.tenant.assignMembershipRole({ tenantId: a.tenantId, membershipId: membership.id, roleId: role.id, scopeType: "project", scopeId: a.projectId });
+    const drawer = a.callerFor(a.people.procurement);
+    await expect(drawer.pmc.siteMap({ tenantId: a.tenantId, projectId: a.projectId })).rejects.toThrow(); // the PMC villas are closed to this person elsewhere too
+    expect(await drawer.masterPlans.drawingUnits(scope())).toEqual({ source: "pmc", villasDenied: true, units: [] });
+    const free = (await a.asOwner.masterPlans.drawingLayout(scope())).polygons.find(polygon => polygon.ref === "S2")!;
+    await expect(drawer.masterPlans.linkDrawingUnit({ ...scope(), polygonId: free.id, pmcUnitId: villa[701] })).rejects.toThrow(/PERMISSION_DENIED|permission/i);
+    // the owner, who has PMC read, still sees them
+    expect((await a.asOwner.masterPlans.drawingUnits(scope())).villasDenied).toBe(false);
+  });
 });

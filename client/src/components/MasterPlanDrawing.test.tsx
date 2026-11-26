@@ -106,6 +106,14 @@ describe("MasterPlanDrawing", () => {
     expect(screen.getByRole("note").textContent).toMatch(/no villas yet/);
   });
 
+  it("Q-62, review of #553: without PMC read the villas are not listed, and the screen says which permission links them", () => {
+    state.data = { plans: [PLAN], versions: [VERSION], entities: [] };
+    state.drawingUnits = { source: "pmc", villasDenied: true, units: [] };
+    render(<MasterPlanDrawing tenantId="t" projectId="p" />);
+    expect(screen.getByRole("note").textContent).toMatch(/needs the PMC read permission/);
+    expect(screen.queryByText(/no villas yet/)).toBeNull();
+  });
+
   it("Q-62: a version with no units of its own matches the drawing against the project's PMC villas, by number", async () => {
     state.data = { plans: [PLAN], versions: [VERSION], entities: [] };
     state.drawingUnits = { source: "pmc", units: ["B1-U-0001", "B1-U-0002", "B1-U-0003"].map((code, i) => ({ id: `villa-${i}`, code, name: code, status: "", progressPercent: "", blockCode: "B1", modelCode: "C" })) };

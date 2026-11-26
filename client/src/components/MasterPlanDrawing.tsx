@@ -95,6 +95,7 @@ const text = {
     savedVersion: (version: number, name: string) => `الرسم المحفوظ: النسخة ${version}، ${name}`,
     saveFailed: "تعذّر حفظ الرسم:",
     saveReason: "السبب من الخادم:",
+    villasDenied: "فلل المشروع (PMC) لا تظهر لك: ربطها بالرسم يحتاج صلاحية قراءة PMC للمشروع. اطلبها من مدير الشركة.",
     readFailed: "تعذّرت قراءة الملف",
     unsupported: "نوع الملف غير مدعوم. ارفع ملف DXF أو PNG أو JPG أو PDF.",
     dwg: "ملفات DWG لا تُقرأ في المتصفح. افتح الرسم في برنامج التصميم واحفظه بصيغة DXF أو PDF ثم ارفعه.",
@@ -148,6 +149,7 @@ const text = {
     savedVersion: (version: number, name: string) => `Saved drawing: version ${version}, ${name}`,
     saveFailed: "The drawing could not be saved:",
     saveReason: "Reason from the server:",
+    villasDenied: "The project's villas (PMC) are not shown to you: linking them to the drawing needs the PMC read permission on the project. Ask the company administrator.",
     readFailed: "The file could not be read",
     unsupported: "This file type is not supported. Upload a DXF, PNG, JPG or PDF file.",
     dwg: "DWG files cannot be read in the browser. Open the drawing in your design program, save it as DXF or PDF, then upload it.",
@@ -201,6 +203,7 @@ const text = {
     savedVersion: (version: number, name: string) => `محفوظ شدہ خاکہ: ورژن ${version}، ${name}`,
     saveFailed: "ڈرائنگ محفوظ نہیں ہو سکی:",
     saveReason: "سرور کی وجہ:",
+    villasDenied: "منصوبے کے ولاز (PMC) آپ کو نظر نہیں آتے: انہیں ڈرائنگ سے جوڑنے کے لیے منصوبے پر PMC پڑھنے کی اجازت درکار ہے۔ کمپنی کے منتظم سے مانگیں۔",
     readFailed: "فائل پڑھی نہیں جا سکی",
     unsupported: "یہ فائل کی قسم معاون نہیں ہے۔ DXF، PNG، JPG یا PDF فائل اپ لوڈ کریں۔",
     dwg: "DWG فائلیں براؤزر میں نہیں پڑھی جا سکتیں۔ ڈرائنگ کو ڈیزائن پروگرام میں کھول کر DXF یا PDF کے طور پر محفوظ کریں، پھر اپ لوڈ کریں۔",
@@ -531,7 +534,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       {!plansQuery.error && unitsQuery.error ? <SectionMessage title={t.title} isArabic={isArabic} language={language} kind="error" error={unitsQuery.error} onRetry={() => unitsQuery.refetch()} /> : null}
 
       {plansQuery.data && !hasVersion ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noPlan}</p> : null}
-      {plansQuery.data && hasVersion && unitsQuery.data && units.length === 0 ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noUnits}</p> : null}
+      {unitsQuery.data?.villasDenied ? <p role="note" data-villas-denied className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.villasDenied}</p> : null}
+      {plansQuery.data && hasVersion && unitsQuery.data && !unitsQuery.data.villasDenied && units.length === 0 ? <p role="note" className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground">{t.noUnits}</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <FileButton label={t.upload} accept=".dxf,.dwg,.png,.jpg,.jpeg,.pdf" showName={false} onFile={onFileChosen} />

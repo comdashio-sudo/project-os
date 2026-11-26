@@ -10,6 +10,7 @@ import { countPdfPages, detectDrawingKind, layoutProblem, type DrawingPolygonInp
 import { assertProjectWithinTenant, assertTenantFeatureAccess, getDb } from "./db";
 import { safeUploadFileName, takeDirectUpload } from "./directUploadKeys";
 import { storageGetSignedUrl, storagePut } from "./storage";
+import { authorize as authorizePmc } from "./pmcService";
 import { calibrationProblem, parseBackground, parseCalibration, type DrawingBackground, type DrawingCalibration } from "../shared/masterPlanCalibration";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -72,6 +73,20 @@ async function unitSourceOf(db: Db, scope: Scope, masterPlanVersionId: string): 
   return own ? "plan" : "pmc";
 }
 
+/**
+ * Review of #553 (D): the PMC villas are read everywhere else with project.pmc.read (and the PMC feature), so the master plan never shows or links them on
+ * project.read alone — that would widen a permission. Refused here means: no villas, said so; any other failure is thrown as it is.
+ */
+async function mayReadVillas(scope: Scope): Promise<boolean> {
+  try {
+    await authorizePmc(scope, "project.pmc.read");
+    return true;
+  } catch (error) {
+    if (error instanceof TRPCError && error.code === "FORBIDDEN") return false;
+    throw error;
+  }
+}
+
 /** The units the drawing screen matches shapes against, with where they come from. Read with the drawing's own permission (project.read). */
 export async function listMasterPlanDrawingUnits(input: Scope & { masterPlanVersionId: string }) {
   const db = await open(input, "project.read");
@@ -79,13 +94,14 @@ export async function listMasterPlanDrawingUnits(input: Scope & { masterPlanVers
   const source = await unitSourceOf(db, input, input.masterPlanVersionId);
   if (source === "plan") {
     const rows = await db.select({ id: masterPlanSpatialEntities.id, code: masterPlanSpatialEntities.code, name: masterPlanSpatialEntities.name, status: masterPlanSpatialEntities.status, progressPercent: masterPlanSpatialEntities.progressPercent }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), eq(masterPlanSpatialEntities.entityType, "unit"), eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))).orderBy(asc(masterPlanSpatialEntities.code));
-    return { source, units: rows.map(row => ({ ...row, blockCode: null as string | null, modelCode: null as string | null })) };
+    return { source, villasDenied: false, units: rows.map(row => ({ ...row, blockCode: null as string | null, modelCode: null as string | null })) };
   }
+  if (!(await mayReadVillas(input))) return { source, villasDenied: true, units: [] as Array<{ id: string; code: string; name: string; status: string; progressPercent: string; blockCode: string | null; modelCode: string | null }> };
   const rows = await db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, modelCode: pmcUnits.modelCode, blockCode: pmcBlocks.code })
     .from(pmcUnits).innerJoin(pmcBlocks, and(eq(pmcBlocks.id, pmcUnits.blockId), eq(pmcBlocks.tenantId, pmcUnits.tenantId), eq(pmcBlocks.projectId, pmcUnits.projectId)))
     .where(and(eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId))).orderBy(asc(pmcUnits.unitNumber));
   // the villa's code on the drawing is its number (the colouring and the villa card read it the same way); its site status comes from the colouring
-  return { source, units: rows.map(row => ({ id: row.id, code: String(row.unitNumber), name: String(row.unitNumber), status: "", progressPercent: "", blockCode: row.blockCode, modelCode: row.modelCode })) };
+  return { source, villasDenied: false, units: rows.map(row => ({ id: row.id, code: String(row.unitNumber), name: String(row.unitNumber), status: "", progressPercent: "", blockCode: row.blockCode, modelCode: row.modelCode })) };
 }
 
 /** A unique-key clash from the database, whether the driver reports it directly or wrapped in the ORM's error. */
@@ -207,6 +223,7 @@ export async function linkMasterPlanDrawingUnit(input: Scope & { masterPlanVersi
   if (input.entityId !== undefined && source === "plan") {
     [unit] = await db.select({ id: masterPlanSpatialEntities.id, code: masterPlanSpatialEntities.code }).from(masterPlanSpatialEntities).where(and(eq(masterPlanSpatialEntities.id, input.entityId), eq(masterPlanSpatialEntities.masterPlanVersionId, input.masterPlanVersionId), eq(masterPlanSpatialEntities.entityType, "unit"), eq(masterPlanSpatialEntities.tenantId, input.tenantId), eq(masterPlanSpatialEntities.projectId, input.projectId))).limit(1);
   } else if (input.pmcUnitId !== undefined && source === "pmc") {
+    if (!(await mayReadVillas(input))) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_PERMISSION_DENIED" });
     const [villa] = await db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber }).from(pmcUnits).where(and(eq(pmcUnits.id, input.pmcUnitId), eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId))).limit(1);
     unit = villa ? { id: villa.id, code: String(villa.unitNumber) } : undefined;
   }
