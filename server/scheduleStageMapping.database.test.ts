@@ -34,7 +34,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-61 (3): sc
   let a: Fixture; let b: Fixture; let client: pg.Client;
   const groupIds: Record<string, string> = {};
   const scope = () => ({ tenantId: a.tenantId, projectId: a.projectId });
-  const links = async (tenantId: string) => (await client.query("SELECT group_id, stage_codes_json, anchor, suggested_score FROM pmc_schedule_stage_links WHERE tenant_id = $1 ORDER BY stage_codes_json", [tenantId])).rows;
+  const links = async (tenantId: string) => (await client.query("SELECT group_id, stage_codes_json, anchor, suggested_score FROM pmc_schedule_stage_links WHERE tenant_id = $1 ORDER BY stage_codes_json COLLATE \"C\"", [tenantId])).rows; // byte order: a text sort follows the database's collation, and CI's (en_US) ignores the punctuation that the local C collation puts first
 
   beforeAll(async () => {
     client = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL }); await client.connect();
