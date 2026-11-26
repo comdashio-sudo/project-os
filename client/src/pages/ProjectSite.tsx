@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useParams } from "wouter";
 import { ClipboardCheck, FileText, PauseCircle, TrendingUp, type LucideIcon } from "lucide-react";
 import { Badge, Card, CardBody } from "@/components/ds";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -63,7 +63,7 @@ export default function ProjectSite() {
 
   return (
     <PageMain className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-6">
-      <PageHeader><h1 className="text-2xl font-semibold">{name("site")}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+      <PageTitle title={name("site")} description={t.intro} />
       {can.dailyReport ? <SourceNotice query={reports} isArabic={isArabic} title={name("dailyReport")} /> : null}
       {can.progress ? <SourceNotice query={activities} isArabic={isArabic} title={name("progress")} /> : null}
       {can.qc ? <SourceNotice query={receipts} isArabic={isArabic} title={name("qcReceipt")} /> : null}

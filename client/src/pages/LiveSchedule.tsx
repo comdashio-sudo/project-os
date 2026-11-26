@@ -6,7 +6,7 @@ import React, { useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput } from "@/components/ds";
 import { formatDate } from "@/components/ds/format";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -72,7 +72,7 @@ export default function LiveSchedule() {
 
   return (
     <PageMain className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 md:p-6">
-      <PageHeader><h1 className="text-2xl font-semibold">{title}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+      <PageTitle title={title} description={t.intro} />
       <SourceNotice query={query} isArabic={isArabic} title={title} />
       {data && <>
         <div className="flex flex-wrap items-center gap-2 text-sm" data-live-dates>

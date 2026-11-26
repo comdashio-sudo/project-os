@@ -3,7 +3,7 @@
 // same components the board shows, unchanged; this page only puts one of them on its own address with its own title.
 import React from "react";
 import { Link, useParams } from "wouter";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { PAGE_NAMES } from "@shared/pageNames";
@@ -34,10 +34,8 @@ export default function ProjectImportKind() {
   const scope = { tenantId, projectId };
   return (
     <PageMain className="flex min-w-0 flex-col gap-5 [&>*]:min-w-0" data-import-kind={known ?? "unknown"}>
-      <PageHeader>
-        <Link href={`/projects/${tenantId}/${projectId}/import`} className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">{pickLanguage(language, back)}</Link>
-        <h1 className="text-2xl font-semibold">{known ? pickLanguage(language, IMPORT_KIND_TITLES[known]) : pickLanguage(language, PAGE_NAMES.imports)}</h1>
-      </PageHeader>
+      <PageTitle eyebrow={<Link href={`/projects/${tenantId}/${projectId}/import`} className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">{pickLanguage(language, back)}</Link>}
+        title={known ? pickLanguage(language, IMPORT_KIND_TITLES[known]) : pickLanguage(language, PAGE_NAMES.imports)} />
       {/* each screen in its own boundary: a failure in one (the drawing, the plan board) never takes the page down (G-100) */}
       {known ? (known === "master-plan" ? [MasterPlanDrawing, ProjectMasterPlan] : [{ programme: ProjectImports, operational: ProjectOperationalImports, reference: ProjectReferenceLists }[known]]).map((Screen, index) => (
         <SectionErrorBoundary key={index} title={pickLanguage(language, IMPORT_KIND_TITLES[known])} isArabic={isArabic}><Screen {...scope} /></SectionErrorBoundary>

@@ -44,6 +44,8 @@ export const NOT_COMPANY_DATA = [
 
 /** Kept on purpose when a company is erased. */
 export const RETAINED_TENANT_TABLES = ["audit_logs"] as const;
+/** I57: append-only company data whose database guard lets the erasure remove it only under project_os.erasing_tenant, set in that transaction (0054). */
+export const ERASED_UNDER_FLAG = ["strategy_assumption_changes"] as const;
 
 /** Columns never written to an export: they authorise something and are not the company's information. */
 export const REDACTED_COLUMNS: Record<string, string[]> = { membership_invitations: ["token_hash"] };
@@ -311,6 +313,16 @@ async function erasePass(db: Db, tenantId: string, map: SchemaMap, deleted: Map<
   for (const table of map.deletionOrder) {
     const child = childFor(table);
     let total = 0;
+    // I57 (0054): an append-only history the database lets go only inside the erasure's own transaction, flagged with this company (SET LOCAL, so the
+    // flag ends with it), and only after the freeze; the rows go in that one transaction
+    if ((ERASED_UNDER_FLAG as readonly string[]).includes(table)) {
+      total = await db.transaction(async tx => {
+        await tx.execute(sql`SELECT set_config('project_os.erasing_tenant', ${tenantId}, true)`);
+        return affected(tx as unknown as Db, sql`DELETE FROM ${id(table)} WHERE tenant_id = ${tenantId}`);
+      });
+      deleted.set(table, (deleted.get(table) ?? 0) + total);
+      continue;
+    }
     for (;;) {
       const n = child
         ? await affected(db, sql`DELETE FROM ${id(table)} c USING ${id(child.parent)} p WHERE c.${id(child.column)} = p.id AND p.tenant_id = ${tenantId}`)

@@ -9,7 +9,7 @@ import { useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput } from "@/components/ds";
 import { formatDate } from "@/components/ds/format";
 import { OwnerSelect } from "@/components/OwnerSelect";
-import { PageHeader, PageMain } from "@/components/pageFrame";
+import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SectionErrorBoundary, SourceNotice } from "@/components/SectionResilience";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -46,7 +46,7 @@ export default function ProjectMeetings() {
   const selected = chosen ?? list.data?.[0]?.id ?? null;
   return (
     <PageMain className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 md:p-6">
-      <PageHeader className="print:hidden"><h1 className="text-2xl font-semibold">{title}</h1><p className="mt-1 text-sm text-muted-foreground">{t.intro}</p></PageHeader>
+      <PageTitle className="print:hidden" title={title} description={t.intro} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <div className="flex flex-col gap-4 print:hidden">
           <SectionErrorBoundary title={t.list} isArabic={isArabic}>
