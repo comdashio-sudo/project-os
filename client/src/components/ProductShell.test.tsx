@@ -231,3 +231,25 @@ describe("Q-59 (1): the project's items in sections that fold", () => {
     expect(within(screen.getByRole("navigation", { name: "Main navigation" })).getByRole("link", { name: "Project controls (PMC)" }).getAttribute("aria-current")).toBe("page");
   });
 });
+
+describe("Q-59 (5): the phone's bottom bar", () => {
+  it("POSITIVE: the site's daily pages the menu holds, in order, and «More» opens the menu", () => {
+    state.nav = [
+      { id: "project-controls", labelKey: "navigation.projectControls", href: "/projects/t1/p1/controls" },
+      { id: "project-qc", labelKey: "page.qcReceipt", href: "/m/t1/p1/qc" },
+      { id: "project-daily-report", labelKey: "page.dailyReport", href: "/m/t1/p1/report" },
+    ] as never;
+    state.location = "/projects/t1/p1/controls";
+    render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    const bar = document.querySelector("[data-bottom-bar]") as HTMLElement;
+    expect(Array.from(bar.querySelectorAll("[data-bottom-item]")).map(node => [node.getAttribute("data-bottom-item"), node.getAttribute("href")])).toEqual([["project-daily-report", "/m/t1/p1/report"], ["project-qc", "/m/t1/p1/qc"]]);
+    expect(document.querySelector("[data-mobile-menu]")).toBeNull();
+    fireEvent.click(bar.querySelector("[data-bottom-more]") as HTMLElement);
+    expect(document.querySelector("[data-mobile-menu]")).not.toBeNull();
+  });
+  it("NEGATIVE: no bar for a person whose menu holds none of the site's daily pages (an office role)", () => {
+    state.nav = [{ id: "project-controls", labelKey: "navigation.projectControls", href: "/projects/t1/p1/controls" }] as never;
+    render(<ProductShell tenantId="t1" projectId="p1"><p>screen</p></ProductShell>);
+    expect(document.querySelector("[data-bottom-bar]")).toBeNull();
+  });
+});
