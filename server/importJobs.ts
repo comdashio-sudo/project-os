@@ -30,6 +30,8 @@ import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageDelete, storage
 /** A running job that has not touched its heartbeat for this long is dead: the function's own limit (300 s) is shorter. */
 export const IMPORT_JOB_STALL_MS = 6 * 60 * 1000;
 export const IMPORT_JOB_MAX_ATTEMPTS = 3;
+/** A running P6 write touches its heartbeat this often (the stall window is 6 minutes). */
+const P6_HEARTBEAT_MS = 30_000;
 /** Up to this many rows the work finishes inside the request; above it the confirmation / re-analysis becomes a background job. */
 export const IMPORT_SYNC_MAX_ROWS = 2_000;
 /** An upload nobody registered within this time is removed by the sweep. */
@@ -272,7 +274,10 @@ async function confirmP6Job(db: Db, job: JobIdentity, onStage: (stage: string, p
   const bytes = await storageRead(record.fileKey);
   if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== record.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   await onStage("writing", 30);
-  await confirmP6Import({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, bytes, approvedHash: record.fileHash, source: { key: record.fileKey, name: record.fileName }, importId: job.importId });
+  // the write is ONE transaction that can outlast the stall window of a job that never touches its heartbeat: while this run is alive it keeps saying so (a dead function stops, and the sweep revives it)
+  const beat = setInterval(() => { void onStage("writing", 30).catch(error => logError("import.heartbeat_failed", error, { importId: job.importId })); }, P6_HEARTBEAT_MS);
+  try { await confirmP6Import({ userId: job.userId, tenantId: job.tenantId, projectId: job.projectId, bytes, approvedHash: record.fileHash, source: { key: record.fileKey, name: record.fileName }, importId: job.importId }); }
+  finally { clearInterval(beat); }
 }
 
 /** Who may act on an import at all: the general importer's gate, or (for a PMC / master-plan import) that module's own. The module's gate is ALSO applied to the record afterwards, so holding one never opens the other. */
