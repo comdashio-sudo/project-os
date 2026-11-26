@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { pickLanguage, type Language } from "@/lib/language";
 import { buildStrategyBoardPack, PACK_TEXT, scenarioRows, SCENARIOS, strategyWorkbook, type Forecast } from "@/lib/strategyBoardPack";
 import { downloadBytes, weeklyDeckPptx } from "@/lib/weeklyDeckPptx";
+import { traceText } from "@/lib/strategyTrace";
 import { trpc } from "@/lib/trpc";
 
 // Q-21 (b), batch 3: the scenarios side by side and the board pack. The table is scenarioRows — the same rows, written the same way, that the pack's slide
@@ -58,7 +59,7 @@ export default function StrategyScenarios({ tenantId, language }: { tenantId: st
           {data.backlog.unscheduled.count ? <span className="text-warning-soft-foreground"> — <bdi dir="ltr">{formatNumber(data.backlog.unscheduled.count)}</bdi> {p.unscheduled} · <bdi dir="ltr">{formatAmount(data.backlog.unscheduled.remainingValue)}</bdi> {p.sar}</span> : null}</p>
         {missing.length ? <p className="text-sm text-warning-soft-foreground" data-strategy-missing>{p.missing}: <bdi dir="ltr">{missing.join(", ")}</bdi></p> : null}
         <details className="text-sm"><summary className="min-h-11 cursor-pointer py-2">{t.traceTitle}</summary>
-          <ul className="grid gap-1 ps-4">{data.scenarios.base.trace.map(step => <li key={step.figure}><bdi dir="ltr">{step.figure}: {step.formula}</bdi></li>)}</ul>
+          <ul className="grid gap-1 ps-4" data-strategy-trace>{data.scenarios.base.trace.map(step => { const said = traceText(step, language); return <li key={step.figure} data-trace-step={step.figure}><span className="font-medium">{said.figure}</span>: <bdi>{said.formula}</bdi></li>; })}</ul>
         </details>
         <div className="flex flex-wrap gap-2">
           <Button type="button" className="min-h-11" disabled={busy !== ""} data-strategy-download="pptx" onClick={() => void download("pptx")}>{busy === "pptx" ? t.preparing : t.pptx}</Button>

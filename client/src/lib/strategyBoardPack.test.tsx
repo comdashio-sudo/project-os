@@ -54,4 +54,15 @@ describe("Q-21 (b): the board pack", () => {
     expect(text).toContain("4,000,000 ريال");
     expect(deckProblems(slides)).toEqual([]);
   });
+
+  it("Q-21 limit — NEGATIVE then POSITIVE: the trace slide and the trace sheet of an Urdu or Arabic pack say each step in that language, not the server's English words", async () => {
+    const slides = buildStrategyBoardPack({ forecast, assumptions, language: "ur", company: "مختلق کمپنی" });
+    const text = JSON.stringify(slides);
+    expect(text).toContain("آمدنی");
+    expect(text).not.toContain("tendersPerYear / 12 × winRate × averageTenderValue"); // the server's English line
+    const ExcelJS = (await import("exceljs")).default; const book = new ExcelJS.Workbook();
+    await book.xlsx.load(await strategyWorkbook({ forecast, assumptions, language: "ar" }));
+    const sheet = book.worksheets[book.worksheets.length - 1];
+    expect(sheet.getRow(2).values).toEqual([undefined, "الإيراد", expect.stringContaining("يتوزّع على \u2066executionMonths\u2069"), "tendersPerYear, winRate, averageTenderValue"]);
+  });
 });

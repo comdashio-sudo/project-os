@@ -3,6 +3,7 @@
 // screen says. The slides use the weekly deck's frame and writer (weeklyDeck.ts / weeklyDeckPptx.ts: 16:9, native charts) and its checker (deckProblems).
 import { formatAmount, formatNumber } from "@/components/ds/format";
 import { SLIDE, type Item, type Slide } from "@/lib/weeklyDeck";
+import { traceText } from "@/lib/strategyTrace";
 
 export const SCENARIOS = ["conservative", "base", "optimistic"] as const;
 type Scenario = (typeof SCENARIOS)[number];
@@ -96,7 +97,7 @@ export function buildStrategyBoardPack(input: { forecast: Forecast; assumptions:
       [`${t.sensitivityLine.replace("{d}", formatNumber(forecast.sensitivity.winRateDelta))} — ${t.lowest}`, ...SCENARIOS.map(key => money(forecast.sensitivity.lowestCashChange[key], t))]] },
       { kind: "text", role: "body", box: { x: M, y: 3.5, w: W, h: 2.4 }, size: 14, text: `${t.backlog}: ${formatNumber(forecast.backlog.scheduled.count)} ${t.contracts} ${t.scheduled} · ${money(forecast.backlog.scheduled.remainingValue, t)}\n${t.backlog}: ${formatNumber(forecast.backlog.unscheduled.count)} ${t.contracts} ${t.unscheduled} · ${money(forecast.backlog.unscheduled.remainingValue, t)}\n${t.missing}: ${missing.length ? missing.join(", ") : t.none}` }] },
     { items: [title(t.assumptions), { kind: "table", box: { x: M, y: 1.2, w: W, h: 5.4 }, size: 11, rows: [[t.code, t.conservative, t.base, t.optimistic], ...input.assumptions.slice(0, 14).map(item => [`${item.code} · ${item.name}`, ...SCENARIOS.map(key => formatAmount(item.values[key]))])] }] },
-    { items: [title(t.trace), { kind: "table", box: { x: M, y: 1.2, w: W, h: 5.4 }, size: 10, rows: [[t.figure, t.formula, t.uses], ...forecast.scenarios.base.trace.slice(0, 10).map(step => [step.figure, step.formula, step.uses.join(", ")])] }] },
+    { items: [title(t.trace), { kind: "table", box: { x: M, y: 1.2, w: W, h: 5.4 }, size: 10, rows: [[t.figure, t.formula, t.uses], ...forecast.scenarios.base.trace.slice(0, 10).map(step => { const said = traceText(step, language); return [said.figure, said.formula, said.uses]; })] }] },
   ];
   return slides.map((slide, index) => ({ items: [...slide.items, footer(`${t.footer} ${formatNumber(index + 1)}/${formatNumber(slides.length)}`)] }));
 }
@@ -124,6 +125,6 @@ export async function strategyWorkbook(input: { forecast: Forecast; assumptions:
   for (const item of input.assumptions) assumptions.addRow([`${item.code} · ${item.name}`, ...SCENARIOS.map(key => item.values[key])]);
   const trace = sheet(t.trace);
   trace.addRow([t.figure, t.formula, t.uses]);
-  for (const step of forecast.scenarios.base.trace) trace.addRow([step.figure, step.formula, step.uses.join(", ")]);
+  for (const step of forecast.scenarios.base.trace) { const said = traceText(step, language); trace.addRow([said.figure, said.formula, said.uses]); } // in the reader's language (strategyTrace.ts)
   return (await book.xlsx.writeBuffer()) as ArrayBuffer;
 }
