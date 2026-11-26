@@ -47,7 +47,7 @@ export function PageTitle({ title, description, actions, filters, eyebrow, class
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title}</h1>
           {description ? <p data-page-description="" className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p> : null}
         </div>
-        {actions ? <div data-page-actions="" className="flex flex-wrap items-center gap-2 print:hidden">{actions}</div> : null}
+        {actions ? <div data-page-buttons="" className="flex flex-wrap items-center gap-2 print:hidden">{actions}</div> : null}
       </div>
       {filters ? <div data-page-filters="" role="group" className="flex flex-wrap items-end gap-3 rounded-[14px] border border-border bg-card p-3 print:hidden">{filters}</div> : null}
     </PageHeader>
