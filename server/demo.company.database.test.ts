@@ -245,6 +245,23 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect((await site.workConfirmations.list({ tenantId, projectId })).find(item => item.number === "WC-004")!.status).toBe("submitted");
   });
 
+  it("Q-55 (3b): the live schedule in PRJ-DEMO-3 — a baseline from a P6 file and two updates the planning engineer saved; the other projects' activities untouched; NEGATIVE: a site engineer of the first project does not read it", async () => {
+    const owner = await asPerson(OWNER);
+    const project3 = (await owner.projects.list({ tenantId })).find(item => item.code === "PRJ-DEMO-3")!;
+    expect(project3).toBeTruthy();
+    // read as the owner: the planning engineer's role template holds the schedule's write (project.schedule.manage) but not project.read, which the screen asks
+    const live = await owner.schedule.live({ tenantId, projectId: project3.id });
+    expect(live.baseline).toMatchObject({ source: "p6_import", isBaseline: true, activityCount: 16 });
+    expect(live.snapshots.map(item => item.source)).toEqual(["p6_update", "p6_update", "p6_import"]); // newest first; the «before» copies are left out of the list
+    expect(live.summary).toMatchObject({ activities: 16, started: 6, finished: 5, lateFinishing: 5 });
+    expect(live.rows.every(row => row.inBaseline)).toBe(true);
+    expect(live.summary.critical).toBeGreaterThan(0);
+    // the two projects' own figures are untouched: no activity of the P6 file is in them
+    const [[foreign]] = await connection.query<{ n: number }[]>("SELECT COUNT(*)::int AS n FROM activities WHERE tenantId = ? AND projectId IN (?, ?) AND code LIKE 'D3-%'", [tenantId, projectId, project2Id]);
+    expect(Number(foreign.n)).toBe(0);
+    await expect((await asPerson("site.engineer.1@show.example.test")).schedule.live({ tenantId, projectId: project3.id })).rejects.toThrow();
+  });
+
   it("Q-55 (3b): the planning centre — twelve assumptions (ten approved by someone other than their writer), three competitors and their SWOT, five opportunities, four goals and six initiatives", async () => {
     const owner = await asPerson(OWNER);
     const assumptions = await owner.strategy.assumptions({ tenantId });
@@ -299,7 +316,7 @@ describe.skipIf(!run)("the demonstration company", () => {
     const pm = await asPerson("project.manager@show.example.test"); const keeper = await asPerson("warehouse.keeper@show.example.test");
     const company = await board.scopes.company({ tenantId });
     expect(company.readOnly).toBe(true);
-    expect(company.projects.map(item => item.code)).toEqual(["PRJ-DEMO-1", "PRJ-DEMO-2"]);
+    expect(company.projects.map(item => item.code)).toEqual(["PRJ-DEMO-1", "PRJ-DEMO-2", "PRJ-DEMO-3"]); // the third: the live schedule's own project (I57, 08:41)
     const portfolio = await pmo.scopes.portfolio({ tenantId });
     expect(portfolio.totals.projectCount).toBe(2);
     const project = (await pm.scopes.project({ tenantId, projectId })).project;
