@@ -1881,6 +1881,11 @@ export const projectErrorMessages = {
     en: "The stall threshold is a number of working days from 1 to 60.",
     ur: "رکاوٹ کی حد 1 سے 60 تک کام کے دنوں کی تعداد ہے۔",
   },
+  PROJECT_OS_SITE_UPDATE_CONFIRM_COUNT: {
+    ar: "لم يُحفظ شيء بعد: هذا التحديث يشمل أكثر من 100 فيلا، فأكّد عددها أولًا.",
+    en: "Nothing was saved yet: this update covers more than 100 villas, so confirm their number first.",
+    ur: "ابھی کچھ محفوظ نہیں ہوا: یہ اپ ڈیٹ 100 سے زیادہ ولاز پر ہے، پہلے ان کی تعداد کی تصدیق کریں۔",
+  },
   PROJECT_OS_SITE_UPDATE_INVALID: {
     ar: "لم يُحفظ شيء: في الإدخال ما يجب تصحيحه (فيلا غير موجودة، أو تاريخ في المستقبل، أو حقل ناقص، أو نشاط لا ينطبق على نموذج الفيلا). التفاصيل تحت النموذج.",
     en: "Nothing was saved: something in the entry must be corrected (a villa that does not exist, a date in the future, a missing field, or an activity that does not apply to the villa's type). The details are under the form.",
