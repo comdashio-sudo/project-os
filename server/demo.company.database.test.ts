@@ -223,6 +223,30 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect(DEMO_PEOPLE.every(person => person.email.endsWith("@show.example.test"))).toBe(true);
   });
 
+  it("Q-55 (3b): the planning centre — twelve assumptions (ten approved by someone other than their writer), three competitors and their SWOT, five opportunities, four goals and six initiatives", async () => {
+    const owner = await asPerson(OWNER);
+    const assumptions = await owner.strategy.assumptions({ tenantId });
+    expect(assumptions).toHaveLength(12);
+    expect(assumptions.filter(item => item.status === "approved")).toHaveLength(10);
+    expect(assumptions.filter(item => item.status === "pending")).toHaveLength(1);
+    expect(assumptions.filter(item => item.module === "market")).toHaveLength(6);
+    // the separation of duties held: whoever approved an assumption neither wrote nor sent it
+    const [approvals] = await connection.query<{ n: number }[]>("SELECT count(*)::int AS n FROM strategy_assumptions WHERE tenantId = ? AND status = 'approved' AND (approvedByUserId = createdByUserId OR approvedByUserId = submittedByUserId)", [tenantId]);
+    expect(approvals[0].n).toBe(0);
+    expect(await owner.strategy.competitors({ tenantId })).toHaveLength(3);
+    expect((await owner.strategy.swot({ tenantId })).length).toBe(7);
+    const opportunities = await owner.strategy.opportunities({ tenantId });
+    expect(opportunities.map(item => item.status).sort()).toEqual(["lost", "open", "submitted", "submitted", "won"]);
+    const pipeline = await owner.strategy.pipeline({ tenantId });
+    expect(pipeline).toBeTruthy();
+    expect(await owner.strategy.goals({ tenantId })).toHaveLength(4);
+    expect(await owner.strategy.initiatives({ tenantId })).toHaveLength(6);
+    // the board member reads the centre and approves, and enters nothing (NEGATIVE: no strategy.manage)
+    const board = await asPerson("board.member@show.example.test");
+    expect(await board.strategy.assumptions({ tenantId })).toHaveLength(12);
+    await expect(board.strategy.createAssumption({ tenantId, code: "X-NOPE", name: "لا (عرض)", unit: "percent", sourceType: "management", confidence: "low", reviewFrequency: "annual", values: { conservative: 1, base: 2, optimistic: 3 } })).rejects.toThrow();
+  });
+
   it("Q-55 (2): the latest report of the reports-mode project exports as Word, with its parties and its sections", async () => {
     const { startFakeS3 } = await import("./testing/fakeS3"); const { ENV } = await import("./_core/env"); const JSZip = (await import("jszip")).default;
     const s3 = await startFakeS3();
