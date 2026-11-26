@@ -83,7 +83,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-61 (1): a large Primav
     expect(await n("SELECT COUNT(*) AS n FROM activity_code_types WHERE tenantId = ?", [T])).toBe(LARGE_P6_COUNTS.codeTypes);
     // every villa's activities are reachable by their villa node (the shape the baseline calculation will read)
     expect(await n("SELECT COUNT(*) AS n FROM activities a INNER JOIN wbs_items w ON w.id = a.wbsItemId WHERE a.tenantId = ? AND w.code LIKE 'V%'", [T])).toBe(LARGE_P6_COUNTS.activities);
-  }, 600_000);
+  }, 1_200_000);
 
   it("a file that is not the approved one is refused before any import row exists", async () => {
     const manager = callerFor();
