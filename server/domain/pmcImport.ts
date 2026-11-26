@@ -13,6 +13,7 @@ import { parseNumber } from "./smartImport/numbers";
 import { decodeCsv } from "./smartImport/sheetReader";
 
 export const PMC_IMPORT_LIMITS = { maxRows: 60_000, maxColumns: 20 } as const;
+import { unpivotWideWeights } from "./weightsWide";
 export const PMC_IMPORT_KINDS = ["locations", "catalog", "status", "requests", "baseline", "baselineDates", "weights"] as const;
 export type PmcImportKind = (typeof PMC_IMPORT_KINDS)[number];
 export type PmcImportError = { rowNumber: number; code: string; field?: string; detail?: string };
@@ -186,11 +187,11 @@ export type PmcPreviewRow = { row: number; class: PmcRowClass; cells: Record<str
 export const PMC_PREVIEW_ROWS = 30;
 /** An applied cell correction, with the value the file holds, for the report and the audit trail. */
 export type PmcAppliedEdit = { row: number; field: string; header: string; from: string; to: string };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; readRows?: number[]; preview?: PmcPreviewRow[]; outlineHeadings?: number; chosenColumns?: Array<{ field: string; header: string; over: string[] }>; errorColumns?: string[] } };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; readRows?: number[]; preview?: PmcPreviewRow[]; outlineHeadings?: number; chosenColumns?: Array<{ field: string; header: string; over: string[] }>; errorColumns?: string[]; wide?: { sheetName: string; models: string[]; groups: number; phases: number } } };
 /** Q-50 batch 5a: a totals line the reader skipped, with the weight it carries in the file (compared with the sum read, never used as data). */
-export type PmcFileTotal = { row: number; value: string };
+export type PmcFileTotal = { row: number; value: string; model?: string };
 /** The comparison of the file's own totals line with what was read, in the file's units (fractions or percent). */
-export type PmcTotalCheck = { row: number; fileValue: number | null; readSum: number; status: "matches" | "differs" | "not_comparable" };
+export type PmcTotalCheck = { row: number; fileValue: number | null; readSum: number; status: "matches" | "differs" | "not_comparable"; model?: string };
 
 /**
  * Q-31 (P0-01): how a header is compared with a field's spellings. Arabic letter variants, diacritics and tatweel, Eastern digits, punctuation and
@@ -338,11 +339,26 @@ function applyOverride(fields: Field[], headers: string[], match: HeaderMatch, o
   };
 }
 
-export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string>; edits?: PmcImportEdits }): Promise<ParsedFile> {
+export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string>; edits?: PmcImportEdits; wideRead?: boolean }): Promise<ParsedFile> {
   const fail = (code: string, detail?: string): ParsedFile => ({ headers: [], rows: [], errors: [{ rowNumber: 0, code, ...(detail ? { detail } : {}) }] });
   // CSV: UTF-8, or the Windows Arabic code page that older Excel writes (Q-31)
   const parsed = await readSpreadsheetSafely(input.format === "csv" ? decodeCsv(input.bytes).text : input.bytes, input.format);
   if (!parsed.ok) return fail(parsed.code);
+  // Q-60 batch 1: a weights table with one column per villa model («نموذج A-End» … «نموذج D») is turned into the long table this reader knows (one row per
+  // item × model, its group and stage from the Q and phase lines above it), then read as usual; every row number is the owner's own row again.
+  if (input.kind === "weights" && !input.wideRead && !input.mappingOverride) {
+    const wide = await unpivotWideWeights(parsed.workbook);
+    if (wide) {
+      const inner = await parsePmcImportFile({ kind: "weights", format: "xlsx", bytes: wide.bytes, wideRead: true });
+      const back = (row: number) => wide.rowMap.get(row) ?? row;
+      return {
+        ...inner,
+        rows: inner.rows.map(row => ({ ...row, rowNumber: back(row.rowNumber) })),
+        errors: inner.errors.map(error => ({ ...error, rowNumber: error.rowNumber ? back(error.rowNumber) : 0 })),
+        notes: { ...(inner.notes ?? { skippedTotals: 0, filledDown: 0 }), skippedTotals: (inner.notes?.skippedTotals ?? 0) + new Set(wide.totals.map(total => total.row)).size, fileTotals: wide.totals.map(total => ({ row: total.row, value: total.value, model: total.model })), wide: { sheetName: wide.sheetName, models: wide.models, groups: wide.groups, phases: wide.phases } },
+      };
+    }
+  }
   // Q-31: a workbook may carry other sheets (notes, a cover, the villa list beside the weights): the sheet whose header names every required field is read
   // (Q-50: the shared reader in importEngine/read.ts).
   const choice = chooseSheet(parsed.workbook, pmcEvaluate(input.kind), headerSearchLimits(input.kind));
@@ -922,10 +938,15 @@ export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[],
     kept.push({ rowNumber, csi, sub: text(cells.sub), code: text(cells.activityCode) || weightActivityCode(name), name, nameEn: text(cells.activityNameEn), weight, modelCode: text(cells.modelCode) });
   }
   const total = kept.reduce((sum, row) => sum + row.weight, 0);
-  const scaledFromFractions = kept.length > 0 && kept.every(row => row.weight <= 1) && Math.abs(total - 1) <= 0.0001 * kept.length + 0.0001;
+  // Q-60: fractions are judged per model — a file of seven models each totalling 1 totals 7, and is still fractions of 1 for each villa
+  const sumOf = new Map<string, { sum: number; rows: number }>();
+  for (const row of kept) { const entry = sumOf.get(row.modelCode) ?? { sum: 0, rows: 0 }; entry.sum += row.weight; entry.rows += 1; sumOf.set(row.modelCode, entry); }
+  const scaledFromFractions = kept.length > 0 && kept.every(row => row.weight <= 1) && Array.from(sumOf.values()).every(entry => Math.abs(entry.sum - 1) <= 0.0001 * entry.rows + 0.0001);
   const models = projectModels.length ? projectModels : [];
   const withoutModel = kept.some(row => !row.modelCode);
   if (withoutModel && !models.length) errors.push({ rowNumber: 0, code: "PMC_WEIGHTS_NEED_VILLAS" });
+  // Q-60: a model the weights name that the project's villas do not have is refused by its name (it would weigh villas that do not exist)
+  if (models.length) for (const modelCode of Array.from(new Set(kept.map(row => row.modelCode).filter(Boolean)))) if (!models.includes(modelCode)) errors.push({ rowNumber: kept.find(row => row.modelCode === modelCode)!.rowNumber, code: "PMC_WEIGHTS_MODEL_UNKNOWN", field: "modelCode", detail: modelCode });
   const out: ParsedRow[] = [];
   for (const row of kept) {
     const weightPercent = scaledFromFractions ? Math.round(row.weight * 100 * 10000) / 10000 : row.weight;
@@ -941,6 +962,8 @@ export function weightsToCatalogRows(rows: ParsedRow[], projectModels: string[],
   const totalChecks: PmcTotalCheck[] = fileTotals.map(line => {
     const fileValue = weightNumber(line.value);
     if (fileValue === undefined || fileValue === null || Number.isNaN(fileValue)) return { row: line.row, fileValue: null, readSum: round4(total), status: "not_comparable" as const };
+    // Q-60: a wide file has a total per model — each compared with that model's own sum
+    if (line.model) { const own = sumOf.get(line.model)?.sum ?? 0; return { row: line.row, fileValue, readSum: round4(own), status: Math.abs(fileValue - own) <= tolerance ? "matches" as const : "differs" as const, model: line.model }; }
     if (modelsInFile.size > 1) return { row: line.row, fileValue, readSum: round4(total), status: "not_comparable" as const };
     return { row: line.row, fileValue, readSum: round4(total), status: Math.abs(fileValue - total) <= tolerance ? "matches" as const : "differs" as const };
   });
