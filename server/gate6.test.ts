@@ -42,6 +42,7 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   analyzeSmartUpload: "reads the uploaded original and answers what it understood; nothing is imported. The only record it can make is the AI-reading usage counter (smart_reading_usage), when the owner has turned the AI reading on",
   createDirectUpload: "mints a signed upload URL and records nothing; the attachment or site plan is recorded (and audited) by the document / site-plan procedure that takes the uploadKey",
   createCompanyLogoUpload: "mints a signed upload URL and records nothing; the logo is recorded (and audited) by tenant.updateProfile, which takes the uploadKey",
+  previewProjectWorkbook: "Q-51: reads the uploaded workbook and returns what each sheet would do; it runs the sheets inside one transaction that is always rolled back, so nothing is kept (the save, applyProjectWorkbook, writes an audit row per sheet)",
   previewProjectBoq: "reads the uploaded file and returns the check report; writes nothing (the save, saveProjectBoq, is audited)",
   runDevPlanner: "a calculation: reads nothing of the company and stores nothing",
   exportDevPlanner: "a calculation turned into a workbook: stores nothing",
