@@ -462,7 +462,12 @@ function OperationsGroup({ id, level, title, children, defaultOpen = false, lazy
   // Q-36 (step 4): a link to the group's level (/controls#supply) opens the groups of that level too; the level's section scrolls itself into view
   const focus = React.useContext(FocusContext);
   const linked = (Boolean(id) && hash === `#${id}`) || (Boolean(level) && hash === `#${level}`) || (Boolean(level) && focus === level && !lazy); // a group that loads only when opened stays closed until asked for
-  React.useEffect(() => { if (id && hash === `#${id}`) document.getElementById(id)?.scrollIntoView?.({ block: "start" }); }, [hash, id]);
+  React.useEffect(() => {
+    if (!id || hash !== `#${id}`) return;
+    document.getElementById(id)?.scrollIntoView?.({ block: "start" });
+    // Q-64: the group is open and in view; its internal name stays out of the address (it read «planning#manager-assurance»). The page keeps the group open from its own state.
+    if (id.startsWith("manager-") && typeof window !== "undefined") window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+  }, [hash, id]);
   return <details id={id} className="scroll-mt-5 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" open={defaultOpen || linked} onToggle={event => { if ((event.currentTarget as HTMLDetailsElement).open) setOpened(true); }}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{title}</span><span className="text-xs font-medium text-primary">+</span></summary><div className="space-y-5 border-t border-border p-4 sm:p-5">{!lazy || opened || defaultOpen || linked ? children : null}</div></details>;
 }
 
