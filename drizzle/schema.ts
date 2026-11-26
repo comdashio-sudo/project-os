@@ -2402,6 +2402,10 @@ export const pmcUnits = pgTable(
     externalCode: varchar("external_code", { length: 120 }),
     // Work order 22: the villa number as the site and the consultant write it («268»): the key that ties a unit across the three sources. Unique inside a project when present.
     villaLabel: varchar("villa_label", { length: 40 }),
+    // Q-60 (the owner's villa register, 26-11): the construction phase (PH1–PH4), the package (Gold / Diamond) and whether it is a mock-up villa — optional
+    phase: varchar("phase", { length: 40 }),
+    package: varchar("package", { length: 40 }),
+    isMockup: boolean("is_mockup"),
     // Work order 22: net sellable area (m²) and unit price (SAR/m²). Financial: read and written only with project.budget.manage.
     netSellableArea: numeric("net_sellable_area", { precision: 12, scale: 2 }),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }),
@@ -2410,7 +2414,7 @@ export const pmcUnits = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [unique("pmc_units_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId), uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), uniqueIndex("pmc_units_project_villa_label_unique").on(table.projectId, table.villaLabel).where(sql`${table.villaLabel} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
+  table => [unique("pmc_units_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId), uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), uniqueIndex("pmc_units_project_villa_label_unique").on(table.projectId, table.villaLabel).where(sql`${table.villaLabel} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId), index("pmc_units_tenant_project_phase_idx").on(table.tenantId, table.projectId, table.phase)],
 );
 
 export const pmcActivityGroups = pgTable(
