@@ -80,6 +80,18 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-59 (3): the project's 
     expect(await search("ownerB", "2026-11-20")).toEqual([]);
   });
 
+  it("NEGATIVE: a project of another company, asked inside one's own company, answers nothing and does not say whether it exists", async () => {
+    const [[other]] = await connection.query<{ id: string }[]>("SELECT id FROM companies WHERE slug = ?", [SLUG_B]);
+    const foreign = "59aa0000-0000-4000-8000-0000000000ff";
+    await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'Q59-B', 'Other', 'villas', 'SAR', 'active')", [foreign, other.id]);
+    const missing = "59aa0000-0000-4000-8000-0000000000fe";
+    const answer = async (projectId: string) => callerFor("owner").search.quick({ tenantId, projectId, query: "101" }).then(result => JSON.stringify(result.hits), (error: Error) => error.message);
+    // the other company's project and a project that does not exist answer the same way
+    expect(await answer(foreign)).toBe(await answer(missing));
+    expect(await answer(foreign)).not.toContain("101");
+    await connection.query("DELETE FROM projects WHERE id = ?", [foreign]);
+  });
+
   it("NEGATIVE: «%» and «_» are searched as themselves, never as a pattern that matches everything", async () => {
     expect(await search("owner", "%")).toEqual([]);
     expect(await search("owner", "_")).toEqual(["activity:PAINT_100"]);

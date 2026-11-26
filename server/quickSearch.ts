@@ -51,7 +51,7 @@ export async function quickSearch(input: Scope & { query: string }): Promise<{ h
       const rows = await db.selectDistinct({ code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name }).from(pmcActivityDefinitions)
         .where(and(mine(pmcActivityDefinitions, scope), or(ilike(pmcActivityDefinitions.code, like(query)), ilike(pmcActivityDefinitions.name, like(query)))))
         .orderBy(asc(pmcActivityDefinitions.code)).limit(PER_SOURCE);
-      return rows.map(row => ({ kind: "activity" as const, label: row.code, detail: row.name, href: `${base}/pmc?tab=activities&q=${encodeURIComponent(row.code)}` }));
+      return rows.map(row => ({ kind: "activity" as const, label: row.code, detail: row.name, href: `${base}/pmc?tab=activities` })); // the activities tab (it has no filter by address yet; the code is in the label)
     }),
     !day ? Promise.resolve([] as QuickSearchHit[]) : gated(async () => {
       const rows = await listSiteDailyReportsForTenant({ ...scope, from: day, to: day });
