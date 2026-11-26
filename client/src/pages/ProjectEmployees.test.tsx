@@ -2,6 +2,8 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const exported = vi.hoisted(() => ({ build: vi.fn(async (..._args: unknown[]) => new ArrayBuffer(8)) }));
+vi.mock("@/lib/excelExport", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/excelExport")>()), buildTableWorkbook: exported.build, downloadWorkbook: vi.fn() }));
 import { ProjectEmployees } from "./ProjectEmployees";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
@@ -74,5 +76,17 @@ describe("Q-38 (P1-06): fields named, sensitive reads asked for only by whom the
     expect(screen.getByText("EMP-01 · Amina Planner")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "View protected identity" })).toBeNull();
     expect(state.identityQuery.mock.calls.every(([, options]) => !(options as { enabled?: boolean }).enabled)).toBe(true);
+  });
+
+  // Q-57: the register exports what its cards show; the protected identity never enters a file
+  it("Q-57: the employee register exports number, name, title, department and status — never identity data", async () => {
+    exported.build.mockClear();
+    render(<ProjectEmployees tenantId="tenant-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
+    await vi.waitFor(() => expect(exported.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    const call = exported.build.mock.calls[0][0] as { rows: unknown[]; columns: Array<{ header: string; value: (row: unknown) => unknown }> };
+    expect(call.columns.map(column => column.header)).toEqual(["Employee number", "Name", "Job title", "Department", "Status"]);
+    expect(call.columns.slice(0, 4).map(column => column.value(call.rows[0]))).toEqual(["EMP-01", "Amina Planner", "Planner", "Planning"]);
+    expect(state.identityQuery.mock.calls.every(([, options]) => !(options as { enabled?: boolean }).enabled)).toBe(true); // exporting asks for no protected read
   });
 });

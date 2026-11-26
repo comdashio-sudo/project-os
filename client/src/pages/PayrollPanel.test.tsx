@@ -2,6 +2,8 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const exported = vi.hoisted(() => ({ build: vi.fn(async (..._args: unknown[]) => new ArrayBuffer(8)) }));
+vi.mock("@/lib/excelExport", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/excelExport")>()), buildTableWorkbook: exported.build, downloadWorkbook: vi.fn() }));
 import { PayrollPanel } from "./PayrollPanel";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
@@ -189,5 +191,17 @@ describe("Q-38 (P1-06): fields named, sensitive reads asked for only by whom the
     expect(screen.queryByRole("button", { name: /protected salary structure/i })).toBeNull();
     expect(state.structureQuery.mock.calls.every(([, options]) => !(options as { enabled?: boolean }).enabled)).toBe(true);
     state.capabilities = { ...state.capabilities, canReadSensitivePayroll: true };
+  });
+
+  // Q-57: the cycles list exports; salary, payslip and identity stay out of any file (they are shown only on request, and every read of them is audited)
+  it("Q-57: the payroll cycles export period, count and status only — never an amount or a name, even for a reader of the sensitive view", async () => {
+    state.runs = [{ id: "run-1", periodStart: new Date("2026-09-01T00:00:00Z"), periodEnd: new Date("2026-09-30T00:00:00Z"), status: "review", entryCount: 3 }];
+    exported.build.mockClear();
+    render(<PayrollPanel tenantId="tenant-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Export to Excel" }));
+    await vi.waitFor(() => expect(exported.build).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    const call = exported.build.mock.calls[0][0] as { rows: unknown[]; columns: Array<{ header: string; value: (row: unknown) => unknown }> };
+    expect(call.columns.map(column => column.header)).toEqual(["Period start", "Period end", "Employees", "Status"]);
+    expect(call.columns.map(column => column.value(call.rows[0])).slice(2)).toEqual([3, "In review"]);
   });
 });
