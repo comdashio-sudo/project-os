@@ -1,0 +1,134 @@
+[
+ {
+  "lang": "ar",
+  "width": 390,
+  "name": "planning",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض) (من الأنشطة WALLS)25%"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 390,
+  "name": "field",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض)التقدم الآن: 25% · محسوب من خلايا الفلل في PMC، يُحدَّث من «تحديث الإنجاز» أو التقرير اليومي (WALL"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "name": "planning",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض) (من الأنشطة WALLS)25%"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "name": "field",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض)التقدم الآن: 25% · محسوب من خلايا الفلل في PMC، يُحدَّث من «تحديث الإنجاز» أو التقرير اليومي (WALL"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "name": "planning",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض) (from activities WALLS)25%"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "name": "field",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض)Now at: 25% · computed from the villas' PMC cells, updated from the progress update or the daily r"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "name": "planning",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض) (from activities WALLS)25%"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "name": "field",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض)Now at: 25% · computed from the villas' PMC cells, updated from the progress update or the daily r"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "name": "planning",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض) (سرگرمیوں سے WALLS)25%"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "name": "field",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض)اب تک: 25% · PMC میں ولاز کے خانوں سے نکالی گئی، «پیش رفت اپ ڈیٹ» یا روزانہ رپورٹ سے اپ ڈیٹ ہوتی ہ"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "name": "planning",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض) (سرگرمیوں سے WALLS)25%"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "name": "field",
+  "computed": 1,
+  "text": [
+   "1 · أعمال البلوك (عرض)اب تک: 25% · PMC میں ولاز کے خانوں سے نکالی گئی، «پیش رفت اپ ڈیٹ» یا روزانہ رپورٹ سے اپ ڈیٹ ہوتی ہ"
+  ],
+  "hScroll": false,
+  "errors": []
+ }
+]

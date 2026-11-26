@@ -1881,6 +1881,11 @@ export const projectErrorMessages = {
     en: "The site's old record was already imported into this project; it is imported only once.",
     ur: "سائٹ کا پرانا ریکارڈ اس پروجیکٹ میں پہلے ہی درآمد ہو چکا ہے؛ یہ صرف ایک بار درآمد ہوتا ہے۔",
   },
+  PROJECT_OS_PROGRESS_COMPUTED_FROM_PMC: {
+    ar: "تقدّم هذا البند محسوب من خلايا الفلل في PMC (أنشطته المربوطة)، فلا يُدخَل يدويًا. حدّث الإنجاز من «تحديث الإنجاز» أو التقرير اليومي.",
+    en: "This item's progress is computed from the villas' PMC cells (its linked activities), so it is not entered by hand. Update progress from the progress update or the daily report.",
+    ur: "اس آئٹم کی پیش رفت PMC میں ولاز کے خانوں (اس کی منسلک سرگرمیوں) سے نکالی جاتی ہے، اس لیے ہاتھ سے درج نہیں ہوتی۔ پیش رفت «پیش رفت اپ ڈیٹ» یا روزانہ رپورٹ سے اپ ڈیٹ کریں۔",
+  },
   PROJECT_OS_PROGRESS_LOG_DATE_INVALID: {
     ar: "تاريخ السجل غير صالح: اكتب التاريخ بالشكل سنة-شهر-يوم، وليكن «من» قبل «إلى» أو مثله.",
     en: "The log's date is not valid: write it as year-month-day, with «from» on or before «to».",

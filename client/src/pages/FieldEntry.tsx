@@ -76,6 +76,7 @@ function FieldFailure({ error, isArabic, retryLabel, onRetry }: { error: unknown
 }
 
 function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, keepOffline }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean; keepOffline: KeepOffline }) {
+  const { language } = useLanguage();
   const [itemId, setItemId] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | null>(null);
   const [done, setDone] = useState<{ name: string; percent: number; queued: boolean } | null>(null);
@@ -94,7 +95,13 @@ function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, kee
     <div className="space-y-3">
       <p className="text-sm font-semibold text-muted-foreground">{t.pickItem}</p>
       <ul className="space-y-2">
-        {[...context.wbs].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })).map(item => (
+        {[...context.wbs].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })).map(item => (item as { computedFromPmc?: boolean }).computedFromPmc ? (
+          // Q-71 (1): an item a PMC activity computes is shown with its percent and source, never picked for a typed percent
+          <li key={item.id} data-computed-wbs={item.id} className="rounded-xl border border-dashed bg-muted px-4 py-3">
+            <span className="font-semibold">{item.code} · {item.name}</span>
+            <span className="block text-xs text-muted-foreground">{t.nowAt}: {item.lastPercent === null ? t.never : `${item.lastPercent}%`} · {pickLanguage(language, COMPUTED_NOTE)} ({((item as { pmcActivityCodes?: string[] }).pmcActivityCodes ?? []).join("، ")})</span>
+          </li>
+        ) : (
           <li key={item.id}>
             <button type="button" aria-pressed={item.id === itemId} className={`${tap} w-full rounded-xl border px-4 py-3 text-start ${item.id === itemId ? "border-primary bg-accent" : "bg-card"}`} onClick={() => { setItemId(item.id); setPercent(null); }}>
               <span className="font-semibold">{item.code} · {item.name}</span>
@@ -121,6 +128,8 @@ function ProgressEntry({ tenantId, projectId, context, t, onSaved, isArabic, kee
     </div>
   );
 }
+
+const COMPUTED_NOTE = { ar: "محسوب من خلايا الفلل في PMC، يُحدَّث من «تحديث الإنجاز» أو التقرير اليومي", en: "computed from the villas' PMC cells, updated from the progress update or the daily report", ur: "PMC میں ولاز کے خانوں سے نکالی گئی، «پیش رفت اپ ڈیٹ» یا روزانہ رپورٹ سے اپ ڈیٹ ہوتی ہے" };
 
 function MaterialIssueEntry({ tenantId, projectId, context, t, onSaved, isArabic, keepOffline }: { tenantId: string; projectId: string; context: Context; t: T; onSaved: () => void; isArabic: boolean; keepOffline: KeepOffline }) {
   const rememberedWarehouse = remembered(`fieldEntry:${projectId}:warehouse`);
