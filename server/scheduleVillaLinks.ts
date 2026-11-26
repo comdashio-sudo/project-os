@@ -1,12 +1,11 @@
 // Q-61 (2): the project's P6 schedule set against its villas — which villa each activity belongs to, the villas the schedule names that the project does not
 // have, and the villas whose type or block in P6 differs from the project's. Read only (server/domain/scheduleVillas.ts decides); the live schedule's own
-// permission (project.read or project.manage on the project); every query by tenant and project, every join on the same company.
-import { TRPCError } from "@trpc/server";
+// villas are PMC data, so it is read with project.pmc.read and the PMC feature (pmcGate); every query by tenant and project, every join on the same company.
 import { and, eq } from "drizzle-orm";
 import { activities, activityCodeAssignments, activityCodeTypes, activityCodeValues, pmcBlocks, pmcUnits, wbsItems } from "../drizzle/schema";
-import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
-import { assertTenantAccess } from "./domain/authorization";
+import { getDb } from "./db";
 import { linkScheduleToVillas, type ScheduleActivity } from "./domain/scheduleVillas";
+import { pmcGate } from "./wo22Shared";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 /** The project's schedule (WBS, activities with their P6 codes) and villas, every query by tenant and project and every join on the same company. Also the
@@ -35,12 +34,8 @@ export async function loadScheduleAndVillas(db: Db, scope: { tenantId: string; p
 }
 
 export async function getScheduleVillaLinks(input: { userId: number; tenantId: string; projectId: string }) {
-  const db = await getDb();
-  if (!db) throw new Error("Database connection is not available");
-  const snapshot = await getTenantAccessSnapshot({ userId: input.userId, tenantId: input.tenantId });
-  if (!snapshot) throw new TRPCError({ code: "FORBIDDEN", message: "PROJECT_OS_TENANT_ACCESS_DENIED" });
-  assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: ["project.read", "project.manage"], scope: { type: "project", id: input.projectId } });
-  await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
+  // PMC villa data (numbers, models, blocks): read with project.pmc.read and the PMC feature, like every other read of the villas (review of #550, B)
+  const db = await pmcGate(input, "project.pmc.read");
   const { wbs, activities: scheduleActivities, villas } = await loadScheduleAndVillas(db, input);
   return linkScheduleToVillas({ wbs, activities: scheduleActivities, villas });
 }

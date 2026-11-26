@@ -109,7 +109,7 @@ export function ScheduleStageMapping({ tenantId, projectId }: { tenantId: string
           </div>
           {canEdit ? <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" disabled={!suggestions.length} onClick={() => { setDone(false); setEdits(previous => ({ ...previous, ...Object.fromEntries(suggestions.map(group => [group.id, { stageCodes: [group.suggestion!.stageCode], anchor: "span" as Anchor, suggestedScore: group.suggestion!.score }])) })); }} data-apply-suggestions>{t.useAll}</Button>
-            <Button disabled={!changed.length || save.isPending} onClick={() => save.mutate({ tenantId, projectId, links: changed.map(([groupId, draft]) => ({ groupId, stageCodes: draft.stageCodes, anchor: draft.anchor, suggestedScore: draft.suggestedScore })) })} data-save-stage-mapping>{t.save}{changed.length ? ` (${changed.length})` : ""}</Button>
+            <Button disabled={!changed.length || save.isPending} onClick={() => save.mutate({ tenantId, projectId, links: changed.map(([groupId, draft]) => ({ groupId, stageCodes: draft.stageCodes, anchor: draft.anchor })) })} data-save-stage-mapping>{t.save}{changed.length ? ` (${changed.length})` : ""}</Button>
             {done ? <span className="text-sm text-success" role="status">{t.saved}</span> : null}
             {errorText ? <span className="text-sm text-destructive" role="alert" data-stage-mapping-error>{errorText}</span> : null}
           </div> : null}
