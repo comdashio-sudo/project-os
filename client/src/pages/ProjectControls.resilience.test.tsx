@@ -97,7 +97,7 @@ describe("ProjectControls section resilience", () => {
   it("names the missing health input when performance data is only partial", () => {
     state.performancePartial = true;
     render(<ProjectControls focus="planning" />);
-    expect(screen.getByText("Available: part of the performance data. Missing: health snapshot.")).toBeTruthy();
+    expect(screen.getByText("Still missing: a project health assessment.")).toBeTruthy();
     expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
   });
 
@@ -114,7 +114,7 @@ describe("ProjectControls section resilience", () => {
     state.performanceEmpty = true;
     render(<ProjectControls />);
     expect(within(screen.getAllByLabelText("Cost and progress records")[0]).getByText("No budget, cost or progress recorded yet. Add a line or upload a file.")).toBeTruthy();
-    expect(within(screen.getAllByLabelText("Project performance data")[0]).getByText("No performance snapshot yet: it is calculated once the schedule, budget and progress are recorded.")).toBeTruthy();
+    expect(within(screen.getAllByLabelText("Project performance data")[0]).getByText("No schedule-and-cost performance reading yet: it appears once the schedule, budget and progress are recorded.")).toBeTruthy();
   });
 
   it("keeps an empty PROJECT source distinct from a source error", () => {
@@ -288,7 +288,7 @@ describe("ProjectControls section resilience", () => {
     state.scheduleEmpty = true;
     render(<ProjectControls />);
     expect(document.body.textContent).toContain("No schedule recorded yet. Add an activity or upload the programme.");
-    expect(document.body.textContent).toContain("No performance snapshot yet");
+    expect(document.body.textContent).toContain("No schedule-and-cost performance reading yet");
     expect(document.body.textContent).not.toContain("current access scope");
     cleanup();
     state.performanceEmpty = false;
@@ -296,7 +296,7 @@ describe("ProjectControls section resilience", () => {
     render(<ProjectControls />);
     const refused = screen.getAllByLabelText("Project performance data").find(node => node.getAttribute("class")?.includes("bg-danger-soft")) as HTMLElement;
     expect(refused).toBeTruthy();
-    expect(refused.textContent).not.toContain("No performance snapshot yet");
+    expect(refused.textContent).not.toContain("No schedule-and-cost performance reading yet");
     expect(refused.textContent).not.toContain("recorded yet");
   });
 

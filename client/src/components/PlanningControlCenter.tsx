@@ -70,7 +70,7 @@ export function PlanningControlCenter({ result, currency, isLoading = false, onU
 
   return <section aria-label={t.title} data-risk={result.riskLevel} className="rounded-[var(--radius-card)] border border-border bg-card p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0 flex-1 basis-64"><h2 className="text-xl font-semibold text-foreground">{t.title}</h2><p data-planning-headline="" className="mt-2 max-w-3xl text-base leading-7 text-foreground">{planningHeadline(result, currency, language)}</p></div>
+      <div className="min-w-0 flex-1 basis-64"><h2 className="sr-only">{t.title}</h2><p data-planning-headline="" className="max-w-3xl text-lg font-semibold leading-8 text-foreground">{planningHeadline(result, currency, language)}</p></div>
       {hasSchedule ? <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${result.riskLevel === "attention" ? "bg-warning/20 text-warning-soft-foreground" : "bg-success/20 text-success-soft-foreground"}`}>{result.riskLevel === "attention" ? <AlertTriangle aria-hidden="true" className="h-4 w-4" /> : <CheckCircle2 aria-hidden="true" className="h-4 w-4" />}{result.riskLevel === "attention" ? t.attention : t.controlled}</div> : null}
     </div>
     {isLoading ? <p role="status" className="mt-5 text-sm text-muted-foreground">{t.loading}</p> : <div className="mt-5 grid gap-5">
