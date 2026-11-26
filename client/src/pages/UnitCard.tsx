@@ -1,5 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ds";
+import { DataTable, Select, type Column } from "@/components/ds";
+import { formatNumber, formatPercent } from "@/components/ds/format";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 /** «all activities» on the ds list (which has no empty value); the address carries no activity then. */
 const ALL_ACTIVITIES = "__all";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
@@ -21,7 +23,7 @@ const text = {
     modeoff: "معطّلة", modewarn: "تحذير", modeblock: "منع",
     NOT_STARTED: "لم يبدأ", IN_PROGRESS: "قيد التنفيذ", UNDER_REVIEW: "قيد المراجعة", COMPLETE: "مكتمل",
     timeline: "الخط الزمني", empty: "لا أحداث بعد لهذه الوحدة.", filter: "النوع", all: "الكل",
-    daily_report: "تقرير يومي", submittal: "تسليم للاستشاري", inspection: "فحص", ncr: "عدم مطابقة", material_issue: "مادة مصروفة", status_change: "تغيّر حالة",
+    daily_report: "تقرير يومي", submittal: "تسليم للاستشاري", inspection: "فحص", ncr: "عدم مطابقة", material_issue: "مادة مصروفة", status_change: "تغيّر حالة", qc_receipt: "استلام QC", RECEIVED: "مستلم", NOT_RECEIVED: "غير مستلم", by: "بواسطة", items: "بنود النموذج", villaProgress: "تقدم الفيلا", weight: "الوزن %", completedOn: "اكتمل", itemsNoNumber: "أوزان النموذج لا تبلغ 100، فلا رقم للفيلا", item: "البند",
     quantity: "الكمية", reply: "الرد", noReply: "بلا رد", answer: "الرد", consultant: "الاستشاري", noAnswer: "بلا رد بعد", state: "الحالة", more: "المزيد", showAll: "عرض أقدم", label: "البند",
   },
   en: {
@@ -31,7 +33,7 @@ const text = {
     modeoff: "Off", modewarn: "Warn", modeblock: "Block",
     NOT_STARTED: "Not started", IN_PROGRESS: "In progress", UNDER_REVIEW: "Under review", COMPLETE: "Complete",
     timeline: "Timeline", empty: "No events yet for this unit.", filter: "Kind", all: "All",
-    daily_report: "Daily report", submittal: "Consultant submittal", inspection: "Inspection", ncr: "NCR", material_issue: "Material issued", status_change: "Status change",
+    daily_report: "Daily report", submittal: "Consultant submittal", inspection: "Inspection", ncr: "NCR", material_issue: "Material issued", status_change: "Status change", qc_receipt: "QC receipt", RECEIVED: "Received", NOT_RECEIVED: "Not received", by: "by", items: "The model's items", villaProgress: "Villa progress", weight: "Weight %", completedOn: "Completed", itemsNoNumber: "the model's weights do not total 100, so the villa has no number", item: "Activity",
     quantity: "Quantity", reply: "Reply", noReply: "No reply", answer: "Answer", consultant: "Consultant", noAnswer: "No answer yet", state: "Status", more: "More", showAll: "Show older", label: "Item",
   },
   ur: {
@@ -41,12 +43,12 @@ const text = {
     modeoff: "بند", modewarn: "تنبیہ", modeblock: "روک",
     NOT_STARTED: "شروع نہیں ہوا", IN_PROGRESS: "جاری", UNDER_REVIEW: "زیرِ جائزہ", COMPLETE: "مکمل",
     timeline: "ٹائم لائن", empty: "اس یونٹ کے لیے ابھی کوئی واقعہ نہیں۔", filter: "قسم", all: "سب",
-    daily_report: "روزانہ رپورٹ", submittal: "کنسلٹنٹ کو سبمٹل", inspection: "معائنہ", ncr: "عدم مطابقت", material_issue: "مادّہ جاری", status_change: "حالت میں تبدیلی",
+    daily_report: "روزانہ رپورٹ", submittal: "کنسلٹنٹ کو سبمٹل", inspection: "معائنہ", ncr: "عدم مطابقت", material_issue: "مادّہ جاری", status_change: "حالت میں تبدیلی", qc_receipt: "کیو سی وصولی", RECEIVED: "وصول", NOT_RECEIVED: "وصول نہیں", by: "از", items: "ماڈل کی سرگرمیاں", villaProgress: "ولا کی پیش رفت", weight: "وزن %", completedOn: "مکمل ہوا", itemsNoNumber: "ماڈل کے وزن 100 نہیں، اس لیے ولا کا کوئی عدد نہیں", item: "سرگرمی",
     quantity: "مقدار", reply: "جواب", noReply: "جواب نہیں", answer: "جواب", consultant: "کنسلٹنٹ", noAnswer: "ابھی جواب نہیں", state: "حالت", more: "مزید", showAll: "پرانے دکھائیں", label: "آئٹم",
   },
 };
 
-const KINDS = ["daily_report", "submittal", "inspection", "ncr", "material_issue", "status_change"] as const;
+const KINDS = ["daily_report", "submittal", "inspection", "ncr", "material_issue", "status_change", "qc_receipt"] as const;
 const PAGE = 25;
 const SEPARATOR = " · ";
 
@@ -84,7 +86,7 @@ export default function UnitCard() {
 
   const name = (key: string) => (t as Record<string, string>)[key] ?? key;
   // a status change is recorded as codes (FROM → TO); the person reads them in their language
-  const eventTitle = (event: (typeof data.events)[number]) => (event.kind === "status_change" ? event.title.split(" → ").map(code => (t as Record<string, string>)[code] ?? code).join(" → ") : event.title);
+  const eventTitle = (event: (typeof data.events)[number]) => (event.kind === "status_change" || event.kind === "qc_receipt" ? event.title.split(" → ").map(code => (t as Record<string, string>)[code] ?? code).join(" → ") : event.title);
   const detail = (event: (typeof data.events)[number]) => {
     const d = event.detail as Record<string, string | number | null>;
     switch (event.kind) {
@@ -93,10 +95,36 @@ export default function UnitCard() {
       case "inspection": return [d.responseCode ? `${t.answer}: ${d.responseCode}` : t.noAnswer, d.consultant ? `${t.consultant}: ${d.consultant}` : null].filter(Boolean).join(SEPARATOR);
       case "ncr": return [d.status, d.summary].filter(Boolean).join(SEPARATOR);
       case "material_issue": return [d.description, `${t.quantity}: ${d.quantity} ${d.unit ?? ""}`.trim()].filter(Boolean).join(SEPARATOR);
+      // Q-70 (4): which activity, who, and the note; a QC receipt with the day the engineer chose
+      case "status_change": return [d.activity, d.by ? `${t.by} ${d.by}` : null, d.note].filter(Boolean).join(SEPARATOR);
+      case "qc_receipt": return [d.activity, d.receivedOn, d.by ? `${t.by} ${d.by}` : null].filter(Boolean).join(SEPARATOR);
       default: return d.note ? String(d.note) : "";
     }
   };
   const events = data.events.filter(event => kind === "all" || event.kind === kind);
+  type Item = NonNullable<typeof data.items>[number];
+  const qcText = (value: boolean | null) => (value === null ? "—" : value ? t.RECEIVED : t.NOT_RECEIVED);
+  const itemColumns: Column<Item>[] = [
+    { key: "item", header: t.item, render: row => <span className="whitespace-nowrap">{row.code} — {row.name}</span> },
+    { key: "weight", header: t.weight, numeric: true, render: row => formatNumber(row.weightPercent, 2) },
+    { key: "status", header: t.status, render: row => <span className="whitespace-nowrap">{name(row.status)}</span> },
+    { key: "completed", header: t.completedOn, render: row => <bdi dir="ltr">{row.completedOn ? showDate(row.completedOn, language) : "—"}</bdi> },
+    { key: "qc", header: t.qcReceipt, render: row => <span className="whitespace-nowrap">{qcText(row.qcReceived)}</span> },
+  ];
+  const itemExport = [
+    { header: t.item, value: (row: Item) => `${row.code} — ${row.name}` },
+    { header: t.weight, kind: "number" as const, value: (row: Item) => row.weightPercent },
+    { header: t.status, value: (row: Item) => name(row.status) },
+    { header: t.completedOn, kind: "date" as const, value: (row: Item) => (row.completedOn ? new Date(row.completedOn) : null) },
+    { header: t.qcReceipt, value: (row: Item) => qcText(row.qcReceived) },
+  ];
+  // the timeline as shown (after its filter): when, what, the change and its detail
+  const timelineExport = [
+    { header: t.timeline, kind: "date" as const, value: (event: (typeof events)[number]) => new Date(event.at) },
+    { header: t.filter, value: (event: (typeof events)[number]) => name(event.kind) },
+    { header: t.status, value: (event: (typeof events)[number]) => eventTitle(event) },
+    { header: "", value: (event: (typeof events)[number]) => detail(event) },
+  ];
 
   return shell(
     <>
@@ -122,8 +150,20 @@ export default function UnitCard() {
         )}
       </section>
 
+      {/* Q-70 (4): the villa's items and its progress — only for the whole villa */}
+      {data.items && (
+        <section aria-label={t.items} className="space-y-2" data-villa-items>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">{t.items} · {t.villaProgress}: <bdi dir="ltr" data-villa-progress>{data.progressPercent === null ? "—" : formatPercent(data.progressPercent, 2)}</bdi></h2>
+            <ExportExcelButton fileName={`villa-${data.unit.number}-items`} sheetName={t.items} title={`${t.title} ${data.unit.number}`} rows={data.items} columns={itemExport} />
+          </div>
+          {data.progressPercent === null ? <p role="note" className="text-sm text-warning-soft-foreground">{t.itemsNoNumber}</p> : null}
+          <DataTable caption={t.items} columns={itemColumns} rows={data.items} rowKey={row => row.code} />
+        </section>
+      )}
+
       <section aria-label={t.timeline} className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{t.timeline}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{t.timeline}</h2><ExportExcelButton fileName={`villa-${data.unit.number}-timeline`} sheetName={t.timeline} title={`${t.title} ${data.unit.number}`} rows={events} columns={timelineExport} />
           <label className="flex items-center gap-2 text-sm font-medium">{t.filter}<Select aria-label={t.all} value={kind} onValueChange={value => { setKind(value as typeof kind); setShownCount(PAGE); }} options={[{ value: "all", label: t.all }, ...KINDS.map(value => ({ value, label: name(value) }))]} /></label></div>
         {events.length === 0 ? <p role="status" className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">{t.empty}</p>
           : <ol className="space-y-2">{events.slice(0, shownCount).map(event => (

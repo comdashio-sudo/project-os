@@ -12,19 +12,24 @@ import {
   pmcBlocks,
   pmcInspectionRequestUnits,
   pmcInspectionRequests,
+  pmcQcReceiptEvents,
+  pmcQcReceipts,
+  pmcStatusFactors,
   pmcUnitActivityHistory,
   pmcUnitActivityProgress,
   pmcUnits,
   pmcZones,
   siteDailyReportLines,
   siteDailyReports,
+  users,
 } from "../drizzle/schema";
+import { calculateUnitProgress, effectiveStatusFactors, type PmcUnitActivityStatus } from "./domain/pmc";
 import { assertProjectWithinTenant, getDb, getTenantAccessSnapshot } from "./db";
 import { assertTenantAccess } from "./domain/authorization";
 import { cellsWithoutAcceptedInspection, loadTenantPolicy, openNcrNumbers } from "./qualityGate";
 
 type Scope = { userId: number; tenantId: string; projectId: string };
-export type TimelineEvent = { kind: "daily_report" | "submittal" | "inspection" | "ncr" | "material_issue" | "status_change"; at: string; ref: string; title: string; detail: Record<string, string | number | null> };
+export type TimelineEvent = { kind: "daily_report" | "submittal" | "inspection" | "ncr" | "material_issue" | "status_change" | "qc_receipt"; at: string; ref: string; title: string; detail: Record<string, string | number | null> };
 
 export async function getCellCardForTenant(input: Scope & { unitId: string; activityDefinitionId?: string }) {
   const db = await getDb();
@@ -47,7 +52,7 @@ export async function getCellCardForTenant(input: Scope & { unitId: string; acti
   }
   const activityOnly = <C>(column: C) => (activity ? eq(column as never, activity.id) : undefined);
 
-  const [reportLines, submittals, requests, ncrRows, issues, history, cells] = await Promise.all([
+  const [reportLines, submittals, requests, ncrRows, issues, history, cells, qcEvents, definitions, factorRows] = await Promise.all([
     db.select({ reportId: siteDailyReports.id, reportDate: siteDailyReports.reportDate, reportStatus: siteDailyReports.status, lineType: siteDailyReportLines.lineType, label: siteDailyReportLines.label, quantity: siteDailyReportLines.quantity, hours: siteDailyReportLines.hours, description: siteDailyReportLines.description, reportedStatus: siteDailyReportLines.reportedStatus })
       .from(siteDailyReportLines).innerJoin(siteDailyReports, eq(siteDailyReports.id, siteDailyReportLines.reportId))
       .where(and(mine(siteDailyReportLines), eq(siteDailyReportLines.pmcUnitId, input.unitId), activityOnly(siteDailyReportLines.pmcActivityDefinitionId), inArray(siteDailyReports.status, ["submitted", "approved"]))),
@@ -58,19 +63,29 @@ export async function getCellCardForTenant(input: Scope & { unitId: string; acti
     db.select({ id: ncrs.id, number: ncrs.ncrNumber, title: ncrs.title, status: ncrs.status, createdAt: ncrs.createdAt, activityDefinitionId: ncrs.pmcActivityDefinitionId }).from(ncrs).where(and(mine(ncrs), eq(ncrs.pmcUnitId, input.unitId), activityOnly(ncrs.pmcActivityDefinitionId))),
     db.select({ id: materialIssues.id, issuedAt: materialIssues.issuedAt, quantity: materialIssues.issuedQuantity, code: materialMasters.code, description: materialMasters.description, unit: materialMasters.unitOfMeasure, activityDefinitionId: materialIssues.pmcActivityDefinitionId })
       .from(materialIssues).innerJoin(materialMasters, eq(materialMasters.id, materialIssues.materialId)).where(and(mine(materialIssues), eq(materialIssues.pmcUnitId, input.unitId), activityOnly(materialIssues.pmcActivityDefinitionId))),
-    db.select({ id: pmcUnitActivityHistory.id, from: pmcUnitActivityHistory.fromStatus, to: pmcUnitActivityHistory.toStatus, changedAt: pmcUnitActivityHistory.changedAt, note: pmcUnitActivityHistory.note, activityDefinitionId: pmcUnitActivityProgress.activityDefinitionId })
-      .from(pmcUnitActivityHistory).innerJoin(pmcUnitActivityProgress, eq(pmcUnitActivityProgress.id, pmcUnitActivityHistory.unitActivityProgressId))
+    db.select({ id: pmcUnitActivityHistory.id, from: pmcUnitActivityHistory.fromStatus, to: pmcUnitActivityHistory.toStatus, changedAt: pmcUnitActivityHistory.changedAt, note: pmcUnitActivityHistory.note, activityDefinitionId: pmcUnitActivityProgress.activityDefinitionId, by: users.name })
+      .from(pmcUnitActivityHistory).innerJoin(pmcUnitActivityProgress, eq(pmcUnitActivityProgress.id, pmcUnitActivityHistory.unitActivityProgressId)).leftJoin(users, eq(users.id, pmcUnitActivityHistory.changedByUserId))
       .where(and(mine(pmcUnitActivityHistory), eq(pmcUnitActivityProgress.unitId, input.unitId), activityOnly(pmcUnitActivityProgress.activityDefinitionId))),
     db.select({ activityDefinitionId: pmcUnitActivityProgress.activityDefinitionId, status: pmcUnitActivityProgress.status }).from(pmcUnitActivityProgress).where(and(mine(pmcUnitActivityProgress), eq(pmcUnitActivityProgress.unitId, input.unitId), activityOnly(pmcUnitActivityProgress.activityDefinitionId))),
+    // Q-70 (4): the QC engineer's receipts of this villa's activities (received / not received, the day chosen, who) — every change, not only the last
+    db.select({ id: pmcQcReceiptEvents.id, from: pmcQcReceiptEvents.fromReceived, to: pmcQcReceiptEvents.toReceived, receivedOn: pmcQcReceiptEvents.receivedOn, changedAt: pmcQcReceiptEvents.changedAt, activityDefinitionId: pmcQcReceipts.activityDefinitionId, by: users.name })
+      .from(pmcQcReceiptEvents).innerJoin(pmcQcReceipts, eq(pmcQcReceipts.id, pmcQcReceiptEvents.receiptId)).leftJoin(users, eq(users.id, pmcQcReceiptEvents.changedByUserId))
+      .where(and(mine(pmcQcReceiptEvents), eq(pmcQcReceipts.tenantId, input.tenantId), eq(pmcQcReceipts.unitId, input.unitId), activityOnly(pmcQcReceipts.activityDefinitionId))),
+    // Q-70 (4): the activities of the villa's model with their weights, and the project's status factors, for the table of the villa's items and its progress
+    db.select({ id: pmcActivityDefinitions.id, code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, weightPercent: pmcActivityDefinitions.weightPercent }).from(pmcActivityDefinitions).where(and(mine(pmcActivityDefinitions), eq(pmcActivityDefinitions.modelCode, unit.modelCode))),
+    db.select({ status: pmcStatusFactors.status, factor: pmcStatusFactors.factor }).from(pmcStatusFactors).where(mine(pmcStatusFactors)),
   ]);
 
+  const definitionById = new Map(definitions.map(definition => [definition.id, definition]));
+  const activityLabel = (id: string | null) => { const definition = id ? definitionById.get(id) : undefined; return definition ? `${definition.code} — ${definition.name}` : null; };
   const events: TimelineEvent[] = [
     ...reportLines.map(line => ({ kind: "daily_report" as const, at: `${line.reportDate}T00:00:00.000Z`, ref: line.reportId, title: line.lineType, detail: { reportStatus: line.reportStatus, label: line.label, quantity: line.quantity === null ? null : Number(line.quantity), hours: line.hours === null ? null : Number(line.hours), description: line.description, reportedStatus: line.reportedStatus } })),
     ...submittals.map(row => ({ kind: "submittal" as const, at: (row.sentAt ?? row.createdAt).toISOString(), ref: row.id, title: `${row.submittalNumber} r${row.revision}`, detail: { submittalType: row.submittalType, status: row.status, replyCode: row.replyCode, repliedAt: row.repliedAt?.toISOString() ?? null } })),
     ...requests.map(row => ({ kind: "inspection" as const, at: row.requestedAt.toISOString(), ref: row.id, title: row.code, detail: { responseCode: row.responseCode, consultant: row.consultant } })),
     ...ncrRows.map(row => ({ kind: "ncr" as const, at: row.createdAt.toISOString(), ref: row.id, title: row.number, detail: { status: row.status, summary: row.title } })),
     ...issues.map(row => ({ kind: "material_issue" as const, at: row.issuedAt.toISOString(), ref: row.id, title: row.code, detail: { description: row.description, quantity: Number(row.quantity), unit: row.unit } })),
-    ...history.map(row => ({ kind: "status_change" as const, at: row.changedAt.toISOString(), ref: row.id, title: `${row.from ?? "—"} → ${row.to}`, detail: { note: row.note, activityDefinitionId: row.activityDefinitionId } })),
+    ...history.map(row => ({ kind: "status_change" as const, at: row.changedAt.toISOString(), ref: row.id, title: `${row.from ?? "—"} → ${row.to}`, detail: { note: row.note, activityDefinitionId: row.activityDefinitionId, activity: activityLabel(row.activityDefinitionId), by: row.by } })),
+    ...qcEvents.map(row => ({ kind: "qc_receipt" as const, at: row.changedAt.toISOString(), ref: row.id, title: `${row.from === null ? "—" : row.from ? "RECEIVED" : "NOT_RECEIVED"} → ${row.to ? "RECEIVED" : "NOT_RECEIVED"}`, detail: { receivedOn: row.receivedOn, activityDefinitionId: row.activityDefinitionId, activity: activityLabel(row.activityDefinitionId), by: row.by } })),
   ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 300);
 
   const policy = await loadTenantPolicy(db, input.tenantId);
@@ -82,8 +97,25 @@ export async function getCellCardForTenant(input: Scope & { unitId: string; acti
     const heldByNcr = !accepted && policy.ncrAcceptanceMode === "block" && Boolean(latest && policy.qcAcceptedCodes.includes(latest.responseCode!)) && (await openNcrNumbers(db, input.tenantId, [unit.id], activity.id)).length > 0;
     qc = { policy: policy.qcCompletionMode, accepted, ncrMode: policy.ncrAcceptanceMode, heldByNcr };
   }
+  // Q-70 (4): the villa's items — each activity of its model with its weight, status now, the day it was completed and its QC receipt — and the villa's
+  // progress by the PMC rule (a model whose weights do not total 100 gives no number, never a wrong one). Only for the whole villa, not one activity.
+  let items: Array<{ code: string; name: string; weightPercent: number; status: string; completedOn: string | null; qcReceived: boolean | null }> | null = null;
+  let progressPercent: number | null = null;
+  if (!activity) {
+    const statusOf = new Map(cells.map(cell => [cell.activityDefinitionId, cell.status as PmcUnitActivityStatus]));
+    const completedOn = new Map<string, string>();
+    for (const row of history) if (row.to === "COMPLETE") { const day = row.changedAt.toISOString(); if (!completedOn.has(row.activityDefinitionId) || day > completedOn.get(row.activityDefinitionId)!) completedOn.set(row.activityDefinitionId, day); }
+    const qcNow = new Map<string, { at: string; received: boolean }>();
+    for (const row of qcEvents) { const at = row.changedAt.toISOString(); const seen = qcNow.get(row.activityDefinitionId); if (!seen || at > seen.at) qcNow.set(row.activityDefinitionId, { at, received: row.to }); }
+    items = [...definitions].sort((a, b) => a.code.localeCompare(b.code, "en", { numeric: true })).map(definition => {
+      const status = statusOf.get(definition.id) ?? "NOT_STARTED";
+      return { code: definition.code, name: definition.name, weightPercent: Number(definition.weightPercent), status, completedOn: status === "COMPLETE" ? (completedOn.get(definition.id) ?? null) : null, qcReceived: qcNow.get(definition.id)?.received ?? null };
+    });
+    try { progressPercent = calculateUnitProgress({ statusFactors: effectiveStatusFactors(factorRows), activities: definitions.map(definition => ({ weightPercent: Number(definition.weightPercent), status: statusOf.get(definition.id) ?? "NOT_STARTED" })) }); }
+    catch { progressPercent = null; }
+  }
   return {
-    unit, activity, status: activity ? (cells[0]?.status ?? "NOT_STARTED") : null, qc,
+    unit, activity, status: activity ? (cells[0]?.status ?? "NOT_STARTED") : null, qc, items, progressPercent,
     openNcrs: ncrRows.filter(row => !["closed", "cancelled"].includes(row.status)).length,
     events,
   };
