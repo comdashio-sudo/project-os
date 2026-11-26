@@ -27,7 +27,7 @@ const openId = `email:${createHash("sha256").update(email).digest("hex").slice(0
 await upsertUser({ openId, name: "مالك المشروع (مختلق)", email, loginMethod: "email" });
 const db = await getDb();
 const [owner] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-const { tenantId } = await createTenantForUser({ userId: owner.id, legalName: "شركة الشكل الواقعي (مختلقة)", slug: "owner-shaped-sweep", packageCode: "ALL-IN-ONE" });
+const { tenantId } = await createTenantForUser({ userId: owner.id, legalName: "شركة الشكل الواقعي (مختلقة)", slug: `owner-shaped-${randomUUID().slice(0, 8)}`, packageCode: "ALL-IN-ONE" });
 const { id: projectId } = await createProjectForTenant({ userId: owner.id, tenantId, code: "SHAPED-1", name: "مشروع بشكل مشروع المالك (مختلق)", projectType: "villas", currency: "SAR" });
 
 const client = await db.$client.connect();
@@ -59,7 +59,23 @@ try {
     for (const index of present) definitions.push([randomUUID(), tenantId, projectId, groupIds[index % GROUPS], stageIds[index], null, model, `IP-${pad(index + 1, 3)}`, `البند ${index + 1}`, Number(share.toFixed(6))]);
   }
   await bulk("pmc_activity_definitions", ["id", "tenant_id", "project_id", "group_id", "stage_id", "wbs_item_id", "model_code", "code", "name", "weight_percent"], definitions);
-  console.log(JSON.stringify({ seeded: true, tenantId, projectId, villas: VILLAS, blocks: BLOCKS, models: MODELS.length, definitions: definitions.length }));
+  // optional: SEED_CELLS_PERCENT=40 gives that share of every villa's activities a status and a history row, as a project with a few weeks of site updates has (default 0: a project just imported)
+  const share = Math.max(0, Math.min(100, Number(process.env.SEED_CELLS_PERCENT ?? 0)));
+  let cells = 0;
+  if (share > 0) {
+    const defsOfModel = new Map(); for (const row of definitions) (defsOfModel.get(row[6]) ?? defsOfModel.set(row[6], []).get(row[6])).push(row[0]);
+    const cellRows = []; const historyRows = []; const now = new Date();
+    for (const [unitIndex, unit] of unitRows.entries()) for (const [defIndex, definitionId] of (defsOfModel.get(unit[5]) ?? []).entries()) {
+      if (((unitIndex * 31 + defIndex * 17) % 100) >= share) continue;
+      const id = randomUUID(); const done = (unitIndex + defIndex) % 3 === 0;
+      cellRows.push([id, tenantId, projectId, unit[0], definitionId, done ? "COMPLETE" : "IN_PROGRESS", owner.id, owner.id, now]);
+      historyRows.push([randomUUID(), tenantId, projectId, id, "NOT_STARTED", done ? "COMPLETE" : "IN_PROGRESS", owner.id, now, "تحديث تجريبي"]);
+    }
+    await bulk("pmc_unit_activity_progress", ["id", "tenant_id", "project_id", "unit_id", "activity_definition_id", "status", "assigned_user_id", "last_changed_by_user_id", "last_changed_at"], cellRows);
+    await bulk("pmc_unit_activity_history", ["id", "tenant_id", "project_id", "unit_activity_progress_id", "from_status", "to_status", "changed_by_user_id", "changed_at", "note"], historyRows);
+    cells = cellRows.length;
+  }
+  console.log(JSON.stringify({ seeded: true, tenantId, projectId, villas: VILLAS, blocks: BLOCKS, models: MODELS.length, definitions: definitions.length, cells }));
 } finally { client.release(); }
 const token = await sdk.issueSession(openId, { name: "مالك المشروع (مختلق)" });
 writeFileSync(sessionFile, token, { mode: 0o600 });
