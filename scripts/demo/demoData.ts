@@ -48,6 +48,15 @@ export const DEMO_PEOPLE: readonly DemoPerson[] = [
   // Q-55 (3): the safety engineer who keeps the incidents and the permits to work, and the operations manager who follows every project (Q-53)
   { key: "hse", email: "safety.engineer@show.example.test", name: "مهندس السلامة (عرض)", role: "HSE_MANAGER", scope: "project", level: "السلامة" },
   { key: "ops", email: "operations.manager@show.example.test", name: "مدير العمليات (عرض)", role: "OPERATIONS_MANAGER", scope: "company", level: "التشغيل" },
+  // Q-55 (3b): one made-up account for every remaining role template, so a demonstration can sign in as any role (server/domain/operationalRoles.ts)
+  { key: "procurement", email: "procurement.officer@show.example.test", name: "مسؤول المشتريات (عرض)", role: "PROCUREMENT_OFFICER", scope: "project", level: "المشتريات" },
+  { key: "contracts", email: "contracts.manager@show.example.test", name: "مدير العقود (عرض)", role: "CONTRACTS_MANAGER", scope: "project", level: "العقود" },
+  { key: "designA", email: "design.architectural@show.example.test", name: "منسق التصميم المعماري (عرض)", role: "DESIGN_COORDINATOR_ARCHITECTURAL", scope: "project", level: "التصميم" },
+  { key: "designT", email: "design.technical@show.example.test", name: "منسق التصميم الفني (عرض)", role: "DESIGN_COORDINATOR_TECHNICAL", scope: "project", level: "التصميم" },
+  { key: "finance", email: "finance.manager@show.example.test", name: "المدير المالي (عرض)", role: "FINANCE_MANAGER", scope: "company", level: "المالية" },
+  { key: "accountant", email: "accountant@show.example.test", name: "المحاسب (عرض)", role: "ACCOUNTANT", scope: "company", level: "المحاسبة" },
+  { key: "hr", email: "hr.manager@show.example.test", name: "مدير الموارد البشرية (عرض)", role: "HR_MANAGER", scope: "company", level: "الموارد البشرية" },
+  { key: "viewer", email: "management.viewer@show.example.test", name: "مطّلع الإدارة (عرض)", role: "MANAGEMENT_VIEWER", scope: "company", level: "الاطلاع" },
 ];
 
 export const CONSULTANTS = ["استشاري العرض أ", "استشاري العرض ب", "استشاري العرض ج"] as const;

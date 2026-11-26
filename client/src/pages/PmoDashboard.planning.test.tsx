@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import PmoDashboard from "./PmoDashboard";
 import { expectEmptySubmitRefused } from "@/test/checkedFormExpect";
 
-const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, materialShortage: false, controlLinksRenderFailure: false, linkMutate: vi.fn() }));
+const state = vi.hoisted(() => ({ exceptionsError: null as unknown, risksError: null as unknown, risksLoading: false, setupEmpty: false, planningPartial: false, materialShortage: false, delayed: false, controlLinksRenderFailure: false, linkMutate: vi.fn() }));
 
 vi.mock("@/components/OwnerSelect", () => ({ OwnerSelect: () => null }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
@@ -29,8 +29,9 @@ vi.mock("@/lib/trpc", () => {
         { id: "critical", code: "P-01", name: "Needs intervention", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 5, attentionLevel: "critical", health: { status: "red", overallScore: 42, periodAt: new Date("2026-08-19") }, evm: { cpi: 0.8, spi: 0.8, eac: 125, vac: -25, periodAt: new Date("2026-08-20") }, forecastFinishAt: new Date("2026-08-25"), signals: ["schedule_critical", "cost_critical", "finish_delay"] },
         { id: "steady", code: "P-02", name: "On track project", lifecycleStage: "execution", status: "active", currency: "SAR", finishVarianceDays: 0, attentionLevel: state.planningPartial ? "data_required" : "on_track", health: state.planningPartial ? null : { status: "green" }, evm: state.planningPartial ? null : { cpi: 1.02, spi: 1.01 }, forecastFinishAt: new Date("2026-08-20"), signals: state.planningPartial ? ["missing_evm", "missing_health"] : [] },
       ] } } }) },
-      pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: state.exceptionsError, data: state.exceptionsError ? undefined : { todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }, ...(state.materialShortage ? [{ id: "inventory:critical:mat-1", category: "inventory", severity: "warning", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "material_reorder_required", detail: "MAT-01 · Concrete · 2/10", dueAt: null }] : [])] } }) },
+      pmoTodayExceptions: { useQuery: () => ({ isLoading: false, error: state.exceptionsError, data: state.exceptionsError ? undefined : { todayExceptions: [{ id: "health:critical", category: "health", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "health_red", detail: "red", dueAt: null }, ...(state.delayed ? [{ id: "schedule:critical", category: "schedule", severity: "critical", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "forecast_finish_delayed", detail: "30", dueAt: null }] : []), ...(state.materialShortage ? [{ id: "inventory:critical:mat-1", category: "inventory", severity: "warning", projectId: "critical", projectCode: "P-01", projectName: "Needs intervention", label: "material_reorder_required", detail: "MAT-01 · Concrete · 2/10", dueAt: null }] : [])] } }) },
     },
+    search: { quick: { useQuery: () => ({ data: undefined, error: null, isFetching: false }) } },
     navigation: { get: { useQuery: ({ tenantId, projectId }: { tenantId: string; projectId?: string }) => ({ data: projectId === "critical" ? [{ id: "project-controls", href: `/projects/${tenantId}/${projectId}/controls` }] : [] }) } },
     pmo: { createRisk: { useMutation: mutation }, createIssue: { useMutation: mutation }, createAction: { useMutation: mutation }, createPortfolio: { useMutation: mutation }, createProgram: { useMutation: mutation }, linkProject: { useMutation: () => ({ mutate: state.linkMutate, isPending: false, isSuccess: false, error: null }) }, transitionIssueEscalation: { useMutation: mutation }, transitionActionEscalation: { useMutation: mutation } },
   } };
@@ -41,7 +42,7 @@ describe("PmoDashboard planning control center", () => {
 
   it("starts with actionable exceptions and reveals all projects through the filter", () => {
     render(<PmoDashboard />);
-    expect(screen.getByText("PROJECT OS")).toBeTruthy();
+    expect(screen.getByText("Dashio")).toBeTruthy(); expect(screen.queryByText("PROJECT OS")).toBeNull(); // I3: the retired name is not shown
     expect(screen.getByRole("heading", { name: "Planning control center" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Today’s exceptions" })).toBeTruthy();
     expect(screen.getByText("Red health")).toBeTruthy();
@@ -56,6 +57,18 @@ describe("PmoDashboard planning control center", () => {
     expect(document.querySelector("[data-pmo-setup-guide]")!.textContent).toContain("Portfolio, program and project: what is the difference?");
     const fields = Array.from(document.querySelectorAll("[data-field-help]")).map(node => node.getAttribute("data-field-help"));
     expect(fields).toEqual(["code", "name", "programPortfolio", "code", "name", "linkProject", "linkProgram", "linkPortfolio"]);
+  });
+
+  it("I3: an exception's health status and its days of delay are said in words, never as the server's raw value («red», «30»)", () => {
+    state.delayed = true;
+    try {
+      render(<PmoDashboard />);
+      const details = Array.from(document.querySelectorAll("[data-exception-detail]")).map(node => node.textContent);
+      expect(details).toContain("Status: red");
+      expect(details).toContain("Forecast finish 30 days late");
+      expect(details).not.toContain("red");
+      expect(details).not.toContain("30");
+    } finally { state.delayed = false; }
   });
 
   it("renders a material shortage in the existing today exceptions center", () => {

@@ -108,6 +108,17 @@ export default function PmoDashboard() {
   const escalationLabel = (status: EscalationStatus) => t[status];
   const signalLabel = (signal: string) => planningCopy.labels[signal as keyof typeof planningCopy.labels] ?? signal;
   const exceptionLabel = (label: string) => exceptionCopy.labels[label as keyof typeof exceptionCopy.labels] ?? label;
+  // I3 (the six defects): the server sends a health status or a number of days as the detail of two kinds of exception; they are said in words, never raw
+  const detailCopy = pickLanguage(language, {
+    ar: { health: { red: "الحالة: حمراء", amber: "الحالة: صفراء" } as Record<string, string>, delayed: (days: number) => `تأخر النهاية المتوقعة ${days} يومًا` },
+    en: { health: { red: "Status: red", amber: "Status: amber" } as Record<string, string>, delayed: (days: number) => `Forecast finish ${days} days late` },
+    ur: { health: { red: "حالت: سرخ", amber: "حالت: زرد" } as Record<string, string>, delayed: (days: number) => `متوقع تکمیل ${days} دن تاخیر سے` },
+  });
+  const exceptionDetail = (exception: { label: string; detail: string }) => {
+    if (exception.label === "health_red" || exception.label === "health_amber") return detailCopy.health[exception.detail] ?? exception.detail;
+    if (exception.label === "forecast_finish_delayed" && /^\d+$/.test(exception.detail)) return detailCopy.delayed(Number(exception.detail));
+    return exception.detail;
+  };
   const nextEscalation = (status: EscalationStatus) => status === "none" ? "pending" : status === "pending" ? "escalated" : null;
   const projectSelect = (value: string, change: (value: string) => void, id: string) => (
     <Select id={id} className="mt-1" value={value} placeholder={t.select} onValueChange={change} required options={data.projects.map(project => ({ value: project.id, label: `${project.code} · ${project.name}` }))} />
@@ -148,7 +159,7 @@ export default function PmoDashboard() {
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_planning" state={planningQuery.error ? "error" : planningOverview.summary.dataRequiredProjects > 0 ? "partial" : null} />
         <DashboardSectionReporter tenantId={tenantId} product="PMO" sectionKey="pmo_today_exceptions" state={exceptionsQuery.error ? "error" : null} />
         <section className="rounded-3xl bg-primary p-7 text-white">
-          <p className="text-xs font-bold tracking-[.16em] text-secondary">PROJECT OS</p>
+          <p className="text-xs font-bold tracking-[.16em] text-secondary">Dashio</p>
           <h1 className="mt-2 text-3xl font-semibold">{t.title}</h1>
           <p className="mt-2 text-primary-foreground/85">{t.sub}</p>
         </section>
@@ -176,7 +187,7 @@ export default function PmoDashboard() {
         <SectionErrorBoundary title={exceptionCopy.title} isArabic={isArabic}>
         {exceptionsQuery.isLoading ? <div className="mt-6"><SectionMessage title={exceptionCopy.title} isArabic={isArabic} kind="loading" /></div> : exceptionsQuery.error || !exceptionsQuery.data ? <div className="mt-6"><SectionMessage title={exceptionCopy.title} isArabic={isArabic} kind="error" error={exceptionsQuery.error} onRetry={() => void exceptionsQuery.refetch()} /></div> : <section className="mt-6 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" aria-label={exceptionCopy.title}>
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5"><div><div className="flex items-center gap-2"><CircleAlert className="h-5 w-5 text-primary" /><h2 className="text-lg font-semibold text-foreground">{exceptionCopy.title}</h2></div><p className="mt-1 text-sm text-muted-foreground">{exceptionCopy.sub}</p></div><span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">{todayExceptions.length}</span></div>
-          {todayExceptions.length ? <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">{todayExceptions.slice(0, 12).map(exception => <article key={exception.id} className={`rounded-[var(--radius-md)] border p-4 ${exception.severity === "critical" ? "border-destructive/30 bg-danger-soft/70" : "border-warning/40 bg-warning-soft/70"}`}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{exception.projectCode}</p><h3 className="mt-1 font-semibold text-foreground">{exceptionLabel(exception.label)}</h3></div><span className={`rounded-full px-2 py-1 text-xs font-semibold ${exception.severity === "critical" ? "bg-danger-soft text-danger-soft-foreground" : "bg-warning-soft text-warning-soft-foreground"}`}>{exception.severity === "critical" ? exceptionCopy.critical : exceptionCopy.warning}</span></div><p className="mt-3 text-sm font-medium text-foreground">{exception.detail}</p><p className="mt-1 text-xs text-muted-foreground">{exception.projectName}{exception.dueAt ? ` · ${formatDate(exception.dueAt, language)}` : ""}</p><div className="mt-3"><GovernedProjectControlLink tenantId={tenantId} projectId={exception.projectId} compact /></div></article>)}</div> : <p className="p-5 text-sm text-muted-foreground">{exceptionCopy.empty}</p>}
+          {todayExceptions.length ? <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">{todayExceptions.slice(0, 12).map(exception => <article key={exception.id} className={`rounded-[var(--radius-md)] border p-4 ${exception.severity === "critical" ? "border-destructive/30 bg-danger-soft/70" : "border-warning/40 bg-warning-soft/70"}`}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{exception.projectCode}</p><h3 className="mt-1 font-semibold text-foreground">{exceptionLabel(exception.label)}</h3></div><span className={`rounded-full px-2 py-1 text-xs font-semibold ${exception.severity === "critical" ? "bg-danger-soft text-danger-soft-foreground" : "bg-warning-soft text-warning-soft-foreground"}`}>{exception.severity === "critical" ? exceptionCopy.critical : exceptionCopy.warning}</span></div><p className="mt-3 text-sm font-medium text-foreground" data-exception-detail>{exceptionDetail(exception)}</p><p className="mt-1 text-xs text-muted-foreground">{exception.projectName}{exception.dueAt ? ` · ${formatDate(exception.dueAt, language)}` : ""}</p><div className="mt-3"><GovernedProjectControlLink tenantId={tenantId} projectId={exception.projectId} compact /></div></article>)}</div> : <p className="p-5 text-sm text-muted-foreground">{exceptionCopy.empty}</p>}
         </section>}
         </SectionErrorBoundary>
 

@@ -17,6 +17,7 @@ vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: f
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ user: { name: "Pilot Owner", email: "owner@example.test" }, logout: vi.fn() }) }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    search: { quick: { useQuery: () => ({ data: undefined, error: null, isFetching: false }) } },
     navigation: { get: { useQuery: () => ({ data: state.nav }) } },
     tenant: { mine: { useQuery: () => ({ data: [{ tenantId: "t1", legalName: "Pilot Company" }] }) } },
     projects: { list: { useQuery: (_input: unknown, options?: { enabled?: boolean }) => { state.listOptions.push(options); return options?.enabled === false ? { data: undefined, error: null } : { data: state.projects, error: null }; } } },

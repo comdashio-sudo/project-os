@@ -107,6 +107,7 @@ import { mfaProcedure, protectedProcedure, publicProcedure, router } from "./_co
 import { createCompanyLogoUpload, getCompanyProfile, updateCompanyProfile } from "./companyProfile";
 import { listPmcQcHistory, pmcQcCounters, pmcVillaStates, updatePmcQcReceipts, pmcQcMap } from "./pmcQcReceipts";
 import { getStalledUnits, setStallThreshold } from "./stalledUnits";
+import { quickSearch } from "./quickSearch";
 import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
 import { undoPmcProgressBatch, undoPmcQcReceiptBatch } from "./pmcUndo";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
@@ -385,6 +386,10 @@ export const appRouter = router({
     discard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).mutation(({ ctx, input }) => discardImportAttempt({ userId: ctx.user.id, ...input })),
     rollback: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid() })).mutation(({ ctx, input }) => rollbackImport({ userId: ctx.user.id, ...input })),
     export: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), moduleCode: z.enum(["wbs", "budget", "activities", "contracts", "materials", ...LEDGER_MODULES]), format: z.enum(["xlsx", "csv"]), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportProjectData({ userId: ctx.user.id, ...input })),
+  }),
+  // Q-59 (3): the project's quick search (Ctrl+K) — each source through its own screen's gate (server/quickSearch.ts)
+  search: router({
+    quick: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), query: z.string().trim().min(1).max(80) })).query(({ ctx, input }) => quickSearch({ userId: ctx.user.id, ...input })),
   }),
   // Work order 22: the site ↔ the consultant ↔ the monthly report (server/pmcSiteService.ts, server/consultantImport.ts, server/wo22Exports.ts)
   pmcSite: router({
