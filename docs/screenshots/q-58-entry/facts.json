@@ -1,0 +1,182 @@
+[
+ {
+  "lang": "ar",
+  "width": 390,
+  "hScroll": false,
+  "eastern": false,
+  "small": [],
+  "firstHeading": [
+   "التقارير اليومية",
+   "1الرأسمطلوب26‏/11‏/2026",
+   "2الأعمال المنفذة0 سطر"
+  ],
+  "sections": [
+   "header",
+   "work",
+   "labour",
+   "equipment",
+   "materials",
+   "inspections",
+   "hse",
+   "obstacles",
+   "tomorrow",
+   "photos",
+   "review"
+  ],
+  "strip": 11,
+  "visibleSections": 1,
+  "afterNext": "work",
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "hScroll": false,
+  "eastern": false,
+  "small": [
+   "—",
+   "—"
+  ],
+  "firstHeading": [
+   "التقارير اليومية",
+   "1الرأسمطلوب26‏/11‏/2026",
+   "2الأعمال المنفذة0 سطر"
+  ],
+  "sections": [
+   "header",
+   "work",
+   "labour",
+   "equipment",
+   "materials",
+   "inspections",
+   "hse",
+   "obstacles",
+   "tomorrow",
+   "photos",
+   "review"
+  ],
+  "strip": 11,
+  "visibleSections": 11,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "hScroll": false,
+  "eastern": false,
+  "small": [],
+  "firstHeading": [
+   "Daily reports",
+   "1HeaderRequired26/11/2026",
+   "2Work done0 lines"
+  ],
+  "sections": [
+   "header",
+   "work",
+   "labour",
+   "equipment",
+   "materials",
+   "inspections",
+   "hse",
+   "obstacles",
+   "tomorrow",
+   "photos",
+   "review"
+  ],
+  "strip": 11,
+  "visibleSections": 1,
+  "afterNext": "work",
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "hScroll": false,
+  "eastern": false,
+  "small": [
+   "—",
+   "—"
+  ],
+  "firstHeading": [
+   "Daily reports",
+   "1HeaderRequired26/11/2026",
+   "2Work done0 lines"
+  ],
+  "sections": [
+   "header",
+   "work",
+   "labour",
+   "equipment",
+   "materials",
+   "inspections",
+   "hse",
+   "obstacles",
+   "tomorrow",
+   "photos",
+   "review"
+  ],
+  "strip": 11,
+  "visibleSections": 11,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "hScroll": false,
+  "eastern": false,
+  "small": [],
+  "firstHeading": [
+   "یومیہ رپورٹس",
+   "1سرخیلازمی26/11/2026",
+   "2مکمل کیا گیا کام0 سطریں"
+  ],
+  "sections": [
+   "header",
+   "work",
+   "labour",
+   "equipment",
+   "materials",
+   "inspections",
+   "hse",
+   "obstacles",
+   "tomorrow",
+   "photos",
+   "review"
+  ],
+  "strip": 11,
+  "visibleSections": 1,
+  "afterNext": "work",
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "hScroll": false,
+  "eastern": false,
+  "small": [
+   "—",
+   "—"
+  ],
+  "firstHeading": [
+   "یومیہ رپورٹس",
+   "1سرخیلازمی26/11/2026",
+   "2مکمل کیا گیا کام0 سطریں"
+  ],
+  "sections": [
+   "header",
+   "work",
+   "labour",
+   "equipment",
+   "materials",
+   "inspections",
+   "hse",
+   "obstacles",
+   "tomorrow",
+   "photos",
+   "review"
+  ],
+  "strip": 11,
+  "visibleSections": 11,
+  "errors": []
+ }
+]

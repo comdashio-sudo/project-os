@@ -162,9 +162,12 @@ describe.skipIf(!run)("the demonstration company", () => {
     expect(comparison.totals).toEqual({ siteDoneNotReceived: Number(expected.siteDone), receivedNotDone: Number(expected.received) });
     expect(comparison.totals.siteDoneNotReceived).toBeGreaterThan(0);
     expect(comparison.totals.receivedNotDone).toBeGreaterThan(0);
-    // at least five villas the stall rule calls stalled
+    // a sound project with a few problems in sight (adviser, I57): between 8 and 12 villas the stall rule calls stalled — the rule unchanged, its default threshold
     const stalled = await pm.pmc.stalledUnits(scope);
-    expect(stalled.counts.stalled + stalled.counts.long).toBeGreaterThanOrEqual(5);
+    const stopped = stalled.counts.stalled + stalled.counts.long;
+    expect(stopped).toBeGreaterThanOrEqual(8);
+    expect(stopped).toBeLessThanOrEqual(12);
+    expect(weightsMode.stalled.kept).toBe(stopped);
     // NEGATIVE: a consultant column left unmatched is not compared (never guessed), and the count of what is not compared says so
     const owner = await asPerson(OWNER);
     const matched = columns.find(column => column.linkMethod === "owner")!;
