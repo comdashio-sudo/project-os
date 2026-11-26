@@ -2,6 +2,7 @@ import { indicatorBasisLine } from "@/lib/indicatorBasis";
 import { PAGE_NAMES } from "@shared/pageNames";
 import { PageHeader, PageMain } from "@/components/pageFrame";
 import { ProjectBoardHero } from "@/components/ProjectBoardHero";
+import { ProjectBoardAttention } from "@/components/ProjectBoardAttention";
 import { ProjectBoardKpis } from "@/components/ProjectBoardKpis";
 import { MetricCard, formatDate, formatNumber } from "@/components/ds";
 import { UPLOAD_ANY_FILE_FALLBACK_GROUP, uploadAnyFileHref } from "@/lib/uploadAnyFile";
@@ -96,7 +97,15 @@ const ProjectAdvisor = withProjectSectionBoundary(ProjectAdvisorContent, { ar: "
 const ProjectNotifications = withProjectSectionBoundary(ProjectNotificationsContent, { ar: "إشعارات المشروع", en: "Project notifications", ur: "پروجیکٹ اطلاعات" });
 
 /** Q-56 (2): the levels of the menu that live on this page, each opened as a page of its own (/planning, /supply) */
-export type ControlsFocus = "planning" | "supply";
+export type ControlsFocus = "planning" | "supply" | "site" | "contracts";
+/** Q-59 (2): each level's own page (the board keeps a card for each) */
+export const FOCUS_PATHS: Record<ControlsFocus, string> = { planning: "planning", site: "field-records", supply: "supply", contracts: "contracts" };
+/** The old addresses of the board's levels and groups (#planning, #manager-site …): each still opens what it named, on its level's page */
+export const HASH_TO_FOCUS: Record<string, ControlsFocus> = {
+  planning: "planning", "manager-schedule": "planning", "manager-assurance": "planning", "manager-oversight": "planning",
+  site: "site", "manager-site": "site", "manager-design": "site", supply: "supply", "manager-supply": "supply",
+  contracts: "contracts", "manager-commercial": "contracts", "manager-tenders": "contracts",
+};
 const FocusContext = React.createContext<ControlsFocus | null>(null);
 
 export default function ProjectControls({ focus = null }: { focus?: ControlsFocus | null } = {}) {
@@ -138,6 +147,12 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
   const [, navigate] = useLocation();
   // Q-36 (step 3, docs/proposals/navigation.md §4): PMC has ONE address, /pmc. The old «PMC tab» address (controls#pmc) still works: it goes there.
   React.useEffect(() => { if (typeof window !== "undefined" && window.location.hash === "#pmc") navigate(`/projects/${tenantId}/${projectId}/pmc`, { replace: true }); }, [navigate, tenantId, projectId]);
+  // Q-59 (2): a link made to a level or group of the board (/controls#manager-commercial) opens it on its level's page, the group still named
+  React.useEffect(() => {
+    if (focus || typeof window === "undefined") return;
+    const hash = window.location.hash.slice(1); const target = HASH_TO_FOCUS[hash];
+    if (target) navigate(`/projects/${tenantId}/${projectId}/${FOCUS_PATHS[target]}#${hash}`, { replace: true });
+  }, [focus, navigate, tenantId, projectId]);
   const canOpenPmc = useCanPage("pmc", projectId);
   // Q-36 (step 4, docs/proposals/navigation.md §3.1): the page's groups sit under the levels of the menu, each a titled section with its own address
   const level = pickLanguage(language, {
@@ -145,6 +160,9 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
     en: { planning: "Planning and control", site: "Site and execution", supply: "Warehouses and procurement", supplyGroup: "Material requests, purchasing and stock", contracts: "Contractors and contracts" },
     ur: { planning: "منصوبہ بندی اور کنٹرول", site: "سائٹ اور عمل درآمد", supply: "گودام اور خریداری", supplyGroup: "مواد کی درخواستیں، خریداری اور اسٹاک", contracts: "ٹھیکیدار اور معاہدے" },
   });
+
+  // Q-59 (2): the title of each level's own page (the site's and the contracts' levels are named by their page, not by the board's section)
+  const focusTitles: Record<ControlsFocus, string> = { planning: level.planning, supply: level.supply, site: pickLanguage(language, PAGE_NAMES.fieldRecords), contracts: pickLanguage(language, PAGE_NAMES.contractsRecords) };
 
   const t = pickLanguage(language, { ar: {
         registry: "سجل المشاريع", level: "المستوى 3 · تسليم المشروع", loading: "جارٍ تحميل لوحة المشروع…", project: "المشروع", title: "لوحة المشروع", subtitle: "سجل البيانات التشغيلية أولاً، ثم احفظ لقطة EVM موثقة وقابلة للتدقيق.", wbs: "هيكل تجزئة العمل", activities: "الأنشطة والجدولة", budget: "الميزانية", cost: "التكلفة الفعلية", progress: "التقدم", snapshot: "لقطة EVM", health: "صحة المشروع", healthNote: "تستخدم اللقطة أحدث EVM والمخاطر عالية التعرض والإجراءات وطلبات المعلومات وحالات عدم المطابقة المتأخرة. لا توجد بعد مصادر للموافقات، ولذلك تدخل بقيم صفرية معلنة.", captureHealth: "حساب وحفظ لقطة الصحة", healthPending: "جارٍ حساب الصحة…", healthExceptions: "استثناءات الصحة وخطط التعافي", score: "الدرجة", confidence: "الثقة", highRisks: "مخاطر عالية", overdueActions: "إجراءات متأخرة", overdueRfis: "طلبات معلومات متأخرة", overdueNcrs: "حالات عدم مطابقة متأخرة", noHealth: "لا توجد لقطة صحة محفوظة حتى الآن.", code: "الرمز", name: "الاسم", planned: "القيمة المخططة", start: "البداية المخططة", finish: "النهاية المخططة", addWbs: "إضافة بند WBS", addActivity: "جدولة نشاط", activityLink: "ربط WBS (اختياري)", noActivities: "لا توجد أنشطة مجدولة حتى الآن.", notStarted: "لم يبدأ", inProgress: "قيد التنفيذ", completed: "مكتمل", blocked: "متعثر", costCode: "رمز التكلفة", original: "الميزانية الأصلية", current: "الميزانية الحالية", link: "ربط WBS", projectLevel: "على مستوى المشروع", addBudget: "تسجيل بند الميزانية", amount: "القيمة", date: "التاريخ", addCost: "تسجيل تكلفة فعلية", percent: "نسبة الإنجاز", addProgress: "تسجيل التقدم", pv: "PV القيمة المخططة", ev: "EV القيمة المكتسبة", ac: "AC التكلفة الفعلية", bac: "BAC الميزانية عند الإتمام", save: "حفظ لقطة EVM", latest: "أحدث لقطة", noSnapshot: "لا توجد لقطة EVM محفوظة حتى الآن.", emptyWbs: "أضف بند WBS أولًا لربط الميزانيات والتكاليف والتقدم.", entries: "القيود المسجلة", noEntries: "لا توجد قيود تشغيلية حتى الآن.", submitting: "جارٍ الحفظ…", actual: "فعلي", recorded: "مسجل", captureNote: "تدخل قيم لقطة EVM يدويًا في هذه الدفعة. لا تدّعي الواجهة أنها محسوبة من سجلات التشغيل قبل اكتمال محرك التجميع.", cpi: "CPI", spi: "SPI", eac: "EAC", vac: "VAC", contractsAndDocuments: "العقود والمستندات والمطالبات", siteDelivery: "سجل الموقع والجودة", planningAndData: "التخطيط وملفات البيانات", supportAndOversight: "المتابعة والذكاء والإشعارات",
@@ -235,7 +253,9 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
     en: { schedule: "No schedule recorded yet.", scheduleAct: "Add an activity or upload the programme.", records: "No budget, cost or progress recorded yet.", recordsAct: "Add a line or upload a file.", performance: "No performance snapshot yet: it is calculated once the schedule, budget and progress are recorded." },
     ur: { schedule: "ابھی کوئی شیڈول درج نہیں ہوا۔", scheduleAct: "کوئی سرگرمی شامل کریں یا پروگرام اپ لوڈ کریں۔", records: "ابھی کوئی بجٹ، لاگت یا پیش رفت درج نہیں ہوئی۔", recordsAct: "کوئی سطر شامل کریں یا فائل اپ لوڈ کریں۔", performance: "ابھی کارکردگی کا کوئی اسنیپ شاٹ نہیں: یہ شیڈول، بجٹ اور پیش رفت درج ہونے کے بعد نکالا جاتا ہے۔" },
   });
-  const jumpToManagerLane = (id: string) => { const target = document.getElementById(id); if (target instanceof HTMLDetailsElement) target.open = true; if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  const jumpToManagerLane = (id: string) => { const target = document.getElementById(id);
+    // Q-59 (2): a group that is not on this page (the board is a summary) is opened on its level's page
+    if (!target && HASH_TO_FOCUS[id]) { navigate(`/projects/${tenantId}/${projectId}/${FOCUS_PATHS[HASH_TO_FOCUS[id]]}#${id}`); return; } if (target instanceof HTMLDetailsElement) target.open = true; if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
   return (
     <ProjectUploadContext.Provider value={upload ?? null}>
@@ -245,11 +265,13 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_financials" state={financialsQuery.error ? "error" : null} />
         <DashboardSectionReporter tenantId={tenantId} projectId={projectId} product="PROJECT" sectionKey="project_performance" state={performanceQuery.error ? "error" : performanceQuery.data && (!latestEvm || !latestHealth) ? "partial" : null} />
         {/* Q-56 (2): a level of the menu (planning, supply) is a page of its own — its title and its groups, open; the board's head stays on the board */}
-        {focus ? <PageHeader><p dir="ltr" className="text-start text-xs font-semibold text-muted-foreground">{data.project.code}</p><h1 data-focus-title className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl">{level[focus]}</h1></PageHeader> : null}
+        {focus ? <PageHeader><p dir="ltr" className="text-start text-xs font-semibold text-muted-foreground">{data.project.code}</p><h1 data-focus-title className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl">{focusTitles[focus]}</h1></PageHeader> : null}
         {!focus && <>
         {/* Q-19 (3): the date, the day of the programme and the dark hero card of weighted progress against the plan head the board */}
         <ProjectBoardHero tenantId={tenantId} projectId={projectId} starts={data.activities.map(activity => activity.plannedStartAt)} />
         <ProjectBoardKpis tenantId={tenantId} projectId={projectId} />
+        {/* Q-59 (2): what needs attention today, right under the indicators */}
+        <ProjectBoardAttention tenantId={tenantId} projectId={projectId} />
         <section className="flex flex-col gap-4 rounded-[var(--radius-card,var(--radius))] border border-border bg-card p-5 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1 basis-64">
@@ -291,6 +313,9 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
             <ManagerMetric label={t.wbs} value={formatNumber(data.wbs.length)} detail={`${t.progress}: ${formatNumber(data.progress.length)}`} basis={indicatorBasisLine("wbs", language, null)} /></div>
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ManagerLane icon={CalendarDays} title={manager.schedule} detail={pickLanguage(language, { ar: "WBS، الأنشطة، الميزانية، التكلفة والتقدم", en: "WBS, activities, budget, actual cost and progress", ur: "WBS، سرگرمیاں، بجٹ، اصل لاگت اور پیش رفت" })} onClick={() => jumpToManagerLane("manager-schedule")} action={manager.open} /><ManagerLane icon={PackageCheck} title={manager.commercial} detail={pickLanguage(language, { ar: "العقود، طلبات المواد، أوامر الشراء والمطالبات", en: "Contracts, requisitions, purchase orders and claims", ur: "معاہدے، مادّوں کی درخواستیں، خریداری کے آرڈرز اور دعوے" })} onClick={() => jumpToManagerLane("manager-commercial")} action={manager.open} /><ManagerLane icon={ShieldCheck} title={manager.field} detail={pickLanguage(language, { ar: "التقارير الميدانية والجودة وHSE وRFI وNCR والموارد", en: "Field reports, quality, HSE, RFIs, NCRs and resources", ur: "فیلڈ رپورٹس، معیار، HSE، RFIs، NCRs اور وسائل" })} onClick={() => jumpToManagerLane("manager-site")} action={manager.open} /><ManagerLane icon={FileCheck2} title={manager.assurance} detail={pickLanguage(language, { ar: "المستندات وExcel والخطة الرئيسية والإشعارات والاستشارة", en: "Documents, Excel, Master Plan, notifications and advisory", ur: "دستاویزات، Excel، ماسٹر پلان، اطلاعات اور مشاورت" })} onClick={() => jumpToManagerLane("manager-assurance")} action={manager.open} /></div>
         </section>
+        </>}
+        {/* Q-59 (2): the planning centre and the state of the board's three reads belong to planning: on the board and on the planning page */}
+        {(!focus || focus === "planning") && <>
 
         <div>
           <PlanningControlCenter result={planningControl} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} isLoading={boqQuery.isLoading || procurementQuery.isLoading || warehouseQuery.isLoading || contractsQuery.isLoading} />
@@ -310,6 +335,8 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
         </>}
 
         {/* D-84: a grid item's minimum width is its content's, so a wide table inside a section (even inside its own scroller) pushed the whole column past a phone's width; min-w-0 lets the scroller scroll */}
+        {/* Q-59 (2): the board is a summary — what needs attention today and a card for each level, each its own page; the levels' groups live there */}
+        {!focus ? <><BoardLevelCards tenantId={tenantId} projectId={projectId} titles={focusTitles} /></> :
         <div className="grid gap-6 [&>*]:min-w-0">
           <SectionErrorBoundary title={pickLanguage(language, { ar: "تحديث التخطيط والتكلفة", en: "Schedule & cost updates", ur: "شیڈول اور لاگت کی تازہ کاری" })} isArabic={isArabic}>
           <LevelSection id="planning" title={level.planning}>
@@ -359,7 +386,7 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
 
           <SectionErrorBoundary title={pickLanguage(language, { ar: "أداء المشروع والسجلات", en: "Project performance and records", ur: "پروجیکٹ کی کارکردگی اور ریکارڈ" })} isArabic={isArabic}>
           <aside className="space-y-6">
-            {!focus && <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border"><SectionHeading icon={TrendingUp} title={t.progress} /><WriteGate permission={"project.progress.manage"} projectId={projectId} reason={{ ar: "لا تملك صلاحية تسجيل الإنجاز، فالشاشة للعرض فقط.", en: "You do not have permission to report progress; this view is read-only for you.", ur: "آپ کو پیش رفت رپورٹ کرنے کی اجازت نہیں ہے؛ یہ اسکرین آپ کے لیے صرف دیکھنے کے لیے ہے۔" }}><CheckedForm className="mt-5 space-y-3" onSubmit={event => { event.preventDefault(); createProgress.mutate({ tenantId, projectId, wbsItemId: progress.wbsItemId, percentComplete: Number(progress.percentComplete), reportedAt: new Date(`${progress.reportedAt}T00:00:00.000Z`) }); setProgress({ wbsItemId: "", percentComplete: "", reportedAt: today }); }}><Select value={progress.wbsItemId} onValueChange={wbsItemId => setProgress({ ...progress, wbsItemId })} disabled={!data.wbs.length}><SelectTrigger aria-label={t.link}><SelectValue placeholder={t.link} /></SelectTrigger><SelectContent>{data.wbs.map(item => <SelectItem key={item.id} value={item.id}>{item.code} · {item.name}</SelectItem>)}</SelectContent></Select><Input aria-label={t.percent} placeholder={t.percent} type="number" min="0" max="100" value={progress.percentComplete} onChange={event => setProgress({ ...progress, percentComplete: event.target.value })} required /><Input aria-label={t.date} type="date" value={progress.reportedAt} onChange={event => setProgress({ ...progress, reportedAt: event.target.value })} required /><Button className="w-full" disabled={disabled || !progress.wbsItemId}>{createProgress.isPending ? t.submitting : t.addProgress}</Button></CheckedForm></WriteGate></section>}
+            {focus === "planning" && <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border"><SectionHeading icon={TrendingUp} title={t.progress} /><WriteGate permission={"project.progress.manage"} projectId={projectId} reason={{ ar: "لا تملك صلاحية تسجيل الإنجاز، فالشاشة للعرض فقط.", en: "You do not have permission to report progress; this view is read-only for you.", ur: "آپ کو پیش رفت رپورٹ کرنے کی اجازت نہیں ہے؛ یہ اسکرین آپ کے لیے صرف دیکھنے کے لیے ہے۔" }}><CheckedForm className="mt-5 space-y-3" onSubmit={event => { event.preventDefault(); createProgress.mutate({ tenantId, projectId, wbsItemId: progress.wbsItemId, percentComplete: Number(progress.percentComplete), reportedAt: new Date(`${progress.reportedAt}T00:00:00.000Z`) }); setProgress({ wbsItemId: "", percentComplete: "", reportedAt: today }); }}><Select value={progress.wbsItemId} onValueChange={wbsItemId => setProgress({ ...progress, wbsItemId })} disabled={!data.wbs.length}><SelectTrigger aria-label={t.link}><SelectValue placeholder={t.link} /></SelectTrigger><SelectContent>{data.wbs.map(item => <SelectItem key={item.id} value={item.id}>{item.code} · {item.name}</SelectItem>)}</SelectContent></Select><Input aria-label={t.percent} placeholder={t.percent} type="number" min="0" max="100" value={progress.percentComplete} onChange={event => setProgress({ ...progress, percentComplete: event.target.value })} required /><Input aria-label={t.date} type="date" value={progress.reportedAt} onChange={event => setProgress({ ...progress, reportedAt: event.target.value })} required /><Button className="w-full" disabled={disabled || !progress.wbsItemId}>{createProgress.isPending ? t.submitting : t.addProgress}</Button></CheckedForm></WriteGate></section>}
             <LevelSection id="site" title={level.site}>
             <OperationsGroup id="manager-site" level="site" title={t.siteDelivery}><Link href={`/projects/${tenantId}/${projectId}/weekly-report`} data-weekly-report-link className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-border bg-card px-4 text-sm font-medium text-primary hover:bg-muted">{pickLanguage(language, { ar: "التقرير الأسبوعي", en: "Weekly report", ur: "ہفتہ وار رپورٹ" })}<span aria-hidden="true">→</span></Link><Link href={`/projects/${tenantId}/${projectId}/monthly-report`} data-monthly-report-link className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-border bg-card px-4 text-sm font-medium text-primary hover:bg-muted">{pickLanguage(language, { ar: "التقرير الشهري", en: "Monthly report", ur: "ماہانہ رپورٹ" })}<span aria-hidden="true">→</span></Link><ProjectFieldReports tenantId={tenantId} projectId={projectId} /><ProjectQualityInspections tenantId={tenantId} projectId={projectId} /><ProjectHse tenantId={tenantId} projectId={projectId} /><ProjectRfis tenantId={tenantId} projectId={projectId} /><ProjectNcrs tenantId={tenantId} projectId={projectId} /><ProjectChanges tenantId={tenantId} projectId={projectId} /><ProjectResources tenantId={tenantId} projectId={projectId} /><ProjectWorkforce tenantId={tenantId} projectId={projectId} /></OperationsGroup>
             <OperationsGroup id="manager-design" level="site" lazy title={pickLanguage(language, { ar: "التنسيق الفني والمعماري", en: "Technical & architectural coordination", ur: "تکنیکی اور تعمیراتی ہم آہنگی" })}><ProjectDesign tenantId={tenantId} projectId={projectId} /></OperationsGroup>
@@ -371,7 +398,7 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
             <OperationsGroup id="manager-commercial" level="contracts" title={t.contractsAndDocuments}><ProjectContracts tenantId={tenantId} projectId={projectId} /><ProjectClaims tenantId={tenantId} projectId={projectId} /><ProjectDocuments tenantId={tenantId} projectId={projectId} /></OperationsGroup>
             <OperationsGroup id="manager-tenders" level="contracts" lazy title={pickLanguage(language, { ar: "المناقصات قبل الترسية", en: "Tenders before award", ur: "ٹھیکہ دینے سے پہلے کے ٹینڈرز" })}><ProjectTenders tenantId={tenantId} projectId={projectId} /></OperationsGroup>
             </LevelSection>
-            {!focus && <><OperationsGroup id="manager-oversight" title={t.supportAndOversight}><ProjectAdvisor tenantId={tenantId} projectId={projectId} /><ProjectNotifications tenantId={tenantId} /></OperationsGroup>
+            {focus === "planning" && <><OperationsGroup id="manager-oversight" title={t.supportAndOversight}><ProjectAdvisor tenantId={tenantId} projectId={projectId} /><ProjectNotifications tenantId={tenantId} /></OperationsGroup>
             <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border"><SectionHeading icon={HeartPulse} title={t.health} /><p className="mt-4 text-xs leading-5 text-muted-foreground">{t.healthNote}</p><WriteGate permission={["project.evm.manage", "project.manage"]} projectId={projectId}><div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,16rem)_auto] sm:items-end"><Label className="grid gap-1">{operational.period}<Input className="w-full" aria-label={t.health} type="date" value={healthPeriod} onChange={event => setHealthPeriod(event.target.value)} required /></Label><Button disabled={disabled} onClick={() => captureProjectHealth.mutate({ tenantId, projectId, periodAt: new Date(`${healthPeriod}T00:00:00.000Z`) })}>{captureProjectHealth.isPending ? t.healthPending : t.captureHealth}</Button></div></WriteGate>{captureProjectHealth.data ? <div className="mt-4 rounded-xl border border-border bg-muted p-3 text-xs text-foreground"><p>{t.score}: {captureProjectHealth.data.score} · {healthStatusLabel(captureProjectHealth.data.status)} · {t.confidence}: {healthConfidenceLabel(captureProjectHealth.data.confidence)}</p><p className="mt-1">{t.highRisks}: {captureProjectHealth.data.sources.highRiskCount} · {t.overdueActions}: {captureProjectHealth.data.sources.overdueActionCount} · {t.overdueRfis}: {captureProjectHealth.data.sources.overdueRfiCount} · {t.overdueNcrs}: {captureProjectHealth.data.sources.overdueNcrCount}</p></div> : data.latestHealth ? <div className="mt-4 rounded-xl border border-border bg-muted p-3 text-xs text-foreground"><p>{t.latest}: {t.score} {data.latestHealth.overallScore} · {healthStatusLabel(data.latestHealth.status)} · {t.confidence}: {healthConfidenceLabel(data.latestHealth.confidence)}</p><p className="mt-1">{t.overdueRfis}: {latestHealthSources.overdueRfiCount} · {t.overdueNcrs}: {latestHealthSources.overdueNcrCount}</p><p className="mt-1">{pickLanguage(language, { ar: "ملاحظات HSE متأخرة", en: "Overdue HSE observations", ur: "مدت گزر چکے HSE مشاہدات" })}: {latestHealthSources.overdueHseCount}</p></div> : <p className="mt-4 text-sm text-muted-foreground">{t.noHealth}</p>}{latestHealthExceptions.length ? <div className="mt-4 space-y-2"><p className="text-xs font-semibold text-muted-foreground">{t.healthExceptions}</p>{latestHealthExceptions.map((item, index) => { const exception = localizedHealthException(item, isArabic); return <div key={`${item.code}-${index}`} className={exception.severity === "critical" ? "rounded-lg bg-danger-soft p-3 text-xs text-danger-soft-foreground" : "rounded-lg bg-warning-soft p-3 text-xs text-warning-soft-foreground"}><p className="font-semibold">{exception.message}</p><p className="mt-1">{exception.recommendation}</p></div>; })}</div> : null}</section>
             <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border">
               <SectionHeading icon={Calculator} title={t.snapshot} />
@@ -386,7 +413,7 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
             <section className="rounded-2xl bg-card p-6 shadow-sm ring-1 ring-border"><h2 className="font-semibold">{t.entries}</h2>{data.costs.length || data.progress.length || data.budgets.length ? <div className="mt-4 space-y-2 text-sm">{data.costs.slice(0, 3).map(entry => <p key={entry.id} className="rounded-lg bg-muted p-3">{t.actual}: {formatNumber(Number(entry.amount), 2)} · {enumLabel(entry.status, language)}</p>)}{data.progress.slice(0, 3).map(entry => <p key={entry.id} className="rounded-lg bg-muted p-3">{t.progress}: {entry.progressPercent}% · {enumLabel(entry.status, language)}</p>)}{data.budgets.slice(0, 3).map(entry => <p key={entry.id} className="rounded-lg bg-muted p-3">{entry.costCode}: {entry.currentAmount}</p>)}</div> : <p className="mt-4 text-sm text-muted-foreground">{t.noEntries}</p>}</section></>}
           </aside>
           </SectionErrorBoundary>
-        </div>
+        </div>}
         </div>
     </PageMain>
     </FocusContext.Provider>
@@ -434,7 +461,7 @@ function OperationsGroup({ id, level, title, children, defaultOpen = false, lazy
   React.useEffect(() => { const onChange = () => setHash(window.location.hash); window.addEventListener("hashchange", onChange); return () => window.removeEventListener("hashchange", onChange); }, []);
   // Q-36 (step 4): a link to the group's level (/controls#supply) opens the groups of that level too; the level's section scrolls itself into view
   const focus = React.useContext(FocusContext);
-  const linked = (Boolean(id) && hash === `#${id}`) || (Boolean(level) && hash === `#${level}`) || (Boolean(level) && focus === level);
+  const linked = (Boolean(id) && hash === `#${id}`) || (Boolean(level) && hash === `#${level}`) || (Boolean(level) && focus === level && !lazy); // a group that loads only when opened stays closed until asked for
   React.useEffect(() => { if (id && hash === `#${id}`) document.getElementById(id)?.scrollIntoView?.({ block: "start" }); }, [hash, id]);
   return <details id={id} className="scroll-mt-5 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" open={defaultOpen || linked} onToggle={event => { if ((event.currentTarget as HTMLDetailsElement).open) setOpened(true); }}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{title}</span><span className="text-xs font-medium text-primary">+</span></summary><div className="space-y-5 border-t border-border p-4 sm:p-5">{!lazy || opened || defaultOpen || linked ? children : null}</div></details>;
 }
@@ -445,4 +472,16 @@ function StalledUnitsLink({ tenantId, projectId }: { tenantId: string; projectId
   const stalled = trpc.pmc.stalledUnits.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), staleTime: 60_000 });
   const count = stalled.isError || !stalled.data ? null : stalled.data.counts.stalled + stalled.data.counts.long;
   return <Link href={`/projects/${tenantId}/${projectId}/stalled`} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius)] border border-input px-3 md:min-h-11 text-sm font-medium text-foreground hover:bg-muted" data-stalled-link>{pickLanguage(language, { ar: "الوحدات المتوقفة", en: "Stalled units", ur: "رکی ہوئی یونٹس" })}{count !== null && count > 0 ? <span className="rounded-full bg-warning px-2 text-xs text-warning-foreground"><bdi dir="ltr">{count}</bdi></span> : null}</Link>;
+}
+
+/** Q-59 (2): one card per level of the project, each opening its own page (the groups that were on the board) */
+function BoardLevelCards({ tenantId, projectId, titles }: { tenantId: string; projectId: string; titles: Record<ControlsFocus, string> }) {
+  const { language } = useLanguage();
+  const open = pickLanguage(language, { ar: "فتح", en: "Open", ur: "کھولیں" });
+  return <nav aria-label={pickLanguage(language, { ar: "أقسام المشروع", en: "Project areas", ur: "منصوبے کے حصے" })} data-board-levels className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    {(Object.keys(FOCUS_PATHS) as ControlsFocus[]).map(key => <div key={key} data-board-level={key} className="min-w-0"><Link href={`/projects/${tenantId}/${projectId}/${FOCUS_PATHS[key]}`}
+      className="flex min-h-24 flex-col justify-between gap-2 rounded-[18px] border border-border bg-card p-5 hover:border-primary">
+      <span className="text-base font-semibold">{titles[key]}</span><span className="text-sm text-primary">{open} →</span>
+    </Link></div>)}
+  </nav>;
 }

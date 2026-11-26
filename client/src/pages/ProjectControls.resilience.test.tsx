@@ -44,6 +44,7 @@ vi.mock("./ProjectMasterPlan", () => ({ ProjectMasterPlan: () => null }));
 vi.mock("./ProjectReferenceLists", () => ({ ProjectReferenceLists: () => null }));
 vi.mock("@/components/MasterPlanDrawing", () => ({ MasterPlanDrawing: () => null }));
 
+vi.mock("@/components/ProjectBoardAttention", () => ({ ProjectBoardAttention: () => <div data-board-attention /> }));
 vi.mock("@/lib/trpc", () => {
   const mutation = () => ({ mutate: vi.fn(), mutateAsync: async (input: unknown) => { state.saved.push(input); return {}; }, isPending: false, error: null, data: null });
   return { trpc: {
@@ -80,22 +81,22 @@ describe("ProjectControls section resilience", () => {
   });
 
   it("keeps project controls available when the independent performance source fails", () => {
-    render(<ProjectControls />);
-    expect(screen.getByText("Delivery evidence")).toBeTruthy();
+    render(<ProjectControls focus="planning" />);
+    expect(screen.getAllByText("P-01").length).toBeGreaterThan(0); // the planning page names its project by code
     expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
     expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
   });
 
   it("keeps financial WBS data available when the independent schedule source fails", () => {
     state.scheduleError = { message: "schedule unavailable" };
-    render(<ProjectControls />);
+    render(<ProjectControls focus="planning" />);
     expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
     expect(screen.getAllByText("This section could not be loaded. The rest of the dashboard remains available.").length).toBeGreaterThan(0);
   });
 
   it("names the missing health input when performance data is only partial", () => {
     state.performancePartial = true;
-    render(<ProjectControls />);
+    render(<ProjectControls focus="planning" />);
     expect(screen.getByText("Available: part of the performance data. Missing: health snapshot.")).toBeTruthy();
     expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
   });
@@ -130,19 +131,21 @@ describe("ProjectControls section resilience", () => {
     render(<ProjectControls />);
     expect(within(screen.getByLabelText("PROJECT MANAGER COMMAND CENTER")).getByText("Operate the project from one control point")).toBeTruthy();
     expect(screen.getByText("Operating scope: P-01")).toBeTruthy();
-    const commercial = document.getElementById("manager-commercial") as HTMLDetailsElement;
-    expect(commercial.open).toBe(false);
+    // Q-59 (2): the board is a summary; the lane opens its group on its level's page
+    const navigate = vi.fn(); state.navigate = navigate;
+    cleanup(); render(<ProjectControls />);
+    expect(document.getElementById("manager-commercial")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Contracts, documents & claims/i }));
-    expect(commercial.open).toBe(true);
+    expect(navigate).toHaveBeenCalledWith("/projects/tenant-1/project-1/contracts#manager-commercial", undefined);
   });
 
   it("contains a deliberate operational render failure while the schedule section remains available", () => {
     state.performancePartial = true;
     state.contractsRenderFailure = true;
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    render(<ProjectControls />);
-    expect(screen.getByText("This section could not be loaded. The rest of the dashboard remains available.")).toBeTruthy();
-    expect(screen.getAllByText("W-01 · Still available").length).toBeGreaterThan(0);
+    render(<ProjectControls focus="contracts" />);
+    expect(screen.getAllByText("This section could not be loaded. The rest of the dashboard remains available.").length).toBeGreaterThan(0);
+    expect(screen.getByText("Documents panel alive")).toBeTruthy(); // the page's other panels stay (the schedule is on the planning page now)
     consoleError.mockRestore();
   });
 
@@ -150,7 +153,7 @@ describe("ProjectControls section resilience", () => {
     state.performancePartial = true;
     state.contractsRenderFailure = true;
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    render(<ProjectControls />);
+    render(<ProjectControls focus="contracts" />);
     const failed = screen.getByRole("region", { name: "Contracts", hidden: true });
     expect(failed.textContent).toContain("This section could not be loaded");
     expect(within(failed).getByRole("button", { name: "Try again", hidden: true })).toBeTruthy();
@@ -162,20 +165,29 @@ describe("ProjectControls section resilience", () => {
   });
 
   it("Q-36 (step 4): the groups sit under titled level sections, each with its own address; every older group address still exists, under its level", () => {
-    render(<ProjectControls />);
-    expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["planning", "site", "supply", "contracts"]);
-    expect(document.getElementById("planning")!.querySelector("h2")!.textContent).toBe("Planning and control");
-    const under = (group: string) => document.getElementById(group)!.closest("[data-level-section]")!.id;
-    expect(["manager-schedule", "manager-assurance", "manager-site", "manager-design", "manager-supply", "manager-commercial", "manager-tenders"].map(under))
-      .toEqual(["planning", "planning", "site", "site", "supply", "contracts", "contracts"]);
-    expect(document.getElementById("manager-oversight")!.closest("[data-level-section]")).toBeNull();
+    // Q-59 (2): each level is its own page, holding the groups it held on the board; every group still exists, on its level's page
+    const groupsOf = (focus: "planning" | "site" | "supply" | "contracts") => { cleanup(); render(<ProjectControls focus={focus} />); return Array.from(document.querySelectorAll("details[id^=manager-]")).map(node => node.id); };
+    expect(groupsOf("planning")).toEqual(["manager-schedule", "manager-assurance", "manager-oversight"]);
+    expect(groupsOf("site")).toEqual(["manager-site", "manager-design"]);
+    expect(groupsOf("supply")).toEqual(["manager-supply"]);
+    expect(groupsOf("contracts")).toEqual(["manager-commercial", "manager-tenders"]);
+    expect(document.querySelector("[data-focus-title]")!.textContent).toBe("Contracts and documents");
   });
 
   it("Q-36 (step 4): a link to a level (controls#supply) opens that level's groups, and only those", () => {
+    // Q-59 (2): an old address of the board's level or group opens it on its level's page, the group still named
+    const navigate = vi.fn(); state.navigate = navigate;
     window.history.replaceState(null, "", "/projects/tenant-1/project-1/controls#supply");
     render(<ProjectControls />);
-    expect((document.getElementById("manager-supply") as HTMLDetailsElement).open).toBe(true);
-    expect((document.getElementById("manager-commercial") as HTMLDetailsElement).open).toBe(false);
+    expect(navigate).toHaveBeenCalledWith("/projects/tenant-1/project-1/supply#supply", { replace: true });
+    cleanup(); navigate.mockReset();
+    window.history.replaceState(null, "", "/projects/tenant-1/project-1/controls#manager-tenders");
+    render(<ProjectControls />);
+    expect(navigate).toHaveBeenCalledWith("/projects/tenant-1/project-1/contracts#manager-tenders", { replace: true });
+    // and on the level's page the group it names is open
+    cleanup(); window.history.replaceState(null, "", "/projects/tenant-1/project-1/contracts#manager-tenders");
+    render(<ProjectControls focus="contracts" />);
+    expect((document.getElementById("manager-tenders") as HTMLDetailsElement).open).toBe(true);
     window.history.replaceState(null, "", "/");
   });
 
@@ -191,11 +203,15 @@ describe("ProjectControls section resilience", () => {
     expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["planning"]);
     expect((document.getElementById("manager-schedule") as HTMLDetailsElement).open).toBe(true);
     expect((document.getElementById("manager-assurance") as HTMLDetailsElement).open).toBe(true);
-    // NEGATIVE: the board itself is unchanged — every level, no focus title
+    // Q-59 (2): the board is a summary — no level's groups, what needs attention, and a card that opens each level's page
     cleanup();
     render(<ProjectControls />);
     expect(document.querySelector("[data-focus-title]")).toBeNull();
-    expect(Array.from(document.querySelectorAll("[data-level-section]")).map(node => node.id)).toEqual(["planning", "site", "supply", "contracts"]);
+    expect(document.querySelectorAll("[data-level-section]")).toHaveLength(0);
+    expect(document.querySelector("[data-board-attention]")).not.toBeNull();
+    expect(Array.from(document.querySelectorAll("[data-board-level]")).map(node => [node.getAttribute("data-board-level"), node.querySelector("a")!.getAttribute("href")])).toEqual([
+      ["planning", "/projects/tenant-1/project-1/planning"], ["site", "/projects/tenant-1/project-1/field-records"], ["supply", "/projects/tenant-1/project-1/supply"], ["contracts", "/projects/tenant-1/project-1/contracts"],
+    ]);
   });
 
   it("Q-36 (step 3): no PMC tab inside the page — one link to the PMC page; the old address controls#pmc goes there; no link without PMC access", () => {
@@ -218,7 +234,7 @@ describe("ProjectControls section resilience", () => {
   it("puts the health results on a muted surface with full-contrast text, the overdue HSE count inside the health card", () => {
     state.performancePartial = true;
     state.withHealth = true;
-    render(<ProjectControls />);
+    render(<ProjectControls focus="planning" />);
     const hse = screen.getByText(/Overdue HSE observations/);
     expect(hse.closest("section")?.textContent).toContain("Project health");
     const surface = hse.closest("div") as HTMLElement;
@@ -296,13 +312,12 @@ describe("ProjectControls section resilience", () => {
     state.performancePartial = true;
     const frames: FrameRequestCallback[] = [];
     const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+    // Q-59 (2): from the board, «Add by hand» opens the schedule group on the planning page
+    const navigate = vi.fn(); state.navigate = navigate;
     render(<ProjectControls />);
     fireEvent.click(screen.getByRole("button", { name: "Add by hand" }));
     frames.forEach(callback => callback(0));
-    const group = document.getElementById("manager-schedule") as HTMLDetailsElement;
-    expect(group.open).toBe(true);
-    expect(group.contains(document.activeElement)).toBe(true);
-    expect((document.activeElement as HTMLElement).tagName).toMatch(/INPUT|BUTTON|TEXTAREA/);
+    expect(navigate).toHaveBeenCalledWith("/projects/tenant-1/project-1/planning#manager-schedule", undefined);
     raf.mockRestore();
   });
 
@@ -325,7 +340,7 @@ describe("ProjectControls checks its forms in the page's language (D-65)", () =>
   afterEach(() => { cleanup(); window.history.replaceState(null, "", "/"); });
   it("an empty WBS item adds nothing and says so in English under its first field", () => {
     state.performancePartial = true;
-    render(<ProjectControls />);
+    render(<ProjectControls focus="planning" />);
     const form = screen.getByRole("button", { name: /Add WBS item/ }).closest("form")!;
     expectEmptySubmitRefused(form, "en", vi.fn());
   });
@@ -337,7 +352,7 @@ describe("ProjectControls — sheet entry", () => {
   const paste = (element: HTMLElement, text: string) => fireEvent.paste(element, { clipboardData: { getData: () => text } });
   it("a WBS block pasted from Excel is saved row by row through wbs.create, numbers read with their grouping commas", async () => {
     state.saved = [];
-    render(<ProjectControls />);
+    render(<ProjectControls focus="planning" />);
     const sheet = screen.getByRole("table", { name: "WBS items sheet" });
     paste(within(sheet).getAllByRole("textbox")[0]!, "W-02\tStructure\t1,250.5\nW-03\tFinishes\t");
     await act(async () => { fireEvent.click(within(sheet.closest("[data-grid-editor]") as HTMLElement).getByRole("button", { name: "Save rows" })); });
@@ -347,7 +362,7 @@ describe("ProjectControls — sheet entry", () => {
 
   it("a budget row naming a WBS code the project does not have is refused on its row and nothing is sent; a known code is sent as its item", async () => {
     state.saved = [];
-    render(<ProjectControls />);
+    render(<ProjectControls focus="planning" />);
     const sheet = screen.getByRole("table", { name: "Budget lines sheet" });
     paste(within(sheet).getAllByRole("textbox")[0]!, "X-99\tCC-1\t100\t100");
     await act(async () => { fireEvent.click(within(sheet.closest("[data-grid-editor]") as HTMLElement).getByRole("button", { name: "Save rows" })); });
