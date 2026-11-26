@@ -41,6 +41,8 @@ export type PmcFilters = { zone?: string; block?: string; unitFrom?: number; uni
 const r2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const r4 = (value: number) => Math.round((value + Number.EPSILON) * 10000) / 10000;
 const day = (date: Date) => date.toISOString().slice(0, 10);
+/** Adds to the list a key holds, in place. (Not `map.set(key, [...(map.get(key) ?? []), item])`, which copies the whole list for every item: one engineer's 95,000 updates took 52 seconds.) */
+const append = <K, V>(map: Map<K, V[]>, key: K, item: V) => { const list = map.get(key); if (list) list.push(item); else map.set(key, [item]); };
 const personName = (ds: PmcDataset, userId: number | null) => (userId === null ? null : (ds.people.get(userId) ?? `#${userId}`));
 
 export function filterDataset(ds: PmcDataset, f: PmcFilters): PmcDataset {
@@ -64,7 +66,7 @@ export function filterDataset(ds: PmcDataset, f: PmcFilters): PmcDataset {
 /** Every (unit x activity of the unit's model), with the stored cell if any: a cell nobody touched is NOT_STARTED. */
 export function grid(ds: PmcDataset) {
   const byModel = new Map<string, PmcDefinition[]>();
-  for (const d of ds.definitions) byModel.set(d.modelCode, [...(byModel.get(d.modelCode) ?? []), d]);
+  for (const d of ds.definitions) append(byModel, d.modelCode, d);
   const cellOf = new Map(ds.cells.map(c => [`${c.unitId}:${c.definitionId}`, c]));
   return ds.units.flatMap(unit => (byModel.get(unit.modelCode) ?? []).map(definition => { const cell = cellOf.get(`${unit.id}:${definition.id}`) ?? null; return { unit, definition, cell, status: (cell?.status ?? "NOT_STARTED") as Status }; }));
 }
@@ -78,7 +80,7 @@ export function latestUpdates(ds: PmcDataset) {
   const unitById = new Map(ds.units.map(u => [u.id, u]));
   const defById = new Map(ds.definitions.map(d => [d.id, d]));
   const perUser = new Map<number, PmcHistory[]>();
-  for (const h of ds.history) perUser.set(h.userId, [...(perUser.get(h.userId) ?? []), h]);
+  for (const h of ds.history) append(perUser, h.userId, h);
   const engineers = Array.from(perUser, ([userId, rows]) => {
     const perDay = new Map<string, number>();
     const byGroup = new Map<string, { groupName: string; added: number; updates: number }>();
@@ -329,7 +331,7 @@ export function programme(ds: PmcDataset) {
   for (let key = allKeys[0]; key <= allKeys[allKeys.length - 1]; key = nextMonthKey(key)) months.push(key);
 
   const byDefinition = new Map<string, Array<{ key: string; percent: number }>>();
-  for (const p of points) byDefinition.set(p.definitionId, [...(byDefinition.get(p.definitionId) ?? []), { key: p.key, percent: p.percent }]);
+  for (const p of points) append(byDefinition, p.definitionId, { key: p.key, percent: p.percent });
   byDefinition.forEach(list => list.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)));
   const unitsByModel = new Map<string, number>();
   for (const u of ds.units) unitsByModel.set(u.modelCode, (unitsByModel.get(u.modelCode) ?? 0) + u.weight);
