@@ -27,5 +27,7 @@ describe("PMC import dates (Q-66 4)", () => {
   it("NEGATIVE: a date that is not a date is refused by its field, never guessed", () => {
     const result = plan([["C", "IP-001", "31/02/2026", "next month"]]);
     expect(result.errors.map(error => [error.code, error.field])).toEqual([["PMC_DATE_INVALID", "startDate"], ["PMC_DATE_INVALID", "endDate"]]);
+    // review of #589 (A): a bare year typed as a number is not an Excel date (it would read as 1905)
+    expect(plan([["C", "IP-001", 2026, "2026-12-31"]]).errors.map(error => [error.code, error.field])).toEqual([["PMC_DATE_INVALID", "startDate"]]);
   });
 });

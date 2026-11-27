@@ -153,7 +153,9 @@ function wholeNumber(value: unknown): number | undefined {
  */
 function importDate(value: unknown, order: DateOrder = "dmy"): Date | undefined {
   if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : undefined;
-  if (typeof value === "number") { const serial = parseDate(value); return serial ? new Date(`${serial.iso}T00:00:00Z`) : undefined; }
+  // a number is an Excel date serial only in the years a project date can be (1970–2100: 25569–73051); a bare year typed in a date cell (2026) would read
+  // as 1905 — it is refused by its field instead (review of #589, A)
+  if (typeof value === "number") { if (value < 25569 || value > 73051) return undefined; const serial = parseDate(value); return serial ? new Date(`${serial.iso}T00:00:00Z`) : undefined; }
   const source = toLatinDigits(text(value) ?? "");
   if (!source) return undefined;
   if (/^\d{4}-\d{1,2}-\d{1,2}[T ]\d{1,2}:\d{2}/.test(source)) { const parsed = Date.parse(source.includes("T") ? source : source.replace(" ", "T")); return Number.isFinite(parsed) ? new Date(parsed) : undefined; }
