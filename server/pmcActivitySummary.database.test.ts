@@ -69,4 +69,29 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-70: the ac
     await expect(b.asOwner.pmc.activitySummary({ tenantId: b.tenantId, projectId: a.projectId })).rejects.toThrow();
     await expect(a.callerFor(a.people.hr).pmc.activitySummary(scopeOf(a))).rejects.toThrow();
   });
+  it("Q-72 (2): a period's achievement is the progress at its end minus the progress at its start, from the history; before anything happened it is 0; an inverted or start-less period is refused", async () => {
+    // put the history back in time: ACT01 went in progress 10 days ago and complete 3 days ago; ACT02 was started today
+    await client.query(`UPDATE pmc_unit_activity_history h SET changed_at = now() - interval '10 days' FROM pmc_unit_activity_progress c JOIN pmc_activity_definitions d ON d.id = c.activity_definition_id WHERE h.unit_activity_progress_id = c.id AND h.tenant_id = $1 AND d.code = 'ACT01' AND h.to_status = 'IN_PROGRESS'`, [a.tenantId]);
+    await client.query(`UPDATE pmc_unit_activity_history h SET changed_at = now() - interval '3 days' FROM pmc_unit_activity_progress c JOIN pmc_activity_definitions d ON d.id = c.activity_definition_id WHERE h.unit_activity_progress_id = c.id AND h.tenant_id = $1 AND d.code = 'ACT01' AND h.to_status = 'COMPLETE'`, [a.tenantId]);
+    const day = (offset: number) => new Date(Date.now() + 3 * 3_600_000 - offset * 86_400_000).toISOString().slice(0, 10);
+    const plain = await a.asOwner.pmc.activitySummary(scopeOf(a));
+    expect(plain.period).toBeNull(); // without a period the summary is what it was
+    // the 5 days up to yesterday: ACT01 was in progress at the start and complete at the end
+    const week = (await a.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(5), to: day(1) })).period!;
+    expect(week.project.deltaPercent).toBeGreaterThan(0);
+    expect(week.project.deltaPercent).toBeCloseTo(week.project.endPercent! - week.project.startPercent!, 2);
+    expect(week.activities.find(row => row.code === "ACT01")!.deltaEarnedPercent).toBeGreaterThan(0);
+    expect(week.activities.find(row => row.code === "ACT02")!.deltaEarnedPercent).toBe(0); // ACT02 started today, after the period
+    // a period that ends today reaches the project's current number
+    const upToToday = (await a.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(5) })).period!;
+    expect(upToToday.project.endPercent).toBe(plain.project.progressPercent);
+    // a period before anything happened changes nothing
+    const before = (await a.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(40), to: day(30) })).period!;
+    expect(before.project.deltaPercent).toBe(0);
+    // refused with the reason
+    await expect(a.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(1), to: day(5) })).rejects.toThrow(/PROJECT_OS_PERIOD_INVERTED/);
+    await expect(a.asOwner.pmc.activitySummary({ ...scopeOf(a), to: day(1) })).rejects.toThrow(/PROJECT_OS_PERIOD_FROM_REQUIRED/);
+    // company isolation holds for a period too
+    await expect(b.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(5) })).rejects.toThrow();
+  });
 });

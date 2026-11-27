@@ -52,4 +52,14 @@ describe("the activity summary (Q-70 3)", () => {
     // only weight-0 villas chosen (a block filter): no number, no throw
     expect(summarizeProgress({ units: zero.filter(unit => unit.id === "u900"), definitions, statusOf: status, factors }).project).toEqual({ villas: 1, progressPercent: null, villasWithoutNumber: 0 });
   });
+
+  it("Q-72 (3): the blocks and the phases add up to the project's villas and cells — or the difference is named, never hidden", () => {
+    const whole = summarizeProgress({ units, definitions, statusOf, factors });
+    expect(whole.reconciliation.blocks).toEqual({ villas: 4, villasMissing: 0, cells: 7, cellsMissing: 0, matches: true });
+    expect(whole.reconciliation.phases.matches).toBe(true);
+    // one villa with no phase: it is in the project and in no phase — «does not match», with its 1 villa and 2 cells named
+    const loose = summarizeProgress({ units: units.map(unit => (unit.id === "u701" ? { ...unit, phase: null } : unit)), definitions, statusOf, factors });
+    expect(loose.reconciliation.phases).toEqual({ villas: 3, villasMissing: 1, cells: 5, cellsMissing: 2, matches: false });
+    expect(loose.reconciliation.blocks.matches).toBe(true); // every villa still has its block
+  });
 });

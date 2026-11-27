@@ -58,5 +58,10 @@ export function summarizeProgress(input: { units: SummaryUnit[]; definitions: Su
   };
   const counted = input.units.filter(unit => progressOf.get(unit.id) != null);
   const project = weighted(input.units, progressOf);
-  return { activities, blocks: groupBy(unit => unit.blockCode || null), phases: groupBy(unit => unit.phase), project: { villas: input.units.length, progressPercent: project, villasWithoutNumber: input.units.length - counted.length } };
+  const blocks = groupBy(unit => unit.blockCode || null); const phases = groupBy(unit => unit.phase);
+  // Q-72 (3): the villas and the cells of the blocks (and of the phases) add up to the project's — or the difference is named (a villa with no block, or no phase, is in the project and in no group)
+  const totalCells = Array.from(tallies.values()).reduce((sum, tally) => sum + tally.villas, 0);
+  const reconcile = (groups: GroupSummary[]) => { const villas = groups.reduce((sum, group) => sum + group.villas, 0); const cells = groups.reduce((sum, group) => sum + group.totalCells, 0);
+    return { villas, villasMissing: input.units.length - villas, cells, cellsMissing: totalCells - cells, matches: villas === input.units.length && cells === totalCells }; };
+  return { activities, blocks, phases, reconciliation: { blocks: reconcile(blocks), phases: reconcile(phases) }, project: { villas: input.units.length, progressPercent: project, villasWithoutNumber: input.units.length - counted.length } };
 }

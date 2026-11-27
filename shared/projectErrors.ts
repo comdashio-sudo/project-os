@@ -1334,6 +1334,16 @@ export const projectErrorMessages = {
     en: "Write what is being corrected and what is right.",
     ur: "لکھیں کہ کیا درست کیا جا رہا ہے اور صحیح کیا ہے۔",
   },
+  PROJECT_OS_PERIOD_FROM_REQUIRED: {
+    ar: "حدّد بداية الفترة.",
+    en: "Give the start of the period.",
+    ur: "مدت کا آغاز بتائیں۔",
+  },
+  PROJECT_OS_PERIOD_INVERTED: {
+    ar: "نهاية الفترة قبل بدايتها.",
+    en: "The end of the period is before its start.",
+    ur: "مدت کا اختتام اس کے آغاز سے پہلے ہے۔",
+  },
   PROJECT_OS_SITE_REPORT_LOCKED: {
     ar: "التقرير أُرسل أو اعتُمد ولا يُعدَّل.",
     en: "The report has been sent or approved and cannot be changed.",
