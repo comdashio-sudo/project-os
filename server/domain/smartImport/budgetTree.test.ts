@@ -64,4 +64,27 @@ describe("hierarchical budget through the smart reader (Q-65)", () => {
     expect(file.rows).toEqual([["CIVIL", 500000, 500000], ["MEP", 300000, 300000]]);
     expect(file.notes).toEqual(["BUDGET_CURRENT_DEFAULTED_TO_ORIGINAL"]);
   });
+  it("review of #583 (B): a parent that wrote an amount over children with neither an amount nor a percentage is written as its branch's one line — the total says what is written, nothing vanishes", async () => {
+    const { file } = await read([
+      [1, "P", "Summary row", null, 1_000_000, null],
+      [2, "P.1", "Detail (blank)", null, null, null],
+      [2, "P.2", "Detail (blank)", null, null, null],
+      [1, "Q", "Other", null, 500, null],
+    ]);
+    expect(file.rows.map(row => [row[0], row[1]])).toEqual([["P", 1_000_000], ["Q", 500]]); // the old code wrote only Q: 1,000,000 vanished while the total said it was there
+    expect(file.notes).toContain("BUDGET_PARENT_WRITTEN_AS_LEAF:P:1000000");
+    expect(file.notes).toContain("BUDGET_TREE_TOTAL:1000500");
+    expect(file.notes.some(note => note.startsWith("BUDGET_WRITTEN_TOTAL"))).toBe(false); // the written total equals the tree's
+  });
+  it("review of #583 (B): a credit (a negative leaf) is written as 0 as the flat path does, and the difference between the tree's total and the written total is named", async () => {
+    const { file } = await read([
+      [1, "GC.9", "Group", null, null, null],
+      [2, "GC.9.1", "Works", null, 1_000, null],
+      [2, "GC.9.2", "Credit note", null, -200, null],
+    ]);
+    expect(file.rows.map(row => [row[0], row[1]])).toEqual([["GC.9.1", 1000], ["GC.9.2", 0]]);
+    expect(file.notes).toContain("BUDGET_NEGATIVE_NOT_WRITTEN:GC.9.2:-200");
+    expect(file.notes).toContain("BUDGET_TREE_TOTAL:800");
+    expect(file.notes).toContain("BUDGET_WRITTEN_TOTAL:1000");
+  });
 });

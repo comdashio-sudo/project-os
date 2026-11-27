@@ -143,19 +143,24 @@ function budgetTree(file: TranslatedFile, rows: NormalizedRow[]): TranslatedFile
   const byRow = new Map(rows.map(row => [text(row.values.costCode), row]));
   for (const row of rows) if (!text(row.values.costCode)) exclude(file, row, "MISSING:costCode");
   for (const duplicate of tree.duplicates) { const row = rows.find(item => item.rowNumber === duplicate.rowNumber); if (row) exclude(file, row, `DUPLICATE_CODE:${duplicate.code}`); }
-  let defaulted = 0;
+  let defaulted = 0; let writtenTotal = 0;
   for (const node of tree.nodes) {
-    if (node.childCodes.length) continue; // a parent is the sum of its leaves: only leaves are written
+    if (node.childCodes.length && !node.writtenAsLeaf) continue; // a parent is the sum of its leaves: only leaves are written (but a parent with nothing below it is its branch's one line)
     const row = byRow.get(node.code);
     if (node.total === null) { if (row) exclude(file, row, "MISSING:originalAmount"); continue; }
+    if (node.writtenAsLeaf) file.notes.push(`BUDGET_PARENT_WRITTEN_AS_LEAF:${node.code}:${node.total}`);
+    if (node.total < 0) file.notes.push(`BUDGET_NEGATIVE_NOT_WRITTEN:${node.code}:${node.total}`);
     const current = num(row?.values.currentAmount) ?? (defaulted += 1, node.total);
     file.rows.push([node.code, Math.max(0, node.total), Math.max(0, current)]);
+    writtenTotal += Math.max(0, node.total);
   }
   for (const difference of tree.parentDifferences) file.notes.push(`BUDGET_PARENT_DIFFERS:${difference.code}:${difference.written}:${difference.childrenSum}`);
   for (const split of tree.percentSplits) file.notes.push(`BUDGET_PERCENT_NOT_100:${split.code}:${split.percentSum}`);
   if (tree.nodes.some(node => node.source === "allocated")) file.notes.push("BUDGET_ALLOCATED_BY_PERCENT");
   if (defaulted) file.notes.push("BUDGET_CURRENT_DEFAULTED_TO_ORIGINAL");
   file.notes.push(`BUDGET_TREE_TOTAL:${tree.total}`);
+  // the total of what is written, when it is not the tree's (a credit is written as 0; a leaf without an amount adds nothing): never left unsaid
+  if (Math.abs(Math.round(writtenTotal * 100) / 100 - tree.total) > 0.005) file.notes.push(`BUDGET_WRITTEN_TOTAL:${Math.round(writtenTotal * 100) / 100}`);
   return file;
 }
 

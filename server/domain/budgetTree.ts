@@ -18,6 +18,8 @@ export type BudgetNode = {
   source: "written" | "allocated" | "none";
   /** this node's amount for the whole branch: a leaf's own amount, or the sum of its children (null when no leaf below has one) */
   total: number | null;
+  /** a parent whose children have no amount at all: its own written amount is the budget of the branch, so it is written as a leaf (review of #583, B) */
+  writtenAsLeaf: boolean;
 };
 
 export type BudgetTree = {
@@ -63,7 +65,7 @@ export function buildBudgetTree(rows: readonly BudgetTreeRow[]): BudgetTree {
   const present = new Set(Array.from(first.keys()));
   const nodes = new Map<string, BudgetNode>();
   for (const [code, row] of Array.from(first.entries())) {
-    nodes.set(code, { code, description: row.description.trim(), rowNumber: row.rowNumber, parentCode: parentOf(code, present), childCodes: [], written: row.amount, percent: row.percent ?? null, own: null, source: "none", total: null });
+    nodes.set(code, { code, description: row.description.trim(), rowNumber: row.rowNumber, parentCode: parentOf(code, present), childCodes: [], written: row.amount, percent: row.percent ?? null, own: null, source: "none", writtenAsLeaf: false, total: null });
   }
   for (const node of Array.from(nodes.values())) if (node.parentCode) nodes.get(node.parentCode)!.childCodes.push(node.code);
 
@@ -94,7 +96,7 @@ export function buildBudgetTree(rows: readonly BudgetTreeRow[]): BudgetTree {
     if (node.written !== null && node.total !== null && Math.abs(node.written - node.total) > EPSILON) {
       parentDifferences.push({ code: node.code, description: node.description, rowNumber: node.rowNumber, written: node.written, childrenSum: node.total, difference: round2(node.written - node.total) });
     }
-    if (node.total === null && node.written !== null) node.total = node.written; // a parent with an amount and no amounts below it keeps its own
+    if (node.total === null && node.written !== null) { node.total = node.written; node.writtenAsLeaf = true; } // a parent with an amount and no amounts below it keeps its own — and is written as the branch's one line
     return node.total;
   };
   const roots = Array.from(nodes.values()).filter(node => node.parentCode === null);
