@@ -2051,6 +2051,11 @@ export const projectErrorMessages = {
     en: "The difference preview is not available until the file passes validation.",
     ur: "فائل کی توثیق کامیاب ہونے تک فرق کا پیش نظارہ دستیاب نہیں ہے۔",
   },
+  PROJECT_OS_IMPORT_GRID_UNAVAILABLE: {
+    ar: "جدول المراجعة متاح لملف PMC ينتظر تأكيدك فقط: ارفع الملف أو انتظر انتهاء تحليله.",
+    en: "The review table is available only for a PMC file waiting for your confirmation: upload the file or wait for its analysis to finish.",
+    ur: "جائزے کی جدول صرف اس PMC فائل کے لیے دستیاب ہے جو آپ کی تصدیق کی منتظر ہو: فائل اپ لوڈ کریں یا اس کے تجزیے کے ختم ہونے کا انتظار کریں۔",
+  },
   PROJECT_OS_WORKBOOK_NOT_RECOGNISED: {
     ar: "هذا الملف ليس كراسة بيانات المشروع من داشيو (أو من إصدار آخر). نزّل الكراسة من المنصة واملأها ثم ارفعها.",
     en: "This file is not the Dashio project workbook (or is from another version). Download the workbook from the platform, fill it in and upload it.",

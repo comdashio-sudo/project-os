@@ -132,7 +132,7 @@ try {
   // Q-58 (2): a phone shows one section at a time — «next» goes from the header to the work done
   await siteScreen.page.locator("[data-report-section][data-current] [data-section-next]").click();
   await siteScreen.page.getByRole("button", { name: "Add work" }).click();
-  await siteScreen.page.getByLabel("Unit number").nth(1).fill(String(unitNumber)); // the first one is the unit-card shortcut
+  await siteScreen.page.getByLabel("Unit number", { exact: true }).last().fill(String(unitNumber)); // the work line just added (since #586 the field bar opens a unit card from a list, not a typed «Unit number»)
   const activitySelect = siteScreen.page.getByLabel("Activity");
   await choose(siteScreen.page, activitySelect, cell.def_id);
   await choose(siteScreen.page, siteScreen.page.getByLabel("Status after the work"), "COMPLETE");
