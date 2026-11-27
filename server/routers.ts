@@ -8,6 +8,7 @@ import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, e
 import { adoptScheduleBaseline, compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getScheduleVillaLinks } from "./scheduleVillaLinks";
 import { getScheduleStageMapping, saveScheduleStageMapping } from "./scheduleStageMapping";
+import { getActivityComputedProgress } from "./activityComputedService";
 import { getPlannedCurve } from "./plannedCurveService";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
@@ -41,7 +42,7 @@ import { APPROVAL_STEPS, getReportApprovers, listInvitableProjectRoles, listProj
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
 import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
-import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, listSiteReportApproversForTenant, checkSiteDailyReportForTenant, copySiteDailyReportFromYesterday, HSE_KINDS, saveSiteDailyReportForTenant, saveSiteDailyReportSectionForTenant, submitSiteDailyReportForTenant } from "./siteReports";
+import { addSiteDailyReportCorrectionForTenant, CORRECTION_SECTIONS, attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, listSiteReportApproversForTenant, checkSiteDailyReportForTenant, copySiteDailyReportFromYesterday, HSE_KINDS, saveSiteDailyReportForTenant, saveSiteDailyReportSectionForTenant, submitSiteDailyReportForTenant } from "./siteReports";
 import { findMaterialForTenant, getIssueCellOptionsForTenant, issueMaterialToCellForTenant, listReturnableIssuesForTenant, listTransferTargetsForTenant, recordStocktakeForTenant, returnMaterialToWarehouseForTenant, transferBetweenProjectsForTenant } from "./warehouseOps";
 import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel } from "./scopeDashboards";
 import { levelReadsRouter } from "./levelReads";
@@ -116,7 +117,7 @@ import { LOG_SOURCES } from "./domain/progressLog";
 import { COMPLETION_STATUSES, getPmcCompletionReport } from "./pmcCompletionReport";
 import { getPmcActivitySummary } from "./pmcActivitySummary";
 import { quickSearch } from "./quickSearch";
-import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
+import { listPmcProgressHistory, listProgressActivities, listProgressMapShapes, listProgressPicker, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
 import { undoPmcProgressBatch, undoPmcQcReceiptBatch } from "./pmcUndo";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
@@ -308,6 +309,8 @@ export const appRouter = router({
     structure: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStructure({ userId: ctx.user.id, ...input })),
     // Q-4: the site engineer's progress update on the weights table (server/pmcProgressUpdate.ts): the activities, one atomic update for several villas, the history
     progressActivities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressActivities({ userId: ctx.user.id, ...input })),
+    progressMapShapes: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressMapShapes({ userId: ctx.user.id, ...input })),
+    progressPicker: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80).optional() })).query(({ ctx, input }) => listProgressPicker({ userId: ctx.user.id, ...input })),
     updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(20000).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), modelCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10), queuedAt: z.string().datetime().optional(), confirmCount: z.number().int().positive().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "pmc.updateProgress" }, () => updatePmcProgress({ userId: ctx.user.id, ...input }))),
     progressHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcProgressHistory({ userId: ctx.user.id, ...input })),
     // Q-70 (1): the progress log — one row per entry a person made, with its villas, before → after and source (server/pmcProgressLog.ts)
@@ -647,6 +650,8 @@ export const appRouter = router({
       photoIds: z.array(z.string().uuid()).max(MAX_WEEKLY_PHOTOS) })).mutation(({ ctx, input }) => saveWeeklyReport({ userId: ctx.user.id, ...input })),
   }),
   siteReports: router({
+    // Q-72 (5): the correction of a sent report — an additional record, the sent report untouched
+    addCorrection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), section: z.enum(CORRECTION_SECTIONS), note: z.string().max(2000) })).mutation(({ ctx, input }) => addSiteDailyReportCorrectionForTenant({ userId: ctx.user.id, ...input })),
     options: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listFieldOptionsForTenant({ userId: ctx.user.id, ...input })),
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), status: z.enum(["draft", "submitted", "approved", "rejected"]).optional(), from: z.string().refine(isCalendarDay).optional(), to: z.string().refine(isCalendarDay).optional() })).query(({ ctx, input }) => listSiteDailyReportsForTenant({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid() })).query(({ ctx, input }) => getSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
@@ -1165,6 +1170,8 @@ export const appRouter = router({
     // Q-61 (5): a later P6 import adopted as the new baseline — explicit, with a reason, audited (project.schedule.manage / project.manage)
     adoptBaseline: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), snapshotId: z.string().uuid(), reason: z.string().max(500) })).mutation(({ ctx, input }) => adoptScheduleBaseline({ userId: ctx.user.id, ...input })),
     plannedCurve: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPlannedCurve({ userId: ctx.user.id, ...input })),
+    // Q-71 (1) batch 2: each P6 activity's progress computed from the villas' PMC cells (server/activityComputedService.ts), read-only
+    computedProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getActivityComputedProgress({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),

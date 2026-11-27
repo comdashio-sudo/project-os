@@ -2328,6 +2328,18 @@ CREATE TABLE "self_service_signup_attempts" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "site_daily_report_corrections" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" varchar(36) NOT NULL,
+	"project_id" varchar(36) NOT NULL,
+	"report_id" varchar(36) NOT NULL,
+	"section" varchar(24) NOT NULL,
+	"note" text NOT NULL,
+	"created_by_user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "site_daily_report_corrections_section_check" CHECK ("site_daily_report_corrections"."section" IN ('summary', 'labour', 'equipment', 'work', 'materials', 'hse', 'obstacles', 'weather', 'other'))
+);
+--> statement-breakpoint
 CREATE TABLE "site_daily_report_equipment" (
 	"id" varchar(36) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(36) NOT NULL,
@@ -3666,6 +3678,10 @@ ALTER TABLE "schedule_snapshots" ADD CONSTRAINT "schedule_snapshots_tenant_id_co
 ALTER TABLE "schedule_snapshots" ADD CONSTRAINT "schedule_snapshots_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedule_snapshots" ADD CONSTRAINT "schedule_snapshots_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "self_service_signup_attempts" ADD CONSTRAINT "self_service_signup_attempts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_corrections" ADD CONSTRAINT "site_daily_report_corrections_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_corrections" ADD CONSTRAINT "site_daily_report_corrections_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_corrections" ADD CONSTRAINT "site_daily_report_corrections_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_daily_report_corrections" ADD CONSTRAINT "site_daily_report_corrections_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_tenant_id_companies_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "site_daily_report_equipment" ADD CONSTRAINT "site_daily_report_equipment_report_fk" FOREIGN KEY ("report_id","tenant_id","project_id") REFERENCES "public"."site_daily_reports"("id","tenant_id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -4140,6 +4156,7 @@ CREATE UNIQUE INDEX "schedule_snapshots_one_baseline_per_project" ON "schedule_s
 CREATE INDEX "scheduled_jobs_task_uid_idx" ON "scheduled_jobs" USING btree ("schedule_cron_task_uid");--> statement-breakpoint
 CREATE INDEX "ssa_user_created_idx" ON "self_service_signup_attempts" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "ssa_email_created_idx" ON "self_service_signup_attempts" USING btree ("email_hash","created_at");--> statement-breakpoint
+CREATE INDEX "site_daily_report_corrections_report_idx" ON "site_daily_report_corrections" USING btree ("report_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "site_daily_report_equipment_item_unique" ON "site_daily_report_equipment" USING btree ("report_id","equipment_id");--> statement-breakpoint
 CREATE INDEX "site_daily_report_equipment_tenant_project_idx" ON "site_daily_report_equipment" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "site_daily_report_hse_report_idx" ON "site_daily_report_hse" USING btree ("report_id");--> statement-breakpoint

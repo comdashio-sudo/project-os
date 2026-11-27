@@ -17,6 +17,8 @@ const codes = [
   { code: "A", labelAr: "معتمد", labelEn: "Approved", approved: true, active: true }, { code: "B", labelAr: "معتمد بملاحظات", labelEn: "Approved as noted", approved: true, active: true },
   { code: "C", labelAr: "أعد التقديم", labelEn: "Revise and resubmit", approved: false, active: true }, { code: "D", labelAr: "مرفوض", labelEn: "Rejected", approved: false, active: true },
 ];
+// Q-67 (5): the field bar's villa list reads pmc.progressPicker; these tests keep the typed number it falls back to
+vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));

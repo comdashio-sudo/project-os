@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Q-23 (second batch): the live schedule screen shows only what schedule.live returned. Synthetic data only.
-const h = vi.hoisted(() => ({ data: undefined as unknown }));
+const h = vi.hoisted(() => ({ data: undefined as unknown, computed: undefined as unknown, computedError: null as unknown }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: ({ id, options, value, onValueChange }: { id?: string; options: Array<{ value: string; label: string }>; value: string; onValueChange: (value: string) => void }) => (
@@ -14,7 +14,7 @@ vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<t
 vi.mock("@/components/ScheduleStageMapping", () => ({ ScheduleStageMapping: () => null }));
 vi.mock("@/components/VillaPlannedCurve", () => ({ VillaPlannedCurve: () => null }));
 vi.mock("@/components/ScheduleBaselineAdopt", () => ({ ScheduleBaselineAdopt: () => null }));
-vi.mock("@/lib/trpc", () => ({ trpc: { schedule: { live: { useQuery: () => ({ data: h.data, isLoading: false, isError: false, error: null, refetch: vi.fn() }) }, compare: { useQuery: () => ({ data: undefined, isLoading: false, isError: false, error: null, refetch: vi.fn() }) } } } }));
+vi.mock("@/lib/trpc", () => ({ trpc: { schedule: { live: { useQuery: () => ({ data: h.data, isLoading: false, isError: false, error: null, refetch: vi.fn() }) }, computedProgress: { useQuery: () => ({ data: h.computed, isLoading: false, isError: Boolean(h.computedError), error: h.computedError ?? null }) }, compare: { useQuery: () => ({ data: undefined, isLoading: false, isError: false, error: null, refetch: vi.fn() }) } } } }));
 
 import LiveSchedule from "./LiveSchedule";
 
@@ -32,6 +32,23 @@ const live = {
 afterEach(() => cleanup());
 
 describe("LiveSchedule (Q-23)", () => {
+  it("Q-71 (1) batch 2: with PMC linked, each activity shows its computed progress (or why not) and its groups; without PMC read the column is not there", () => {
+    h.data = live; h.computedError = null;
+    h.computed = { linked: true, activities: [{ activityId: "id-A1", percent: 87.5, reason: null, villa: 1, stage: "Q02", groupIds: ["g1"], groupCodes: ["W1"], cells: 2 }, { activityId: "id-A2", percent: null, reason: "STAGE_NOT_LINKED", villa: 1, stage: "Q99", groupIds: [], groupCodes: [], cells: 0 }] };
+    render(<LiveSchedule />);
+    expect(screen.getByText("Progress (computed from PMC)")).toBeTruthy();
+    const a1 = document.querySelector('[data-computed-activity="id-A1"]')!;
+    expect(a1.textContent).toBe("87.50%"); expect(a1.getAttribute("title")).toBe("from groups W1");
+    expect(document.querySelector('[data-computed-activity="id-A2"]')!.textContent).toBe("stage not linked");
+    cleanup(); h.computed = undefined; h.computedError = { message: "PROJECT_OS_PERMISSION_DENIED" };
+    render(<LiveSchedule />);
+    expect(screen.queryByText("Progress (computed from PMC)")).toBeNull();
+    cleanup(); h.computedError = null; h.computed = { linked: false, activities: [] };
+    render(<LiveSchedule />);
+    expect(screen.queryByText("Progress (computed from PMC)")).toBeNull(); // not linked yet: no column of zeros
+    h.computed = undefined;
+  });
+
   it("shows the server's summary and every activity; «Critical» narrows to the critical one and «Next two weeks» to the look-ahead", () => {
     h.data = live;
     render(<LiveSchedule />);

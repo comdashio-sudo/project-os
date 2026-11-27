@@ -1324,6 +1324,16 @@ export const projectErrorMessages = {
     en: "A report line is incomplete: labour and equipment need a name and a positive number, and a work line needs a description or a status.",
     ur: "رپورٹ کی ایک قطار نامکمل ہے: افرادی قوت اور آلات کے لیے نام اور مثبت عدد درکار ہے، اور کام کی قطار کے لیے تفصیل یا حیثیت ضروری ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_CORRECTION_NOT_SENT: {
+    ar: "التقرير ما زال بيد معدّه؛ عدّله مباشرة. التصحيح يُسجَّل فقط على تقرير أُرسل أو اعتُمد.",
+    en: "The report is still in its preparer's hands; edit it directly. A correction is recorded only on a report that was sent or approved.",
+    ur: "رپورٹ ابھی تیار کنندہ کے پاس ہے؛ اسے براہِ راست درست کریں۔ تصحیح صرف بھیجی یا منظور شدہ رپورٹ پر درج ہوتی ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_CORRECTION_EMPTY: {
+    ar: "اكتب ما الذي يُصحَّح وما الصحيح.",
+    en: "Write what is being corrected and what is right.",
+    ur: "لکھیں کہ کیا درست کیا جا رہا ہے اور صحیح کیا ہے۔",
+  },
   PROJECT_OS_SITE_REPORT_LOCKED: {
     ar: "التقرير أُرسل أو اعتُمد ولا يُعدَّل.",
     en: "The report has been sent or approved and cannot be changed.",
