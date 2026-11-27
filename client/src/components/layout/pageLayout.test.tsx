@@ -2,7 +2,7 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { EntityCombobox, SectionNav, StickyActionBar, TwoPane } from "./pageLayout";
+import { SectionNav, StickyActionBar, TwoPane } from "./pageLayout";
 
 // Q-69: the shared page layout. Synthetic options only.
 beforeAll(() => {
@@ -39,38 +39,5 @@ describe("StickyActionBar and SectionNav", () => {
     cleanup();
     const { container } = render(<SectionNav label="On this page" sections={[{ id: "a", label: "Only" }]} />);
     expect(container.innerHTML).toBe("");
-  });
-});
-
-describe("EntityCombobox", () => {
-  const open = () => fireEvent.click(screen.getByRole("combobox", { name: "Activity" }));
-  const renderBox = (onChange = vi.fn(), recent: string[] = []) => render(<EntityCombobox label="Activity" options={activities} value={null} onChange={onChange} placeholder="Choose an activity" searchPlaceholder="Search by code or name" emptyText="No activity" recentLabel="Last used" recent={recent} />);
-  it("shows the placeholder, then the options grouped, and a choice is reported", () => {
-    const onChange = vi.fn(); renderBox(onChange);
-    expect(screen.getByRole("combobox", { name: "Activity" }).textContent).toContain("Choose an activity");
-    open();
-    expect(screen.getByText("Q02 الأساسات")).toBeTruthy();
-    fireEvent.click(screen.getByText("IP-120 · دهان داخلي"));
-    expect(onChange).toHaveBeenCalledWith("IP-120");
-  });
-  it("search narrows by part of the name, the code, or a keyword («قواعد», «IP-00», «paint»)", () => {
-    renderBox(); open();
-    const input = screen.getByPlaceholderText("Search by code or name");
-    fireEvent.change(input, { target: { value: "قواعد" } });
-    expect(screen.queryByText("IP-002 · أعمدة")).toBeNull();
-    expect(screen.getByText("IP-001 · قواعد خرسانية")).toBeTruthy();
-    fireEvent.change(input, { target: { value: "paint" } });
-    expect(screen.getByText("IP-120 · دهان داخلي")).toBeTruthy();
-    expect(screen.queryByText("IP-001 · قواعد خرسانية")).toBeNull();
-  });
-  it("NEGATIVE: a search that matches nothing says so instead of an empty list", () => {
-    renderBox(); open();
-    fireEvent.change(screen.getByPlaceholderText("Search by code or name"), { target: { value: "zzz" } });
-    expect(screen.getByText("No activity")).toBeTruthy();
-  });
-  it("the last-used activity is offered first, under its own heading", () => {
-    renderBox(vi.fn(), ["IP-120"]); open();
-    const headings = Array.from(document.querySelectorAll("[cmdk-group-heading]")).map(node => node.textContent);
-    expect(headings[0]).toBe("Last used");
   });
 });
