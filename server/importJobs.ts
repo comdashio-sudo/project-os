@@ -20,6 +20,8 @@ import { assertFileNotAlreadyImported, assertImportAccess, assertProjectWithinTe
 import { analysisWarnings, analyzeImportFile, type ImportModuleCode } from "./domain/dataImport";
 import { analyzeExternalImport, applyExternalImport, authorizeExternalImport, isExternalModule, pmcKindOf, type ExternalContext, type ExternalModule } from "./externalImports";
 import type { PmcImportEdits } from "./domain/pmcImport";
+import { buildImportGrid, countGrid, filterGrid, GRID_PAGE_SIZE, WEIGHTS_FIELD_OF, type GridTab } from "./domain/importGrid";
+import { gridOfPmcImport } from "./pmcImportService";
 import { DIFF_PAGE_SIZE, summariseDiff } from "./domain/importCycle";
 import { auditEmployeeRecordsRead, isLedgerModule, ledgerPlanHash, planLedgerImport } from "./ledgerImports";
 import { assertTenantAccess } from "./domain/authorization";
@@ -514,6 +516,29 @@ export async function previewImportDiff(input: { userId: number; tenantId: strin
   return { supported: true as const, moduleCode: record.moduleCode, summary: summariseDiff({ entries: plan.entries, missing: plan.missing }), rejected: plan.errors.length, rejections: plan.errors.slice(0, DIFF_PAGE_SIZE), diffHash: ledgerPlanHash(plan), entries: shown.slice(offset, offset + DIFF_PAGE_SIZE), shownTotal: shown.length, offset, pageSize: DIFF_PAGE_SIZE, missing: plan.missing.slice(0, DIFF_PAGE_SIZE), missingTotal: plan.missing.length };
 }
 
+
+/**
+ * Q-66 batch 1 (adviser's I68): the review grid of a PMC import — the stored file read again by the importer's own reader with the columns and the
+ * corrections the import holds, one page at a time (a file of 50,000 rows is never sent at once), with the count of each tab over the whole file. Reads
+ * only, behind the same gates as the report; an import that is not waiting for its confirmation has no grid.
+ */
+export async function getImportGrid(input: { userId: number; tenantId: string; projectId: string; importId: string; tab?: GridTab; search?: string; offset?: number }) {
+  const { db } = await importAccess(input);
+  const record = await readRecord(db, input);
+  const kind = isExternalModule(record.moduleCode) ? pmcKindOf(record.moduleCode) : null;
+  if (!kind) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_GRID_UNAVAILABLE" });
+  await authorizeExternalImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: record.moduleCode as ExternalModule, context: contextOf(record.summaryJson) });
+  if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_GRID_UNAVAILABLE" });
+  const [file] = await db.select({ fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, sourceFormat: dataImports.sourceFormat, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  const bytes = await storageRead(file!.fileKey);
+  if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== file!.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
+  const read = await gridOfPmcImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, kind, format: file!.sourceFormat as "xlsx" | "csv", bytes, mappingOverride: storedMapping(file!.mappingJson), edits: editsOf(record.summaryJson) });
+  const rows = buildImportGrid({ preview: read.preview, fields: read.fields.map(field => field.key), errors: read.errors, edits: read.edits, scaledFromFractions: read.scaledFromFractions, ...(kind === "weights" ? { fieldOf: WEIGHTS_FIELD_OF } : {}) });
+  const tab = input.tab ?? "all";
+  const shown = filterGrid(rows, tab, input.search);
+  const offset = input.offset ?? 0;
+  return { kind, fields: read.fields, ignoredColumns: read.ignoredColumns, counts: countGrid(rows), tab, shownTotal: shown.length, offset, pageSize: GRID_PAGE_SIZE, rows: shown.slice(offset, offset + GRID_PAGE_SIZE), fileErrors: rows.length ? [] : read.errors.slice(0, 20) };
+}
 
 /*
  * Q-50 batch 2 (docs/proposals/universal-import.md §4; adviser's decision I52): company templates for the files whose columns a person can map (PMC kinds and

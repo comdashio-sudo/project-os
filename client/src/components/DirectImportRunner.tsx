@@ -22,7 +22,9 @@ type Props = {
   context?: { masterPlanVersionId: string };
   isArabic: boolean;
   /** The label of the file chooser. */
-  fileLabel: string; analyzeLabel: string; confirmLabel: string;
+  fileLabel: string; analyzeLabel: string;
+  /** Q-66 batch 1: the confirm button can name what it writes («Confirm importing 42 rows»). */
+  confirmLabel: string | ((view: DirectImportView) => string);
   /** Writes as soon as the analysis finds nothing wrong (the master-plan forms always applied in one click); otherwise the person reads the report and confirms. */
   autoConfirm?: boolean;
   /** Shows the differences preview (new / modified old → new / conflict) before the confirm button, and confirms with the hash of exactly what was shown. For the operational imports. */
@@ -164,7 +166,7 @@ export function DirectImportRunner({ tenantId, projectId, moduleCode, context, i
         {withDiff && diffReady && <ImportDiffPreview diff={diffReady} isArabic={isArabic} fieldLabel={fieldLabel} />}
         {withDiff && diff.error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(diff.error, lang)}</p>}
         {view.status === "validated" && view.external && !view.external.canConfirm && <p className="text-sm text-muted-foreground">{t.nothingToConfirm}</p>}
-        {view.status === "validated" && view.external?.canConfirm && !autoConfirm && <Button type="button" className="min-h-[44px]" disabled={confirm.isPending || (withDiff && !diffReady)} onClick={() => confirm.mutate({ tenantId, projectId, importId: view.id, approvedDiffHash: withDiff ? diffReady?.diffHash : undefined })}>{confirmLabel}</Button>}
+        {view.status === "validated" && view.external?.canConfirm && !autoConfirm && <Button type="button" className="min-h-[44px]" disabled={confirm.isPending || (withDiff && !diffReady)} onClick={() => confirm.mutate({ tenantId, projectId, importId: view.id, approvedDiffHash: withDiff ? diffReady?.diffHash : undefined })}>{typeof confirmLabel === "function" ? confirmLabel(view) : confirmLabel}</Button>}
         {templates && view.status === "validated" && <SaveTemplateForm key={view.id} tenantId={tenantId} projectId={projectId} importId={view.id} language={lang} />}
       </div>}
       {view?.status === "completed" && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{t.done}: {t.created} {view.createdRows} · {t.updated} {view.updatedRows} · {t.skipped} {view.skippedRows}</p>}

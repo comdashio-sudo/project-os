@@ -4,6 +4,7 @@
 // re-checks them against the project as it is now, and applies the plan in one
 // transaction. Re-importing a file the project already holds changes nothing.
 import { cellsWithoutAcceptedInspection, loadTenantPolicy, ncrAcceptanceVerdict } from "./qualityGate";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { TRPCError } from "@trpc/server";
@@ -90,7 +91,12 @@ function decode(base64: string) {
   return { bytes, fileHash: createHash("sha256").update(bytes).digest("hex") };
 }
 
-const report = (kind: PmcImportKind, fileHash: string, totalRows: number, errors: PmcImportError[], counts: PmcImportCounts, details: Record<string, unknown> = {}): PmcImportReport => ({ kind, fileHash, totalRows, errorCount: errors.length, errors: errors.slice(0, MAX_REPORTED_ERRORS), counts, details, canConfirm: errors.length === 0 && counts.create + counts.update > 0 });
+// Q-66 (grid): the review grid needs every reason, not the first MAX_REPORTED_ERRORS the stored report keeps — collected for the read that asks for them
+const fullErrors = new AsyncLocalStorage<PmcImportError[][]>();
+const report = (kind: PmcImportKind, fileHash: string, totalRows: number, errors: PmcImportError[], counts: PmcImportCounts, details: Record<string, unknown> = {}): PmcImportReport => {
+  fullErrors.getStore()?.push(errors);
+  return { kind, fileHash, totalRows, errorCount: errors.length, errors: errors.slice(0, MAX_REPORTED_ERRORS), counts, details, canConfirm: errors.length === 0 && counts.create + counts.update > 0 };
+};
 
 /**
  * Q-66 (6): the company's memory of its own files — when a person chose the columns of a PMC file (the mapping override) and the import was confirmed, that
@@ -118,19 +124,29 @@ async function rememberedMapping(db: Db, tenantId: string, kind: PmcImportKind, 
   return Object.keys(map).length ? { id: best.id, name: best.name, map } : null;
 }
 
-async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; mappingOverride?: Record<string, string>; edits?: PmcImportEdits } & ({ base64: string } | { bytes: Buffer })): Promise<Prepared> {
-  // `bytes`: the file came through the direct-upload path (a signed URL, up to MAX_DIRECT_UPLOAD_BYTES), so it was size-checked there and is not limited to a request body.
-  const { bytes, fileHash } = "bytes" in input ? { bytes: input.bytes, fileHash: createHash("sha256").update(input.bytes).digest("hex") } : decode(input.base64);
-  let parsed = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes, mappingOverride: input.mappingOverride, edits: input.edits });
+/**
+ * The reading of a PMC file every path shares — the analysis, the write and the review grid (Q-66 batch 1) — so the grid never shows a reading the import
+ * does not use. `previewLimit`: how many rows the preview classes (the grid reads them all).
+ */
+async function readPmcFile(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string>; edits?: PmcImportEdits; previewLimit?: number }) {
+  const read = (mappingOverride?: Record<string, string>) => parsePmcImportFile({ kind: input.kind, format: input.format, bytes: input.bytes, mappingOverride, edits: input.edits, ...(input.previewLimit !== undefined ? { previewLimit: input.previewLimit } : {}) });
+  let parsed = await read(input.mappingOverride);
   // Q-66 (6): columns the reader could not settle by name, in a file of a shape this company has mapped before → read with that remembered choice, when it reads better
   let remembered: { id: string; name: string; map: Record<string, string> } | null = null;
   if (!input.mappingOverride && parsed.errors.length && parsed.columns?.headers.length) {
     const found = await rememberedMapping(db, input.tenantId, input.kind, parsed.columns.headers);
     if (found) {
-      const again = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes, mappingOverride: found.map, edits: input.edits });
+      const again = await read(found.map);
       if (again.errors.length < parsed.errors.length) { parsed = again; remembered = found; }
     }
   }
+  return { parsed, remembered };
+}
+
+async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; mappingOverride?: Record<string, string>; edits?: PmcImportEdits } & ({ base64: string } | { bytes: Buffer })): Promise<Prepared> {
+  // `bytes`: the file came through the direct-upload path (a signed URL, up to MAX_DIRECT_UPLOAD_BYTES), so it was size-checked there and is not limited to a request body.
+  const { bytes, fileHash } = "bytes" in input ? { bytes: input.bytes, fileHash: createHash("sha256").update(input.bytes).digest("hex") } : decode(input.base64);
+  const { parsed, remembered } = await readPmcFile(db, { ...input, bytes });
   const none: PmcImportCounts = { create: 0, update: 0, unchanged: 0 };
   // Q-31 (P0-02): the report says which column each field was read from (and whether a person chose it), so the screen can show it and offer to change it
   const columns = { ...(parsed.columns ? { columns: parsed.columns } : {}), ...(remembered ? { rememberedMapping: { name: remembered.name, fields: Object.keys(remembered.map).filter(key => key !== "__others__") } } : {}) };
@@ -368,8 +384,9 @@ async function rememberMapping(tx: Tx, input: Scope & { kind: PmcImportKind; use
     return row ? { id: row.id, saved: true } : null;
   }
   if (source?.rememberedId) {
-    await tx.update(importSourceProfiles).set({ timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }).where(and(eq(importSourceProfiles.id, source.rememberedId), eq(importSourceProfiles.tenantId, input.tenantId)));
-    return { id: source.rememberedId, saved: false };
+    // a profile deleted since the analysis counts nothing: the audit row then names no profile instead of one that is gone (rows = 0 is never taken for success)
+    const [counted] = await tx.update(importSourceProfiles).set({ timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }).where(and(eq(importSourceProfiles.id, source.rememberedId), eq(importSourceProfiles.tenantId, input.tenantId))).returning({ id: importSourceProfiles.id });
+    return counted ? { id: counted.id, saved: false } : null;
   }
   return null;
 }
@@ -379,6 +396,26 @@ const correctionsOf = (report: PmcImportReport) => {
   const details = report.details as { edits?: PmcAppliedEdit[]; ignoredRows?: number[]; readRows?: number[] };
   return { ...(details.edits?.length ? { edits: details.edits } : {}), ...(details.ignoredRows?.length ? { ignoredRows: details.ignoredRows } : {}), ...(details.readRows?.length ? { readRows: details.readRows } : {}) };
 };
+
+/**
+ * Q-66 batch 1 (adviser's I68): the review grid of a stored PMC file — every row read by the importer's own reader with the same columns and corrections,
+ * each cell with what the reader did and each reason on its cell, through the same checks as the analysis. Reads only: nothing is written, and the
+ * report the person confirms is still the analysis's.
+ */
+export async function gridOfPmcImport(input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Buffer; mappingOverride?: Record<string, string>; edits?: PmcImportEdits }) {
+  const db = await authorize(input);
+  const fileHash = createHash("sha256").update(input.bytes).digest("hex");
+  const { parsed } = await readPmcFile(db, { ...input, previewLimit: Number.MAX_SAFE_INTEGER });
+  const fields = (parsed.columns?.fields ?? []).filter(field => field.header).map(field => ({ key: field.key, header: field.header!, required: field.required }));
+  if (parsed.errors.length) return { fields, preview: [] as NonNullable<NonNullable<ParsedFile["notes"]>["preview"]>, errors: parsed.errors, edits: [] as PmcAppliedEdit[], scaledFromFractions: false, ignoredColumns: [] as string[] };
+  const collected: PmcImportError[][] = [];
+  const prepared = await fullErrors.run(collected, () => prepareRows(db, input, parsed, fileHash));
+  const details = prepared.report.details as { scaledFromFractions?: boolean };
+  return {
+    fields, preview: parsed.notes?.preview ?? [], errors: collected.at(-1) ?? prepared.report.errors, edits: parsed.notes?.edits ?? [], scaledFromFractions: Boolean(details.scaledFromFractions),
+    ignoredColumns: (parsed.notes?.ignoredColumns ?? []).map(column => column.header),
+  };
+}
 
 /** Reads and checks a file; writes nothing. */
 /** `bytes` instead of `base64`: the file came through the direct-upload path (read from Storage by the background job). */

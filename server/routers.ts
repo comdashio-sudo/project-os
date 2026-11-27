@@ -82,7 +82,7 @@ const riskPatchSchema = z.object({
   residualProbability: riskScale.nullable(), residualSeverity: riskScale.nullable(), response: riskText(4000), mitigation: riskText(4000), trigger: riskText(2000),
   ownerMembershipId: z.string().uuid().nullable(), nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), status: z.enum(["open", "mitigating", "accepted"]),
 }).partial().strict();
-import { createImportUpload, deleteImportTemplate, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportCorrection, requestImportReanalysis, saveImportTemplate } from "./importJobs";
+import { createImportUpload, deleteImportTemplate, getImportGrid, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportCorrection, requestImportReanalysis, saveImportTemplate } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
@@ -396,6 +396,8 @@ export const appRouter = router({
     confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), approvedDiffHash: z.string().regex(/^[0-9a-f]{64}$/).optional() })).mutation(({ ctx, input }) => requestImportConfirmation({ userId: ctx.user.id, ...input })),
     // Export → edit → re-import: what the file would change, row by row, before anything is written.
     diff: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), kind: z.enum(["new", "modified", "conflict", "all"]).optional(), offset: z.number().int().min(0).max(10_000_000).optional() })).query(({ ctx, input }) => previewImportDiff({ userId: ctx.user.id, ...input })),
+    // Q-66 batch 1: the review grid of a PMC import (every row as the importer read it, a page at a time) — reads only
+    grid: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), tab: z.enum(["all", "ready", "corrected", "errors", "ignored"]).optional(), search: z.string().max(200).optional(), offset: z.number().int().min(0).max(10_000_000).optional() })).query(({ ctx, input }) => getImportGrid({ userId: ctx.user.id, ...input })),
     // The blank import template of a module, generated from the importer's own field table.
     template: protectedProcedure.input(z.object({ moduleCode: z.union([importModuleSchema, z.enum(LEDGER_MODULES)]), locale: z.enum(EXPORT_LOCALES) })).mutation(({ input }) => buildImportTemplateForUser(input)),
     // Q-51 batch 1: «كراسة بيانات المشروع» — the whole project in one workbook, built from the importers' own field tables (server/domain/projectWorkbook.ts)
