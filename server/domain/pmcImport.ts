@@ -182,7 +182,8 @@ export type PmcIgnoredColumn = { header: string; samples: string[] };
 export type PmcImportEdits = { cells: Array<{ row: number; field: string; value: string }>; ignoreRows: number[]; /** Q-50 4c: rows the reader took for a totals line, read as data by the person's choice */ readRows?: number[] };
 /** Q-50 4c: how the reader classed a row of the table — read as data, skipped as a totals line, or left out by the person — with the cells of its mapped fields. */
 export type PmcRowClass = "data" | "total" | "leftOut";
-export type PmcPreviewRow = { row: number; class: PmcRowClass; cells: Record<string, string> };
+/** Q-66 (grid): `filled` — a cell the reader filled (a section written once above its rows), with the value it read; the file's own cell is in `cells`. */
+export type PmcPreviewRow = { row: number; class: PmcRowClass; cells: Record<string, string>; filled?: Record<string, string> };
 /** The rows the report shows with their class; a person classifies the rest in the file. */
 export const PMC_PREVIEW_ROWS = 30;
 /** An applied cell correction, with the value the file holds, for the report and the audit trail. */
@@ -339,7 +340,9 @@ function applyOverride(fields: Field[], headers: string[], match: HeaderMatch, o
   };
 }
 
-export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string>; edits?: PmcImportEdits; wideRead?: boolean }): Promise<ParsedFile> {
+export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "xlsx" | "csv"; bytes: Uint8Array; mappingOverride?: Record<string, string>; edits?: PmcImportEdits; wideRead?: boolean;
+  /** Q-66 (grid): how many rows the preview classes — the report keeps PMC_PREVIEW_ROWS; the review grid reads every row the same way. */
+  previewLimit?: number }): Promise<ParsedFile> {
   const fail = (code: string, detail?: string): ParsedFile => ({ headers: [], rows: [], errors: [{ rowNumber: 0, code, ...(detail ? { detail } : {}) }] });
   // CSV: UTF-8, or the Windows Arabic code page that older Excel writes (Q-31)
   const parsed = await readSpreadsheetSafely(input.format === "csv" ? decodeCsv(input.bytes).text : input.bytes, input.format);
@@ -349,13 +352,13 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   if (input.kind === "weights" && !input.wideRead && !input.mappingOverride) {
     const wide = await unpivotWideWeights(parsed.workbook);
     if (wide) {
-      const inner = await parsePmcImportFile({ kind: "weights", format: "xlsx", bytes: wide.bytes, wideRead: true });
+      const inner = await parsePmcImportFile({ kind: "weights", format: "xlsx", bytes: wide.bytes, wideRead: true, previewLimit: input.previewLimit });
       const back = (row: number) => wide.rowMap.get(row) ?? row;
       return {
         ...inner,
         rows: inner.rows.map(row => ({ ...row, rowNumber: back(row.rowNumber) })),
         errors: inner.errors.map(error => ({ ...error, rowNumber: error.rowNumber ? back(error.rowNumber) : 0 })),
-        notes: { ...(inner.notes ?? { skippedTotals: 0, filledDown: 0 }), skippedTotals: (inner.notes?.skippedTotals ?? 0) + new Set(wide.totals.map(total => total.row)).size, fileTotals: wide.totals.map(total => ({ row: total.row, value: total.value, model: total.model })), wide: { sheetName: wide.sheetName, models: wide.models, groups: wide.groups, phases: wide.phases } },
+        notes: { ...(inner.notes ?? { skippedTotals: 0, filledDown: 0 }), ...(inner.notes?.preview && input.previewLimit !== undefined ? { preview: inner.notes.preview.map(row => ({ ...row, row: back(row.row) })) } : {}), skippedTotals: (inner.notes?.skippedTotals ?? 0) + new Set(wide.totals.map(total => total.row)).size, fileTotals: wide.totals.map(total => ({ row: total.row, value: total.value, model: total.model })), wide: { sheetName: wide.sheetName, models: wide.models, groups: wide.groups, phases: wide.phases } },
       };
     }
   }
@@ -438,9 +441,10 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   }
   // Q-50 4c: the class of each row as read, for the first rows of the table (the preview the person classifies)
   const preview: PmcPreviewRow[] = [];
-  const classify = (index: number, rowClass: PmcRowClass) => {
-    if (preview.length >= PMC_PREVIEW_ROWS) return;
-    preview.push({ row: rowNumbers[index], class: rowClass, cells: Object.fromEntries(fields.filter(field => mapping.has(field.key)).map(field => [field.key, String(rows[index][mapping.get(field.key)!] ?? "").trim()])) });
+  const previewLimit = input.previewLimit ?? PMC_PREVIEW_ROWS;
+  const classify = (index: number, rowClass: PmcRowClass, filled?: Record<string, string>) => {
+    if (preview.length >= previewLimit) return;
+    preview.push({ row: rowNumbers[index], class: rowClass, cells: Object.fromEntries(fields.filter(field => mapping.has(field.key)).map(field => [field.key, String(rows[index][mapping.get(field.key)!] ?? "").trim()])), ...(filled ? { filled } : {}) });
   };
   // Q-48: a section merged over its rows and left with no name is empty on purpose — those rows do not take the section above them
   const csiColumn = mapping.has("csi") ? headers.indexOf(mapping.get("csi")!) + 1 : 0;
@@ -449,6 +453,7 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   rows.forEach((row, index) => {
     if (ignored.has(rowNumbers[index])) { classify(index, "leftOut"); return; }
     const cells = Object.fromEntries(fields.map(field => [field.key, mapping.has(field.key) ? row[mapping.get(field.key)!] : undefined]));
+    let filled: Record<string, string> | undefined;
     if (input.kind === "weights") {
       // a totals line: every filled label of the row (section, sub-item, activity) is total words — skipped, and COUNTED in the report (never silent)
       const labels = [cells.csi, cells.sub, cells.activityName].map(value => pmcHeaderKey(value)).filter(Boolean);
@@ -462,9 +467,9 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
       const csi = String(cells.csi ?? "").trim();
       if (csi) lastCsi = csi;
       else if (csiColumn && blankByMerge(rowNumbers[index], csiColumn)) lastCsi = "";
-      else if (lastCsi && String(cells.activityName ?? "").trim()) { cells.csi = lastCsi; notes.filledDown += 1; }
+      else if (lastCsi && String(cells.activityName ?? "").trim()) { cells.csi = lastCsi; notes.filledDown += 1; filled = { csi: lastCsi }; }
     }
-    classify(index, "data");
+    classify(index, "data", filled);
     out.push({ rowNumber: rowNumbers[index], cells });
   });
   // Q-50 batch 5b: the group and the stage from the numbered headings, when the file has no section column

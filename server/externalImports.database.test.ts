@@ -260,6 +260,59 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC and master-plan impo
     expect((await connection.query<{ fileHash: string }[]>("SELECT fileHash FROM data_imports WHERE id = ?", [registered.id]))[0][0].fileHash).toBe(hash);
   }, 120_000);
 
+  it("Q-66 batch 1: the review grid shows every row as the importer read it — the corrected cell with the file's value, the error on its cell, the row left out — and writes nothing", async () => {
+    const pmc = callerFor(users.pmc, "ext-pmc");
+    const csv = Buffer.from("Block Code,Unit Number,Model Code\nBQ4,74001,A\nBQ4,74x02,A\nBQ4,74003,A\nBQ4,see the site plan,A\n", "utf8");
+    const { registered } = await upload(pmc, "pmc.locations", { name: "units-grid.csv", bytes: csv, format: "csv" });
+    expect((await pollUntilDone(pmc, registered.id)).view.status).toBe("uploaded");
+    const units = await count("pmc_units");
+    const grid = (input: { tab?: "all" | "ready" | "corrected" | "errors" | "ignored"; search?: string; offset?: number } = {}) => pmc.dataImports.grid({ ...scope, importId: registered.id, ...input });
+    const first = await grid();
+    expect(first.fields.map(field => [field.key, field.header])).toEqual(expect.arrayContaining([["blockCode", "Block Code"], ["unitNumber", "Unit Number"], ["modelCode", "Model Code"]]));
+    expect(first.counts).toEqual({ all: 4, ready: 2, corrected: 0, errors: 2, ignored: 0 });
+    const bad = first.rows.find(row => row.row === 3)!;
+    expect(bad).toMatchObject({ status: "error", cells: { unitNumber: { value: "74x02" } } });
+    expect([...(bad.cells.unitNumber.errors ?? []), ...bad.rowErrors].length).toBeGreaterThan(0);
+    // POSITIVE: the typo corrected and the note line left out — the grid follows the new analysis
+    await pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [{ row: 3, field: "unitNumber", value: "74002" }], ignoreRows: [5] } });
+    expect((await pollUntilDone(pmc, registered.id)).view.status).toBe("validated");
+    const after = await grid();
+    expect(after.counts).toEqual({ all: 4, ready: 3, corrected: 1, errors: 0, ignored: 1 });
+    expect(after.rows.find(row => row.row === 3)).toMatchObject({ status: "corrected", cells: { unitNumber: { value: "74002", from: "74x02", why: "edited" } } });
+    expect((await grid({ tab: "ignored" })).rows.map(row => [row.row, row.class])).toEqual([[5, "leftOut"]]);
+    expect((await grid({ search: "74003" })).rows.map(row => row.row)).toEqual([4]);
+    expect((await grid({ offset: 10 })).rows).toEqual([]);
+    expect(await count("pmc_units")).toBe(units); // the grid reads only
+    // NEGATIVE: the general importer (no project.pmc.manage) and another company's member read nothing; a master-plan import has no grid
+    await expect(callerFor(users.importer, "ext-importer").dataImports.grid({ ...scope, importId: registered.id })).rejects.toThrow();
+    await expect(callerFor(users.pmc, "ext-pmc").dataImports.grid({ tenantId: T2, projectId: P2, importId: registered.id })).rejects.toThrow();
+    const planner = callerFor(users.planner, "ext-planner");
+    const plan = await upload(planner, "masterPlanMapping", { name: "mp-grid.csv", bytes: Buffer.from("Code,Status,Progress\nV-1,in_progress,40\n", "utf8"), format: "csv" }, { masterPlanVersionId: MPV });
+    await pollUntilDone(planner, plan.registered.id);
+    await expect(planner.dataImports.grid({ ...scope, importId: plan.registered.id })).rejects.toThrow("PROJECT_OS_IMPORT_GRID_UNAVAILABLE");
+    // once written, the import is no longer waiting for a confirmation: no grid
+    await pmc.dataImports.confirm({ ...scope, importId: registered.id });
+    await expect(grid()).rejects.toThrow("PROJECT_OS_IMPORT_GRID_UNAVAILABLE");
+  }, 120_000);
+
+  it("Q-66 batch 1: a long file is read a page at a time, with the counts of the whole file", async () => {
+    const pmc = callerFor(users.pmc, "ext-pmc");
+    const lines = ["Block Code,Unit Number,Model Code", ...Array.from({ length: 450 }, (_unused, index) => `BQ5,${75001 + index},A`)];
+    const { registered } = await upload(pmc, "pmc.locations", { name: "units-grid-long.csv", bytes: Buffer.from(lines.join("\n"), "utf8"), format: "csv" });
+    expect((await pollUntilDone(pmc, registered.id)).view.status).toBe("validated");
+    const pages = await Promise.all([0, 200, 400].map(offset => pmc.dataImports.grid({ ...scope, importId: registered.id, offset })));
+    expect(pages.map(page => page.rows.length)).toEqual([200, 200, 50]);
+    expect(pages[0].counts).toMatchObject({ all: 450, ready: 450 });
+    expect(pages[2].rows.at(-1)).toMatchObject({ row: 451, cells: { unitNumber: { value: "75450" } } });
+    // the stored report keeps the first 200 reasons; the grid marks every rejected row of the file
+    const bad = ["Block Code,Unit Number,Model Code", ...Array.from({ length: 250 }, (_unused, index) => `BQ6,76x${index},A`)];
+    const rejected = await upload(pmc, "pmc.locations", { name: "units-grid-bad.csv", bytes: Buffer.from(bad.join("\n"), "utf8"), format: "csv" });
+    expect((await pollUntilDone(pmc, rejected.registered.id)).view.status).toBe("uploaded");
+    const errors = await pmc.dataImports.grid({ ...scope, importId: rejected.registered.id, tab: "errors", offset: 200 });
+    expect(errors.counts).toMatchObject({ all: 250, errors: 250, ready: 0 });
+    expect(errors.rows.at(-1)).toMatchObject({ row: 251, status: "error" });
+  }, 120_000);
+
   it("Q-50 batch 4: other columns drop the corrections; the master plan (and every non-PMC kind) is refused corrections", async () => {
     const pmc = callerFor(users.pmc, "ext-pmc");
     const csv = Buffer.from("Block Code,Unit Number,Model Code\nBQ3,73001,A\nBQ3,73x02,A\n", "utf8");
