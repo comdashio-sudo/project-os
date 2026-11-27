@@ -530,8 +530,8 @@ export async function previewImportDiff(input: { userId: number; tenantId: strin
  * corrections the import holds, one page at a time (a file of 50,000 rows is never sent at once), with the count of each tab over the whole file. Reads
  * only, behind the same gates as the report; an import that is not waiting for its confirmation has no grid.
  */
-async function loadImportGrid(input: { userId: number; tenantId: string; projectId: string; importId: string }) {
-  const { db } = await importAccess(input);
+/** The grid of an import whose caller has passed `importAccess` (each exported caller calls it first, and hands its connection here). */
+async function loadImportGrid(input: { userId: number; tenantId: string; projectId: string; importId: string }, db: Db) {
   const record = await readRecord(db, input);
   const kind = isExternalModule(record.moduleCode) ? pmcKindOf(record.moduleCode) : null;
   if (!kind) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_GRID_UNAVAILABLE" });
@@ -560,7 +560,8 @@ const GRID_CACHE_ENTRIES = 8;
 const gridCache = new Map<string, { at: number; value: { kind: NonNullable<ReturnType<typeof pmcKindOf>>; read: Awaited<ReturnType<typeof gridOfPmcImport>>; rows: ReturnType<typeof buildImportGrid> } }>();
 
 export async function getImportGrid(input: { userId: number; tenantId: string; projectId: string; importId: string; tab?: GridTab; search?: string; offset?: number }) {
-  const { kind, read, rows } = await loadImportGrid(input);
+  const { db } = await importAccess(input);
+  const { kind, read, rows } = await loadImportGrid(input, db);
   const tab = input.tab ?? "all";
   const shown = filterGrid(rows, tab, input.search);
   const offset = input.offset ?? 0;
@@ -573,7 +574,8 @@ export async function getImportGrid(input: { userId: number; tenantId: string; p
  * grid's gates; the copy is removed by the import sweep after a day.
  */
 export async function downloadCleanedImport(input: { userId: number; tenantId: string; projectId: string; importId: string; language: InterfaceLanguage }) {
-  const { kind, read, rows } = await loadImportGrid(input);
+  const { db } = await importAccess(input);
+  const { kind, read, rows } = await loadImportGrid(input, db);
   const bytes = await cleanedWorkbook({ rows, fields: read.fields, language: input.language });
   const fileName = `pmc-${kind}-${input.importId.slice(0, 8)}-cleaned.xlsx`;
   const stored = await storagePut(`imports/${input.tenantId}/${input.projectId}/cleaned/${input.importId}/${randomUUID()}/${fileName}`, bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
