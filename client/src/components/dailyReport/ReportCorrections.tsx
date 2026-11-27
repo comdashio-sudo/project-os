@@ -38,7 +38,7 @@ export function ReportCorrections({ scope, reportId, corrections, canAdd, onAdde
         </ul>
       ) : <p className="text-sm text-muted-foreground">{t.none}</p>}
       {canAdd && (
-        <form className="space-y-2" onSubmit={event => { event.preventDefault(); setDone(false); add.mutate({ ...scope, reportId, section, note }); }}>
+        <form noValidate className="space-y-2" onSubmit={event => { event.preventDefault(); setDone(false); add.mutate({ ...scope, reportId, section, note }); }}>
           <p className="text-xs text-muted-foreground">{t.intro}</p>
           <label className="block text-sm font-medium">{t.part}
             <Select className="mt-1" aria-label={t.part} value={section} onValueChange={value => setSection(value as Section)} options={CORRECTION_SECTIONS.map(key => ({ value: key, label: t.sections[key] }))} />
