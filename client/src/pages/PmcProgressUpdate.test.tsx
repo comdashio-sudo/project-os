@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Q-4: the site engineer's progress update on the weights table. Synthetic data only.
 const h = vi.hoisted(() => ({ send: vi.fn(), mutate: vi.fn(), result: undefined as unknown, error: null as unknown, options: {} as { onError?: (error: unknown) => void; onSuccess?: (result: unknown) => void }, undo: vi.fn() }));
+vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
 vi.mock("wouter", () => ({ Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }), useLocation: () => ["/", vi.fn()] }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("@/components/LanguageToggle", () => ({ LanguageToggle: () => null }));
@@ -35,6 +36,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
   pmc: {
     progressActivities: { useQuery: () => ({ data: (globalThis as { __q49Activities?: unknown[] }).__q49Activities ?? [{ code: "FOOT", name: "Footings", sectionCode: "Q03", section: "03 Concrete", minWeight: 40, maxWeight: 40, models: ["C"] }, { code: "PAINT", name: "Painting", sectionCode: "Q09", section: "09 Finishes", minWeight: 5, maxWeight: 5, models: ["C", "D"] }], isLoading: false, error: null }) },
     progressPicker: { useQuery: () => ({ data: PICKER, isLoading: false, error: null, refetch: vi.fn() }) },
+    progressMapShapes: { useQuery: () => ({ data: (globalThis as { __q67Map?: unknown }).__q67Map ?? { shapes: [], yUp: false }, isError: false, error: null }) },
     progressHistory: { useQuery: () => ({ data: [{ at: "2026-11-11T09:00:00Z", from: null, to: "COMPLETE", by: "Site Engineer", unitNumber: 3, villaLabel: null, activityCode: "FOOT", activityName: "Footings" }], error: null, refetch: vi.fn() }) },
     undoProgressBatch: { useMutation: () => ({ mutate: h.undo, isPending: false, error: null }) },
     updateProgress: { useMutation: (options: { onError?: (error: unknown) => void; onSuccess?: (result: unknown) => void }) => { h.options = options; return { mutate: h.mutate, isPending: false, data: h.result }; } },
@@ -43,7 +45,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
 
 import PmcProgressUpdate from "./PmcProgressUpdate";
 
-beforeEach(() => { (globalThis as { __q49Activities?: unknown[] }).__q49Activities = undefined; h.mutate.mockReset(); h.send.mockReset(); h.result = undefined; try { localStorage.clear(); } catch { /* none */ } });
+beforeEach(() => { (globalThis as { __q67Map?: unknown }).__q67Map = undefined; (globalThis as { __q49Activities?: unknown[] }).__q49Activities = undefined; h.mutate.mockReset(); h.send.mockReset(); h.result = undefined; try { localStorage.clear(); } catch { /* none */ } });
 afterEach(() => cleanup());
 
 const activity = (code: string) => fireEvent.change(screen.getByRole("combobox", { name: "Activity" }), { target: { value: code } });
@@ -133,6 +135,27 @@ describe("PmcProgressUpdate (Q-4)", () => {
     many("model", ["D"]);
     expect(document.querySelector("[data-selection-summary]")!.textContent).toContain("2 villas chosen · 0 will be updated");
     expect((screen.getByRole("button", { name: /Save/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("Q-67 (6): with a linked master plan, «choose from the map» — two taps and a block's name give the villas the save sends, in step with the list; without one, no map", () => {
+    expect(render(<PmcProgressUpdate />).container.textContent).not.toContain("Choose from the map");
+    cleanup();
+    const square = (villa: string, x: number) => ({ villa, points: [{ x, y: 0 }, { x: x + 10, y: 0 }, { x: x + 10, y: 10 }, { x, y: 10 }] });
+    (globalThis as { __q67Map?: unknown }).__q67Map = { shapes: ["1", "2", "3", "4", "5"].map((villa, index) => square(villa, index * 20)), yUp: true };
+    render(<PmcProgressUpdate />);
+    activity("FOOT");
+    mode("Phase"); many("phase", ["PH1"]);
+    fireEvent.click(screen.getByRole("radio", { name: "Choose from the map" }));
+    // the list's choice comes along (villas 1 and 2 of PH1)
+    expect(document.querySelector("[data-map-chosen]")!.textContent).toBe("2 villas chosen");
+    fireEvent.click(document.querySelector('[data-map-villa="1"]')!);
+    fireEvent.click(document.querySelector('[data-map-villa="3"]')!);
+    // villas 4 and 5 are model D, which has no FOOT: faded, not chosen
+    fireEvent.click(document.querySelector('[data-map-villa="4"]')!);
+    save();
+    expect(h.mutate).toHaveBeenLastCalledWith(expect.objectContaining({ villas: ["2", "3"] }));
+    fireEvent.click(screen.getByRole("radio", { name: "Choose from the list" }));
+    expect((screen.getByRole("checkbox", { name: "Villa 3" }) as HTMLInputElement).checked).toBe(true);
   });
 
   it("Q-67 (1): the activity last used comes first in the list, kept for this project", () => {

@@ -21,6 +21,8 @@ const h = vi.hoisted(() => ({
   approvers: { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }, { userId: 9, name: "Manager Nine" }] } as { named: boolean; reviewFirst: boolean; people: Array<{ userId: number; name: string | null }> },
   reviewError: null as null | { message: string; data: { projectError: { code: string } } },
 }));
+// Q-67 (5): the field bar's villa list reads pmc.progressPicker; these tests keep the typed number it falls back to
+vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));

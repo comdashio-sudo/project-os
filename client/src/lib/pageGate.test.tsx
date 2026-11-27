@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 // D-20 (G-144/G-160/G-161/G-163): the project pages and their links follow the signed-in person's permissions. Presentation only: the server stays the judge.
 const h = vi.hoisted(() => ({ summary: null as unknown }));
+// Q-67 (5): the field bar's villa list reads pmc.progressPicker; these tests keep the typed number it falls back to
+vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
 vi.mock("@/contexts/optionalLanguage", () => ({ useOptionalLanguage: () => "en" }));
 vi.mock("wouter", () => ({ Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a>, useLocation: () => ["/", () => undefined] }));
