@@ -32,8 +32,11 @@ export async function setPmcScopeEngineer(input: Scope & { scopeType: ScopeType;
   await db.transaction(async tx => {
     const where = and(mine(pmcScopeEngineers, input), eq(pmcScopeEngineers.scopeType, input.scopeType), eq(pmcScopeEngineers.scopeKey, stored));
     const [before] = await tx.select({ engineerUserId: pmcScopeEngineers.engineerUserId }).from(pmcScopeEngineers).where(where).limit(1);
-    if (input.engineerUserId === null) await tx.delete(pmcScopeEngineers).where(where);
-    else await tx.insert(pmcScopeEngineers).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, scopeType: input.scopeType, scopeKey: stored, engineerUserId: input.engineerUserId, updatedByUserId: input.userId })
+    if (input.engineerUserId === null) {
+      // clearing what is not there is not a success to audit (rows = 0 is never taken for success; review of #583, B)
+      const removed = await tx.delete(pmcScopeEngineers).where(where).returning({ id: pmcScopeEngineers.id });
+      if (!removed.length) throw refuse("NOT_FOUND", "PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_SET");
+    } else await tx.insert(pmcScopeEngineers).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, scopeType: input.scopeType, scopeKey: stored, engineerUserId: input.engineerUserId, updatedByUserId: input.userId })
       .onConflictDoUpdate({ target: [pmcScopeEngineers.projectId, pmcScopeEngineers.scopeType, pmcScopeEngineers.scopeKey], set: { engineerUserId: input.engineerUserId, updatedByUserId: input.userId, updatedAt: new Date() }, setWhere: eq(pmcScopeEngineers.tenantId, input.tenantId) });
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.scope_engineer_set", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ scopeType: input.scopeType, scopeKey: stored, before: before?.engineerUserId ?? null, after: input.engineerUserId }) });
   });

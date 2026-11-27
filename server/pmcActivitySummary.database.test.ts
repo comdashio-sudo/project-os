@@ -115,8 +115,9 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-70: the ac
     // the people who can be named: the company's active members, for whoever manages PMC only
     expect((await a.asOwner.pmc.scopeEngineerCandidates(scopeOf(a))).map(row => row.userId)).toContain(a.owner.id);
     await expect(a.callerFor(a.people.hr).pmc.scopeEngineerCandidates(scopeOf(a))).rejects.toThrow();
-    // clearing removes it
+    // clearing removes it; clearing what is not there is refused, never an audited success
     await set(a, "block", "BLK 33", null);
+    await expect(set(a, "block", "BLK 33", null)).rejects.toThrow(/PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_SET/);
     expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).blocks.every(row => row.engineer === null)).toBe(true);
   });
   it("Q-72 (6): a cell under an open NCR holds its weight — an open one counts, a closed one and another company's do not; the progress number is unchanged", async () => {

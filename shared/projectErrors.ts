@@ -1344,6 +1344,11 @@ export const projectErrorMessages = {
     en: "The end of the period is before its start.",
     ur: "مدت کا اختتام اس کے آغاز سے پہلے ہے۔",
   },
+  PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_SET: {
+    ar: "لا مهندس مسؤول مُسمّى لهذا البلوك أو هذه المرحلة.",
+    en: "No engineer in charge is named for this block or phase.",
+    ur: "اس بلاک یا مرحلے کے لیے کوئی ذمہ دار انجینئر نامزد نہیں۔",
+  },
   PROJECT_OS_PMC_SCOPE_UNKNOWN: {
     ar: "هذا البلوك أو هذه المرحلة غير موجودة في المشروع.",
     en: "This block or phase does not exist in the project.",
