@@ -24,6 +24,7 @@ const text = {
     periodLabel: "الفترة", periodNone: "بلا فترة", thisWeek: "هذا الأسبوع (من الأحد)", lastWeek: "الأسبوع الماضي", thisMonth: "هذا الشهر", lastMonth: "الشهر الماضي", custom: "نطاق محدد", from: "من", to: "إلى", periodAchieved: "إنجاز الفترة", delta: "إنجاز الفترة %", periodNote: "الفرق بين التقدم عند نهاية الفترة وعند بدايتها، من سجل التغييرات.",
     reconciled: "المراحل والبلوكات تطابق إجمالي المشروع", notReconciled: "لا يطابق", missingVillas: "فلل خارج المجموعات",
     engineer: "المهندس المسؤول", noEngineer: "— لم يُسمَّ", saved: "حُفظ المهندس المسؤول.",
+    candidatesFailed: "تعذّر تحميل قائمة المهندسين؛ يظهر الاسم فقط. أعد تحميل الصفحة.",
     blocks: "البلوكات", phases: "المراحل", progress: "التقدم %", cells: "الخلايا المكتملة", none: "لا بيانات بعد.", unknown: "—",
   },
   en: {
@@ -33,6 +34,7 @@ const text = {
     periodLabel: "Period", periodNone: "No period", thisWeek: "This week (from Sunday)", lastWeek: "Last week", thisMonth: "This month", lastMonth: "Last month", custom: "Custom range", from: "From", to: "To", periodAchieved: "Period achievement", delta: "Period achievement %", periodNote: "Progress at the end of the period minus progress at its start, from the change history.",
     reconciled: "Phases and blocks match the project total", notReconciled: "Does not match", missingVillas: "villas outside the groups",
     engineer: "Engineer in charge", noEngineer: "— not named", saved: "Engineer in charge saved.",
+    candidatesFailed: "The list of engineers could not be loaded; only the name is shown. Reload the page.",
     blocks: "Blocks", phases: "Phases", progress: "Progress %", cells: "Completed cells", none: "No data yet.", unknown: "—",
   },
   ur: {
@@ -42,6 +44,7 @@ const text = {
     periodLabel: "مدت", periodNone: "کوئی مدت نہیں", thisWeek: "اس ہفتے (اتوار سے)", lastWeek: "پچھلا ہفتہ", thisMonth: "اس مہینے", lastMonth: "پچھلا مہینہ", custom: "مخصوص حد", from: "از", to: "تک", periodAchieved: "مدت کی پیش رفت", delta: "مدت کی پیش رفت %", periodNote: "مدت کے اختتام کی پیش رفت منہا اس کے آغاز کی، تبدیلیوں کی تاریخ سے۔",
     reconciled: "مراحل اور بلاکس منصوبے کے کل سے مطابقت رکھتے ہیں", notReconciled: "مطابقت نہیں", missingVillas: "گروپوں سے باہر ولاز",
     engineer: "ذمہ دار انجینئر", noEngineer: "— نامزد نہیں", saved: "ذمہ دار انجینئر محفوظ ہو گیا۔",
+    candidatesFailed: "انجینئروں کی فہرست لوڈ نہیں ہو سکی؛ صرف نام دکھایا جا رہا ہے۔ صفحہ دوبارہ لوڈ کریں۔",
     blocks: "بلاکس", phases: "مراحل", progress: "پیش رفت %", cells: "مکمل خانے", none: "ابھی کوئی ڈیٹا نہیں۔", unknown: "—",
   },
 };
@@ -84,7 +87,7 @@ export default function ActivitySummary() {
   ];
   const groupColumns = (label: string): Column<GroupRow>[] => [
     { key: "key", header: label, render: row => <span className="whitespace-nowrap">{row.key}</span> },
-    { key: "engineer", header: t.engineer, render: row => (canManage && candidates.data
+    { key: "engineer", header: t.engineer, render: row => (canManage && candidates.data && !candidates.isError
       ? <Select aria-label={`${t.engineer} ${row.key}`} options={[{ value: NONE, label: t.noEngineer }, ...candidates.data.map(person => ({ value: String(person.userId), label: person.name || String(person.userId) }))]} value={row.engineer ? String(row.engineer.userId) : NONE}
           onValueChange={value => setEngineer.mutate({ tenantId, projectId, scopeType: label === t.block ? "block" : "phase", scopeKey: row.key, engineerUserId: value === NONE ? null : Number(value) })} />
       : <span className="whitespace-nowrap">{row.engineer?.name || t.noEngineer}</span>) },
@@ -117,6 +120,7 @@ export default function ActivitySummary() {
     <PageMain className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 md:p-6">
       <PageTitle title={t.title} description={t.intro} />
       <SourceNotice query={query} isArabic={isArabic} title={t.title} />
+      {canManage && candidates.isError ? <p role="alert" className="text-sm text-danger-soft-foreground">{t.candidatesFailed}</p> : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         {data ? (
           <div className="flex flex-wrap items-center gap-2" data-summary-project>
