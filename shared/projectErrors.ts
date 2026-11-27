@@ -1249,6 +1249,21 @@ export const projectErrorMessages = {
     en: "This step cannot be taken now: the order is prepare, then review, then approve, and the report is not at this step.",
     ur: "یہ مرحلہ ابھی نہیں ہو سکتا: ترتیب تیاری، پھر جائزہ، پھر منظوری ہے، اور رپورٹ اس مرحلے پر نہیں ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_LABOUR_TOO_MANY: {
+    ar: "عدد العمالة في خلية واحدة أكثر من 5000: راجع الرقم (غالبًا زيادة صفر).",
+    en: "A labour cell holds more than 5,000 people: check the figure (often an extra zero).",
+    ur: "ایک خانے میں 5,000 سے زیادہ مزدور ہیں؛ عدد جانچیں (اکثر ایک صفر زیادہ ہوتا ہے)۔",
+  },
+  PROJECT_OS_SITE_REPORT_EQUIPMENT_TOO_MANY: {
+    ar: "عدد المعدّات لآلة واحدة أكثر من 1000: راجع الرقم.",
+    en: "A machine count is above 1,000: check the figure.",
+    ur: "ایک مشین کی تعداد 1,000 سے زیادہ ہے؛ عدد جانچیں۔",
+  },
+  PROJECT_OS_SITE_REPORT_TEMPERATURE_RANGE: {
+    ar: "درجة الحرارة خارج المعقول (من -20 إلى 70 مئوية): راجع الرقم.",
+    en: "The temperature is out of range (-20 to 70 °C): check the figure.",
+    ur: "درجہ حرارت حد سے باہر ہے (-20 سے 70 °C)؛ عدد جانچیں۔",
+  },
   PROJECT_OS_SITE_REPORT_LABOUR_DUPLICATE: {
     ar: "خلية العمالة نفسها (الشركة والدور والوردية) مكررة في التقرير. اجمعها في سطر واحد.",
     en: "The same labour cell (company, role and shift) appears twice in the report. Put it on one row.",
@@ -1847,9 +1862,9 @@ export const projectErrorMessages = {
     ur: "اکائی کی لاگت صفر سے زیادہ عدد ہونی چاہیے۔",
   },
   PROJECT_OS_IMPORT_DUPLICATE_DETECTED: {
-    ar: "هذا الملف مستورد سابقًا في هذا المشروع.",
-    en: "This file was already imported into this project.",
-    ur: "یہ فائل اس پروجیکٹ میں پہلے ہی درآمد ہو چکی ہے۔",
+    ar: "هذا الملف نفسه مستورد سابقًا في هذا المشروع بنوع الاستيراد نفسه. الملف نفسه بنوع استيراد آخر أو في مشروع آخر مقبول.",
+    en: "This same file was already imported into this project with this same kind of import. The same file with another kind of import, or into another project, is accepted.",
+    ur: "یہی فائل اس پروجیکٹ میں اسی قسم کی درآمد کے ساتھ پہلے درآمد ہو چکی ہے۔ یہی فائل کسی دوسری قسم کی درآمد یا دوسرے پروجیکٹ میں قبول ہے۔",
   },
   PROJECT_OS_CONSULTANT_EXPORT_NOT_RECOGNISED: {
     ar: "لم نتعرّف على هذا الملف كتصدير من نظام الاستشاري (نبحث عن صف فيه Zone وBlock وUnit وVilla Type، ثم الأنشطة ورقم WIR لكل نشاط).",
@@ -1866,10 +1881,35 @@ export const projectErrorMessages = {
     en: "The site's old record was already imported into this project; it is imported only once.",
     ur: "سائٹ کا پرانا ریکارڈ اس پروجیکٹ میں پہلے ہی درآمد ہو چکا ہے؛ یہ صرف ایک بار درآمد ہوتا ہے۔",
   },
+  PROJECT_OS_PROGRESS_COMPUTED_FROM_PMC: {
+    ar: "تقدّم هذا البند محسوب من خلايا الفلل في PMC (أنشطته المربوطة)، فلا يُدخَل يدويًا. حدّث الإنجاز من «تحديث الإنجاز» أو التقرير اليومي.",
+    en: "This item's progress is computed from the villas' PMC cells (its linked activities), so it is not entered by hand. Update progress from the progress update or the daily report.",
+    ur: "اس آئٹم کی پیش رفت PMC میں ولاز کے خانوں (اس کی منسلک سرگرمیوں) سے نکالی جاتی ہے، اس لیے ہاتھ سے درج نہیں ہوتی۔ پیش رفت «پیش رفت اپ ڈیٹ» یا روزانہ رپورٹ سے اپ ڈیٹ کریں۔",
+  },
+  PROJECT_OS_PROGRESS_LOG_DATE_INVALID: {
+    ar: "تاريخ السجل غير صالح: اكتب التاريخ بالشكل سنة-شهر-يوم، وليكن «من» قبل «إلى» أو مثله.",
+    en: "The log's date is not valid: write it as year-month-day, with «from» on or before «to».",
+    ur: "لاگ کی تاریخ درست نہیں: سال-مہینہ-دن کی شکل میں لکھیں، اور «سے» «تک» سے پہلے یا برابر ہو۔",
+  },
+  PROJECT_OS_PROGRESS_LOG_SOURCE_INVALID: {
+    ar: "مصدر الإدخال غير معروف في سجل الإنجاز.",
+    en: "This source of entry is not known in the progress log.",
+    ur: "پیش رفت لاگ میں اندراج کا یہ ذریعہ معلوم نہیں۔",
+  },
+  PROJECT_OS_COMPLETION_FILTER_INVALID: {
+    ar: "تصفية تقرير الإنجاز غير صالحة: اكتب رقم الفيلا رقمًا، واختر الحالة من القائمة.",
+    en: "The completion report's filter is not valid: write the villa as a number and choose the status from the list.",
+    ur: "تکمیل رپورٹ کا فلٹر درست نہیں: ولا نمبر کے طور پر لکھیں اور حالت فہرست سے منتخب کریں۔",
+  },
   PROJECT_OS_STALL_THRESHOLD_INVALID: {
     ar: "حد التوقف عدد أيام عمل من 1 إلى 60.",
     en: "The stall threshold is a number of working days from 1 to 60.",
     ur: "رکاوٹ کی حد 1 سے 60 تک کام کے دنوں کی تعداد ہے۔",
+  },
+  PROJECT_OS_SITE_UPDATE_CONFIRM_COUNT: {
+    ar: "لم يُحفظ شيء بعد: هذا التحديث يشمل أكثر من 100 فيلا، فأكّد عددها أولًا.",
+    en: "Nothing was saved yet: this update covers more than 100 villas, so confirm their number first.",
+    ur: "ابھی کچھ محفوظ نہیں ہوا: یہ اپ ڈیٹ 100 سے زیادہ ولاز پر ہے، پہلے ان کی تعداد کی تصدیق کریں۔",
   },
   PROJECT_OS_SITE_UPDATE_INVALID: {
     ar: "لم يُحفظ شيء: في الإدخال ما يجب تصحيحه (فيلا غير موجودة، أو تاريخ في المستقبل، أو حقل ناقص، أو نشاط لا ينطبق على نموذج الفيلا). التفاصيل تحت النموذج.",
@@ -1920,6 +1960,21 @@ export const projectErrorMessages = {
     ar: "أحد الحضور المختارين ليس عضوًا نشطًا في هذه الشركة.",
     en: "One of the attendees chosen is not an active member of this company.",
     ur: "منتخب حاضرین میں سے ایک اس کمپنی کا فعال رکن نہیں۔",
+  },
+  PROJECT_OS_SCHEDULE_BASELINE_REASON_REQUIRED: {
+    ar: "اكتب سبب اعتماد خط الأساس الجديد (خمسة أحرف على الأقل).",
+    en: "Write why this becomes the new baseline (at least five characters).",
+    ur: "نیا بنیادی منصوبہ منظور کرنے کی وجہ لکھیں (کم از کم پانچ حروف)۔",
+  },
+  PROJECT_OS_SCHEDULE_BASELINE_NOT_IMPORT: {
+    ar: "يُعتمد خط أساس جديد من استيراد P6 كامل فقط، لا من تحديث أنشطة.",
+    en: "Only a full P6 import can become the new baseline, not an activity update.",
+    ur: "صرف مکمل P6 درآمد نیا بنیادی منصوبہ بن سکتی ہے، سرگرمیوں کی تازہ کاری نہیں۔",
+  },
+  PROJECT_OS_SCHEDULE_ALREADY_BASELINE: {
+    ar: "هذا الاستيراد هو خط الأساس الحالي.",
+    en: "This import is already the baseline.",
+    ur: "یہ درآمد پہلے ہی بنیادی منصوبہ ہے۔",
   },
   PROJECT_OS_SCHEDULE_SNAPSHOT_NOT_FOUND: {
     ar: "إحدى لقطتي المقارنة غير موجودة في هذا المشروع.",
@@ -2350,6 +2405,26 @@ export const projectErrorMessages = {
     ar: "النشاط ليس من نموذج هذه الوحدة.",
     en: "The activity is not part of this unit's model.",
     ur: "یہ سرگرمی اس یونٹ کے ماڈل کا حصہ نہیں ہے۔",
+  },
+  PROJECT_OS_EVM_EV_EXCEEDS_BAC: {
+    ar: "القيمة المكتسبة (EV) لا تتجاوز الميزانية عند الإنجاز (BAC): صحّح الرقمين.",
+    en: "Earned value (EV) cannot exceed the budget at completion (BAC): correct the two figures.",
+    ur: "حاصل شدہ قدر (EV) تکمیل پر بجٹ (BAC) سے زیادہ نہیں ہو سکتی؛ دونوں اعداد درست کریں۔",
+  },
+  PROJECT_OS_EVM_CPI_NOT_POSITIVE: {
+    ar: "هذه الطريقة تقسم على مؤشر أداء التكلفة (CPI)، وهو صفر هنا: أدخل التكلفة الفعلية (AC) والقيمة المكتسبة (EV) أكبر من صفر، أو اختر طريقة أخرى.",
+    en: "This method divides by the cost performance index (CPI), which is zero here: enter actual cost (AC) and earned value (EV) above zero, or pick another method.",
+    ur: "یہ طریقہ لاگت کارکردگی اشاریہ (CPI) پر تقسیم کرتا ہے جو یہاں صفر ہے؛ حقیقی لاگت (AC) اور حاصل شدہ قدر (EV) صفر سے زیادہ دیں یا دوسرا طریقہ چنیں۔",
+  },
+  PROJECT_OS_EVM_CPI_SPI_NOT_POSITIVE: {
+    ar: "هذه الطريقة تقسم على CPI وSPI معًا، وأحدهما صفر هنا: أدخل التكلفة الفعلية والقيمة المخططة والمكتسبة أكبر من صفر، أو اختر طريقة أخرى.",
+    en: "This method divides by both CPI and SPI, and one of them is zero here: enter actual cost, planned value and earned value above zero, or pick another method.",
+    ur: "یہ طریقہ CPI اور SPI دونوں پر تقسیم کرتا ہے اور ان میں سے ایک صفر ہے؛ حقیقی لاگت، منصوبہ بند قدر اور حاصل شدہ قدر صفر سے زیادہ دیں یا دوسرا طریقہ چنیں۔",
+  },
+  PROJECT_OS_EVM_INVALID: {
+    ar: "أرقام الحساب غير صالحة: راجعها وأعد المحاولة.",
+    en: "The figures cannot be calculated: check them and try again.",
+    ur: "ان اعداد سے حساب نہیں ہو سکتا؛ انہیں جانچ کر دوبارہ کوشش کریں۔",
   },
   PROJECT_OS_PMC_IMPORT_FILE_CHANGED: {
     ar: "تغيّر الملف منذ المعاينة؛ أعد رفعه ومعاينته.",

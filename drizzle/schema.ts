@@ -2181,7 +2181,7 @@ export const dataImports = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }), completedAt: timestamp("completed_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   // Only a CONFIRMED import (confirmed / importing / completed) holds its file's hash. A rejected or unconfirmed analysis wrote nothing and releases it: the same file may be uploaded again.
-  table => [index("data_imports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), uniqueIndex("data_imports_tenant_file_hash_unique").on(table.tenantId, table.fileHash).where(sql`${table.status} IN ('confirmed', 'importing', 'completed')`)],
+  table => [index("data_imports_tenant_project_status_idx").on(table.tenantId, table.projectId, table.status), uniqueIndex("data_imports_tenant_file_hash_unique").on(table.tenantId, table.projectId, table.moduleCode, table.fileHash).where(sql`${table.status} IN ('confirmed', 'importing', 'completed')`)],
 );
 
 export const dataImportErrorsSeverityEnum = pgEnum("data_import_errors_severity", ["error", "warning"]);
@@ -2402,6 +2402,10 @@ export const pmcUnits = pgTable(
     externalCode: varchar("external_code", { length: 120 }),
     // Work order 22: the villa number as the site and the consultant write it («268»): the key that ties a unit across the three sources. Unique inside a project when present.
     villaLabel: varchar("villa_label", { length: 40 }),
+    // Q-60 (the owner's villa register, 26-11): the construction phase (PH1–PH4), the package (Gold / Diamond) and whether it is a mock-up villa — optional
+    phase: varchar("phase", { length: 40 }),
+    package: varchar("package", { length: 40 }),
+    isMockup: boolean("is_mockup"),
     // Work order 22: net sellable area (m²) and unit price (SAR/m²). Financial: read and written only with project.budget.manage.
     netSellableArea: numeric("net_sellable_area", { precision: 12, scale: 2 }),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2 }),
@@ -2410,7 +2414,7 @@ export const pmcUnits = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  table => [unique("pmc_units_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId), uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), uniqueIndex("pmc_units_project_villa_label_unique").on(table.projectId, table.villaLabel).where(sql`${table.villaLabel} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId)],
+  table => [unique("pmc_units_id_tenant_project_unique").on(table.id, table.tenantId, table.projectId), uniqueIndex("pmc_units_project_number_unique").on(table.projectId, table.unitNumber), uniqueIndex("pmc_units_project_external_code_unique").on(table.projectId, table.externalCode).where(sql`${table.externalCode} IS NOT NULL`), uniqueIndex("pmc_units_project_villa_label_unique").on(table.projectId, table.villaLabel).where(sql`${table.villaLabel} IS NOT NULL`), index("pmc_units_tenant_project_block_idx").on(table.tenantId, table.projectId, table.blockId), index("pmc_units_tenant_project_phase_idx").on(table.tenantId, table.projectId, table.phase)],
 );
 
 export const pmcActivityGroups = pgTable(
@@ -3133,6 +3137,9 @@ export const tenantPolicies = pgTable(
     materialApprovalMode: tenantPoliciesModeEnum("material_approval_mode").default("warn").notNull(),
     // work order 14: an open NCR on a unit and activity keeps an inspection from counting as accepted (block, the default), only warns, or is ignored
     ncrAcceptanceMode: tenantPoliciesModeEnum("ncr_acceptance_mode").default("block").notNull(),
+    // Q-71 (the owner, 26-11: «why does the daily report wait for approval? it is just sent»): off (the default) — sending a daily report makes it final; on — it
+    // waits for the project's approver, as before
+    dailyReportApproval: boolean("daily_report_approval").default(false).notNull(),
     updatedByUserId: integer("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

@@ -1753,6 +1753,9 @@ CREATE TABLE "pmc_units" (
 	"sale_status" varchar(80),
 	"external_code" varchar(120),
 	"villa_label" varchar(40),
+	"phase" varchar(40),
+	"package" varchar(40),
+	"is_mockup" boolean,
 	"net_sellable_area" numeric(12, 2),
 	"unit_price" numeric(14, 2),
 	"geometry_json" text,
@@ -2915,6 +2918,7 @@ CREATE TABLE "tenant_policies" (
 	"qc_accepted_codes" varchar(40) DEFAULT 'A,B' NOT NULL,
 	"material_approval_mode" "tenant_policies_mode" DEFAULT 'warn' NOT NULL,
 	"ncr_acceptance_mode" "tenant_policies_mode" DEFAULT 'block' NOT NULL,
+	"daily_report_approval" boolean DEFAULT false NOT NULL,
 	"updated_by_user_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -3898,7 +3902,7 @@ CREATE INDEX "data_import_row_results_import_row_idx" ON "data_import_row_result
 CREATE UNIQUE INDEX "data_import_row_results_import_row_action_unique" ON "data_import_row_results" USING btree ("import_id","row_number","action");--> statement-breakpoint
 CREATE INDEX "data_import_sources_tenant_project_idx" ON "data_import_sources" USING btree ("tenant_id","project_id");--> statement-breakpoint
 CREATE INDEX "data_imports_tenant_project_status_idx" ON "data_imports" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
-CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","file_hash") WHERE "data_imports"."status" IN ('confirmed', 'importing', 'completed');--> statement-breakpoint
+CREATE UNIQUE INDEX "data_imports_tenant_file_hash_unique" ON "data_imports" USING btree ("tenant_id","project_id","module_code","file_hash") WHERE "data_imports"."status" IN ('confirmed', 'importing', 'completed');--> statement-breakpoint
 CREATE INDEX "decisions_tenant_project_status_idx" ON "decisions" USING btree ("tenant_id","project_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "design_comments_project_number_unique" ON "design_comments" USING btree ("project_id","comment_number");--> statement-breakpoint
 CREATE INDEX "design_comments_tenant_project_status_idx" ON "design_comments" USING btree ("tenant_id","project_id","status","due_at");--> statement-breakpoint
@@ -4066,6 +4070,7 @@ CREATE UNIQUE INDEX "pmc_units_project_number_unique" ON "pmc_units" USING btree
 CREATE UNIQUE INDEX "pmc_units_project_external_code_unique" ON "pmc_units" USING btree ("project_id","external_code") WHERE "pmc_units"."external_code" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_units_project_villa_label_unique" ON "pmc_units" USING btree ("project_id","villa_label") WHERE "pmc_units"."villa_label" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "pmc_units_tenant_project_block_idx" ON "pmc_units" USING btree ("tenant_id","project_id","block_id");--> statement-breakpoint
+CREATE INDEX "pmc_units_tenant_project_phase_idx" ON "pmc_units" USING btree ("tenant_id","project_id","phase");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_verification_status_project_code_unique" ON "pmc_verification_statuses" USING btree ("project_id","code");--> statement-breakpoint
 CREATE INDEX "pmc_verification_status_tenant_project_idx" ON "pmc_verification_statuses" USING btree ("tenant_id","project_id","active");--> statement-breakpoint
 CREATE UNIQUE INDEX "pmc_zones_project_code_unique" ON "pmc_zones" USING btree ("project_id","code");--> statement-breakpoint

@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gt, inArray, isNotNull, lt, ne, sql } from "drizzle-orm";
 import { auditLogs, pmcQcReceiptEvents, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, subcontractWorkConfirmationLines, subcontractWorkConfirmations } from "../drizzle/schema";
-import { applyCellStatus, authorize, type Scope } from "./pmcService";
+import { applyCellStatus, authorize, lockProjectCells, type Scope } from "./pmcService";
 import { villaKey } from "./wo22Shared";
 
 export const UNDO_WINDOW_MINUTES = 15;
@@ -47,6 +47,7 @@ export async function undoPmcProgressBatch(input: Scope & { batchId: string }) {
   return db.transaction(async tx => {
     const batch = await batchOf(tx, input, "pmc.progress_batch_updated", "pmc.progress_batch_undone");
     const note = `batch ${input.batchId}`;
+    await lockProjectCells(tx, input.projectId); // before the cell rows are locked below: the same order as every other cell write
     const rows = await tx.select({ id: pmcUnitActivityHistory.id, progressId: pmcUnitActivityHistory.unitActivityProgressId, fromStatus: pmcUnitActivityHistory.fromStatus, toStatus: pmcUnitActivityHistory.toStatus, changedAt: pmcUnitActivityHistory.changedAt, changedByUserId: pmcUnitActivityHistory.changedByUserId })
       .from(pmcUnitActivityHistory).where(and(eq(pmcUnitActivityHistory.tenantId, input.tenantId), eq(pmcUnitActivityHistory.projectId, input.projectId), eq(pmcUnitActivityHistory.note, note)));
     const cells = rows.length

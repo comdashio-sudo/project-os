@@ -21,6 +21,7 @@ import { resolveScopedAccess } from "./scopeAccess";
 import { siteToday } from "./wo22Shared";
 import { LOST_TIME_KINDS } from "../shared/safetyIndicators";
 import { logError } from "./_core/logger";
+import { countedReportCondition } from "./reportCounting";
 
 const MILESTONE_TYPES = ["TT_Mile", "TT_FinMile"];
 const HIGH_RISK_SCORE = 10;
@@ -63,12 +64,14 @@ export async function getOperationsOverview(input: { userId: number; tenantId: s
   const [membership] = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, input.userId))).limit(1);
   const lostSince = daysBefore(today, LOST_TIME_WINDOW_DAYS);
 
+  // Q-71 (2): the reports the figures count (approved, or also sent when the company needs no approval)
+  const counted = await countedReportCondition(db, input.tenantId);
   const [schedule, firsts, weights, units, overdue, openNcrs, openIncidents, lostTime, highRisks, waitingDecisions, waitingEscalations, below] = await Promise.all([
     db.select({ projectId: activities.projectId, start: activities.plannedStartAt, finish: activities.plannedFinishAt, plannedValue: activities.plannedValue, durationHours: activities.durationHours, taskType: activities.taskType })
       .from(activities).where(and(eq(activities.tenantId, input.tenantId), inArray(activities.projectId, projectIds), isNotNull(activities.externalId), or(isNotNull(activities.plannedStartAt), isNotNull(activities.plannedFinishAt)))),
     db.select({ projectId: siteDailyReports.projectId, activityId: siteDailyReportLines.pmcActivityDefinitionId, date: sql<string>`min(${siteDailyReports.reportDate})::text` })
       .from(siteDailyReportLines).innerJoin(siteDailyReports, eq(siteDailyReports.id, siteDailyReportLines.reportId))
-      .where(and(eq(siteDailyReports.tenantId, input.tenantId), inArray(siteDailyReports.projectId, projectIds), eq(siteDailyReports.status, "approved"), sql`${siteDailyReports.reportDate} <= ${today}`,
+      .where(and(eq(siteDailyReports.tenantId, input.tenantId), inArray(siteDailyReports.projectId, projectIds), counted, sql`${siteDailyReports.reportDate} <= ${today}`,
         eq(siteDailyReportLines.lineType, "work"), eq(siteDailyReportLines.reportedStatus, "COMPLETE"), isNotNull(siteDailyReportLines.pmcUnitId)))
       .groupBy(siteDailyReports.projectId, siteDailyReportLines.pmcActivityDefinitionId, siteDailyReportLines.pmcUnitId),
     db.select({ projectId: pmcActivityDefinitions.projectId, id: pmcActivityDefinitions.id, weightPercent: pmcActivityDefinitions.weightPercent }).from(pmcActivityDefinitions)

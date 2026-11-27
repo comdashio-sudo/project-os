@@ -1,5 +1,5 @@
 {
-  "id": "0644a538-8c8e-4040-8fc9-a3e924868fef",
+  "id": "9889d5c6-ab7a-447c-b337-1b1d49127d06",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -4686,6 +4686,18 @@
           "columns": [
             {
               "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "module_code",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -19260,6 +19272,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "phase": {
+          "name": "phase",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "package": {
+          "name": "package",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_mockup": {
+          "name": "is_mockup",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
         "net_sellable_area": {
           "name": "net_sellable_area",
           "type": "numeric(12, 2)",
@@ -19383,6 +19413,33 @@
             },
             {
               "expression": "block_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pmc_units_tenant_project_phase_idx": {
+          "name": "pmc_units_tenant_project_phase_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "phase",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -32362,6 +32419,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'block'"
+        },
+        "daily_report_approval": {
+          "name": "daily_report_approval",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "updated_by_user_id": {
           "name": "updated_by_user_id",

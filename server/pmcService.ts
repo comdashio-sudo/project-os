@@ -2,7 +2,7 @@
 // the named PMC permission and the PMC licence feature before it touches a row,
 // and every write leaves an audit row. The arithmetic is domain/pmc.ts.
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   auditLogs,
   pmcActivityDefinitions,
@@ -125,7 +125,18 @@ export type CellWarning = { code: "QC_NOT_ACCEPTED" };
  * The cell's unit and activity are already checked by the caller. Moving a cell to COMPLETE asks the company's quality policy (qualityGate.ts): "block" refuses, "warn"
  * lets it through and says so in `warnings`; the database holds the same rule for "block" on the table itself.
  */
+/**
+ * Review of #557 (C, note 2) and of #570 (C): FOR UPDATE locks only the rows that exist, so two writes that create the same missing cell would both insert and
+ * the second fail on the unique index. Every write of a project's cells takes this one lock for its transaction BEFORE it locks any cell row — the bulk save,
+ * the single-cell write (a cell edit, a daily report approval) and the undo — so they run one after the other and never wait on each other in a cycle.
+ * Reentrant: a transaction that writes many cells one by one takes it once and passes on the next calls.
+ */
+export async function lockProjectCells(tx: Pick<Tx, "execute">, projectId: string) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`pmc-cells:${projectId}`}))`);
+}
+
 export async function applyCellStatus(tx: Tx, input: Scope & { unitId: string; activityDefinitionId: string; status: PmcUnitActivityStatus; verificationStatusId?: string | null; note?: string }, now: Date) {
+  await lockProjectCells(tx, input.projectId);
   const [existing] = await tx.select().from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.unitId, input.unitId), eq(pmcUnitActivityProgress.activityDefinitionId, input.activityDefinitionId), eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId))).for("update").limit(1);
   const verificationStatusId = input.verificationStatusId === undefined ? (existing?.verificationStatusId ?? null) : input.verificationStatusId;
   if (existing && existing.status === input.status && existing.verificationStatusId === verificationStatusId) return { progressId: existing.id, from: existing.status, to: input.status, changed: false as const, evm: null, warnings: [] as CellWarning[] };
@@ -146,6 +157,52 @@ export async function applyCellStatus(tx: Tx, input: Scope & { unitId: string; a
   // Rule 7: the WBS items linked to activities take their progress from the cells, in this same transaction.
   const evm = await syncPmcProgressToEvm(tx, input, now);
   return { progressId, from, to: input.status, changed: true as const, evm, warnings };
+}
+
+/**
+ * Q-60 (the owner, 26-11: «no artificial cap on villas in one update» — 1,230 villas): the same write as applyCellStatus for many cells of one status at once,
+ * with the same result per cell — the cell row, a history row when the status moves (with the batch's note, so undo finds it), an audit row per changed cell,
+ * the QC completion gate (refused whole in block mode, a warning in warn mode) — but in a few statements per 500 cells instead of five per cell, and the
+ * EVM bridge once at the end instead of once per cell. The verification status of a cell is kept as it is (this path never sets it).
+ */
+export async function applyCellStatuses(tx: Tx, input: Scope & { status: PmcUnitActivityStatus; note: string }, targets: ReadonlyArray<{ unitId: string; activityDefinitionId: string }>, now: Date) {
+  const key = (unitId: string, activityDefinitionId: string) => `${unitId}/${activityDefinitionId}`;
+  await lockProjectCells(tx, input.projectId);
+  const existing = new Map<string, typeof pmcUnitActivityProgress.$inferSelect>();
+  for (let index = 0; index < targets.length; index += 500) {
+    const unitIds = Array.from(new Set(targets.slice(index, index + 500).map(target => target.unitId)));
+    const rows = await tx.select().from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId), inArray(pmcUnitActivityProgress.unitId, unitIds))).for("update");
+    for (const row of rows) existing.set(key(row.unitId, row.activityDefinitionId), row);
+  }
+  const moving = targets.filter(target => existing.get(key(target.unitId, target.activityDefinitionId))?.status !== input.status);
+  const warnings: CellWarning[] = [];
+  const notAccepted = new Set<string>(); // review of #557 (C, note 3): the warning goes on the audit rows of the cells QC did not accept, not on every cell
+  if (input.status === "COMPLETE" && moving.length) {
+    const gate = await qcCompletionGate(tx, input.tenantId, moving);
+    if (gate.notAccepted.length) {
+      if (gate.mode === "block") throw refuse("CONFLICT", "PROJECT_OS_QC_NOT_ACCEPTED");
+      warnings.push({ code: "QC_NOT_ACCEPTED" });
+      for (const cell of gate.notAccepted) notAccepted.add(key(cell.unitId, cell.activityDefinitionId));
+    }
+  }
+  const updates: string[] = []; const inserts: Array<typeof pmcUnitActivityProgress.$inferInsert> = []; const history: Array<typeof pmcUnitActivityHistory.$inferInsert> = []; const audits: Array<typeof auditLogs.$inferInsert> = [];
+  for (const target of moving) {
+    const row = existing.get(key(target.unitId, target.activityDefinitionId));
+    const progressId = row?.id ?? crypto.randomUUID();
+    const verificationStatusId = row?.verificationStatusId ?? null;
+    if (row) updates.push(row.id);
+    else inserts.push({ id: progressId, tenantId: input.tenantId, projectId: input.projectId, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, status: input.status, verificationStatusId, lastChangedByUserId: input.userId, lastChangedAt: now });
+    const from = row?.status ?? null;
+    history.push({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: progressId, fromStatus: from, toStatus: input.status, changedByUserId: input.userId, changedAt: now, note: input.note });
+    audits.push({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.unit_activity_changed", entityType: "pmc_unit_activity_progress", entityId: progressId, metadata: JSON.stringify({ projectId: input.projectId, unitId: target.unitId, activityDefinitionId: target.activityDefinitionId, from, to: input.status, verificationStatusId, ...(notAccepted.has(key(target.unitId, target.activityDefinitionId)) ? { warnings: ["QC_NOT_ACCEPTED"] } : {}) }) });
+  }
+  for (let index = 0; index < updates.length; index += 500) await tx.update(pmcUnitActivityProgress).set({ status: input.status, lastChangedByUserId: input.userId, lastChangedAt: now }).where(and(eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId), inArray(pmcUnitActivityProgress.id, updates.slice(index, index + 500))));
+  for (let index = 0; index < inserts.length; index += 500) await tx.insert(pmcUnitActivityProgress).values(inserts.slice(index, index + 500));
+  for (let index = 0; index < history.length; index += 500) await tx.insert(pmcUnitActivityHistory).values(history.slice(index, index + 500));
+  for (let index = 0; index < audits.length; index += 500) await tx.insert(auditLogs).values(audits.slice(index, index + 500));
+  // Rule 7: the WBS items linked to activities take their progress from the cells, in this same transaction — once, after every cell is written
+  const evm = moving.length ? await syncPmcProgressToEvm(tx, input, now) : null;
+  return { changed: moving.length, unchanged: targets.length - moving.length, warnings, evm };
 }
 
 // ------------------------------------------------------------ progress (rules 1-4)

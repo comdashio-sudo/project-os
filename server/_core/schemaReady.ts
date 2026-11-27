@@ -109,6 +109,9 @@ export const REQUIRED_SCHEMA = [
   { migration: "0054_strategy_changes_erasure", kind: "trigger", table: "strategy_assumption_changes", column: "strategy_assumption_changes_delete_on_erasure" },
   { migration: "0055_pmc_schedule_stage_links", kind: "table", table: "pmc_schedule_stage_links" },
   { migration: "0056_master_plan_links_pmc_units", kind: "column", table: "master_plan_drawing_links", column: "pmc_unit_id" },
+  { migration: "0057_import_duplicate_per_kind", kind: "unique-index-per-kind", table: "data_imports", column: "data_imports_tenant_file_hash_unique" },
+  { migration: "0058_pmc_unit_phase_package", kind: "column", table: "pmc_units", column: "phase" },
+  { migration: "0059_daily_report_approval_policy", kind: "column", table: "tenant_policies", column: "daily_report_approval" },
   // 0012 takes UPDATE on the immutable columns away from the application role: applied when the role (the one running this query) can no longer update tenant_id
   { migration: "0012_wo20_column_level_update", kind: "immutable-column-locked", table: "projects", column: "tenant_id" },
 ] as const;
@@ -141,6 +144,8 @@ export async function schemaReadiness(now = Date.now()): Promise<SchemaReadiness
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = ${item.table} AND e.enumlabel = ${item.column}) AS present`)).rows[0]?.present
         : item.kind === "unique-index-confirmed-only"
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${item.table} AND indexname = ${item.column} AND indexdef LIKE '%confirmed%importing%completed%') AS present`)).rows[0]?.present
+        : item.kind === "unique-index-per-kind"
+        ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = ${item.table} AND indexname = ${item.column} AND indexdef LIKE '%project_id, module_code, file_hash%') AS present`)).rows[0]?.present
         : item.kind === "trigger"
         ? (await db.execute(sql`SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = ${`public.${item.table}`}::regclass AND tgname = ${item.column} AND NOT tgisinternal) AS present`)).rows[0]?.present
         : item.kind === "permission"

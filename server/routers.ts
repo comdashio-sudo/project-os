@@ -5,9 +5,10 @@ import { buildProjectWorkbook } from "./domain/projectWorkbook";
 import { createPmcUnits, exportPmcCatalog, getPmcStatusGrid, getPmcStructure, savePmcActivityEnglishName, savePmcActivityWeights } from "./pmcEditorService";
 import { createWorkConfirmation, listWorkConfirmations, transitionWorkConfirmation, workConfirmationOptions , listActivityBoqLinks, setActivityBoqLinks} from "./workConfirmations";
 import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, exportProjectMeeting, getProjectMeeting, issueProjectMeeting, listProjectMeetings, MEETING_TYPES, MINUTES_EXPORT_FORMATS } from "./meetings";
-import { compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
+import { adoptScheduleBaseline, compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getScheduleVillaLinks } from "./scheduleVillaLinks";
 import { getScheduleStageMapping, saveScheduleStageMapping } from "./scheduleStageMapping";
+import { getActivityComputedProgress } from "./activityComputedService";
 import { getPlannedCurve } from "./plannedCurveService";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
@@ -111,8 +112,12 @@ import { logWarn, safePath } from "./_core/logger";
 import { createCompanyLogoUpload, getCompanyProfile, updateCompanyProfile } from "./companyProfile";
 import { listPmcQcHistory, pmcQcCounters, pmcVillaStates, updatePmcQcReceipts, pmcQcMap } from "./pmcQcReceipts";
 import { getStalledUnits, setStallThreshold } from "./stalledUnits";
+import { getPmcProgressLog } from "./pmcProgressLog";
+import { LOG_SOURCES } from "./domain/progressLog";
+import { COMPLETION_STATUSES, getPmcCompletionReport } from "./pmcCompletionReport";
+import { getPmcActivitySummary } from "./pmcActivitySummary";
 import { quickSearch } from "./quickSearch";
-import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
+import { listPmcProgressHistory, listProgressActivities, listProgressMapShapes, listProgressPicker, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
 import { undoPmcProgressBatch, undoPmcQcReceiptBatch } from "./pmcUndo";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
@@ -304,8 +309,16 @@ export const appRouter = router({
     structure: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStructure({ userId: ctx.user.id, ...input })),
     // Q-4: the site engineer's progress update on the weights table (server/pmcProgressUpdate.ts): the activities, one atomic update for several villas, the history
     progressActivities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressActivities({ userId: ctx.user.id, ...input })),
-    updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(500).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10), queuedAt: z.string().datetime().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "pmc.updateProgress" }, () => updatePmcProgress({ userId: ctx.user.id, ...input }))),
+    progressMapShapes: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressMapShapes({ userId: ctx.user.id, ...input })),
+    progressPicker: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80).optional() })).query(({ ctx, input }) => listProgressPicker({ userId: ctx.user.id, ...input })),
+    updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(20000).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), modelCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10), queuedAt: z.string().datetime().optional(), confirmCount: z.number().int().positive().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "pmc.updateProgress" }, () => updatePmcProgress({ userId: ctx.user.id, ...input }))),
     progressHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcProgressHistory({ userId: ctx.user.id, ...input })),
+    // Q-70 (1): the progress log — one row per entry a person made, with its villas, before → after and source (server/pmcProgressLog.ts)
+    progressLog: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), from: z.string().trim().max(10).optional(), to: z.string().trim().max(10).optional(), byUserId: z.number().int().positive().optional(), blockCode: z.string().trim().max(80).optional(), activityCode: z.string().trim().max(80).optional(), source: z.enum(LOG_SOURCES as [string, ...string[]], { message: "PROJECT_OS_PROGRESS_LOG_SOURCE_INVALID" }).optional() })).query(({ ctx, input }) => getPmcProgressLog({ userId: ctx.user.id, ...input, source: input.source as (typeof LOG_SOURCES)[number] | undefined })),
+    // Q-70 (3): the activity summary — per activity, block and phase, by the PMC progress rules (server/pmcActivitySummary.ts)
+    activitySummary: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional() })).query(({ ctx, input }) => getPmcActivitySummary({ userId: ctx.user.id, ...input })),
+    // Q-70 (2): the completion report — one row per villa × activity, in pages (server/pmcCompletionReport.ts)
+    completionReport: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional(), activityCode: z.string().trim().max(80).optional(), status: z.enum(COMPLETION_STATUSES).optional(), villa: z.string().trim().max(40).optional(), offset: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(5000).optional() })).query(({ ctx, input }) => getPmcCompletionReport({ userId: ctx.user.id, ...input })),
     // Q-14 (a): the stalled villas (working days since the last progress or QC movement) and the project's threshold (server/stalledUnits.ts)
     stalledUnits: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getStalledUnits({ userId: ctx.user.id, ...input })),
     setStallThreshold: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), thresholdDays: z.number().int().min(1, { message: "PROJECT_OS_STALL_THRESHOLD_INVALID" }).max(60, { message: "PROJECT_OS_STALL_THRESHOLD_INVALID" }) })).mutation(({ ctx, input }) => setStallThreshold({ userId: ctx.user.id, ...input })),
@@ -537,7 +550,13 @@ export const appRouter = router({
         eacMethod: z.enum(["bac_over_cpi", "ac_plus_remaining", "ac_plus_remaining_over_cpi_spi", "manual"]),
         manualEac: z.number().finite().nonnegative().optional(),
       }))
-      .query(({ input }) => calculateEvm(input)),
+      // a figure the rules refuse (EV above BAC, a zero CPI for a method that divides by it) is the person's input to fix, not a server fault: a BAD_REQUEST with a reason they can read
+      .query(({ input }) => {
+        try { return calculateEvm(input); } catch (error) {
+          if (!(error instanceof RangeError)) throw error;
+          throw new TRPCError({ code: "BAD_REQUEST", message: /EV cannot exceed BAC/.test(error.message) ? "PROJECT_OS_EVM_EV_EXCEEDS_BAC" : /CPI and SPI/.test(error.message) ? "PROJECT_OS_EVM_CPI_SPI_NOT_POSITIVE" : /CPI must be/.test(error.message) ? "PROJECT_OS_EVM_CPI_NOT_POSITIVE" : "PROJECT_OS_EVM_INVALID" });
+        }
+      }),
     saveEvmSnapshot: protectedProcedure
       .input(z.object({
         tenantId: z.string().uuid(), projectId: z.string().uuid(), periodAt: z.date(),
@@ -636,7 +655,7 @@ export const appRouter = router({
     options: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listFieldOptionsForTenant({ userId: ctx.user.id, ...input })),
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), status: z.enum(["draft", "submitted", "approved", "rejected"]).optional(), from: z.string().refine(isCalendarDay).optional(), to: z.string().refine(isCalendarDay).optional() })).query(({ ctx, input }) => listSiteDailyReportsForTenant({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid() })).query(({ ctx, input }) => getSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
-    save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weather: z.string().trim().max(24).optional(), temperatureC: z.number().min(-50).max(70).optional(), summary: z.string().trim().max(5000).optional(), obstacles: z.string().trim().max(5000).optional(), lines: z.array(z.object({ lineType: z.enum(["labour", "equipment", "work"]), label: z.string().trim().max(160).optional(), quantity: z.number().finite().min(0).max(100000).optional(), hours: z.number().finite().min(0).max(24).optional(), description: z.string().trim().max(2000).optional(), pmcUnitId: z.string().uuid().optional(), pmcActivityDefinitionId: z.string().uuid().optional(), reportedStatus: z.enum(["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).optional(), plannedQuantity: z.number().finite().min(0).max(1e9).optional(), actualQuantity: z.number().finite().min(0).max(1e9).optional() })).max(300),
+    save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weather: z.string().trim().max(24).optional(), temperatureC: z.number().finite().optional() /* the range is checked by name in siteReports.ts (Q-72 5) */, summary: z.string().trim().max(5000).optional(), obstacles: z.string().trim().max(5000).optional(), lines: z.array(z.object({ lineType: z.enum(["labour", "equipment", "work"]), label: z.string().trim().max(160).optional(), quantity: z.number().finite().min(0).max(100000).optional(), hours: z.number().finite().min(0).max(24).optional(), description: z.string().trim().max(2000).optional(), pmcUnitId: z.string().uuid().optional(), pmcActivityDefinitionId: z.string().uuid().optional(), reportedStatus: z.enum(["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).optional(), plannedQuantity: z.number().finite().min(0).max(1e9).optional(), actualQuantity: z.number().finite().min(0).max(1e9).optional() })).max(300),
       // D-45 (a): the header's wind and working hours, the labour matrix and the equipment of the day
       wind: z.string().trim().max(24).optional(), workHours: z.number().finite().min(0).max(24).optional(),
       labour: z.array(z.object({ companyId: z.string().uuid(), labourRoleId: z.string().uuid(), shift: z.enum(["day", "night"]), headcount: z.number().int().min(0).max(100000) })).max(600).optional(),
@@ -676,7 +695,7 @@ export const appRouter = router({
   policy: router({
     effective: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getEffectivePolicyForProject({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantPolicyForManager({ userId: ctx.user.id, ...input })),
-    set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), qcCompletionMode: z.enum(["off", "warn", "block"]), qcAcceptedCodes: z.array(z.string().trim().min(1).max(4)).min(1).max(8), materialApprovalMode: z.enum(["off", "warn", "block"]), ncrAcceptanceMode: z.enum(["off", "warn", "block"]).optional() })).mutation(({ ctx, input }) => setTenantPolicyForManager({ userId: ctx.user.id, ...input })),
+    set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), qcCompletionMode: z.enum(["off", "warn", "block"]), qcAcceptedCodes: z.array(z.string().trim().min(1).max(4)).min(1).max(8), materialApprovalMode: z.enum(["off", "warn", "block"]), ncrAcceptanceMode: z.enum(["off", "warn", "block"]).optional(), dailyReportApproval: z.boolean().optional() })).mutation(({ ctx, input }) => setTenantPolicyForManager({ userId: ctx.user.id, ...input })),
   }),
   cells: router({
     card: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityDefinitionId: z.string().uuid().optional() })).query(({ ctx, input }) => getCellCardForTenant({ userId: ctx.user.id, ...input })),
@@ -1148,7 +1167,11 @@ export const appRouter = router({
       links: z.array(z.object({ groupId: z.string().uuid(), stageCodes: z.array(z.string().trim().min(1).max(80)).max(20), anchor: z.enum(["span", "start", "end"]) })).min(1).max(200),
     })).mutation(({ ctx, input }) => saveScheduleStageMapping({ userId: ctx.user.id, ...input })),
     // Q-61 (4): the planned S-curve per villa / block / model / project from the baseline and the weights, against the site's actual (project.pmc.read)
+    // Q-61 (5): a later P6 import adopted as the new baseline — explicit, with a reason, audited (project.schedule.manage / project.manage)
+    adoptBaseline: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), snapshotId: z.string().uuid(), reason: z.string().max(500) })).mutation(({ ctx, input }) => adoptScheduleBaseline({ userId: ctx.user.id, ...input })),
     plannedCurve: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPlannedCurve({ userId: ctx.user.id, ...input })),
+    // Q-71 (1) batch 2: each P6 activity's progress computed from the villas' PMC cells (server/activityComputedService.ts), read-only
+    computedProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getActivityComputedProgress({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),

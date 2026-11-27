@@ -7,6 +7,7 @@ import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { useCanPage } from "@/lib/permissions";
+import { UnitJump } from "@/components/UnitJump";
 import type { PageKey } from "@shared/pageAccess";
 
 /** Every control a thumb has to hit is at least 44 px (the phone screens of the field work). */
@@ -33,10 +34,13 @@ function FieldTabs({ tenantId, projectId, current }: { tenantId: string; project
   return (
     <nav aria-label={t.nav} className="flex flex-wrap items-center gap-2">
       {tabs.filter(([key]) => can[key] !== false).map(([key, href, label]) => <Link key={key} href={href} aria-current={current === key ? "page" : undefined} className={`${tap} inline-flex items-center rounded-xl px-3 text-sm font-semibold ${current === key ? "bg-primary text-primary-foreground" : "border bg-card text-foreground"}`}>{label}</Link>)}
+      {/* Q-67 (5): the villas are read with the progress screen's own gate (project.pmc.read); without them the typed number stays */}
+      <UnitJump tenantId={tenantId} projectId={projectId} canRead={can.progress !== false} placeholder={t.unit} fallback={
       <CheckedForm className="flex flex-wrap items-center gap-1" onSubmit={event => { event.preventDefault(); if (unit.trim()) navigate(`${base}/unit/${encodeURIComponent(unit.trim())}`); }}>
         <input aria-label={t.unitNumber} placeholder={t.unitNumber} inputMode="numeric" required className={`${tap} w-28 rounded-xl border bg-card px-3 text-sm`} value={unit} onChange={event => setUnit(event.target.value)} />
         <button type="submit" className={`${tap} rounded-xl border bg-card px-3 text-sm font-semibold`}>{t.unit}</button>
       </CheckedForm>
+      } />
     </nav>
   );
 }

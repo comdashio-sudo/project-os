@@ -1,0 +1,134 @@
+[
+ {
+  "lang": "ar",
+  "width": 390,
+  "name": "rules",
+  "toggle": 1,
+  "checked": false,
+  "label": "التقرير اليومي يحتاج اعتمادًا\nمُطفأ: يصبح التقرير نهائيًا عن",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 390,
+  "name": "sent",
+  "sendButton": true,
+  "forApproval": false,
+  "message": [
+   "أُرسل التقرير وأصبح نهائيًا: دخل الأسبوعي والشهري."
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "name": "rules",
+  "toggle": 1,
+  "checked": false,
+  "label": "التقرير اليومي يحتاج اعتمادًا\nمُطفأ: يصبح التقرير نهائيًا عن",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "name": "sent",
+  "sendButton": true,
+  "forApproval": false,
+  "message": [
+   "أُرسل التقرير وأصبح نهائيًا: دخل الأسبوعي والشهري."
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "name": "rules",
+  "toggle": 1,
+  "checked": false,
+  "label": "The daily report needs an approval\nOff: a report is final wh",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "name": "sent",
+  "sendButton": true,
+  "forApproval": false,
+  "message": [
+   "The report was sent and is final: it counts in the week and month."
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "name": "rules",
+  "toggle": 1,
+  "checked": false,
+  "label": "The daily report needs an approval\nOff: a report is final wh",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "name": "sent",
+  "sendButton": true,
+  "forApproval": false,
+  "message": [
+   "The report was sent and is final: it counts in the week and month."
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "name": "rules",
+  "toggle": 1,
+  "checked": false,
+  "label": "روزانہ رپورٹ کو منظوری درکار ہے\nبند: رپورٹ بھیجتے ہی حتمی ہو",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "name": "sent",
+  "sendButton": true,
+  "forApproval": false,
+  "message": [
+   "رپورٹ بھیج دی گئی اور حتمی ہے: ہفتہ وار و ماہانہ میں شامل ہوئی۔"
+  ],
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "name": "rules",
+  "toggle": 1,
+  "checked": false,
+  "label": "روزانہ رپورٹ کو منظوری درکار ہے\nبند: رپورٹ بھیجتے ہی حتمی ہو",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "name": "sent",
+  "sendButton": true,
+  "forApproval": false,
+  "message": [
+   "رپورٹ بھیج دی گئی اور حتمی ہے: ہفتہ وار و ماہانہ میں شامل ہوئی۔"
+  ],
+  "hScroll": false,
+  "errors": []
+ }
+]

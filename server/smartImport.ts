@@ -13,12 +13,14 @@ import { authorizeNewImport, getDataImportDetailForTenant, getDb } from "./db";
 import { detectFormat, understand, type Understanding } from "./domain/smartImport/understand";
 import { KINDS, type KindCode } from "./domain/smartImport/kinds";
 import { normalizeHeader } from "./domain/smartImport/dictionary";
+import { headerOverlap, headerSignature, PROFILE_MATCH } from "./domain/importProfiles";
 import { hasTranslator, translate } from "./domain/smartImport/translate";
 import { registerImportUpload } from "./importJobs";
 import { analyzeMatrixImport, confirmMatrixImport, type MatrixPlan } from "./matrixImport";
 import { analyzeConsultantImport, confirmConsultantImport, type ConsultantPlan } from "./consultantImport";
 import { analyzeSiteLegacyImport, confirmSiteLegacyImport, type SiteLegacyPlan } from "./siteLegacyImport";
 import { analyzeP6Import, confirmP6Import, type P6Plan } from "./p6Import";
+import { startP6ImportJob } from "./importJobs";
 import { analyzeScheduleUpdate, confirmScheduleUpdate, type ScheduleUpdatePlan } from "./p6Update";
 import { readTableWithAi, smartReadingQuote } from "./smartReading";
 import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageDelete, storageGetSignedUrl, storageHead, storagePut, storageRead } from "./storage";
@@ -29,7 +31,6 @@ const EXTENSIONS: Record<string, string> = { xls: "application/vnd.ms-excel", xl
 const safeName = (name: string) => name.normalize("NFKC").replace(/[^A-Za-z0-9._\-؀-ۿݐ-ݿ]+/g, "_").replace(/^[._]+/, "").slice(0, 120) || "file";
 const smartPrefix = (input: Identity) => `imports/${input.tenantId}/${input.projectId}/smart/`;
 const extensionOf = (fileName: string) => fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
-const PROFILE_MATCH = 0.75;
 
 async function database() { const db = await getDb(); if (!db) throw new Error("Database connection is not available"); return db; }
 
@@ -54,8 +55,9 @@ async function takeSmartUpload(input: Identity & { uploadKey: string }) {
   return bytes;
 }
 
-const signatureOf = (headers: string[]) => Array.from(new Set(headers.map(normalizeHeader).filter(Boolean))).sort();
-const overlap = (a: string[], b: string[]) => { if (!a.length || !b.length) return 0; const set = new Set(b); return a.filter(item => set.has(item)).length / Math.max(a.length, b.length); };
+// Q-66 (6): the signature and its overlap are shared with the PMC import's remembered columns (domain/importProfiles.ts)
+const signatureOf = headerSignature;
+const overlap = headerOverlap;
 
 type ProfileRow = { id: string; name: string; kind: string; headerSignature: string; columnMapJson: string; timesUsed: number };
 // import_source_profiles also holds the column-mapping templates of Q-50 (kind = the job importer's module, map = field → header): the smart reader reads
@@ -141,6 +143,9 @@ export async function analyzeSmartUpload(input: Identity & { uploadKey: string; 
   return { understanding: strip(result), profile };
 }
 
+/** A Primavera file above this size is written by a background job (a 10 MB export takes tens of seconds to read and write: not a request's work). */
+export const P6_BACKGROUND_MIN_BYTES = 2 * 1024 * 1024;
+
 export type SmartConfirmation = { importId: string; status: string; module: string; rowsSent: number; rowsExcluded: number; excluded: Array<{ rowNumber: number; reason: string }>; notes: string[]; profileId: string | null; matrixChanges?: MatrixPlan["changes"]; consultantPlan?: ConsultantPlan; siteLegacyPlan?: SiteLegacyPlan; p6Counts?: P6Plan["counts"]; scheduleUpdate?: Pick<ScheduleUpdatePlan, "updated" | "started" | "finished" | "moved" | "unknown" | "unchanged"> };
 
 /** Step 3: the person approved. The rows go to the existing importer in its own template; the original file is kept and linked to the import. */
@@ -189,7 +194,12 @@ export async function confirmSmartImport(input: Identity & { uploadKey: string; 
   let mapping: ColumnMap = {}; let mergedFilled = 0; let sheetName: string | null = input.sheet ?? null; let headers: string[] = [];
 
   if (format === "xer") {
-    // a Primavera export is read whole (the WBS tree, activities, relationships, resources, assignments, codes, calendars) and written in one transaction
+    // a Primavera export is read whole (the WBS tree, activities, relationships, resources, assignments, codes, calendars) and written in ONE transaction.
+    // A small file finishes inside the request. A large one (Q-61) becomes a background job: the answer is the import in `importing`, the screen polls `imports.progress` until `completed` or `failed` (with a reason).
+    if (bytes.length > P6_BACKGROUND_MIN_BYTES) {
+      const started = await startP6ImportJob({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, uploadKey: input.uploadKey, fileName: input.fileName, bytes, approvedHash: input.approvedHash });
+      return { importId: started.id, status: started.status, module: "p6", rowsSent: 0, rowsExcluded: 0, excluded: [], notes: [], profileId: null };
+    }
     const plan = await confirmP6Import({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, bytes, approvedHash: input.approvedHash, source: { key: input.uploadKey, name: input.fileName } });
     return { importId: plan.importId!, status: "completed", module: "p6", rowsSent: plan.summary.activities, rowsExcluded: 0, excluded: [], notes: plan.warnings, profileId: null, p6Counts: plan.counts };
   } else if (format === "pdf" || format === "image" || format === "unknown") {

@@ -7,10 +7,12 @@ import { cellsWithoutAcceptedInspection, loadTenantPolicy, ncrAcceptanceVerdict 
 import { createHash } from "node:crypto";
 import { refreshStatisticsAfterBulkLoad } from "./bulkLoadStats";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { headerOverlap, headerSignature, PROFILE_MATCH } from "./domain/importProfiles";
 import { syncPmcProgressToEvm } from "./pmcEvmBridge";
 import {
   auditLogs,
+  importSourceProfiles,
   memberships,
   pmcActivityDefinitions,
   pmcActivityGroups,
@@ -48,7 +50,7 @@ import {
   type PmcImportEdits,
   type PmcAppliedEdit,
 } from "./domain/pmcImport";
-import { PMC_INSPECTION_STEPS } from "./pmcService";
+import { lockProjectCells, PMC_INSPECTION_STEPS } from "./pmcService";
 
 export type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type Scope = { userId: number; tenantId: string; projectId: string };
@@ -71,7 +73,7 @@ export type PmcImportReport = {
   canConfirm: boolean;
 };
 
-export type Prepared = { report: PmcImportReport; apply: ((tx: Tx) => Promise<void>) | null };
+export type Prepared = { report: PmcImportReport; apply: ((tx: Tx) => Promise<void>) | null; /** Q-66 (6): the file's headers and the profile it was read with, for remembering a choice */ source?: { headers: string[]; rememberedId: string | null } };
 
 export async function authorize(input: Scope) {
   const db = await getDb();
@@ -90,19 +92,54 @@ function decode(base64: string) {
 
 const report = (kind: PmcImportKind, fileHash: string, totalRows: number, errors: PmcImportError[], counts: PmcImportCounts, details: Record<string, unknown> = {}): PmcImportReport => ({ kind, fileHash, totalRows, errorCount: errors.length, errors: errors.slice(0, MAX_REPORTED_ERRORS), counts, details, canConfirm: errors.length === 0 && counts.create + counts.update > 0 });
 
+/**
+ * Q-66 (6): the company's memory of its own files — when a person chose the columns of a PMC file (the mapping override) and the import was confirmed, that
+ * choice is kept for this company and this kind under the file's header signature (import_source_profiles, kind «pmc_<kind>», never listed among the job
+ * importer's templates). A later file of the same shape whose columns the reader could not settle by name alone is read with the remembered choice — said in
+ * the report — and the person can still change it. A file the reader understands by itself is never read differently because of a profile.
+ */
+export const pmcProfileKind = (kind: PmcImportKind) => `pmc_${kind}`;
+async function rememberedMapping(db: Db, tenantId: string, kind: PmcImportKind, headers: string[]): Promise<{ id: string; name: string; map: Record<string, string> } | null> {
+  const mine = headerSignature(headers);
+  if (!mine.length) return null;
+  const profiles = await db.select({ id: importSourceProfiles.id, name: importSourceProfiles.name, headerSignature: importSourceProfiles.headerSignature, columnMapJson: importSourceProfiles.columnMapJson })
+    .from(importSourceProfiles).where(and(eq(importSourceProfiles.tenantId, tenantId), eq(importSourceProfiles.kind, pmcProfileKind(kind))));
+  let best: { id: string; name: string; map: Record<string, string>; score: number } | null = null;
+  for (const profile of profiles) {
+    let signature: string[]; let map: Record<string, string>;
+    try { signature = JSON.parse(profile.headerSignature); map = JSON.parse(profile.columnMapJson); } catch { continue; }
+    const score = headerOverlap(mine, signature);
+    if (score >= PROFILE_MATCH && (!best || score > best.score)) best = { id: profile.id, name: profile.name, map, score };
+  }
+  if (!best) return null;
+  // only the choices whose column this file has (a header the file lacks is not carried over)
+  const offered = new Set(headers);
+  const map = Object.fromEntries(Object.entries(best.map).filter(([, header]) => header === "ignore" || offered.has(header)));
+  return Object.keys(map).length ? { id: best.id, name: best.name, map } : null;
+}
+
 async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xlsx" | "csv"; mappingOverride?: Record<string, string>; edits?: PmcImportEdits } & ({ base64: string } | { bytes: Buffer })): Promise<Prepared> {
   // `bytes`: the file came through the direct-upload path (a signed URL, up to MAX_DIRECT_UPLOAD_BYTES), so it was size-checked there and is not limited to a request body.
   const { bytes, fileHash } = "bytes" in input ? { bytes: input.bytes, fileHash: createHash("sha256").update(input.bytes).digest("hex") } : decode(input.base64);
-  const parsed = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes, mappingOverride: input.mappingOverride, edits: input.edits });
+  let parsed = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes, mappingOverride: input.mappingOverride, edits: input.edits });
+  // Q-66 (6): columns the reader could not settle by name, in a file of a shape this company has mapped before → read with that remembered choice, when it reads better
+  let remembered: { id: string; name: string; map: Record<string, string> } | null = null;
+  if (!input.mappingOverride && parsed.errors.length && parsed.columns?.headers.length) {
+    const found = await rememberedMapping(db, input.tenantId, input.kind, parsed.columns.headers);
+    if (found) {
+      const again = await parsePmcImportFile({ kind: input.kind, format: input.format, bytes, mappingOverride: found.map, edits: input.edits });
+      if (again.errors.length < parsed.errors.length) { parsed = again; remembered = found; }
+    }
+  }
   const none: PmcImportCounts = { create: 0, update: 0, unchanged: 0 };
   // Q-31 (P0-02): the report says which column each field was read from (and whether a person chose it), so the screen can show it and offer to change it
-  const columns = parsed.columns ? { columns: parsed.columns } : {};
+  const columns = { ...(parsed.columns ? { columns: parsed.columns } : {}), ...(remembered ? { rememberedMapping: { name: remembered.name, fields: Object.keys(remembered.map).filter(key => key !== "__others__") } } : {}) };
   if (parsed.errors.length) return { report: report(input.kind, fileHash, 0, parsed.errors, none, columns), apply: null };
   const prepared = await prepareRows(db, input, parsed, fileHash);
   // what the reader did quietly is said in the report too: totals lines skipped, sections filled down (Q-31 review of #370, Q-47)
   // Q-48: and the columns no field reads, with a few of their values, so a person sees each was seen and left aside
   const notes = parsed.notes && (parsed.notes.skippedTotals || parsed.notes.filledDown || parsed.notes.ignoredColumns?.length || parsed.notes.edits?.length || parsed.notes.ignoredRows?.length || parsed.notes.readRows?.length || parsed.notes.preview?.length || parsed.notes.outlineHeadings) ? parsed.notes : {};
-  return { ...prepared, report: { ...prepared.report, details: { ...prepared.report.details, ...columns, ...notes } } };
+  return { ...prepared, report: { ...prepared.report, details: { ...prepared.report.details, ...columns, ...notes } }, source: { headers: parsed.columns?.headers ?? parsed.headers, rememberedId: remembered?.id ?? null } };
 }
 
 /** The checks and the plan for rows that are already read (a file's rows, or the rows a unit-completion matrix was turned into). `db` may be a transaction: later kinds then see what earlier ones wrote. */
@@ -141,14 +178,14 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
     const [zones, blocks, units] = await Promise.all([
       db.select({ id: pmcZones.id, code: pmcZones.code }).from(pmcZones).where(mine(pmcZones, scope)),
       db.select({ id: pmcBlocks.id, code: pmcBlocks.code, zoneId: pmcBlocks.zoneId }).from(pmcBlocks).where(mine(pmcBlocks, scope)),
-      db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, blockId: pmcUnits.blockId, modelCode: pmcUnits.modelCode, saleStatus: pmcUnits.saleStatus, unitWeight: pmcUnits.unitWeight }).from(pmcUnits).where(mine(pmcUnits, scope)),
+      db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, blockId: pmcUnits.blockId, modelCode: pmcUnits.modelCode, saleStatus: pmcUnits.saleStatus, unitWeight: pmcUnits.unitWeight, phase: pmcUnits.phase, package: pmcUnits.package, isMockup: pmcUnits.isMockup }).from(pmcUnits).where(mine(pmcUnits, scope)),
     ]);
     const zoneById = new Map(zones.map(zone => [zone.id, zone.code]));
     const blockById = new Map(blocks.map(block => [block.id, block.code]));
     const plan = planLocations(parsed.rows, {
       zones: new Map(zones.map(zone => [zone.code, { id: zone.id }])),
       blocks: new Map(blocks.map(block => [block.code, { id: block.id, zoneCode: zoneById.get(block.zoneId) ?? "" }])),
-      units: new Map(units.map(unit => [unit.unitNumber, { id: unit.id, blockCode: blockById.get(unit.blockId) ?? "", modelCode: unit.modelCode, saleStatus: unit.saleStatus, unitWeight: Number(unit.unitWeight) }])),
+      units: new Map(units.map(unit => [unit.unitNumber, { id: unit.id, blockCode: blockById.get(unit.blockId) ?? "", modelCode: unit.modelCode, saleStatus: unit.saleStatus, unitWeight: Number(unit.unitWeight), phase: unit.phase, package: unit.package, isMockup: unit.isMockup }])),
     });
     const details = { zones: plan.newZones.length, blocks: plan.newBlocks.length };
     if (plan.errors.length) return { report: report("locations", fileHash, total, plan.errors, plan.counts, details), apply: null };
@@ -159,8 +196,8 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
         const blockIds = new Map(blocks.map(block => [block.code, block.id]));
         for (const zone of plan.newZones) { const id = crypto.randomUUID(); zoneIds.set(zone.code, id); await tx.insert(pmcZones).values({ id, tenantId: input.tenantId, projectId: input.projectId, code: zone.code, name: zone.name }); }
         for (const block of plan.newBlocks) { const id = crypto.randomUUID(); blockIds.set(block.code, id); await tx.insert(pmcBlocks).values({ id, tenantId: input.tenantId, projectId: input.projectId, zoneId: zoneIds.get(block.zoneCode)!, code: block.code, name: block.name }); }
-        for (const batch of chunks(plan.newUnits)) await tx.insert(pmcUnits).values(batch.map(unit => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, blockId: blockIds.get(unit.blockCode)!, unitNumber: unit.unitNumber, modelCode: unit.modelCode, saleStatus: unit.saleStatus, unitWeight: String(unit.unitWeight) })));
-        for (const unit of plan.updatedUnits) await tx.update(pmcUnits).set({ saleStatus: unit.saleStatus, unitWeight: String(unit.unitWeight) }).where(eq(pmcUnits.id, unit.id));
+        for (const batch of chunks(plan.newUnits)) await tx.insert(pmcUnits).values(batch.map(unit => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, blockId: blockIds.get(unit.blockCode)!, unitNumber: unit.unitNumber, modelCode: unit.modelCode, saleStatus: unit.saleStatus, unitWeight: String(unit.unitWeight), phase: unit.phase, package: unit.package, isMockup: unit.isMockup })));
+        for (const unit of plan.updatedUnits) await tx.update(pmcUnits).set({ saleStatus: unit.saleStatus, unitWeight: String(unit.unitWeight), phase: unit.phase, package: unit.package, isMockup: unit.isMockup }).where(and(eq(pmcUnits.id, unit.id), eq(pmcUnits.tenantId, input.tenantId), eq(pmcUnits.projectId, input.projectId)));
       },
     };
   }
@@ -241,13 +278,22 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
       report: report("status", fileHash, total, [], plan.counts, statusDetails),
       apply: async tx => {
         const now = new Date();
-        const creates = plan.operations.filter(operation => !operation.existing);
+        // review of #575 (C): the import is a writer of the project's cells like the site's saves, so it takes the same project lock before it locks any
+        // cell row, and re-reads the cells inside the transaction — a cell another save created after the file was planned is updated, not inserted twice
+        await lockProjectCells(tx, input.projectId);
+        const fresh = new Map<string, { id: string; status: PmcStatus }>();
+        for (const unitIds of chunks(Array.from(new Set(plan.operations.map(operation => operation.unitId))))) {
+          const rows = await tx.select({ id: pmcUnitActivityProgress.id, unitId: pmcUnitActivityProgress.unitId, activityDefinitionId: pmcUnitActivityProgress.activityDefinitionId, status: pmcUnitActivityProgress.status }).from(pmcUnitActivityProgress).where(and(eq(pmcUnitActivityProgress.tenantId, input.tenantId), eq(pmcUnitActivityProgress.projectId, input.projectId), inArray(pmcUnitActivityProgress.unitId, unitIds))).for("update");
+          for (const row of rows) fresh.set(`${row.unitId}:${row.activityDefinitionId}`, { id: row.id, status: row.status as PmcStatus });
+        }
+        const operations = plan.operations.map(operation => ({ ...operation, existing: fresh.get(`${operation.unitId}:${operation.activityDefinitionId}`) ?? null }));
+        const creates = operations.filter(operation => !operation.existing);
         const created = creates.map(operation => ({ operation, id: crypto.randomUUID() }));
         for (const batch of chunks(created)) {
           await tx.insert(pmcUnitActivityProgress).values(batch.map(({ operation, id }) => ({ id, tenantId: input.tenantId, projectId: input.projectId, unitId: operation.unitId, activityDefinitionId: operation.activityDefinitionId, status: operation.status, verificationStatusId: operation.verificationStatusId, assignedUserId: operation.engineerUserId, lastChangedByUserId: operation.engineerUserId ?? input.userId, lastChangedAt: operation.changedAt ?? now })));
           await tx.insert(pmcUnitActivityHistory).values(batch.map(({ operation, id }) => ({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: id, fromStatus: null, toStatus: operation.status, changedByUserId: operation.engineerUserId ?? input.userId, changedAt: operation.changedAt ?? now, note: "import" })));
         }
-        for (const operation of plan.operations.filter(item => item.existing)) {
+        for (const operation of operations.filter(item => item.existing)) {
           const progressId = operation.existing!.id;
           await tx.update(pmcUnitActivityProgress).set({ status: operation.status, verificationStatusId: operation.verificationStatusId, ...(operation.engineerUserId ? { assignedUserId: operation.engineerUserId } : {}), lastChangedByUserId: operation.engineerUserId ?? input.userId, lastChangedAt: operation.changedAt ?? now }).where(eq(pmcUnitActivityProgress.id, progressId));
           if (operation.existing!.status !== operation.status) await tx.insert(pmcUnitActivityHistory).values({ id: crypto.randomUUID(), tenantId: input.tenantId, projectId: input.projectId, unitActivityProgressId: progressId, fromStatus: operation.existing!.status, toStatus: operation.status, changedByUserId: operation.engineerUserId ?? input.userId, changedAt: operation.changedAt ?? now, note: "import" });
@@ -308,6 +354,26 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
   };
 }
 
+/** Keeps (or counts) the column choice of a confirmed PMC import. A choice is saved only when a person made one (the mapping override). */
+async function rememberMapping(tx: Tx, input: Scope & { kind: PmcImportKind; userId: number; mappingOverride?: Record<string, string> }, source: { headers: string[]; rememberedId: string | null } | null): Promise<{ id: string; saved: boolean } | null> {
+  const chosen = Object.fromEntries(Object.entries(input.mappingOverride ?? {}).filter(([, header]) => typeof header === "string" && header.trim() !== ""));
+  if (Object.keys(chosen).length && source?.headers.length) {
+    const signature = headerSignature(source.headers);
+    // one profile per company, kind and file shape: its name is made from the signature, so the same shape chosen again replaces the earlier choice
+    const name = `PMC ${input.kind} ${createHash("sha256").update(JSON.stringify(signature)).digest("hex").slice(0, 10)}`;
+    const [row] = await tx.insert(importSourceProfiles).values({ id: crypto.randomUUID(), tenantId: input.tenantId, name, kind: pmcProfileKind(input.kind), headerSignature: JSON.stringify(signature), columnMapJson: JSON.stringify(chosen), timesUsed: 1, createdByUserId: input.userId })
+      .onConflictDoUpdate({ target: [importSourceProfiles.tenantId, importSourceProfiles.name], set: { columnMapJson: JSON.stringify(chosen), headerSignature: JSON.stringify(signature), timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }, setWhere: eq(importSourceProfiles.kind, pmcProfileKind(input.kind)) })
+      .returning({ id: importSourceProfiles.id });
+    // a name another kind took (it cannot: the kind is in the name) would be left untouched, and nothing is remembered
+    return row ? { id: row.id, saved: true } : null;
+  }
+  if (source?.rememberedId) {
+    await tx.update(importSourceProfiles).set({ timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }).where(and(eq(importSourceProfiles.id, source.rememberedId), eq(importSourceProfiles.tenantId, input.tenantId)));
+    return { id: source.rememberedId, saved: false };
+  }
+  return null;
+}
+
 /** Q-50 batch 4: the corrections a report carries (each with the file's value and the one used), for the audit row of the write. */
 const correctionsOf = (report: PmcImportReport) => {
   const details = report.details as { edits?: PmcAppliedEdit[]; ignoredRows?: number[]; readRows?: number[] };
@@ -336,7 +402,10 @@ export async function confirmPmcImport(input: Scope & { kind: PmcImportKind; for
     await apply(tx);
     // Statuses, catalog weights/links and the unit list all move PMC progress; the other kinds do not.
     if (input.kind === "status" || input.kind === "catalog" || input.kind === "weights" || input.kind === "locations") await syncPmcProgressToEvm(tx, input, new Date());
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.import_confirmed", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ kind: input.kind, fileHash: prepared.report.fileHash, counts: prepared.report.counts, totalRows: prepared.report.totalRows, ...correctionsOf(prepared.report) }) });
+    // Q-66 (6): the columns a person chose are remembered for this company's next file of this shape (same transaction: no import, no memory); a file read
+    // with a remembered choice counts one more use of it
+    const remembered = await rememberMapping(tx, input, prepared.source ?? null);
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.import_confirmed", entityType: "project", entityId: input.projectId, metadata: JSON.stringify({ ...(remembered ? { columnProfile: remembered } : {}), kind: input.kind, fileHash: prepared.report.fileHash, counts: prepared.report.counts, totalRows: prepared.report.totalRows, ...correctionsOf(prepared.report) }) });
   });
   void refreshStatisticsAfterBulkLoad(db, ["pmc_*"], prepared.report.totalRows); // never blocks (bulkLoadStats.ts)
   return { kind: input.kind, counts: prepared.report.counts, totalRows: prepared.report.totalRows, fileHash: prepared.report.fileHash };

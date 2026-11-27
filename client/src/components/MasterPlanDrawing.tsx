@@ -16,6 +16,7 @@ import { getProjectError } from "@shared/projectErrors";
 import { matchDrawingToUnits, type ProjectUnit } from "@/lib/dxf/dxfMatch";
 import { readDxf, type DxfDrawing } from "@/lib/dxf/dxfReader";
 import { rasterKind, readPdfPage, readRasterImage } from "@/lib/raster/rasterFile";
+import { readPdfVector } from "@/lib/raster/pdfVector";
 import { PanZoomControls, usePanZoom } from "@/components/PanZoomMap";
 import { useAuth } from "@/_core/hooks/useAuth";
 import type { OcrWorker } from "@/lib/raster/ocrWorker";
@@ -27,7 +28,7 @@ import { SITE_COLOUR, colourUnits, passesFilter, type SiteUnit, unitNumberOf } f
 import { boundsOf, hatchIndexOf, pickVilla, type ListedVilla } from "@/lib/masterPlanSelection";
 import { MasterPlanVillaList, ModelHatchDefs, ModelLegend, VillaInfoPanel } from "@/components/MasterPlanVillaList";
 import { MANUAL_LAYER, addManualShape, markerSide, removeManualShape, shapeAt, squareAround, unlinkedUnits } from "@/lib/dxf/manualLinks";
-import {
+import { confirmAllProposals,
   assignUnit,
   buildReview,
   clearLink,
@@ -101,6 +102,9 @@ const text = {
     dwg: "ملفات DWG لا تُقرأ في المتصفح. افتح الرسم في برنامج التصميم واحفظه بصيغة DXF أو PDF ثم ارفعه.",
     rasterFailed: "تعذّرت قراءة الصورة. جرّب ملفًا أوضح أو ملف DXF.",
     busy: (done: number, total: number) => (total === 0 ? "جارٍ قراءة الرسم…" : `جارٍ قراءة الوحدات: ${done} من ${total}`),
+    vectorNote: (shapes: number, proposed: number, villas: number, outlines: number) => `قُرئ المخطط من رسمه المتجهي: ${shapes} شكلًا${outlines ? ` (وتُرك ${outlines} من الحدود المحيطة)` : ""}، واقتُرح ربط ${proposed} من ${villas} فيلا برقمها. راجع ثم أكّد قبل الحفظ.`,
+    confirmAll: (count: number) => `تأكيد كل المقترحات (${count})`,
+    confirmAllLeft: (count: number) => `تُرك ${count} مقترح لتقرره أنت: فيلاه مؤكدة على شكل آخر أو مقترحة على شكلين.`,
     rasterPartial: (shapes: number, villas: number) => `وُجد ${shapes} شكلًا فقط وللمشروع ${villas} فيلا: قراءة الصورة جزئية (قد تكون الفلل صغيرة جدًا في هذا الحجم). لنتيجة كاملة ارفع ملف DXF أو PDF متجهيًا من برنامج الكاد، أو اربط الباقي بالنقر.`,
     rasterNone: "لم يُعثر على أشكال فلل في هذه الصورة. لنتيجة أدق ارفع ملف DXF أو PDF متجهيًا مُصدَّرًا من برنامج الكاد، أو اربط الفلل بالنقر على الرسم.",
     rasterNote: (shapes: number, labels: number) => `وُجد ${shapes} شكلًا وقُرئ رمز ${labels} منها. كل ربط مقترح من قراءة الصورة، فأكِّده أو غيّره قبل الحساب.`,
@@ -157,6 +161,9 @@ const text = {
     dwg: "DWG files cannot be read in the browser. Open the drawing in your design program, save it as DXF or PDF, then upload it.",
     rasterFailed: "The image could not be read. Try a clearer file or a DXF.",
     busy: (done: number, total: number) => (total === 0 ? "Reading the drawing…" : `Reading units: ${done} of ${total}`),
+    vectorNote: (shapes: number, proposed: number, villas: number, outlines: number) => `The plan was read from its vector drawing: ${shapes} shapes${outlines ? ` (${outlines} surrounding outline${outlines > 1 ? "s" : ""} set aside)` : ""}, and ${proposed} of ${villas} villas are proposed by their number. Review, then confirm before saving.`,
+    confirmAll: (count: number) => `Confirm all proposals (${count})`,
+    confirmAllLeft: (count: number) => `${count} proposal(s) left for you to decide: the villa is confirmed on another shape or proposed on two.`,
     rasterPartial: (shapes: number, villas: number) => `Only ${shapes} shapes were found and the project has ${villas} villas: the image was read in part (the villas may be too small at this size). For a complete result upload a DXF or a vector PDF from the CAD program, or link the rest by tapping.`,
     rasterNone: "No villa shapes were found in this image. For a more exact result upload a DXF or a vector PDF exported from the CAD program, or link the villas by tapping the drawing.",
     rasterNote: (shapes: number, labels: number) => `Found ${shapes} shapes and read the code in ${labels} of them. Each proposed link comes from reading the image: confirm or change it before it counts.`,
@@ -213,6 +220,9 @@ const text = {
     dwg: "DWG فائلیں براؤزر میں نہیں پڑھی جا سکتیں۔ ڈرائنگ کو ڈیزائن پروگرام میں کھول کر DXF یا PDF کے طور پر محفوظ کریں، پھر اپ لوڈ کریں۔",
     rasterFailed: "تصویر پڑھی نہیں جا سکی۔ زیادہ واضح فائل یا DXF آزمائیں۔",
     busy: (done: number, total: number) => (total === 0 ? "ڈرائنگ پڑھی جا رہی ہے…" : `یونٹ پڑھے جا رہے ہیں: ${done} از ${total}`),
+    vectorNote: (shapes: number, proposed: number, villas: number, outlines: number) => `منصوبہ اس کی ویکٹر ڈرائنگ سے پڑھا گیا: ${shapes} شکلیں${outlines ? ` (${outlines} بیرونی حدود چھوڑ دی گئیں)` : ""}، اور ${villas} میں سے ${proposed} ولاز ان کے نمبر سے تجویز کیے گئے۔ محفوظ کرنے سے پہلے دیکھ کر تصدیق کریں۔`,
+    confirmAll: (count: number) => `تمام تجاویز کی تصدیق کریں (${count})`,
+    confirmAllLeft: (count: number) => `${count} تجاویز آپ کے فیصلے کے لیے چھوڑی گئیں: ولا کسی اور شکل پر تصدیق شدہ ہے یا دو شکلوں پر تجویز شدہ۔`,
     rasterPartial: (shapes: number, villas: number) => `صرف ${shapes} شکلیں ملیں اور منصوبے میں ${villas} ولاز ہیں: تصویر جزوی طور پر پڑھی گئی (ولاز اس سائز میں بہت چھوٹے ہو سکتے ہیں)۔ مکمل نتیجے کے لیے CAD سے DXF یا ویکٹر PDF اپ لوڈ کریں، یا باقی کو ٹیپ کر کے جوڑیں۔`,
     rasterNone: "اس تصویر میں ولا کی کوئی شکل نہیں ملی۔ زیادہ درست نتیجے کے لیے CAD پروگرام سے برآمد شدہ DXF یا ویکٹر PDF اپ لوڈ کریں، یا ڈرائنگ پر ٹیپ کر کے ولاز جوڑیں۔",
     rasterNote: (shapes: number, labels: number) => `${shapes} شکلیں ملیں اور ان میں سے ${labels} کا کوڈ پڑھا گیا۔ ہر تجویز شدہ جوڑ تصویر پڑھ کر بنایا گیا ہے: شمار ہونے سے پہلے اس کی تصدیق کریں یا اسے بدلیں۔`,
@@ -265,6 +275,8 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const [error, setError] = useState<ViewError | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [rasterStats, setRasterStats] = useState<{ shapes: number; labels: number } | null>(null);
+  const [confirmAllNote, setConfirmAllNote] = useState(0);
+  const [vectorStats, setVectorStats] = useState<{ shapes: number; proposed: number; villas: number; outlines: number } | null>(null);
   // Q-7: the picture under the shapes of a raster drawing (an image or a PDF page), at the size the shapes were read at; null for a DXF.
   const [background, setBackground] = useState<{ href: string; width: number; height: number; page: number } | null>(null);
   const [tool, setTool] = useState<MeasureTool>("none");
@@ -314,6 +326,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
   const [activityCode, setActivityCode] = useState("");
   const [blockFilter, setBlockFilter] = useState("");
   const [modelFilter, setModelFilter] = useState("");
+  const [phaseFilter, setPhaseFilter] = useState("");
   const [colourSource, setColourSource] = useState<"site" | "qc">("site");
   const siteMap = trpc.pmc.siteMap.useQuery({ tenantId, projectId, activityCode: activityCode || undefined }, { enabled: Boolean(drawing) });
   // Q-5's QC receipt for the same activity, coloured apart from the site's status
@@ -416,6 +429,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
     }
     setDrawing(parsed.drawing);
     setRasterStats(null);
+    setVectorStats(null);
     setBackground(null);
     setItems(buildReview(parsed.drawing, matchDrawingToUnits(parsed.drawing, units)));
     setSelectedId(null);
@@ -428,6 +442,22 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
     setProgress({ done: 0, total: 0 });
     let ocr: OcrWorker | null = null;
     try {
+      // Q-62 batch 3: a PDF is read from its own drawing first (CAD exports villas as closed paths and numbers as text); the image reading is the fallback
+      if (kind === "pdf") {
+        const vector = await readPdfVector(new Uint8Array(await file.arrayBuffer()), page).catch(() => null);
+        if (vector && vector.polygonCount > 0) {
+          setPdfSource({ file, pageCount: vector.pageCount, page });
+          setBackground(null);
+          setDrawing(vector.drawing);
+          const review = buildReview(vector.drawing, matchDrawingToUnits(vector.drawing, units));
+          setItems(review);
+          setRasterStats(null);
+          setVectorStats({ shapes: vector.polygonCount, proposed: review.filter(item => item.state === "proposed").length, villas: units.length, outlines: vector.outlinesSetAside });
+          setSelectedId(null);
+          return;
+        }
+      }
+      setVectorStats(null);
       const pdf = kind === "pdf" ? await readPdfPage(new Uint8Array(await file.arrayBuffer()), page) : null;
       const image = pdf ? pdf.image : await readRasterImage(file);
       if (pdf) setPdfSource({ file, pageCount: pdf.pageCount, page });
@@ -563,6 +593,13 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
       {!drawing ? <p className="text-sm text-muted-foreground">{t.empty}</p> : (
         <>
           <p className="text-sm font-medium" aria-live="polite">{t.summary(summary)}</p>
+          {vectorStats ? (
+            <div className="space-y-2 rounded-lg bg-info-soft p-3 text-sm text-info-soft-foreground" data-vector-note>
+              <p>{t.vectorNote(vectorStats.shapes, vectorStats.proposed, vectorStats.villas, vectorStats.outlines)}</p>
+              {items.some(item => item.state === "proposed") ? <button type="button" className="min-h-[44px] rounded-lg bg-primary px-4 text-sm text-white" data-confirm-all onClick={() => { const result = confirmAllProposals(items); setItems(result.items); setConfirmAllNote(result.leftForPerson); }}>{t.confirmAll(items.filter(item => item.state === "proposed").length)}</button> : null}
+              {confirmAllNote ? <p data-confirm-all-left>{t.confirmAllLeft(confirmAllNote)}</p> : null}
+            </div>
+          ) : null}
           {/* review of #554 (A): a find far below the project's villas (under 80%) is said to be partial, so it is not read as the whole plan */}
           {rasterStats ? (() => { const partial = rasterStats.shapes > 0 && units.length > 0 && rasterStats.shapes < units.length * 0.8; return <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning-soft-foreground" data-raster-note={rasterStats.shapes === 0 ? "none" : partial ? "partial" : "found"}>{rasterStats.shapes === 0 ? t.rasterNone : <>{t.rasterNote(rasterStats.shapes, rasterStats.labels)}{partial ? <><br />{t.rasterPartial(rasterStats.shapes, units.length)}</> : null}</>}</p>; })() : null}
           {ignoredCount > 0 ? <p className="text-xs text-muted-foreground">{t.ignored}: {ignoredCount}</p> : null}
@@ -595,7 +632,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
               <MasterPlanColourPanel
                 activities={siteMap.data?.activities ?? []}
                 activityCode={activityCode}
-                onActivity={code => { setActivityCode(code); setBlockFilter(""); setModelFilter(""); }}
+                onActivity={code => { setActivityCode(code); setBlockFilter(""); setModelFilter(""); setPhaseFilter(""); }}
                 source={colourSource}
                 onSource={setColourSource}
                 blocks={Array.from(new Set((siteMap.data?.units ?? []).map(villa => villa.blockCode))).sort()}
@@ -604,6 +641,9 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                 model={modelFilter}
                 onBlock={setBlockFilter}
                 onModel={setModelFilter}
+                phases={Array.from(new Set((siteMap.data?.units ?? []).map(villa => (villa as { phase?: string | null }).phase).filter((value): value is string => Boolean(value)))).sort()}
+                phase={phaseFilter}
+                onPhase={setPhaseFilter}
                 counts={colouring?.counts ?? null}
                 failed={Boolean(colourSource === "qc" ? qcMap.error : siteMap.error)}
                 onExportPng={() => { if (svgRef.current) void exportDrawingPng(svgRef.current, `master-plan-${activityCode ? `${activityCode}-${colourSource}` : "status"}-${new Date().toISOString().slice(0, 10)}.png`); }}
@@ -633,7 +673,7 @@ export function MasterPlanDrawing({ tenantId, projectId }: { tenantId: string; p
                       <polygon
                         points={points}
                         fill={colouring && item.state === "confirmed" && item.unitCode ? SITE_COLOUR[colouring.keyOf(item.unitCode)] : polygonFill(item, unit?.status ?? null)}
-                        fillOpacity={item.unitCode && !passesFilter(villa ?? null, blockFilter, modelFilter) ? 0.08 : background ? 0.45 : 0.75}
+                        fillOpacity={item.unitCode && !passesFilter(villa ?? null, blockFilter, modelFilter, phaseFilter) ? 0.08 : background ? 0.45 : 0.75}
                         data-colour={colouring && item.state === "confirmed" && item.unitCode ? colouring.keyOf(item.unitCode) : undefined}
                         stroke={isPicked ? "var(--primary)" : isSelected ? "var(--foreground)" : "var(--muted-foreground)"}
                         strokeWidth={isPicked ? 3 : isSelected ? 0.4 : 0.15}

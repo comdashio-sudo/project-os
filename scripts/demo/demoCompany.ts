@@ -125,7 +125,8 @@ export async function seedDemoCompany(options: { ownerEmail: string; log?: Log }
     const client = client0;
     await client.query("BEGIN");
     // `lock_timeout` is not needed here: this is a brand-new company, nothing else touches its rows
-    await client.query(`INSERT INTO tenant_policies (id, tenant_id, qc_completion_mode, qc_accepted_codes, material_approval_mode, ncr_acceptance_mode, updated_by_user_id) VALUES ($1,$2,'warn','A,B','warn','block',$3) ON CONFLICT DO NOTHING`, [randomUUID(), tenantId, owner.id]);
+    // Q-71 (2): the demonstration shows the full daily-report chain (prepare → review → approve), so its company turns «daily reports need approval» on
+    await client.query(`INSERT INTO tenant_policies (id, tenant_id, qc_completion_mode, qc_accepted_codes, material_approval_mode, ncr_acceptance_mode, daily_report_approval, updated_by_user_id) VALUES ($1,$2,'warn','A,B','warn','block',true,$3) ON CONFLICT DO NOTHING`, [randomUUID(), tenantId, owner.id]);
     await bulk(client, "portfolios", ["id", "tenant_id", "code", "name", "status"], [[portfolioId, tenantId, DEMO.portfolioCode, DEMO.portfolioName, "active"]]);
     await bulk(client, "projects", ["id", "tenant_id", "portfolio_id", "code", "name", "project_type", "lifecycle_stage", "status", "currency", "contract_value", "original_budget", "current_budget", "planned_start_at", "planned_finish_at", "forecast_finish_at"], [
       [projectId, tenantId, portfolioId, DEMO.projectCode, DEMO.projectName, "villas", "execution", "active", DEMO.currency, MONEY.contractValue, MONEY.bac, MONEY.bac, T0, addDays(T0, 500), addDays(T0, 530)],
