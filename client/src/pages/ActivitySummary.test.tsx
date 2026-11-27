@@ -4,26 +4,27 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Q-70 (3): the activity summary screen. Synthetic data only.
-const h = vi.hoisted(() => ({ calls: [] as Array<Record<string, unknown>>, exported: {} as Record<string, unknown[]>, period: null as unknown }));
+const h = vi.hoisted(() => ({ canManage: false, setEngineer: vi.fn(), calls: [] as Array<Record<string, unknown>>, exported: {} as Record<string, unknown[]>, period: null as unknown }));
 vi.mock("wouter", () => ({ useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false, setLanguage: vi.fn() }) }));
 vi.mock("@/components/ExportExcelButton", () => ({ ExportExcelButton: (props: { fileName: string; rows: unknown[] }) => { h.exported[props.fileName] = props.rows; return <button type="button">Export</button>; } }));
-vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: ({ id, options, value, onValueChange }: { id?: string; options: Array<{ value: string; label: string }>; value?: string; onValueChange: (value: string) => void }) => (
-  <select id={id} value={value} onChange={event => onValueChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: ({ id, options, value, onValueChange, "aria-label": ariaLabel }: { id?: string; "aria-label"?: string; options: Array<{ value: string; label: string }>; value?: string; onValueChange: (value: string) => void }) => (
+  <select id={id} aria-label={ariaLabel} value={value} onChange={event => onValueChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
 ) }));
 const data = {
   activities: [{ code: "ACT01", name: "Excavation", villas: 5, complete: 4, underReview: 0, inProgress: 0, notStarted: 1, completionPercent: 80, earnedPercent: 80 }, { code: "ACT02", name: "Footings", villas: 4, complete: 0, underReview: 0, inProgress: 1, notStarted: 3, completionPercent: 0, earnedPercent: 0 }],
-  blocks: [{ key: "BLK 33", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4 }],
-  phases: [{ key: "PH1", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4 }],
+  blocks: [{ key: "BLK 33", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4, engineer: { userId: 7, name: "Engineer Seven (synthetic)" } }],
+  phases: [{ key: "PH1", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4, engineer: null }],
   project: { villas: 5, progressPercent: 52, villasWithoutNumber: 1 },
   reconciliation: { blocks: { villas: 5, villasMissing: 0, cells: 9, cellsMissing: 0, matches: true }, phases: { villas: 4, villasMissing: 1, cells: 7, cellsMissing: 2, matches: false } },
   filters: { blocks: ["BLK 33", "BLK 34"], phases: ["PH1", "PH2"] },
 };
-vi.mock("@/lib/trpc", () => ({ trpc: { pmc: { activitySummary: { useQuery: (input: Record<string, unknown>) => { h.calls.push(input); return { data: { ...data, period: input.from ? h.period : null }, isError: false, error: null, refetch: vi.fn() }; } } } } }));
+vi.mock("@/lib/permissions", () => ({ useCan: () => h.canManage }));
+vi.mock("@/lib/trpc", () => ({ trpc: { useUtils: () => ({ pmc: { activitySummary: { invalidate: vi.fn() } } }), pmc: { scopeEngineerCandidates: { useQuery: () => ({ data: [{ userId: 7, name: "Engineer Seven (synthetic)" }], isError: false, error: null }) }, setScopeEngineer: { useMutation: () => ({ mutate: h.setEngineer }) }, activitySummary: { useQuery: (input: Record<string, unknown>) => { h.calls.push(input); return { data: { ...data, period: input.from ? h.period : null }, isError: false, error: null, refetch: vi.fn() }; } } } } }));
 
 import ActivitySummary from "./ActivitySummary";
 
-beforeEach(() => { h.calls = []; h.exported = {}; h.period = null; });
+beforeEach(() => { h.canManage = false; h.setEngineer.mockReset(); h.calls = []; h.exported = {}; h.period = null; });
 afterEach(() => cleanup());
 
 describe("ActivitySummary (Q-70 3)", () => {
@@ -67,5 +68,18 @@ describe("ActivitySummary (Q-70 3)", () => {
     expect(note).toContain("Does not match");
     expect(note).toContain("Phases (1 villas outside the groups)");
     expect(note).not.toContain("Blocks (");
+  });
+
+  it("Q-72 (4): a reader sees the engineer in charge beside the block (and «not named» beside the phase); whoever manages PMC picks one in the row, and none clears it", () => {
+    render(<ActivitySummary />);
+    expect(document.querySelector("[data-summary-group='blocks'] tbody")!.textContent).toContain("Engineer Seven (synthetic)");
+    expect(document.querySelector("[data-summary-group='phases'] tbody")!.textContent).toContain("— not named");
+    expect(screen.queryByLabelText("Engineer in charge PH1")).toBeNull(); // a reader has no control
+    cleanup(); h.canManage = true;
+    render(<ActivitySummary />);
+    fireEvent.change(screen.getByLabelText("Engineer in charge PH1"), { target: { value: "7" } });
+    expect(h.setEngineer).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", scopeType: "phase", scopeKey: "PH1", engineerUserId: 7 });
+    fireEvent.change(screen.getByLabelText("Engineer in charge BLK 33"), { target: { value: "__none" } });
+    expect(h.setEngineer).toHaveBeenLastCalledWith({ tenantId: "t", projectId: "p", scopeType: "block", scopeKey: "BLK 33", engineerUserId: null });
   });
 });

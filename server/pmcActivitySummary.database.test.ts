@@ -94,4 +94,29 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-70: the ac
     // company isolation holds for a period too
     await expect(b.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(5) })).rejects.toThrow();
   });
+  it("Q-72 (4): the engineer in charge of a block or a phase — set by whoever manages PMC, an active member of the company only, read beside the row; cleared; another company and an outsider are refused", async () => {
+    const set = (fixture: Fixture, scopeType: "block" | "phase", scopeKey: string, engineerUserId: number | null) => fixture.asOwner.pmc.setScopeEngineer({ ...scopeOf(fixture), scopeType, scopeKey, engineerUserId });
+    expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).blocks.every(row => row.engineer === null)).toBe(true); // nobody named yet: null, not a guess
+    await set(a, "block", "BLK 33", a.owner.id);
+    await set(a, "phase", "ph2", a.owner.id); // the phase is matched without regard to case and stored as the villas write it
+    const named = await a.asOwner.pmc.activitySummary(scopeOf(a));
+    expect(named.blocks.map(row => [row.key, row.engineer?.userId ?? null])).toEqual([["BLK 33", a.owner.id], ["BLK 34", null]]);
+    expect(named.phases.map(row => [row.key, row.engineer?.userId ?? null])).toEqual([["PH1", null], ["PH2", a.owner.id]]);
+    const [audit] = (await client.query("SELECT count(*)::int AS n FROM audit_logs WHERE tenant_id = $1 AND action = 'pmc.scope_engineer_set'", [a.tenantId])).rows;
+    expect(audit.n).toBe(2);
+    // refused with the reason, nothing written: a person who is not a member of the company, a block that does not exist
+    await expect(set(a, "block", "BLK 34", b.owner.id)).rejects.toThrow(/PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_A_MEMBER/);
+    await expect(set(a, "block", "BLK 99", a.owner.id)).rejects.toThrow(/PROJECT_OS_PMC_SCOPE_UNKNOWN/);
+    await expect(set(a, "phase", "PH9", a.owner.id)).rejects.toThrow(/PROJECT_OS_PMC_SCOPE_UNKNOWN/);
+    expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).blocks.find(row => row.key === "BLK 34")!.engineer).toBeNull();
+    // another company cannot name an engineer on this project; a role without the PMC permission cannot either
+    await expect(b.asOwner.pmc.setScopeEngineer({ ...scopeOf(a), scopeType: "block", scopeKey: "BLK 34", engineerUserId: b.owner.id })).rejects.toThrow();
+    await expect(a.callerFor(a.people.hr).pmc.setScopeEngineer({ ...scopeOf(a), scopeType: "block", scopeKey: "BLK 34", engineerUserId: a.owner.id })).rejects.toThrow();
+    // the people who can be named: the company's active members, for whoever manages PMC only
+    expect((await a.asOwner.pmc.scopeEngineerCandidates(scopeOf(a))).map(row => row.userId)).toContain(a.owner.id);
+    await expect(a.callerFor(a.people.hr).pmc.scopeEngineerCandidates(scopeOf(a))).rejects.toThrow();
+    // clearing removes it
+    await set(a, "block", "BLK 33", null);
+    expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).blocks.every(row => row.engineer === null)).toBe(true);
+  });
 });

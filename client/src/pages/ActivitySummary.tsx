@@ -11,6 +11,7 @@ import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
+import { useCan } from "@/lib/permissions";
 import { trpc } from "@/lib/trpc";
 import { periodFor, siteToday, type PeriodKind } from "@/lib/periodRange";
 
@@ -22,6 +23,7 @@ const text = {
     activities: "البنود", activity: "البند", complete: "مكتمل", underReview: "قيد المراجعة", inProgress: "جارٍ", notStarted: "متبقٍ", completion: "الاكتمال %", earned: "المكتسب %",
     periodLabel: "الفترة", periodNone: "بلا فترة", thisWeek: "هذا الأسبوع (من الأحد)", lastWeek: "الأسبوع الماضي", thisMonth: "هذا الشهر", lastMonth: "الشهر الماضي", custom: "نطاق محدد", from: "من", to: "إلى", periodAchieved: "إنجاز الفترة", delta: "إنجاز الفترة %", periodNote: "الفرق بين التقدم عند نهاية الفترة وعند بدايتها، من سجل التغييرات.",
     reconciled: "المراحل والبلوكات تطابق إجمالي المشروع", notReconciled: "لا يطابق", missingVillas: "فلل خارج المجموعات",
+    engineer: "المهندس المسؤول", noEngineer: "— لم يُسمَّ", saved: "حُفظ المهندس المسؤول.",
     blocks: "البلوكات", phases: "المراحل", progress: "التقدم %", cells: "الخلايا المكتملة", none: "لا بيانات بعد.", unknown: "—",
   },
   en: {
@@ -30,6 +32,7 @@ const text = {
     activities: "Activities", activity: "Activity", complete: "Complete", underReview: "Under review", inProgress: "In progress", notStarted: "Remaining", completion: "Completion %", earned: "Earned %",
     periodLabel: "Period", periodNone: "No period", thisWeek: "This week (from Sunday)", lastWeek: "Last week", thisMonth: "This month", lastMonth: "Last month", custom: "Custom range", from: "From", to: "To", periodAchieved: "Period achievement", delta: "Period achievement %", periodNote: "Progress at the end of the period minus progress at its start, from the change history.",
     reconciled: "Phases and blocks match the project total", notReconciled: "Does not match", missingVillas: "villas outside the groups",
+    engineer: "Engineer in charge", noEngineer: "— not named", saved: "Engineer in charge saved.",
     blocks: "Blocks", phases: "Phases", progress: "Progress %", cells: "Completed cells", none: "No data yet.", unknown: "—",
   },
   ur: {
@@ -38,6 +41,7 @@ const text = {
     activities: "سرگرمیاں", activity: "سرگرمی", complete: "مکمل", underReview: "زیر جائزہ", inProgress: "جاری", notStarted: "باقی", completion: "تکمیل %", earned: "حاصل %",
     periodLabel: "مدت", periodNone: "کوئی مدت نہیں", thisWeek: "اس ہفتے (اتوار سے)", lastWeek: "پچھلا ہفتہ", thisMonth: "اس مہینے", lastMonth: "پچھلا مہینہ", custom: "مخصوص حد", from: "از", to: "تک", periodAchieved: "مدت کی پیش رفت", delta: "مدت کی پیش رفت %", periodNote: "مدت کے اختتام کی پیش رفت منہا اس کے آغاز کی، تبدیلیوں کی تاریخ سے۔",
     reconciled: "مراحل اور بلاکس منصوبے کے کل سے مطابقت رکھتے ہیں", notReconciled: "مطابقت نہیں", missingVillas: "گروپوں سے باہر ولاز",
+    engineer: "ذمہ دار انجینئر", noEngineer: "— نامزد نہیں", saved: "ذمہ دار انجینئر محفوظ ہو گیا۔",
     blocks: "بلاکس", phases: "مراحل", progress: "پیش رفت %", cells: "مکمل خانے", none: "ابھی کوئی ڈیٹا نہیں۔", unknown: "—",
   },
 };
@@ -52,6 +56,12 @@ export default function ActivitySummary() {
   const range = kind === "none" ? null : kind === "custom" ? (customFrom ? { from: customFrom, ...(customTo ? { to: customTo } : {}) } : null) : periodFor(kind, today);
   const query = trpc.pmc.activitySummary.useQuery({ tenantId, projectId, ...(block !== ALL ? { blockCode: block } : {}), ...(phase !== ALL ? { phase } : {}), ...(range ?? {}) }, { enabled: Boolean(tenantId && projectId) });
   const data = query.data;
+  // Q-72 (4): whoever manages PMC names the engineer in charge of a block or a phase right in its row; everyone who reads the summary sees the name
+  const canManage = useCan("project.pmc.manage", projectId);
+  const candidates = trpc.pmc.scopeEngineerCandidates.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId) && canManage });
+  const utils = trpc.useUtils();
+  const setEngineer = trpc.pmc.setScopeEngineer.useMutation({ onSuccess: () => { void utils.pmc.activitySummary.invalidate(); } });
+  const NONE = "__none";
   type ActivityRow = NonNullable<typeof data>["activities"][number];
   type GroupRow = NonNullable<typeof data>["blocks"][number];
   const period = data?.period ?? null;
@@ -74,6 +84,10 @@ export default function ActivitySummary() {
   ];
   const groupColumns = (label: string): Column<GroupRow>[] => [
     { key: "key", header: label, render: row => <span className="whitespace-nowrap">{row.key}</span> },
+    { key: "engineer", header: t.engineer, render: row => (canManage && candidates.data
+      ? <Select aria-label={`${t.engineer} ${row.key}`} options={[{ value: NONE, label: t.noEngineer }, ...candidates.data.map(person => ({ value: String(person.userId), label: person.name || String(person.userId) }))]} value={row.engineer ? String(row.engineer.userId) : NONE}
+          onValueChange={value => setEngineer.mutate({ tenantId, projectId, scopeType: label === t.block ? "block" : "phase", scopeKey: row.key, engineerUserId: value === NONE ? null : Number(value) })} />
+      : <span className="whitespace-nowrap">{row.engineer?.name || t.noEngineer}</span>) },
     { key: "villas", header: t.villas, numeric: true, render: row => formatNumber(row.villas) },
     { key: "progress", header: t.progress, numeric: true, render: row => percent(row.progressPercent) },
     { key: "cells", header: t.cells, numeric: true, render: row => <span className="whitespace-nowrap">{formatNumber(row.completeCells)} / {formatNumber(row.totalCells)}</span> },
@@ -92,6 +106,7 @@ export default function ActivitySummary() {
   ];
   const groupExport = (label: string) => [
     { header: label, value: (row: GroupRow) => row.key },
+    { header: t.engineer, value: (row: GroupRow) => row.engineer?.name ?? "" },
     { header: t.villas, kind: "number" as const, value: (row: GroupRow) => row.villas },
     { header: t.progress, kind: "number" as const, value: (row: GroupRow) => row.progressPercent },
     { header: t.cells, kind: "number" as const, value: (row: GroupRow) => row.completeCells },

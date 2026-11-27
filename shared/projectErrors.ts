@@ -1344,6 +1344,16 @@ export const projectErrorMessages = {
     en: "The end of the period is before its start.",
     ur: "مدت کا اختتام اس کے آغاز سے پہلے ہے۔",
   },
+  PROJECT_OS_PMC_SCOPE_UNKNOWN: {
+    ar: "هذا البلوك أو هذه المرحلة غير موجودة في المشروع.",
+    en: "This block or phase does not exist in the project.",
+    ur: "یہ بلاک یا مرحلہ اس پروجیکٹ میں موجود نہیں ہے۔",
+  },
+  PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_A_MEMBER: {
+    ar: "المهندس المختار ليس عضوًا فعّالًا في الشركة.",
+    en: "The chosen engineer is not an active member of the company.",
+    ur: "منتخب انجینئر کمپنی کا فعال رکن نہیں ہے۔",
+  },
   PROJECT_OS_SITE_REPORT_LOCKED: {
     ar: "التقرير أُرسل أو اعتُمد ولا يُعدَّل.",
     en: "The report has been sent or approved and cannot be changed.",

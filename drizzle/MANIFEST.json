@@ -60,6 +60,7 @@
     "0057_import_duplicate_per_kind.sql": "f1cc4b98f9cd6dde014a1f933edb820f9ffc275cdb856e3a1b9e081ac47e9d0a",
     "0058_pmc_unit_phase_package.sql": "b15643dbe8241f40b4ed4ef711c7115e15858406358402afe126db8ecdd0308c",
     "0059_daily_report_approval_policy.sql": "0576773515c2f853cb24b4f1cf26faf84eebc6ba4f3a641b8744bf598ddad4e3",
-    "0060_daily_report_corrections.sql": "8169fc4b11c21667c154d3d311402412f28221284974f5e769a6e704a96e1655"
+    "0060_daily_report_corrections.sql": "8169fc4b11c21667c154d3d311402412f28221284974f5e769a6e704a96e1655",
+    "0061_pmc_scope_engineers.sql": "6f2617d9f4d106e8280e887711acb0cdc26ff7be67ca7cbe9a05e2d6dea5ea12"
   }
 }

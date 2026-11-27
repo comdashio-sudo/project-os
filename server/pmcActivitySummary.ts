@@ -8,6 +8,7 @@ import { and, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { unitWeightOf } from "./domain/plannedCurve";
 import { authorize, mine, type Scope } from "./pmcService";
+import { readPmcScopeEngineers } from "./pmcScopeEngineers";
 import { villaKey } from "./wo22Shared";
 
 export async function getPmcActivitySummary(input: Scope & { blockCode?: string; phase?: string; from?: string; to?: string }) {
@@ -44,5 +45,8 @@ export async function getPmcActivitySummary(input: Scope & { blockCode?: string;
     period = { ...periodChange(start, end), from: input.from, to };
   }
   const sorted = (values: Array<string | null>) => Array.from(new Set(values.filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
-  return { ...summary, period, filters: { blocks: sorted(all.map(unit => unit.blockCode)), phases: sorted(all.map(unit => unit.phase)) } };
+  // Q-72 (4): the engineer in charge of each block and phase, beside its row
+  const engineers = await readPmcScopeEngineers(db, scope);
+  const withEngineer = <T extends { key: string }>(rows: T[], by: Map<string, { userId: number; name: string }>, upper: boolean) => rows.map(row => ({ ...row, engineer: by.get(upper ? row.key.toUpperCase() : row.key) ?? null }));
+  return { ...summary, blocks: withEngineer(summary.blocks, engineers.blocks, false), phases: withEngineer(summary.phases, engineers.phases, true), period, filters: { blocks: sorted(all.map(unit => unit.blockCode)), phases: sorted(all.map(unit => unit.phase)) } };
 }

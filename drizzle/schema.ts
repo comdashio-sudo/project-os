@@ -3085,6 +3085,27 @@ export const siteDailyReportCorrections = pgTable(
   ],
 );
 
+// Q-72 (4), 0061: the engineer in charge of a block or a phase of the project — one per scope, set by whoever manages PMC, shown beside the block or phase in the activity summary.
+export const pmcScopeEngineers = pgTable(
+  "pmc_scope_engineers",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    scopeType: varchar("scope_type", { length: 8 }).notNull(),
+    scopeKey: varchar("scope_key", { length: 80 }).notNull(),
+    engineerUserId: integer("engineer_user_id").notNull().references(() => users.id),
+    updatedByUserId: integer("updated_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("pmc_scope_engineers_scope_unique").on(table.projectId, table.scopeType, table.scopeKey),
+    index("pmc_scope_engineers_tenant_project_idx").on(table.tenantId, table.projectId),
+    check("pmc_scope_engineers_type_check", sql`${table.scopeType} IN ('block', 'phase')`),
+  ],
+);
+
 export const consultantSubmittalsTypeEnum = pgEnum("consultant_submittals_type", ["shop_drawing", "material_approval", "method_statement", "sample"]);
 export const consultantSubmittalsStatusEnum = pgEnum("consultant_submittals_status", ["draft", "sent", "replied", "closed"]);
 // What the contractor sends the consultant for approval: execution drawings, a material, a method statement, a sample. A resubmission is a new row with the next revision.

@@ -115,6 +115,7 @@ import { getStalledUnits, setStallThreshold } from "./stalledUnits";
 import { getPmcProgressLog } from "./pmcProgressLog";
 import { LOG_SOURCES } from "./domain/progressLog";
 import { COMPLETION_STATUSES, getPmcCompletionReport } from "./pmcCompletionReport";
+import { listScopeEngineerCandidates, setPmcScopeEngineer } from "./pmcScopeEngineers";
 import { getPmcActivitySummary } from "./pmcActivitySummary";
 import { quickSearch } from "./quickSearch";
 import { listPmcProgressHistory, listProgressActivities, listProgressMapShapes, listProgressPicker, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
@@ -316,6 +317,9 @@ export const appRouter = router({
     // Q-70 (1): the progress log — one row per entry a person made, with its villas, before → after and source (server/pmcProgressLog.ts)
     progressLog: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), from: z.string().trim().max(10).optional(), to: z.string().trim().max(10).optional(), byUserId: z.number().int().positive().optional(), blockCode: z.string().trim().max(80).optional(), activityCode: z.string().trim().max(80).optional(), source: z.enum(LOG_SOURCES as [string, ...string[]], { message: "PROJECT_OS_PROGRESS_LOG_SOURCE_INVALID" }).optional() })).query(({ ctx, input }) => getPmcProgressLog({ userId: ctx.user.id, ...input, source: input.source as (typeof LOG_SOURCES)[number] | undefined })),
     // Q-70 (3): the activity summary — per activity, block and phase, by the PMC progress rules (server/pmcActivitySummary.ts)
+    // Q-72 (4): the engineer in charge of a block or a phase (server/pmcScopeEngineers.ts); null clears it
+    scopeEngineerCandidates: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listScopeEngineerCandidates({ userId: ctx.user.id, ...input })),
+    setScopeEngineer: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), scopeType: z.enum(["block", "phase"]), scopeKey: z.string().trim().min(1).max(80), engineerUserId: z.number().int().positive().nullable() })).mutation(({ ctx, input }) => setPmcScopeEngineer({ userId: ctx.user.id, ...input })),
     activitySummary: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional(), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })).query(({ ctx, input }) => getPmcActivitySummary({ userId: ctx.user.id, ...input })),
     // Q-70 (2): the completion report — one row per villa × activity, in pages (server/pmcCompletionReport.ts)
     completionReport: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional(), activityCode: z.string().trim().max(80).optional(), status: z.enum(COMPLETION_STATUSES).optional(), villa: z.string().trim().max(40).optional(), offset: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(5000).optional() })).query(({ ctx, input }) => getPmcCompletionReport({ userId: ctx.user.id, ...input })),
