@@ -59,4 +59,12 @@ describe("SearchCombobox (Q-67)", () => {
     fireEvent.keyDown(search, { key: "Enter" });
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("review of main's accessibility check (#586): a list with no label is named by its placeholder; inside a labelled field its label names it, not the placeholder", () => {
+    render(<SearchCombobox options={options} onChange={vi.fn()} placeholder="Unit card" />);
+    expect(screen.getByRole("combobox", { name: "Unit card" })).toBeTruthy();
+    cleanup();
+    render(<><label htmlFor="pick">Activity</label><SearchCombobox id="pick" options={options} onChange={vi.fn()} placeholder="Choose" /></>);
+    expect(screen.getByRole("combobox", { name: "Activity" })).toBeTruthy();
+  });
 });

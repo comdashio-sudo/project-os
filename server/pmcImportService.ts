@@ -368,8 +368,9 @@ async function rememberMapping(tx: Tx, input: Scope & { kind: PmcImportKind; use
     return row ? { id: row.id, saved: true } : null;
   }
   if (source?.rememberedId) {
-    await tx.update(importSourceProfiles).set({ timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }).where(and(eq(importSourceProfiles.id, source.rememberedId), eq(importSourceProfiles.tenantId, input.tenantId)));
-    return { id: source.rememberedId, saved: false };
+    // a profile deleted since the analysis counts nothing: the audit row then names no profile instead of one that is gone (rows = 0 is never taken for success)
+    const [counted] = await tx.update(importSourceProfiles).set({ timesUsed: sql`${importSourceProfiles.timesUsed} + 1`, updatedAt: sql`now()` }).where(and(eq(importSourceProfiles.id, source.rememberedId), eq(importSourceProfiles.tenantId, input.tenantId))).returning({ id: importSourceProfiles.id });
+    return counted ? { id: counted.id, saved: false } : null;
   }
   return null;
 }

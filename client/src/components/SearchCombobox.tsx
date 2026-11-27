@@ -24,9 +24,9 @@ export function matchOptions(options: ComboOption[], query: string): ComboOption
   return options.filter(option => { const hay = `${option.code ?? ""} ${option.label} ${option.description ?? ""} ${option.group ?? ""} ${option.keywords ?? ""}`.toLowerCase(); return words.every(word => hay.includes(word)); });
 }
 
-export function SearchCombobox({ id, options, value, values, onChange, onChangeMany, multiple, recent = [], placeholder, disabled, invalid, "aria-describedby": describedBy, "data-combobox": dataName }: {
+export function SearchCombobox({ id, options, value, values, onChange, onChangeMany, multiple, recent = [], placeholder, disabled, invalid, "aria-label": ariaLabel, "aria-describedby": describedBy, "data-combobox": dataName }: {
   id?: string; options: ComboOption[]; value?: string; values?: string[]; onChange?: (value: string) => void; onChangeMany?: (values: string[]) => void; multiple?: boolean;
-  recent?: string[]; placeholder?: string; disabled?: boolean; invalid?: boolean; "aria-describedby"?: string; "data-combobox"?: string;
+  recent?: string[]; placeholder?: string; disabled?: boolean; invalid?: boolean; "aria-label"?: string; "aria-describedby"?: string; "data-combobox"?: string;
 }) {
   const { language } = useLanguage();
   const t = pickLanguage(language, text);
@@ -65,7 +65,9 @@ export function SearchCombobox({ id, options, value, values, onChange, onChangeM
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild disabled={disabled}>
-        <button type="button" id={id} role="combobox" aria-expanded={open} aria-controls={listId} aria-haspopup="listbox" aria-describedby={describedBy} aria-invalid={invalid || undefined} data-combobox={dataName}
+        <button type="button" id={id} role="combobox"
+          // a combobox takes no name from its text: inside a Field its <label for=id> names it; a list with no label (the field bar's unit list) is named by its placeholder
+          aria-label={ariaLabel ?? (id ? undefined : placeholder)} aria-expanded={open} aria-controls={listId} aria-haspopup="listbox" aria-describedby={describedBy} aria-invalid={invalid || undefined} data-combobox={dataName}
           className={cn(controlClass(invalid), "flex min-h-11 w-full items-center justify-between gap-2 text-start md:min-h-10", !label && "text-muted-foreground")}>
           <span className="min-w-0 truncate">{label ?? placeholder}</span><ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden="true" />
         </button>
