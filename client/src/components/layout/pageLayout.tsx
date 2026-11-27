@@ -23,7 +23,7 @@ export function StickyActionBar({ children, summary, label }: { children: React.
   return (
     <>
       <div aria-hidden="true" className="h-20 print:hidden" />
-      <div data-sticky-action-bar="" role={label ? "region" : undefined} aria-label={label} className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-4 pt-3 backdrop-blur print:hidden" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+      <div data-sticky-action-bar="" role={label ? "region" : undefined} aria-label={label} className="fixed inset-x-0 z-30 border-t border-border bg-card/95 px-4 pt-3 backdrop-blur print:hidden" style={{ bottom: "var(--bottom-bar-h, 0px)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
           {summary ? <p className="min-w-0 flex-1 text-sm" data-action-summary="">{summary}</p> : <span />}
           <div className="flex flex-wrap items-center gap-2">{children}</div>
@@ -38,7 +38,7 @@ export type Section = { id: string; label: string };
 export function SectionNav({ sections, label }: { sections: Section[]; label: string }) {
   if (sections.length < 2) return null;
   return (
-    <nav aria-label={label} data-section-nav="" className="sticky top-0 z-20 -mx-4 overflow-x-auto border-b border-border bg-background/95 px-4 backdrop-blur print:hidden">
+    <nav aria-label={label} data-section-nav="" style={{ top: "var(--shell-top, 0px)" }} className="sticky z-20 -mx-4 overflow-x-auto border-b border-border bg-background/95 px-4 backdrop-blur print:hidden">
       <ul className="flex min-w-max gap-1 py-2">
         {sections.map(section => <li key={section.id}><a href={`#${section.id}`} className="inline-flex min-h-11 items-center rounded-[var(--radius)] px-3 text-sm font-medium hover:bg-muted">{section.label}</a></li>)}
       </ul>
