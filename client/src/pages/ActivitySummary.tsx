@@ -55,6 +55,8 @@ export default function ActivitySummary() {
   type ActivityRow = NonNullable<typeof data>["activities"][number];
   type GroupRow = NonNullable<typeof data>["blocks"][number];
   const period = data?.period ?? null;
+  // Q-72 (1): what the screen had on when the file was made, in words, printed in the file's header
+  const filtersText = [block !== ALL ? `${t.block}: ${block}` : null, phase !== ALL ? `${t.phase}: ${phase}` : null, period ? `${t.periodLabel}: ${period.from} → ${period.to}` : null].filter(Boolean).join(" · ") || undefined;
   const signed = (value: number | null) => (value === null ? t.unknown : <bdi dir="ltr">{value > 0 ? "+" : ""}{formatPercent(value, 2)}</bdi>);
   const activityDelta = (code: string) => period?.activities.find(row => row.code === code)?.deltaEarnedPercent ?? null;
   const groupDelta = (rows: Array<{ key: string; deltaPercent: number | null }>, key: string) => rows.find(row => row.key === key)?.deltaPercent ?? null;
@@ -121,13 +123,13 @@ export default function ActivitySummary() {
       </div>
       <div className="flex flex-col gap-4">
         <section className="flex min-w-0 flex-col gap-2" data-summary-activities>
-          <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t.activities}</h2><ExportExcelButton fileName="activity-summary" sheetName={t.activities} title={t.title} rows={data?.activities ?? []} columns={activityExport} /></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t.activities}</h2><ExportExcelButton filters={filtersText} fileName="activity-summary" sheetName={t.activities} title={t.title} rows={data?.activities ?? []} columns={activityExport} /></div>
           <DataTable caption={t.activities} columns={activityColumns} rows={data?.activities ?? []} rowKey={row => row.code} empty={data ? t.none : undefined} />
         </section>
         <div className="flex min-w-0 flex-col gap-4">
           {(["blocks", "phases"] as const).map(kind => (
             <section key={kind} className="flex min-w-0 flex-col gap-2" data-summary-group={kind}>
-              <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t[kind]}</h2><ExportExcelButton fileName={`progress-by-${kind}`} sheetName={t[kind]} title={t.title} rows={data?.[kind] ?? []} columns={groupExport(kind === "blocks" ? t.block : t.phase)} /></div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t[kind]}</h2><ExportExcelButton filters={filtersText} fileName={`progress-by-${kind}`} sheetName={t[kind]} title={t.title} rows={data?.[kind] ?? []} columns={groupExport(kind === "blocks" ? t.block : t.phase)} /></div>
               <DataTable caption={t[kind]} columns={groupColumns(kind === "blocks" ? t.block : t.phase)} rows={data?.[kind] ?? []} rowKey={row => row.key} empty={data ? t.none : undefined} />
             </section>
           ))}
