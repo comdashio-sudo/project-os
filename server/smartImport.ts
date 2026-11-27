@@ -13,6 +13,7 @@ import { authorizeNewImport, getDataImportDetailForTenant, getDb } from "./db";
 import { detectFormat, understand, type Understanding } from "./domain/smartImport/understand";
 import { KINDS, type KindCode } from "./domain/smartImport/kinds";
 import { normalizeHeader } from "./domain/smartImport/dictionary";
+import { headerOverlap, headerSignature, PROFILE_MATCH } from "./domain/importProfiles";
 import { hasTranslator, translate } from "./domain/smartImport/translate";
 import { registerImportUpload } from "./importJobs";
 import { analyzeMatrixImport, confirmMatrixImport, type MatrixPlan } from "./matrixImport";
@@ -30,7 +31,6 @@ const EXTENSIONS: Record<string, string> = { xls: "application/vnd.ms-excel", xl
 const safeName = (name: string) => name.normalize("NFKC").replace(/[^A-Za-z0-9._\-؀-ۿݐ-ݿ]+/g, "_").replace(/^[._]+/, "").slice(0, 120) || "file";
 const smartPrefix = (input: Identity) => `imports/${input.tenantId}/${input.projectId}/smart/`;
 const extensionOf = (fileName: string) => fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
-const PROFILE_MATCH = 0.75;
 
 async function database() { const db = await getDb(); if (!db) throw new Error("Database connection is not available"); return db; }
 
@@ -55,8 +55,9 @@ async function takeSmartUpload(input: Identity & { uploadKey: string }) {
   return bytes;
 }
 
-const signatureOf = (headers: string[]) => Array.from(new Set(headers.map(normalizeHeader).filter(Boolean))).sort();
-const overlap = (a: string[], b: string[]) => { if (!a.length || !b.length) return 0; const set = new Set(b); return a.filter(item => set.has(item)).length / Math.max(a.length, b.length); };
+// Q-66 (6): the signature and its overlap are shared with the PMC import's remembered columns (domain/importProfiles.ts)
+const signatureOf = headerSignature;
+const overlap = headerOverlap;
 
 type ProfileRow = { id: string; name: string; kind: string; headerSignature: string; columnMapJson: string; timesUsed: number };
 // import_source_profiles also holds the column-mapping templates of Q-50 (kind = the job importer's module, map = field → header): the smart reader reads
