@@ -44,7 +44,20 @@ describe("importEngine/read: the sheet", () => {
   });
   it("NEGATIVE: two complete sheets are refused as ambiguous, naming both, rather than one being picked", () => {
     const workbook = book(w => { w.addWorksheet("A").addRow(["code", "amount"]); w.addWorksheet("B").addRow(["code", "amount"]); });
-    expect(chooseSheet(workbook, named(["code", "amount"]), limits)).toEqual({ ok: false, code: "IMPORT_SHEET_AMBIGUOUS", detail: "A | B" });
+    const choice = chooseSheet(workbook, named(["code", "amount"]), limits);
+    expect(choice).toMatchObject({ ok: false, code: "IMPORT_SHEET_AMBIGUOUS", detail: "A | B" });
+    expect(choice.ok ? [] : choice.survey?.map(item => [item.name, item.candidate?.evaluation.complete])).toEqual([["A", true], ["B", true]]);
+  });
+  it("Q-66 (7): the choice reports every sheet in the workbook's order — hidden ones listed but never evaluated — and the survey does not change the choice", () => {
+    const workbook = book(w => {
+      w.addWorksheet("Notes").addRow(["How to fill this file"]);
+      const hidden = w.addWorksheet("Lists"); hidden.state = "hidden"; hidden.addRow(["code", "amount"]);
+      const data = w.addWorksheet("Data"); data.addRow(["Project costs"]); data.addRow(["code", "amount"]);
+    });
+    const choice = chooseSheet(workbook, named(["code", "amount"]), limits);
+    expect(choice.ok && choice.sheet.name).toBe("Data");
+    expect(choice.ok && choice.survey.map(item => ({ name: item.name, hidden: item.hidden, row: item.candidate?.row, complete: item.candidate?.evaluation.complete }))).toEqual([
+      { name: "Notes", hidden: false, row: 1, complete: false }, { name: "Lists", hidden: true, row: undefined, complete: undefined }, { name: "Data", hidden: false, row: 2, complete: true }]);
   });
   it("NEGATIVE: a workbook whose only sheets are hidden is empty", () => {
     const workbook = book(w => { const s = w.addWorksheet("Hidden"); s.state = "veryHidden"; s.addRow(["code", "amount"]); });

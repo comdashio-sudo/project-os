@@ -565,7 +565,7 @@ export async function getImportGrid(input: { userId: number; tenantId: string; p
   const tab = input.tab ?? "all";
   const shown = filterGrid(rows, tab, input.search);
   const offset = input.offset ?? 0;
-  return { kind, fields: read.fields, ignoredColumns: read.ignoredColumns, counts: countGrid(rows), tab, shownTotal: shown.length, offset, pageSize: GRID_PAGE_SIZE, rows: shown.slice(offset, offset + GRID_PAGE_SIZE), fileErrors: rows.length ? [] : read.errors.slice(0, 20) };
+  return { kind, fields: read.fields, ignoredColumns: read.ignoredColumns, sheets: read.sheets, counts: countGrid(rows), tab, shownTotal: shown.length, offset, pageSize: GRID_PAGE_SIZE, rows: shown.slice(offset, offset + GRID_PAGE_SIZE), fileErrors: rows.length ? [] : read.errors.slice(0, 20) };
 }
 
 /**

@@ -407,13 +407,14 @@ export async function gridOfPmcImport(input: Scope & { kind: PmcImportKind; form
   const fileHash = createHash("sha256").update(input.bytes).digest("hex");
   const { parsed } = await readPmcFile(db, { ...input, previewLimit: Number.MAX_SAFE_INTEGER });
   const fields = (parsed.columns?.fields ?? []).filter(field => field.header).map(field => ({ key: field.key, header: field.header!, required: field.required }));
-  if (parsed.errors.length) return { fields, preview: [] as NonNullable<NonNullable<ParsedFile["notes"]>["preview"]>, errors: parsed.errors, edits: [] as PmcAppliedEdit[], scaledFromFractions: false, ignoredColumns: [] as string[] };
+  const sheets = parsed.notes?.sheets ?? [];
+  if (parsed.errors.length) return { fields, preview: [] as NonNullable<NonNullable<ParsedFile["notes"]>["preview"]>, errors: parsed.errors, edits: [] as PmcAppliedEdit[], scaledFromFractions: false, ignoredColumns: [] as string[], sheets };
   const collected: PmcImportError[][] = [];
   const prepared = await fullErrors.run(collected, () => prepareRows(db, input, parsed, fileHash));
   const details = prepared.report.details as { scaledFromFractions?: boolean };
   return {
     fields, preview: parsed.notes?.preview ?? [], errors: collected.at(-1) ?? prepared.report.errors, edits: parsed.notes?.edits ?? [], scaledFromFractions: Boolean(details.scaledFromFractions),
-    ignoredColumns: (parsed.notes?.ignoredColumns ?? []).map(column => column.header),
+    ignoredColumns: (parsed.notes?.ignoredColumns ?? []).map(column => column.header), sheets,
   };
 }
 

@@ -1,0 +1,254 @@
+[
+ {
+  "lang": "ar",
+  "width": 390,
+  "tabs": [
+   "الكل 11",
+   "جاهز 8",
+   "صُحّح 4",
+   "أخطاء 1",
+   "متجاهَل 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 5,
+   "error": 1,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 صف جاهز1 صف مرفوض",
+  "offer": null,
+  "download": "بالألوان نفسها وعمود ملاحظات، لترسله لمن عبّأ الملف.نزّل النسخة المنظّفة (Excel)",
+  "hScroll": false,
+  "sheets": [
+   "غلاف:no:false",
+   "Weights:yes:true",
+   "قوائم:no:false"
+  ],
+  "readWhy": "قُرئت ورقة «Weights»: رأسها في الصف 3 يسمّي كل الأعمدة المطلوبة.",
+  "coverWhy": "لم تُقرأ ورقة «غلاف»: ينقصها المجموعة (القسم أو بند CSI)، اسم النشاط، الوزن.",
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "tabs": [
+   "الكل 11",
+   "جاهز 8",
+   "صُحّح 4",
+   "أخطاء 1",
+   "متجاهَل 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 5,
+   "error": 1,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 صف جاهز1 صف مرفوض",
+  "offer": null,
+  "download": "بالألوان نفسها وعمود ملاحظات، لترسله لمن عبّأ الملف.نزّل النسخة المنظّفة (Excel)",
+  "hScroll": false,
+  "sheets": [
+   "غلاف:no:false",
+   "Weights:yes:true",
+   "قوائم:no:false"
+  ],
+  "readWhy": "قُرئت ورقة «Weights»: رأسها في الصف 3 يسمّي كل الأعمدة المطلوبة.",
+  "coverWhy": "لم تُقرأ ورقة «غلاف»: ينقصها المجموعة (القسم أو بند CSI)، اسم النشاط، الوزن.",
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "tabs": [
+   "All 11",
+   "Ready 8",
+   "Corrected 4",
+   "Errors 1",
+   "Ignored 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 5,
+   "error": 1,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 rows ready1 rows rejected",
+  "offer": null,
+  "download": "In the same colours with a notes column, to send to whoever filled in the file.Download the cleaned copy (Excel)",
+  "hScroll": false,
+  "sheets": [
+   "غلاف:no:false",
+   "Weights:yes:true",
+   "قوائم:no:false"
+  ],
+  "readWhy": "Sheet «Weights» was read: its header on row 3 names every required column.",
+  "coverWhy": "Sheet «غلاف» was not read: it lacks Group (section or CSI item), Activity name, Weight.",
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "tabs": [
+   "All 11",
+   "Ready 8",
+   "Corrected 4",
+   "Errors 1",
+   "Ignored 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 5,
+   "error": 1,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 rows ready1 rows rejected",
+  "offer": null,
+  "download": "In the same colours with a notes column, to send to whoever filled in the file.Download the cleaned copy (Excel)",
+  "hScroll": false,
+  "sheets": [
+   "غلاف:no:false",
+   "Weights:yes:true",
+   "قوائم:no:false"
+  ],
+  "readWhy": "Sheet «Weights» was read: its header on row 3 names every required column.",
+  "coverWhy": "Sheet «غلاف» was not read: it lacks Group (section or CSI item), Activity name, Weight.",
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "tabs": [
+   "سب 11",
+   "تیار 8",
+   "درست کیا گیا 4",
+   "غلطیاں 1",
+   "نظرانداز 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 5,
+   "error": 1,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 قطاریں تیار1 قطاریں مسترد",
+  "offer": null,
+  "download": "انہی رنگوں اور نوٹس کے کالم کے ساتھ، فائل بھرنے والے کو بھیجنے کے لیے۔صاف شدہ نقل ڈاؤن لوڈ کریں (Excel)",
+  "hScroll": false,
+  "sheets": [
+   "غلاف:no:false",
+   "Weights:yes:true",
+   "قوائم:no:false"
+  ],
+  "readWhy": "شیٹ «Weights» پڑھی گئی: قطار 3 میں اس کا ہیڈر ہر لازمی کالم کا نام رکھتا ہے۔",
+  "coverWhy": "شیٹ «غلاف» نہیں پڑھی گئی: اس میں گروپ (سیکشن یا CSI آئٹم)، سرگرمی کا نام، وزن نہیں ہے۔",
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "tabs": [
+   "سب 11",
+   "تیار 8",
+   "درست کیا گیا 4",
+   "غلطیاں 1",
+   "نظرانداز 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 5,
+   "error": 1,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 قطاریں تیار1 قطاریں مسترد",
+  "offer": null,
+  "download": "انہی رنگوں اور نوٹس کے کالم کے ساتھ، فائل بھرنے والے کو بھیجنے کے لیے۔صاف شدہ نقل ڈاؤن لوڈ کریں (Excel)",
+  "hScroll": false,
+  "sheets": [
+   "غلاف:no:false",
+   "Weights:yes:true",
+   "قوائم:no:false"
+  ],
+  "readWhy": "شیٹ «Weights» پڑھی گئی: قطار 3 میں اس کا ہیڈر ہر لازمی کالم کا نام رکھتا ہے۔",
+  "coverWhy": "شیٹ «غلاف» نہیں پڑھی گئی: اس میں گروپ (سیکشن یا CSI آئٹم)، سرگرمی کا نام، وزن نہیں ہے۔",
+  "errors": []
+ }
+]

@@ -6,14 +6,14 @@ import { ImportGrid } from "./ImportGrid";
 
 // Q-66 batch 1: the review grid of a PMC import. Synthetic rows and values only.
 type Row = { index: number; row: number; class: "data" | "total" | "leftOut"; status: "ready" | "corrected" | "error" | "ignored"; cells: Record<string, { value: string; from?: string; why?: string; errors?: Array<{ code: string }> }>; rowErrors: Array<{ code: string }> };
-const state = vi.hoisted(() => ({ answer: null as unknown, inputs: [] as unknown[], rows: [] as unknown[], total: 0, counts: {} as Record<string, number>, fetch: vi.fn(), correct: vi.fn(), reanalyze: vi.fn(), download: vi.fn() }));
+const state = vi.hoisted(() => ({ answer: null as unknown, inputs: [] as unknown[], rows: [] as unknown[], total: 0, counts: {} as Record<string, number>, sheets: [] as unknown[], fetch: vi.fn(), correct: vi.fn(), reanalyze: vi.fn(), download: vi.fn() }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ dataImports: { progress: { invalidate: vi.fn() }, grid: { invalidate: vi.fn(), fetch: state.fetch } } }),
   dataImports: {
     // one answer per state (as react-query keeps it): a new object only when the test changes what the server holds
     grid: { useQuery: (input: unknown) => {
       state.inputs.push(input);
-      state.answer ??= { data: { fields: [{ key: "unitNumber", header: "Villa No", required: true }, { key: "modelCode", header: "Type", required: true }], ignoredColumns: ["Remarks"], counts: state.counts, tab: "all", shownTotal: state.total, offset: 0, pageSize: 200, rows: state.rows, fileErrors: [] }, dataUpdatedAt: 1, isLoading: false, error: null };
+      state.answer ??= { data: { fields: [{ key: "unitNumber", header: "Villa No", required: true }, { key: "modelCode", header: "Type", required: true }], ignoredColumns: ["Remarks"], sheets: state.sheets, counts: state.counts, tab: "all", shownTotal: state.total, offset: 0, pageSize: 200, rows: state.rows, fileErrors: [] }, dataUpdatedAt: 1, isLoading: false, error: null };
       return state.answer;
     } },
     correct: { useMutation: () => ({ mutate: state.correct, isPending: false, error: null }) },
@@ -34,7 +34,7 @@ const sample: Row[] = [
   { index: 3, row: 5, class: "total", status: "ignored", cells: { unitNumber: { value: "Total" }, modelCode: { value: "" } }, rowErrors: [] },
 ];
 const grid = (props: Partial<React.ComponentProps<typeof ImportGrid>> = {}) => render(<ImportGrid {...scope} columns={columns} applied={[{ row: 3, field: "unitNumber", header: "Villa No", from: "102x", to: "102" }]} ignoredRows={[9]} readRows={[]} language="en" {...props} />);
-beforeEach(() => { state.answer = null; state.inputs = []; state.rows = sample; state.total = sample.length; state.counts = { all: 4, ready: 2, corrected: 1, errors: 1, ignored: 1 }; state.fetch.mockReset(); state.correct.mockReset(); state.reanalyze.mockReset(); });
+beforeEach(() => { state.answer = null; state.inputs = []; state.sheets = []; state.rows = sample; state.total = sample.length; state.counts = { all: 4, ready: 2, corrected: 1, errors: 1, ignored: 1 }; state.fetch.mockReset(); state.correct.mockReset(); state.reanalyze.mockReset(); });
 afterEach(() => cleanup());
 const cell = (row: number, field: string) => document.querySelector(`tr[data-row="${row}"] td[data-cell="${field}"]`) as HTMLElement;
 
@@ -187,5 +187,29 @@ describe("ImportGrid (Q-66 batch 1)", () => {
     expect(bar.textContent).toContain("2 صف جاهز");
     expect(bar.textContent).toContain("1 صف مرفوض");
     expect(Array.from(bar.querySelectorAll("[data-check]")).map(node => [node.getAttribute("data-check"), node.textContent])).toEqual([["ok", "Weights of model A(100%)✅"], ["fails", "Weights of model B(98%)❌"]]);
+  });
+  it("Q-66 (7): a file of several sheets shows them as tabs under the grid — the one read marked — and each tab says why it was or was not read; the rows stay", () => {
+    state.sheets = [{ name: "Cover", read: false, why: "missing", headerRow: 1, missing: ["unitNumber", "modelCode"] }, { name: "Villas", read: true, why: "complete", headerRow: 4 }, { name: "Lists", read: false, why: "hidden" }];
+    grid();
+    const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-grid-sheets] button[data-sheet]"));
+    expect(tabs.map(tab => [tab.dataset.sheet, tab.dataset.sheetRead, tab.getAttribute("aria-pressed")])).toEqual([["Cover", "no", "false"], ["Villas", "yes", "true"], ["Lists", "no", "false"]]);
+    const why = () => document.querySelector("[data-sheet-why]")!.textContent;
+    expect(why()).toBe("Sheet «Villas» was read: its header on row 4 names every required column.");
+    const before = state.inputs.length;
+    fireEvent.click(tabs[0]);
+    expect(why()).toBe("Sheet «Cover» was not read: it lacks Villa number, Model.");
+    fireEvent.click(tabs[2]);
+    expect(why()).toBe("Sheet «Lists» was not read: it is hidden in the file.");
+    expect(state.inputs.slice(before).every(input => !("sheet" in (input as object)))).toBe(true); // showing only: nothing else is asked of the server
+    expect(document.querySelectorAll("tbody tr[data-row]")).toHaveLength(4);
+  });
+
+  it("NEGATIVE: a one-sheet file shows no sheet tabs", () => {
+    state.sheets = [];
+    grid();
+    expect(document.querySelector("[data-grid-sheets]")).toBeNull();
+    cleanup(); state.answer = null; state.sheets = [{ name: "Only", read: true, why: "complete", headerRow: 1 }];
+    grid();
+    expect(document.querySelector("[data-grid-sheets]")).toBeNull();
   });
 });

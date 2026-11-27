@@ -310,6 +310,24 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC and master-plan impo
     expect(page.rows.map(row => row.cells.unitNumber.value)).toEqual(["77001", "77002"]);
   }, 120_000);
 
+  it("Q-66 (7): a file of several sheets — the grid lists every sheet, the one read and why; the rows are that sheet's only, as written", async () => {
+    const pmc = callerFor(users.pmc, "ext-pmc");
+    const book = new ExcelJS.Workbook();
+    book.addWorksheet("Cover").addRow(["Synthetic villa list"]);
+    const villas = book.addWorksheet("Villas"); villas.addRow(["Villa list (synthetic)"]); villas.addRow(["Block Code", "Unit Number", "Model Code"]); villas.addRow(["BQ8", 78001, "A"]); villas.addRow(["BQ8", 78002, "B"]);
+    const lists = book.addWorksheet("Lists", { state: "hidden" }); lists.addRow(["Block Code", "Unit Number", "Model Code"]); lists.addRow(["BQ8", 78999, "Z"]);
+    const { registered } = await upload(pmc, "pmc.locations", { name: "units-sheets.xlsx", bytes: Buffer.from(await book.xlsx.writeBuffer()), format: "xlsx" });
+    expect((await pollUntilDone(pmc, registered.id)).view.status).toBe("validated");
+    const page = await pmc.dataImports.grid({ ...scope, importId: registered.id });
+    expect(page.sheets).toEqual([{ name: "Cover", read: false, why: "missing", headerRow: 1, missing: expect.arrayContaining(["unitNumber"]) }, { name: "Villas", read: true, why: "complete", headerRow: 2 }, { name: "Lists", read: false, why: "hidden" }]);
+    expect(page.rows.map(row => row.cells.unitNumber.value)).toEqual(["78001", "78002"]);
+    // NEGATIVE: the list is the grid's — another company's import is refused, and a hidden sheet's rows are never written
+    await expect(callerFor(users.pmc, "ext-pmc").dataImports.grid({ tenantId: T2, projectId: P2, importId: registered.id })).rejects.toThrow();
+    expect(await pmc.dataImports.confirm({ ...scope, importId: registered.id })).toMatchObject({ status: "completed", createdRows: 2 });
+    const [units] = await connection.query<{ unitNumber: number }[]>("SELECT unitNumber FROM pmc_units WHERE tenantId = ? AND unitNumber BETWEEN 78001 AND 78999 ORDER BY unitNumber", [T]);
+    expect(units.map(unit => unit.unitNumber)).toEqual([78001, 78002]);
+  }, 120_000);
+
   it("Q-66 (5b): «every cell like it» — one rule corrects a column's value in every row, is audited with its count, shown in the grid, and written", async () => {
     const pmc = callerFor(users.pmc, "ext-pmc");
     const csv = Buffer.from("Block Code,Unit Number,Model Code\nBQ9,79001,a\nBQ9,79002,a\nBQ9,79003,B\nBQ9,79004,a\n", "utf8");
