@@ -41,3 +41,18 @@ describe("StickyActionBar and SectionNav", () => {
     expect(container.innerHTML).toBe("");
   });
 });
+
+describe("the bars against the app's frame (Q-69 review C, notes 2 and 3)", () => {
+  it("the action bar sits above the phone's bottom bar and the section row under the sticky header, through the frame's heights", () => {
+    render(<><SectionNav label="sections" sections={[{ id: "a", label: "A" }, { id: "b", label: "B" }]} /><StickyActionBar label="actions"><button type="button">Save</button></StickyActionBar></>);
+    const bar = document.querySelector("[data-sticky-action-bar]") as HTMLElement;
+    expect(bar.style.bottom).toBe("var(--bottom-bar-h, 0px)");
+    expect(bar.className).not.toMatch(/\bbottom-0\b/);
+    expect(screen.getByRole("region", { name: "actions" })).toBe(bar);
+    expect((document.querySelector("[data-section-nav]") as HTMLElement).style.top).toBe("var(--shell-top, 0px)");
+  });
+  it("NEGATIVE: without a label the action bar is not an unnamed region", () => {
+    render(<StickyActionBar><button type="button">Save</button></StickyActionBar>);
+    expect(screen.queryByRole("region")).toBeNull();
+  });
+});
