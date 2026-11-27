@@ -25,6 +25,7 @@ const text = {
     reconciled: "المراحل والبلوكات تطابق إجمالي المشروع", notReconciled: "لا يطابق", missingVillas: "فلل خارج المجموعات",
     engineer: "المهندس المسؤول", noEngineer: "— لم يُسمَّ", saved: "حُفظ المهندس المسؤول.",
     candidatesFailed: "تعذّر تحميل قائمة المهندسين؛ يظهر الاسم فقط. أعد تحميل الصفحة.",
+    heldBadge: (cells: number, villas: number, percent: string) => `تحت NCR مفتوح: ${cells} خلية في ${villas} فيلا — وزنها (${percent}) معلّق حتى الإغلاق`, held: "وزن معلّق بـNCR %",
     blocks: "البلوكات", phases: "المراحل", progress: "التقدم %", cells: "الخلايا المكتملة", none: "لا بيانات بعد.", unknown: "—",
   },
   en: {
@@ -35,6 +36,7 @@ const text = {
     reconciled: "Phases and blocks match the project total", notReconciled: "Does not match", missingVillas: "villas outside the groups",
     engineer: "Engineer in charge", noEngineer: "— not named", saved: "Engineer in charge saved.",
     candidatesFailed: "The list of engineers could not be loaded; only the name is shown. Reload the page.",
+    heldBadge: (cells: number, villas: number, percent: string) => `Under an open NCR: ${cells} cells in ${villas} villas — their weight (${percent}) is held until it closes`, held: "Weight held by NCR %",
     blocks: "Blocks", phases: "Phases", progress: "Progress %", cells: "Completed cells", none: "No data yet.", unknown: "—",
   },
   ur: {
@@ -45,6 +47,7 @@ const text = {
     reconciled: "مراحل اور بلاکس منصوبے کے کل سے مطابقت رکھتے ہیں", notReconciled: "مطابقت نہیں", missingVillas: "گروپوں سے باہر ولاز",
     engineer: "ذمہ دار انجینئر", noEngineer: "— نامزد نہیں", saved: "ذمہ دار انجینئر محفوظ ہو گیا۔",
     candidatesFailed: "انجینئروں کی فہرست لوڈ نہیں ہو سکی؛ صرف نام دکھایا جا رہا ہے۔ صفحہ دوبارہ لوڈ کریں۔",
+    heldBadge: (cells: number, villas: number, percent: string) => `کھلے NCR کے تحت: ${villas} ولاز میں ${cells} خانے — ان کا وزن (${percent}) بند ہونے تک روکا گیا`, held: "NCR سے روکا گیا وزن %",
     blocks: "بلاکس", phases: "مراحل", progress: "پیش رفت %", cells: "مکمل خانے", none: "ابھی کوئی ڈیٹا نہیں۔", unknown: "—",
   },
 };
@@ -93,6 +96,7 @@ export default function ActivitySummary() {
       : <span className="whitespace-nowrap">{row.engineer?.name || t.noEngineer}</span>) },
     { key: "villas", header: t.villas, numeric: true, render: row => formatNumber(row.villas) },
     { key: "progress", header: t.progress, numeric: true, render: row => percent(row.progressPercent) },
+    { key: "held", header: t.held, numeric: true, render: row => (row.held.cells ? <bdi dir="ltr">{formatPercent(row.held.percent, 2)} <span className="text-muted-foreground">({formatNumber(row.held.cells)})</span></bdi> : "—") },
     { key: "cells", header: t.cells, numeric: true, render: row => <span className="whitespace-nowrap">{formatNumber(row.completeCells)} / {formatNumber(row.totalCells)}</span> },
     ...(period ? [{ key: "delta", header: t.delta, numeric: true, render: (row: GroupRow) => signed(groupDelta(label === t.block ? period.blocks : period.phases, row.key)) }] : []),
   ];
@@ -112,6 +116,7 @@ export default function ActivitySummary() {
     { header: t.engineer, value: (row: GroupRow) => row.engineer?.name ?? "" },
     { header: t.villas, kind: "number" as const, value: (row: GroupRow) => row.villas },
     { header: t.progress, kind: "number" as const, value: (row: GroupRow) => row.progressPercent },
+    { header: t.held, kind: "number" as const, value: (row: GroupRow) => row.held.percent },
     { header: t.cells, kind: "number" as const, value: (row: GroupRow) => row.completeCells },
     ...(period ? [{ header: t.delta, kind: "number" as const, value: (row: GroupRow) => groupDelta(label === t.block ? period.blocks : period.phases, row.key) }] : []),
   ];
@@ -128,6 +133,7 @@ export default function ActivitySummary() {
             {period ? <Badge tone="success" >{t.periodAchieved}: {signed(period.project.deltaPercent)} <bdi dir="ltr">({period.from} → {period.to})</bdi></Badge> : null}
             {data.reconciliation.blocks.matches && data.reconciliation.phases.matches ? <Badge tone="success"><span data-reconciled="yes">{t.reconciled} ✓</span></Badge>
               : <Badge tone="warning"><span data-reconciled="no">{t.notReconciled}: {(["blocks", "phases"] as const).filter(kind => !data.reconciliation[kind].matches).map(kind => `${t[kind]} (${formatNumber(data.reconciliation[kind].villasMissing)} ${t.missingVillas})`).join(" · ")}</span></Badge>}
+            {data.project.held.cells > 0 ? <Badge tone="warning"><span data-ncr-held>{t.heldBadge(data.project.held.cells, data.project.held.villas, formatPercent(data.project.held.percent, 2))}</span></Badge> : null}
             <Badge tone="neutral">{t.villas}: <bdi dir="ltr">{formatNumber(data.project.villas)}</bdi></Badge>
             {data.project.villasWithoutNumber ? <Badge tone="warning"><bdi dir="ltr">{formatNumber(data.project.villasWithoutNumber)}</bdi> {t.noNumber}</Badge> : null}
           </div>

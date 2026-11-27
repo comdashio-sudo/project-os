@@ -13,9 +13,9 @@ vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<t
 ) }));
 const data = {
   activities: [{ code: "ACT01", name: "Excavation", villas: 5, complete: 4, underReview: 0, inProgress: 0, notStarted: 1, completionPercent: 80, earnedPercent: 80 }, { code: "ACT02", name: "Footings", villas: 4, complete: 0, underReview: 0, inProgress: 1, notStarted: 3, completionPercent: 0, earnedPercent: 0 }],
-  blocks: [{ key: "BLK 33", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4, engineer: { userId: 7, name: "Engineer Seven (synthetic)" } }],
-  phases: [{ key: "PH1", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4, engineer: null }],
-  project: { villas: 5, progressPercent: 52, villasWithoutNumber: 1 },
+  blocks: [{ key: "BLK 33", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4, held: { cells: 1, villas: 1, percent: 12.5 }, engineer: { userId: 7, name: "Engineer Seven (synthetic)" } }],
+  phases: [{ key: "PH1", villas: 2, progressPercent: 40, villasWithoutNumber: 0, completeCells: 2, totalCells: 4, held: { cells: 0, villas: 0, percent: 0 }, engineer: null }],
+  project: { villas: 5, progressPercent: 52, held: { cells: 3, villas: 2, percent: 7.5 }, villasWithoutNumber: 1 },
   reconciliation: { blocks: { villas: 5, villasMissing: 0, cells: 9, cellsMissing: 0, matches: true }, phases: { villas: 4, villasMissing: 1, cells: 7, cellsMissing: 2, matches: false } },
   filters: { blocks: ["BLK 33", "BLK 34"], phases: ["PH1", "PH2"] },
 };
@@ -81,5 +81,13 @@ describe("ActivitySummary (Q-70 3)", () => {
     expect(h.setEngineer).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", scopeType: "phase", scopeKey: "PH1", engineerUserId: 7 });
     fireEvent.change(screen.getByLabelText("Engineer in charge BLK 33"), { target: { value: "__none" } });
     expect(h.setEngineer).toHaveBeenLastCalledWith({ tenantId: "t", projectId: "p", scopeType: "block", scopeKey: "BLK 33", engineerUserId: null });
+  });
+
+  it("Q-72 (6): the project says how many cells are under an open NCR and what share of its weight is held (the progress number unchanged); a block with none shows a dash", () => {
+    render(<ActivitySummary />);
+    expect(document.querySelector("[data-ncr-held]")!.textContent).toBe("Under an open NCR: 3 cells in 2 villas — their weight (7.50%) is held until it closes");
+    expect(document.querySelector("[data-summary-project]")!.textContent).toContain("Project progress: 52.00%");
+    expect(document.querySelector("[data-summary-group='blocks'] tbody")!.textContent).toContain("12.50%");
+    expect(document.querySelector("[data-summary-group='phases'] tbody")!.textContent).toContain("—");
   });
 });

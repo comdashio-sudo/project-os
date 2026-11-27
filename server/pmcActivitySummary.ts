@@ -1,10 +1,10 @@
 // Q-70 (3): the activity summary of a project (server/domain/progressSummary.ts) — per activity, per block, per phase — read with project.pmc.read, every
 // table filtered by the company and the project. A block or a phase narrows the villas first, so the activity table then speaks of that block or phase only.
-import { pmcActivityDefinitions, pmcBlocks, pmcStatusFactors, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits } from "../drizzle/schema";
+import { pmcActivityDefinitions, pmcBlocks, pmcStatusFactors, ncrs, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits } from "../drizzle/schema";
 import { effectiveStatusFactors, type PmcUnitActivityStatus } from "./domain/pmc";
 import { periodChange, statusesAsOf } from "./domain/progressPeriod";
 import { summarizeProgress } from "./domain/progressSummary";
-import { and, lte } from "drizzle-orm";
+import { and, lte, notInArray, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { unitWeightOf } from "./domain/plannedCurve";
 import { authorize, mine, type Scope } from "./pmcService";
@@ -29,7 +29,10 @@ export async function getPmcActivitySummary(input: Scope & { blockCode?: string;
   const chosen = all.filter(unit => (!input.blockCode || unit.blockCode === input.blockCode) && (!input.phase || (unit.phase ?? "").toUpperCase() === input.phase.trim().toUpperCase()));
   const definitionsIn = definitions.map(definition => ({ ...definition, weightPercent: Number(definition.weightPercent) }));
   const factors = effectiveStatusFactors(factorRows);
-  const summaryOf = (statusOf: Map<string, PmcUnitActivityStatus>) => summarizeProgress({ units: chosen, definitions: definitionsIn, statusOf, factors });
+  // Q-72 (6): the cells (villa × item) under an open NCR of this project (not closed, not cancelled)
+  const heldRows = await db.select({ unitId: ncrs.pmcUnitId, definitionId: ncrs.pmcActivityDefinitionId }).from(ncrs).where(and(mine(ncrs, scope), isNotNull(ncrs.pmcUnitId), isNotNull(ncrs.pmcActivityDefinitionId), notInArray(ncrs.status, ["closed", "cancelled"])));
+  const held = new Set(heldRows.map(row => `${row.unitId}:${row.definitionId}`));
+  const summaryOf = (statusOf: Map<string, PmcUnitActivityStatus>) => summarizeProgress({ held, units: chosen, definitions: definitionsIn, statusOf, factors });
   const currentStatus = new Map(cells.map(cell => [`${cell.unitId}:${cell.activityDefinitionId}`, cell.status as PmcUnitActivityStatus]));
   const summary = summaryOf(currentStatus);
   let period: ReturnType<typeof periodChange> & { from: string; to: string } | null = null;

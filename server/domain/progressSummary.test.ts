@@ -26,31 +26,31 @@ describe("the activity summary (Q-70 3)", () => {
     expect(summary.activities[1]).toEqual({ code: "ACT02", name: "Footings", villas: 3, complete: 1, underReview: 0, inProgress: 1, notStarted: 1, completionPercent: 33.33, earnedPercent: 37.5 });
     // villa progress: 700 = 100, 701 = 40 + 30 = 70, 702 = 20, 800 = 100. BLK 33 = (100 + 70)/2 = 85; BLK 34 = (20×2 + 100×1)/3 = 46.67
     expect(summary.blocks).toEqual([
-      { key: "BLK 33", villas: 2, progressPercent: 85, villasWithoutNumber: 0, completeCells: 3, totalCells: 4 },
-      { key: "BLK 34", villas: 2, progressPercent: 46.67, villasWithoutNumber: 0, completeCells: 1, totalCells: 3 },
+      { key: "BLK 33", villas: 2, progressPercent: 85, held: { cells: 0, villas: 0, percent: 0 }, villasWithoutNumber: 0, completeCells: 3, totalCells: 4 },
+      { key: "BLK 34", villas: 2, progressPercent: 46.67, held: { cells: 0, villas: 0, percent: 0 }, villasWithoutNumber: 0, completeCells: 1, totalCells: 3 },
     ]);
     expect(summary.phases.map(phase => [phase.key, phase.progressPercent])).toEqual([["PH1", 85], ["PH2", 46.67]]);
     // project = (100 + 70 + 20×2 + 100)/5 = 62
-    expect(summary.project).toEqual({ villas: 4, progressPercent: 62, villasWithoutNumber: 0 });
+    expect(summary.project).toEqual({ villas: 4, progressPercent: 62, held: { cells: 0, villas: 0, percent: 0 }, villasWithoutNumber: 0 });
   });
 
   it("NEGATIVE: a model whose weights do not total 100 gives no number for its villas — never a wrong one — and the others are still summed", () => {
     const summary = summarizeProgress({ units, definitions: definitions.map(item => (item.id === "d1" ? { ...item, weightPercent: 90 } : item)), statusOf, factors });
     expect(summary.blocks[1]).toMatchObject({ key: "BLK 34", progressPercent: 20, villasWithoutNumber: 1 });
-    expect(summary.project).toEqual({ villas: 4, progressPercent: 52.5, villasWithoutNumber: 1 }); // (100 + 70 + 20×2)/(1 + 1 + 2)
-    expect(summarizeProgress({ units: [], definitions, statusOf, factors }).project).toEqual({ villas: 0, progressPercent: null, villasWithoutNumber: 0 });
+    expect(summary.project).toEqual({ villas: 4, progressPercent: 52.5, held: { cells: 0, villas: 0, percent: 0 }, villasWithoutNumber: 1 }); // (100 + 70 + 20×2)/(1 + 1 + 2)
+    expect(summarizeProgress({ units: [], definitions, statusOf, factors }).project).toEqual({ villas: 0, progressPercent: null, held: { cells: 0, villas: 0, percent: 0 }, villasWithoutNumber: 0 });
   });
 
   it("review of #576 (C, change 1): a block whose villas all weigh 0 gives no number — never a crash — and the project is summed over the weighted villas only; «under review» is its own count", () => {
     const zero: SummaryUnit[] = [...units, { id: "u900", villa: "900", blockCode: "BLK 99", phase: "PH3", modelCode: "C", unitWeight: 0 }];
     const status = new Map(statusOf); status.set("u900:c1", "COMPLETE"); status.set("u900:c2", "UNDER_REVIEW");
     const summary = summarizeProgress({ units: zero, definitions, statusOf: status, factors });
-    expect(summary.blocks.find(block => block.key === "BLK 99")).toEqual({ key: "BLK 99", villas: 1, progressPercent: null, villasWithoutNumber: 0, completeCells: 1, totalCells: 2 });
+    expect(summary.blocks.find(block => block.key === "BLK 99")).toEqual({ key: "BLK 99", villas: 1, progressPercent: null, held: { cells: 0, villas: 0, percent: 0 }, villasWithoutNumber: 0, completeCells: 1, totalCells: 2 });
     expect(summary.phases.find(phase => phase.key === "PH3")!.progressPercent).toBeNull();
     expect(summary.project.progressPercent).toBe(62); // as before: the villa of weight 0 moves nothing
     expect(summary.activities[1]).toMatchObject({ code: "ACT02", villas: 4, underReview: 1, inProgress: 1, notStarted: 1 });
     // only weight-0 villas chosen (a block filter): no number, no throw
-    expect(summarizeProgress({ units: zero.filter(unit => unit.id === "u900"), definitions, statusOf: status, factors }).project).toEqual({ villas: 1, progressPercent: null, villasWithoutNumber: 0 });
+    expect(summarizeProgress({ units: zero.filter(unit => unit.id === "u900"), definitions, statusOf: status, factors }).project).toEqual({ villas: 1, progressPercent: null, held: { cells: 0, villas: 0, percent: 0 }, villasWithoutNumber: 0 });
   });
 
   it("Q-72 (3): the blocks and the phases add up to the project's villas and cells — or the difference is named, never hidden", () => {
@@ -61,5 +61,15 @@ describe("the activity summary (Q-70 3)", () => {
     const loose = summarizeProgress({ units: units.map(unit => (unit.id === "u701" ? { ...unit, phase: null } : unit)), definitions, statusOf, factors });
     expect(loose.reconciliation.phases).toEqual({ villas: 3, villasMissing: 1, cells: 5, cellsMissing: 2, matches: false });
     expect(loose.reconciliation.blocks.matches).toBe(true); // every villa still has its block
+  });
+
+  it("Q-72 (6): a cell under an open NCR holds its weight — counted per project, block and phase, and the progress figure itself is not changed", () => {
+    const plain = summarizeProgress({ units, definitions, statusOf, factors });
+    const held = summarizeProgress({ units, definitions, statusOf, factors, held: new Set(["u700:c1", "u800:d1", "ghost:c1"]) });
+    // u700 × ACT01 (weight 40, villa weight 1) and u800 × ACT01 (weight 100, villa weight 1): (0.4 + 1) / (1 + 1 + 2 + 1) = 28%
+    expect(held.project.held).toEqual({ cells: 2, villas: 2, percent: 28 });
+    expect(plain.project.held).toEqual({ cells: 0, villas: 0, percent: 0 });
+    expect(held.blocks.map(row => [row.key, row.held])).toEqual([["BLK 33", { cells: 1, villas: 1, percent: 20 }], ["BLK 34", { cells: 1, villas: 1, percent: 33.33 }]]); // BLK 33: 0.4 / 2; BLK 34: 1 / 3
+    expect(held.project.progressPercent).toBe(plain.project.progressPercent); // held, not taken off
   });
 });

@@ -119,4 +119,20 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-70: the ac
     await set(a, "block", "BLK 33", null);
     expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).blocks.every(row => row.engineer === null)).toBe(true);
   });
+  it("Q-72 (6): a cell under an open NCR holds its weight — an open one counts, a closed one and another company's do not; the progress number is unchanged", async () => {
+    const [cell] = (await client.query("SELECT u.id AS unit_id, d.id AS def_id FROM pmc_units u JOIN pmc_activity_definitions d ON d.tenant_id = u.tenant_id AND d.project_id = u.project_id AND d.model_code = u.model_code WHERE u.tenant_id = $1 AND u.unit_number = 700 AND d.code = 'ACT01'", [a.tenantId])).rows;
+    const before = await a.asOwner.pmc.activitySummary(scopeOf(a));
+    expect(before.project.held).toEqual({ cells: 0, villas: 0, percent: 0 });
+    const insert = (status: string, number: string) => client.query("INSERT INTO ncrs (id, tenant_id, project_id, ncr_number, title, description, status, pmc_unit_id, pmc_activity_definition_id, created_by_user_id) VALUES ($1, $2, $3, $4, 'NCR (synthetic)', 'x', $5, $6, $7, $8)", [randomUUID(), a.tenantId, a.projectId, number, status, cell.unit_id, cell.def_id, a.owner.id]);
+    await insert("closed", "NCR-Q72-CLOSED");
+    expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).project.held.cells).toBe(0); // closed: no hold
+    await insert("open", "NCR-Q72-OPEN");
+    const held = await a.asOwner.pmc.activitySummary(scopeOf(a));
+    expect(held.project.held).toMatchObject({ cells: 1, villas: 1 });
+    expect(held.project.held.percent).toBeGreaterThan(0);
+    expect(held.blocks.find(row => row.key === "BLK 33")!.held.cells).toBe(1);
+    expect(held.blocks.find(row => row.key === "BLK 34")!.held.cells).toBe(0);
+    expect(held.project.progressPercent).toBe(before.project.progressPercent); // held, never taken off
+    expect((await b.asOwner.pmc.activitySummary(scopeOf(b))).project.held.cells).toBe(0); // another company's summary does not see it
+  });
 });
