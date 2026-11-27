@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { currentUserLabel } from "@/lib/currentUser";
 import { pickLanguage } from "@/lib/language";
 import { buildTableWorkbook, downloadWorkbook, exportFileName, type ExportColumn } from "@/lib/excelExport";
 import { FileSpreadsheet, Loader2 } from "lucide-react";
@@ -14,6 +15,8 @@ type Props<Row> = {
   title: string;
   company?: string;
   project?: string;
+  /** Q-72 (1): the filters the screen has on, in words (printed in the file's header). */
+  filters?: string;
   /** The rows the screen shows right now, after its filters: the export matches the screen, not the whole data set. */
   rows: readonly Row[];
   /** The visible columns, in the order the screen shows them. */
@@ -23,7 +26,7 @@ type Props<Row> = {
 };
 
 /** Exports the table the screen shows, as an .xlsx file built in the browser. Nothing is sent to the server. */
-export function ExportExcelButton<Row>({ fileName, sheetName, title, company, project, rows, columns, emptyHint }: Props<Row>) {
+export function ExportExcelButton<Row>({ fileName, sheetName, title, company, project, filters, rows, columns, emptyHint }: Props<Row>) {
   const { language } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -38,7 +41,7 @@ export function ExportExcelButton<Row>({ fileName, sheetName, title, company, pr
     setFailed(false);
     try {
       const exportedAt = new Date();
-      const bytes = await buildTableWorkbook({ sheetName, columns, rows, meta: { title, company, project, exportedAt, locale: language } });
+      const bytes = await buildTableWorkbook({ sheetName, columns, rows, meta: { title, company, project, filters, exportedBy: currentUserLabel() ?? undefined, exportedAt, locale: language } });
       downloadWorkbook(exportFileName(fileName, exportedAt), bytes);
     } catch {
       setFailed(true);

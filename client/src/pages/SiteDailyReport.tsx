@@ -16,6 +16,7 @@ import { ReportsHeader, SectionStrip, StepButtons, sectionNumber, useLayoutText,
 import { EquipmentOfDay, HeaderExtras, LabourMatrix, equipmentBody, equipmentFrom, equipmentProblems, labourBody, labourFrom, labourProblems, labourTotal, useCoreText, type EquipmentRows, type LabourCells } from "@/components/dailyReport/CoreSections";
 import { DailyReportDocument, ReportExports } from "@/components/dailyReport/DailyReportDocument";
 import { ApprovalChain, InspectionsSection, PhotoPlace, photoPlaceText } from "@/components/dailyReport/ApprovalSections";
+import { ReportCorrections } from "@/components/dailyReport/ReportCorrections";
 import { OwnReportNote, WhoApproves } from "@/components/dailyReport/ApprovalWho";
 import { emptySections, HseSection, hseSummary, MaterialsSection, ObstaclesSection, sectionProblems, sectionsBody, sectionsFrom, TomorrowSection, useSectionText, type Sections } from "@/components/dailyReport/ReportSections";
 import { formatDateTime, formatWeekday } from "@/components/ds";
@@ -442,6 +443,7 @@ export default function SiteDailyReport() {
           {error && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(error, isArabic)}</p>}
           {message && <p role="status" className="rounded-xl bg-success-soft p-3 text-sm font-semibold text-success-soft-foreground">{message}</p>}
           {/* Q-56 (4a): once sent, where the report goes — or that nobody on the project can approve it yet */}
+          {reportId && locked && detail.data && <ReportCorrections scope={scope} reportId={reportId} corrections={detail.data.corrections ?? []} canAdd={canWrite} onAdded={() => { void detail.refetch(); }} />}
           {reportId && locked && (detail.data?.report.status ?? "submitted") === "submitted" && <WhoApproves scope={scope} preparedBy={detail.data?.report.preparedByUserId ?? me.data?.id ?? null} />}
           {!locked && (
             // the save bar stays in reach of the thumb while the site engineer scrolls the sections

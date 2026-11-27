@@ -16,16 +16,16 @@ const rows = [
 const meta = { title: "Operations", exportedAt: new Date("2026-11-25T12:00:00Z"), locale: "en" as const };
 
 describe("operationsColumns (Q-57)", () => {
-  it("lays out the money reader's row with the figures as numbers and the percentages as fractions", () => {
+  it("lays out the money reader's row with the figures as numbers and the percentages as numbers ×100 under a «(%)» header", () => {
     const layout = buildExportLayout(operationsColumns(TEXT, "en"), rows, meta);
-    const first = Object.fromEntries(layout.headerRow.map((header, index) => [header, layout.rows[0][index].value]));
-    expect(first["progress · actual"]).toBeCloseTo(0.4);
+    const first = Object.fromEntries(layout.headerRow.map((header, index) => [header.replace(/ \(%\)$/, ""), layout.rows[0][index].value])); // a percentage column is ×100 under «(%)» (Q-72 1)
+    expect(first["progress · actual"]).toBeCloseTo(40);
     expect(first["overdue"]).toBe(2);
     expect(first["cost (SAR)"]).toBe(-1200.5);
   });
   it("NEGATIVE: an unknown figure and a hidden cost are empty cells, never 0", () => {
     const layout = buildExportLayout(operationsColumns(TEXT, "en"), rows, meta);
-    const second = Object.fromEntries(layout.headerRow.map((header, index) => [header, layout.rows[1][index].value]));
+    const second = Object.fromEntries(layout.headerRow.map((header, index) => [header.replace(/ \(%\)$/, ""), layout.rows[1][index].value]));
     for (const header of ["progress · actual", "progress · planned", "deviation", "stalled", "cost (SAR)", "cpi"]) expect(second[header], header).toBeNull();
     expect(second["overdue"]).toBe(2); // a known count stays
   });

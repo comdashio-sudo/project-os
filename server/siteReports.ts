@@ -6,7 +6,7 @@
 import { REPORT_RANGE_CAP } from "../shared/siteReportRange";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
-import { auditLogs, consultantSubmittals, membershipRoles, memberships, permissions, pmcActivityDefinitions, pmcBlocks, pmcInspectionRequests, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportApprovers, projectReportCounters, rfis, rolePermissions, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportLines, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportPhotos, siteDailyReportTomorrow, siteDailyReports, users } from "../drizzle/schema";
+import { auditLogs, consultantSubmittals, membershipRoles, memberships, permissions, pmcActivityDefinitions, pmcBlocks, pmcInspectionRequests, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportApprovers, projectReportCounters, rfis, rolePermissions, siteDailyReportCorrections, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportLines, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportPhotos, siteDailyReportTomorrow, siteDailyReports, users } from "../drizzle/schema";
 import { siteToday } from "./wo22Shared";
 import { violates } from "./projectProfile";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb, getTenantAccessSnapshot } from "./db";
@@ -263,6 +263,25 @@ export async function submitSiteDailyReportForTenant(input: Scope & { reportId: 
   return { id: report.id, status: "submitted" as const, final: false as const };
 }
 
+export const CORRECTION_SECTIONS = ["summary", "labour", "equipment", "work", "materials", "hse", "obstacles", "weather", "other"] as const;
+/**
+ * Q-72 (5): a report that was sent or approved is frozen; its correction is an ADDITIONAL record beside it (who, when, which part, what), never an edit of the sent figures.
+ * Whoever may prepare reports (project.field.manage) adds one, only to a report that is no longer in the preparer's hands, in one transaction with its audit row.
+ */
+export async function addSiteDailyReportCorrectionForTenant(input: Scope & { reportId: string; section: (typeof CORRECTION_SECTIONS)[number]; note: string }) {
+  const db = await authorize(input, "project.field.manage");
+  const report = await ownReport(db, input);
+  if (report.status === "draft" || report.status === "rejected") throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_CORRECTION_NOT_SENT");
+  const note = input.note.trim();
+  if (!note) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_CORRECTION_EMPTY");
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(siteDailyReportCorrections).values({ id, tenantId: input.tenantId, projectId: input.projectId, reportId: report.id, section: input.section, note, createdByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.correction_added", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: report.reportDate, section: input.section, correctionId: id }) });
+  });
+  return { id, reportId: report.id };
+}
+
 /** May this person move PMC cells on the project (the PMC feature and project.pmc.update)? Only «you do not hold it» is false; any other failure is rethrown. */
 async function mayUpdatePmc(input: Scope) {
   try {
@@ -454,6 +473,8 @@ function hideSections<T extends Awaited<ReturnType<typeof readReport>>>(read: T,
     report: site ? read.report : { ...read.report, weather: null, temperatureC: null, wind: null, workHours: null, summary: null, obstacles: null },
     lines: site ? read.lines : [], labour: site ? read.labour : [], equipment: site ? read.equipment : [], obstacleItems: site ? read.obstacleItems : [], tomorrow: site ? read.tomorrow : [], photos: site ? read.photos : [],
     hse: hse ? read.hse : [],
+    // a correction names a part of the report: whoever may not see that part does not read what it says either
+    corrections: read.corrections.filter(row => (row.section === "hse" ? hse : row.section === "materials" ? qc : site)),
     materials: qc ? read.materials : [],
     inspections: qc ? read.inspections : { wir: { submitted: 0, approved: 0, rejected: 0, pending: 0, items: [] }, rfi: { submitted: 0, approved: 0, rejected: 0, pending: 0, items: [] } },
     totals: {
@@ -471,6 +492,7 @@ async function readReport(db: Db, input: Scope & { reportId: string }) {
   const section = <T extends typeof siteDailyReportMaterials | typeof siteDailyReportHse | typeof siteDailyReportObstacles | typeof siteDailyReportTomorrow>(table: T) => db.select().from(table as never).where(and(mine(table, input), eq(table.reportId, report.id))).orderBy(asc(table.sortOrder));
   const [materials, hse, obstacleItems, tomorrow] = await Promise.all([section(siteDailyReportMaterials), section(siteDailyReportHse), section(siteDailyReportObstacles), section(siteDailyReportTomorrow)]) as [
     Array<typeof siteDailyReportMaterials.$inferSelect>, Array<typeof siteDailyReportHse.$inferSelect>, Array<typeof siteDailyReportObstacles.$inferSelect>, Array<typeof siteDailyReportTomorrow.$inferSelect>];
+  const corrections = await db.select({ id: siteDailyReportCorrections.id, section: siteDailyReportCorrections.section, note: siteDailyReportCorrections.note, createdByUserId: siteDailyReportCorrections.createdByUserId, createdAt: siteDailyReportCorrections.createdAt }).from(siteDailyReportCorrections).where(and(mine(siteDailyReportCorrections, input), eq(siteDailyReportCorrections.reportId, report.id))).orderBy(asc(siteDailyReportCorrections.createdAt));
   const [lines, photos, labour, equipment, cumulative] = await Promise.all([
     db.select().from(siteDailyReportLines).where(eq(siteDailyReportLines.reportId, report.id)).orderBy(asc(siteDailyReportLines.sortOrder)),
     db.select().from(siteDailyReportPhotos).where(eq(siteDailyReportPhotos.reportId, report.id)).orderBy(asc(siteDailyReportPhotos.createdAt)),
@@ -500,6 +522,7 @@ async function readReport(db: Db, input: Scope & { reportId: string }) {
     labour,
     equipment: equipment.map(row => ({ ...row, hours: numeric(row.hours) })),
     materials: materials.map(row => ({ ...row, quantity: Number(row.quantity) })),
+    corrections,
     hse, obstacleItems, tomorrow: tomorrow.map(row => ({ ...row, quantity: numeric(row.quantity) })),
     inspections: {
       wir: { ...tally(wirs.map(row => wirState(row.responseCode))), items: wirs.map(row => ({ ...row, state: wirState(row.responseCode) })) },

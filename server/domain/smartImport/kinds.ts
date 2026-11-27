@@ -30,7 +30,7 @@ export const KINDS: Record<TableKindCode, KindDefinition> = {
   },
   budget: {
     code: "budget", module: "budget", label: { ar: "ميزانية", en: "Budget" },
-    fields: [f("costCode", "costCode", true, "text", "رمز التكلفة", "Cost code"), f("description", "description", false, "text", "الوصف", "Description"), f("originalAmount", "originalAmount", true, "number", "القيمة الأصلية", "Original amount"), f("currentAmount", "currentAmount", false, "number", "القيمة الحالية", "Current amount")],
+    fields: [f("costCode", "costCode", true, "text", "رمز التكلفة", "Cost code"), f("description", "description", false, "text", "الوصف", "Description"), f("originalAmount", "originalAmount", true, "number", "القيمة الأصلية", "Original amount"), f("currentAmount", "currentAmount", false, "number", "القيمة الحالية", "Current amount"), f("allocationPercent", "allocationPercent", false, "percent", "نسبة التوزيع على الأب", "Share of the parent (%)")],
     keywords: [/ميزاني|budget|cost plan/i],
   },
   contracts: {
