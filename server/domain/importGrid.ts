@@ -7,7 +7,7 @@
 import type { PmcImportError } from "./pmcImport";
 import type { PmcAppliedEdit, PmcPreviewRow, PmcRowClass } from "./pmcImport";
 
-export type GridWhy = "edited" | "filledDown" | "fraction";
+export type GridWhy = "edited" | "replaced" | "filledDown" | "fraction";
 export type GridCell = { value: string; from?: string; why?: GridWhy; errors?: Array<{ code: string; detail?: string }> };
 export type GridStatus = "ready" | "corrected" | "error" | "ignored";
 export type GridRow = { index: number; row: number; class: PmcRowClass; status: GridStatus; cells: Record<string, GridCell>; rowErrors: Array<{ code: string; detail?: string }> };
@@ -39,6 +39,7 @@ export function buildImportGrid(input: { preview: PmcPreviewRow[]; fields: strin
       const cell: GridCell = { value };
       const edit = editOf.get(`${source.row}:${field}`);
       if (edit) Object.assign(cell, { from: edit.from, why: "edited" as const });
+      else if (source.replaced?.[field] !== undefined) Object.assign(cell, { from: source.replaced[field], why: "replaced" as const });
       else if (source.filled?.[field] !== undefined) Object.assign(cell, { value: source.filled[field], from: value, why: "filledDown" as const });
       else if (source.class === "data" && input.scaledFromFractions && field === weightField) {
         const percent = fraction(value);
