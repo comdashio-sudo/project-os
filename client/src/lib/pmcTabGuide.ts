@@ -1,9 +1,13 @@
-// Q-37 (c, P2-10): what each PMC tab is for, when to open it, what it reads and what it gives — the 13 tabs of client/src/pages/ProjectPmc.tsx, in the
+// Q-37 (c, P2-10): what each PMC tab is for, when to open it, what it reads and what it gives — the 14 tabs of client/src/pages/ProjectPmc.tsx, in the
 // three languages. Each sentence describes what the screen already computes (server/domain/pmcScreens.ts); nothing here adds a screen or a figure.
 type Text = { ar: string; en: string; ur: string };
 export type PmcTabHelp = { what: Text; when: Text };
 
 export const PMC_TAB_GUIDE = {
+  board: {
+    what: { ar: "لوحة تقدّم الفلل: الإنجاز الفعلي، والمخطط حتى اليوم والفرق وSPI حين يوجد برنامج زمني مستورد، ومستهدف نهاية الشهر والمطلوب أسبوعيًا، وخريطة لكل الفلل ملوّنة بالإنجاز أو بزيادة هذا الشهر أو بالنموذج.", en: "The villas' progress board: actual progress; planned to date, variance and SPI when an imported programme exists; the month-end target and the weekly pace needed; and a map of every villa coloured by progress, this month's increase or model.", ur: "ولاز کی پیش رفت کا بورڈ: اصل پیش رفت؛ درآمد شدہ پروگرام ہو تو آج تک منصوبہ بند، فرق اور SPI؛ مہینے کے آخر کا ہدف اور ہفتہ وار درکار رفتار؛ اور ہر ولا کا نقشہ، پیش رفت، اس مہینے کے اضافے یا ماڈل کے رنگ میں۔" },
+    when: { ar: "لرؤية المشروع كله من نظرة واحدة، ولفتح بطاقة أي فيلا من الخريطة.", en: "To see the whole project at a glance, and to open any villa's card from the map.", ur: "پورے منصوبے کو ایک نظر میں دیکھنے اور نقشے سے کسی بھی ولا کا کارڈ کھولنے کے لیے۔" },
+  },
   latestUpdates: {
     what: { ar: "من حدّث الإنجاز ومتى: لكل مهندس عدد تحديثاته وأيام عمله، والنسبة التي أضافها إلى إنجاز المشروع، موزعة على المجموعات.", en: "Who updated progress and when: per engineer, the number of updates, the active days, and the share each added to the project's progress, by group.", ur: "کس نے پیش رفت کب اپ ڈیٹ کی: ہر انجینئر کے اپ ڈیٹس، فعال دن، اور منصوبے کی پیش رفت میں اس کا اضافہ، گروپ کے لحاظ سے۔" },
     when: { ar: "لمتابعة نشاط الفريق اليومي.", en: "To follow the team's daily activity.", ur: "ٹیم کی روزانہ سرگرمی دیکھنے کے لیے۔" },

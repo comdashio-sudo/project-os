@@ -381,3 +381,55 @@ export function programme(ds: PmcDataset) {
   const current = rows.find(r => r.month === nowKey);
   return { hasBaseline, months: rows, plannedToDate: current?.planned ?? null, actualToDate: current?.actual ?? 0, progressFromCells, cellsWithoutHistory };
 }
+
+// ---------------------------------------------------------------- Q-63: the progress board
+
+/**
+ * Q-63 (batch 1): the progress board's figures, from the same dataset and the same credit every PMC screen sums — nothing new is measured here.
+ *   actual: the project's weighted progress (screen 10's progressFromCells); planned and its variance, SPI and the month's target only when an imported
+ *   baseline exists (screen 10's plannedToDate), else null — an unknown is «—» on the screen, never 0.
+ *   monthTarget: where the baseline puts the project at the end of this month; perWeekNeeded: what is left to reach it, over the weeks left in the month.
+ *   per villa: its weighted progress and what this month added to it (the status history of this month, the same credit), for the map's two colourings.
+ */
+export function progressBoard(ds: PmcDataset) {
+  const plan = programme(ds);
+  const nowKey = monthKeyOf(ds.now);
+  const actual = plan.progressFromCells;
+  // screen 10's planned point for a month counts every baseline point dated in that month, so it is the plan at the END of the month: the month's
+  // target. Today's plan lies between the end of last month and that target, by the share of the month gone (linear inside the month).
+  const monthStart = monthStartOf(ds.now);
+  const monthEnd = new Date(Date.UTC(ds.now.getUTCFullYear(), ds.now.getUTCMonth() + 1, 1));
+  const monthTarget = plan.hasBaseline ? plan.plannedToDate : null;
+  const index = plan.months.findIndex(m => m.month === nowKey);
+  const lastMonthPlanned = index > 0 ? (plan.months[index - 1].planned ?? 0) : 0;
+  const share = (ds.now.getTime() - monthStart.getTime()) / (monthEnd.getTime() - monthStart.getTime());
+  const plannedToday = monthTarget === null ? null : r4(lastMonthPlanned + (monthTarget - lastMonthPlanned) * share);
+  const weeksLeft = Math.max((monthEnd.getTime() - ds.now.getTime()) / (7 * 86_400_000), 1 / 7);
+  const definitionOf = new Map(ds.definitions.map(d => [d.id, d]));
+  const addedThisMonth = new Map<string, number>();
+  for (const h of ds.history) {
+    if (monthKeyOf(h.at) !== nowKey) continue;
+    const definition = definitionOf.get(h.definitionId);
+    if (!definition) continue;
+    addedThisMonth.set(h.unitId, (addedThisMonth.get(h.unitId) ?? 0) + definition.weightPercent * credit(ds, h));
+  }
+  const units = ds.units.slice().sort((a, b) => a.number - b.number).map(unit => {
+    const progress = unitProgressOf(ds, unit);
+    return { unitNumber: unit.number, zoneCode: unit.zoneCode, blockCode: unit.blockCode, modelCode: unit.modelCode, hasGeometry: Boolean(unit.geometry), progressPercent: progress, thisMonthPercent: progress === null ? null : r4(addedThisMonth.get(unit.id) ?? 0) };
+  });
+  const known = units.filter(u => u.progressPercent !== null);
+  return {
+    hasBaseline: plan.hasBaseline,
+    kpi: {
+      actual,
+      plannedToday,
+      variance: plannedToday === null ? null : r4(actual - plannedToday),
+      spi: plannedToday === null || plannedToday <= 0 ? null : r4(actual / plannedToday),
+      monthTarget,
+      perWeekNeeded: monthTarget === null ? null : r4(Math.max(monthTarget - actual, 0) / weeksLeft),
+      thisMonth: plan.months.find(m => m.month === nowKey)?.actualInMonth ?? 0,
+    },
+    counts: { villas: units.length, done: known.filter(u => (u.progressPercent ?? 0) >= 100).length, inProgress: known.filter(u => (u.progressPercent ?? 0) > 0 && (u.progressPercent ?? 0) < 100).length, notStarted: known.filter(u => u.progressPercent === 0).length, unknown: units.length - known.length },
+    units,
+  };
+}
