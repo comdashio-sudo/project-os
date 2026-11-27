@@ -58,6 +58,7 @@ vi.mock("@/lib/trpc", () => {
       get: { useQuery: (_input: unknown, config: { enabled: boolean }) => ({ data: config.enabled ? { ...h.detail, photos: h.detail.photos } : undefined, error: null, refetch: vi.fn() }) },
       save: mutation("save"), submit: mutation("submit"), review: mutation("review"), attachPhoto: mutation("attachPhoto"),
       export: { useMutation: () => ({ mutateAsync: vi.fn(async () => ({ url: "https://files.example.test/x.xlsx", fileName: "x.xlsx" })), isPending: false, error: null }) },
+      addCorrection: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       copyFromYesterday: { useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void; onError?: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { h.copy(input); if (h.copyError && !(input as { sourceReportId?: string }).sourceReportId) { config.onError?.(h.copyError, input); return; } config.onSuccess?.({ id: "r-copy" }, input); }, isPending: false, error: null }) },
       check: { useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { h.check(input); config.onSuccess?.({}, input); }, isPending: false, error: null }) },
     },

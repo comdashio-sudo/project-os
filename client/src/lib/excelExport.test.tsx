@@ -21,7 +21,7 @@ const meta = { title: "تقرير الميزانية", company: "شركة تجر
 
 describe("buildExportLayout", () => {
   it("header row matches the visible columns in order", () => {
-    expect(buildExportLayout(columns, rows, meta).headerRow).toEqual(["الرمز", "المبلغ (ريال)", "الاستحقاق", "التقدم", "ملاحظة"]);
+    expect(buildExportLayout(columns, rows, meta).headerRow).toEqual(["الرمز", "المبلغ (ريال)", "الاستحقاق", "التقدم (%)", "ملاحظة"]);
   });
 
   it("one data row per input row, one cell per column", () => {
@@ -52,9 +52,9 @@ describe("buildExportLayout", () => {
 
   it("title block carries title, company, project and the export day, in the chosen language", () => {
     const layout = buildExportLayout(columns, rows, meta);
-    expect(layout.metaRows).toEqual([["تقرير الميزانية"], ["الشركة", "شركة تجريبية"], ["المشروع", "مشروع تجريبي"], ["تاريخ التصدير", "2026-10-22"]]);
+    expect(layout.metaRows).toEqual([["تقرير الميزانية"], ["الشركة", "شركة تجريبية"], ["المشروع", "مشروع تجريبي"], ["تاريخ التصدير", "2026-10-22"], ["وقت التوليد", expect.stringMatching(/^2026-10-2\d \d{2}:\d{2} \(UTC[+-]\d{2}:\d{2}\)$/)], ["عدد الصفوف", "2"]]);
     const english = buildExportLayout(columns, rows, { ...meta, locale: "en", company: undefined });
-    expect(english.metaRows.map(row => row[0])).toEqual(["تقرير الميزانية", "Project", "Exported on"]);
+    expect(english.metaRows.map(row => row[0])).toEqual(["تقرير الميزانية", "Project", "Exported on", "Generated at", "Rows"]);
   });
 });
 
@@ -119,15 +119,14 @@ describe("buildTableWorkbook (round trip)", () => {
 
     const headerRowNumber = sheet!.rowCount - rows.length;
     const header = sheet!.getRow(headerRowNumber).values as (string | undefined)[];
-    expect(header.slice(1)).toEqual(["الرمز", "المبلغ (ريال)", "الاستحقاق", "التقدم", "ملاحظة"]);
+    expect(header.slice(1)).toEqual(["الرمز", "المبلغ (ريال)", "الاستحقاق", "التقدم (%)", "ملاحظة"]);
 
     const first = sheet!.getRow(headerRowNumber + 1);
     expect(first.getCell(2).value).toBe(1250.5);
     expect(typeof first.getCell(2).value).toBe("number");
     expect(first.getCell(2).numFmt).toBe("#,##0.00");
     expect(first.getCell(3).value).toBeInstanceOf(Date);
-    expect(first.getCell(4).value).toBe(0.4);
-    expect(first.getCell(4).numFmt).toBe("0.0%");
+    expect(first.getCell(4).value).toBe(40); // a percentage is a number ×100 under a «(%)» header (Q-72 1), not an Excel percent format
 
     const second = sheet!.getRow(headerRowNumber + 2);
     expect(second.getCell(2).value).toBeNull();
@@ -140,5 +139,20 @@ describe("buildTableWorkbook (round trip)", () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(bytes);
     expect(workbook.getWorksheet("Budget")!.views[0]).toMatchObject({ rightToLeft: false });
+  });
+
+  it("Q-72 (1): the trace header says who asked, the filters, when (with the zone) and how many rows; a percentage column is ×100 under «(%)», a mixed column keeps each cell's own format", () => {
+    const layout = buildExportLayout(columns, rows, { ...meta, exportedBy: "مهندس تجريبي", filters: "البلوك: 33", timeZone: "UTC+03:00" });
+    const labels = layout.metaRows.map(row => row[0]);
+    expect(labels).toEqual(["تقرير الميزانية", "الشركة", "المشروع", "تاريخ التصدير", "طلبه", "الفلاتر", "وقت التوليد", "عدد الصفوف"]);
+    expect(layout.metaRows.find(row => row[0] === "الفلاتر")![1]).toBe("البلوك: 33");
+    expect(layout.metaRows.find(row => row[0] === "عدد الصفوف")![1]).toBe(String(rows.length));
+    expect(layout.metaRows.find(row => row[0] === "وقت التوليد")![1]).toMatch(/\(UTC\+03:00\)$/);
+    expect(layout.headerRow[3]).toBe("التقدم (%)");
+    expect(layout.rows.map(row => row[3])).toEqual([{ value: 40, kind: "number" }, { value: 100, kind: "number" }]);
+    // a column mixing a percentage with money is not relabelled and not scaled
+    const mixed = buildExportLayout<Row>([{ header: "القيمة", value: row => (row.code === "WBS-1" ? { value: 0.25, kind: "percent" as const } : { value: 10, kind: "money" as const }) }], rows, meta);
+    expect(mixed.headerRow).toEqual(["القيمة (ريال)"]);
+    expect(mixed.rows.map(row => row[0])).toEqual([{ value: 0.25, kind: "percent" }, { value: 10, kind: "money" }]);
   });
 });

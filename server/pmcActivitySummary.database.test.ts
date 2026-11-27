@@ -69,4 +69,71 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-70: the ac
     await expect(b.asOwner.pmc.activitySummary({ tenantId: b.tenantId, projectId: a.projectId })).rejects.toThrow();
     await expect(a.callerFor(a.people.hr).pmc.activitySummary(scopeOf(a))).rejects.toThrow();
   });
+  it("Q-72 (2): a period's achievement is the progress at its end minus the progress at its start, from the history; before anything happened it is 0; an inverted or start-less period is refused", async () => {
+    // put the history back in time: ACT01 went in progress 10 days ago and complete 3 days ago; ACT02 was started today
+    await client.query(`UPDATE pmc_unit_activity_history h SET changed_at = now() - interval '10 days' FROM pmc_unit_activity_progress c JOIN pmc_activity_definitions d ON d.id = c.activity_definition_id WHERE h.unit_activity_progress_id = c.id AND h.tenant_id = $1 AND d.code = 'ACT01' AND h.to_status = 'IN_PROGRESS'`, [a.tenantId]);
+    await client.query(`UPDATE pmc_unit_activity_history h SET changed_at = now() - interval '3 days' FROM pmc_unit_activity_progress c JOIN pmc_activity_definitions d ON d.id = c.activity_definition_id WHERE h.unit_activity_progress_id = c.id AND h.tenant_id = $1 AND d.code = 'ACT01' AND h.to_status = 'COMPLETE'`, [a.tenantId]);
+    const day = (offset: number) => new Date(Date.now() + 3 * 3_600_000 - offset * 86_400_000).toISOString().slice(0, 10);
+    const plain = await a.asOwner.pmc.activitySummary(scopeOf(a));
+    expect(plain.period).toBeNull(); // without a period the summary is what it was
+    // the 5 days up to yesterday: ACT01 was in progress at the start and complete at the end
+    const week = (await a.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(5), to: day(1) })).period!;
+    expect(week.project.deltaPercent).toBeGreaterThan(0);
+    expect(week.project.deltaPercent).toBeCloseTo(week.project.endPercent! - week.project.startPercent!, 2);
+    expect(week.activities.find(row => row.code === "ACT01")!.deltaEarnedPercent).toBeGreaterThan(0);
+    expect(week.activities.find(row => row.code === "ACT02")!.deltaEarnedPercent).toBe(0); // ACT02 started today, after the period
+    // a period that ends today reaches the project's current number
+    const upToToday = (await a.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(5) })).period!;
+    expect(upToToday.project.endPercent).toBe(plain.project.progressPercent);
+    // a period before anything happened changes nothing
+    const before = (await a.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(40), to: day(30) })).period!;
+    expect(before.project.deltaPercent).toBe(0);
+    // refused with the reason
+    await expect(a.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(1), to: day(5) })).rejects.toThrow(/PROJECT_OS_PERIOD_INVERTED/);
+    await expect(a.asOwner.pmc.activitySummary({ ...scopeOf(a), to: day(1) })).rejects.toThrow(/PROJECT_OS_PERIOD_FROM_REQUIRED/);
+    // company isolation holds for a period too
+    await expect(b.asOwner.pmc.activitySummary({ ...scopeOf(a), from: day(5) })).rejects.toThrow();
+  });
+  it("Q-72 (4): the engineer in charge of a block or a phase — set by whoever manages PMC, an active member of the company only, read beside the row; cleared; another company and an outsider are refused", async () => {
+    const set = (fixture: Fixture, scopeType: "block" | "phase", scopeKey: string, engineerUserId: number | null) => fixture.asOwner.pmc.setScopeEngineer({ ...scopeOf(fixture), scopeType, scopeKey, engineerUserId });
+    expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).blocks.every(row => row.engineer === null)).toBe(true); // nobody named yet: null, not a guess
+    await set(a, "block", "BLK 33", a.owner.id);
+    await set(a, "phase", "ph2", a.owner.id); // the phase is matched without regard to case and stored as the villas write it
+    const named = await a.asOwner.pmc.activitySummary(scopeOf(a));
+    expect(named.blocks.map(row => [row.key, row.engineer?.userId ?? null])).toEqual([["BLK 33", a.owner.id], ["BLK 34", null]]);
+    expect(named.phases.map(row => [row.key, row.engineer?.userId ?? null])).toEqual([["PH1", null], ["PH2", a.owner.id]]);
+    const [audit] = (await client.query("SELECT count(*)::int AS n FROM audit_logs WHERE tenant_id = $1 AND action = 'pmc.scope_engineer_set'", [a.tenantId])).rows;
+    expect(audit.n).toBe(2);
+    // refused with the reason, nothing written: a person who is not a member of the company, a block that does not exist
+    await expect(set(a, "block", "BLK 34", b.owner.id)).rejects.toThrow(/PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_A_MEMBER/);
+    await expect(set(a, "block", "BLK 99", a.owner.id)).rejects.toThrow(/PROJECT_OS_PMC_SCOPE_UNKNOWN/);
+    await expect(set(a, "phase", "PH9", a.owner.id)).rejects.toThrow(/PROJECT_OS_PMC_SCOPE_UNKNOWN/);
+    expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).blocks.find(row => row.key === "BLK 34")!.engineer).toBeNull();
+    // another company cannot name an engineer on this project; a role without the PMC permission cannot either
+    await expect(b.asOwner.pmc.setScopeEngineer({ ...scopeOf(a), scopeType: "block", scopeKey: "BLK 34", engineerUserId: b.owner.id })).rejects.toThrow();
+    await expect(a.callerFor(a.people.hr).pmc.setScopeEngineer({ ...scopeOf(a), scopeType: "block", scopeKey: "BLK 34", engineerUserId: a.owner.id })).rejects.toThrow();
+    // the people who can be named: the company's active members, for whoever manages PMC only
+    expect((await a.asOwner.pmc.scopeEngineerCandidates(scopeOf(a))).map(row => row.userId)).toContain(a.owner.id);
+    await expect(a.callerFor(a.people.hr).pmc.scopeEngineerCandidates(scopeOf(a))).rejects.toThrow();
+    // clearing removes it; clearing what is not there is refused, never an audited success
+    await set(a, "block", "BLK 33", null);
+    await expect(set(a, "block", "BLK 33", null)).rejects.toThrow(/PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_SET/);
+    expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).blocks.every(row => row.engineer === null)).toBe(true);
+  });
+  it("Q-72 (6): a cell under an open NCR holds its weight — an open one counts, a closed one and another company's do not; the progress number is unchanged", async () => {
+    const [cell] = (await client.query("SELECT u.id AS unit_id, d.id AS def_id FROM pmc_units u JOIN pmc_activity_definitions d ON d.tenant_id = u.tenant_id AND d.project_id = u.project_id AND d.model_code = u.model_code WHERE u.tenant_id = $1 AND u.unit_number = 700 AND d.code = 'ACT01'", [a.tenantId])).rows;
+    const before = await a.asOwner.pmc.activitySummary(scopeOf(a));
+    expect(before.project.held).toEqual({ cells: 0, villas: 0, percent: 0 });
+    const insert = (status: string, number: string) => client.query("INSERT INTO ncrs (id, tenant_id, project_id, ncr_number, title, description, status, pmc_unit_id, pmc_activity_definition_id, created_by_user_id) VALUES ($1, $2, $3, $4, 'NCR (synthetic)', 'x', $5, $6, $7, $8)", [randomUUID(), a.tenantId, a.projectId, number, status, cell.unit_id, cell.def_id, a.owner.id]);
+    await insert("closed", "NCR-Q72-CLOSED");
+    expect((await a.asOwner.pmc.activitySummary(scopeOf(a))).project.held.cells).toBe(0); // closed: no hold
+    await insert("open", "NCR-Q72-OPEN");
+    const held = await a.asOwner.pmc.activitySummary(scopeOf(a));
+    expect(held.project.held).toMatchObject({ cells: 1, villas: 1 });
+    expect(held.project.held.percent).toBeGreaterThan(0);
+    expect(held.blocks.find(row => row.key === "BLK 33")!.held.cells).toBe(1);
+    expect(held.blocks.find(row => row.key === "BLK 34")!.held.cells).toBe(0);
+    expect(held.project.progressPercent).toBe(before.project.progressPercent); // held, never taken off
+    expect((await b.asOwner.pmc.activitySummary(scopeOf(b))).project.held.cells).toBe(0); // another company's summary does not see it
+  });
 });
