@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { importTemplateHeaders, type ImportModuleCode } from "../../../shared/importTemplateHeaders";
 import type { NormalizedRow } from "./understand";
 import type { KindCode } from "./kinds";
+import { buildBudgetTree } from "../budgetTree";
 
 export type TranslatedFile = {
   module: ImportModuleCode;
@@ -106,8 +107,14 @@ const materials: Translate = rows => {
   return file;
 };
 
+/** A budget whose codes nest (GC.100 → GC.100-000 → GC.100-000.01): some code is another's prefix up to a separator. */
+const nests = (codes: string[]) => { const all = new Set(codes); return codes.some(code => { for (let i = code.length - 1; i > 0; i--) if (/[.\-/]/.test(code[i]) && all.has(code.slice(0, i))) return true; return false; }); };
+
 const budget: Translate = rows => {
   const file = blank("budget");
+  const codes = rows.map(row => text(row.values.costCode)).filter(Boolean);
+  const hasPercent = rows.some(row => num(row.values.allocationPercent) !== null);
+  if (nests(codes) || hasPercent) return budgetTree(file, rows);
   const seen = new Set<string>(); let defaulted = 0;
   for (const row of rows) {
     const code = text(row.values.costCode); const original = num(row.values.originalAmount);
@@ -120,6 +127,42 @@ const budget: Translate = rows => {
   if (defaulted) file.notes.push("BUDGET_CURRENT_DEFAULTED_TO_ORIGINAL");
   return file;
 };
+
+/**
+ * Q-65: a hierarchical budget (the owner's cost sheet): the tree is built from the codes, a parent's amount is the sum of its leaves (never added to them: only the leaves are written, so the
+ * total is not counted twice), a child of a percent-split parent gets its share of the parent's amount, and a parent whose written amount differs from its leaves is SAID in the notes — both
+ * numbers named — and never changed. A percentage column written as fractions (0.6) is read as 60%.
+ */
+function budgetTree(file: TranslatedFile, rows: NormalizedRow[]): TranslatedFile {
+  const percents = rows.map(row => num(row.values.allocationPercent)).filter((value): value is number => value !== null);
+  const fractions = percents.length > 0 && percents.every(value => value <= 1);
+  const tree = buildBudgetTree(rows.filter(row => text(row.values.costCode)).map(row => ({
+    rowNumber: row.rowNumber, code: text(row.values.costCode), description: text(row.values.description),
+    amount: num(row.values.originalAmount), percent: ((value: number | null) => (value === null ? null : fractions ? Math.round(value * 10000) / 100 : value))(num(row.values.allocationPercent)),
+  })));
+  const byRow = new Map(rows.map(row => [text(row.values.costCode), row]));
+  for (const row of rows) if (!text(row.values.costCode)) exclude(file, row, "MISSING:costCode");
+  for (const duplicate of tree.duplicates) { const row = rows.find(item => item.rowNumber === duplicate.rowNumber); if (row) exclude(file, row, `DUPLICATE_CODE:${duplicate.code}`); }
+  let defaulted = 0; let writtenTotal = 0;
+  for (const node of tree.nodes) {
+    if (node.childCodes.length && !node.writtenAsLeaf) continue; // a parent is the sum of its leaves: only leaves are written (but a parent with nothing below it is its branch's one line)
+    const row = byRow.get(node.code);
+    if (node.total === null) { if (row) exclude(file, row, "MISSING:originalAmount"); continue; }
+    if (node.writtenAsLeaf) file.notes.push(`BUDGET_PARENT_WRITTEN_AS_LEAF:${node.code}:${node.total}`);
+    if (node.total < 0) file.notes.push(`BUDGET_NEGATIVE_NOT_WRITTEN:${node.code}:${node.total}`);
+    const current = num(row?.values.currentAmount) ?? (defaulted += 1, node.total);
+    file.rows.push([node.code, Math.max(0, node.total), Math.max(0, current)]);
+    writtenTotal += Math.max(0, node.total);
+  }
+  for (const difference of tree.parentDifferences) file.notes.push(`BUDGET_PARENT_DIFFERS:${difference.code}:${difference.written}:${difference.childrenSum}`);
+  for (const split of tree.percentSplits) file.notes.push(`BUDGET_PERCENT_NOT_100:${split.code}:${split.percentSum}`);
+  if (tree.nodes.some(node => node.source === "allocated")) file.notes.push("BUDGET_ALLOCATED_BY_PERCENT");
+  if (defaulted) file.notes.push("BUDGET_CURRENT_DEFAULTED_TO_ORIGINAL");
+  file.notes.push(`BUDGET_TREE_TOTAL:${tree.total}`);
+  // the total of what is written, when it is not the tree's (a credit is written as 0; a leaf without an amount adds nothing): never left unsaid
+  if (Math.abs(Math.round(writtenTotal * 100) / 100 - tree.total) > 0.005) file.notes.push(`BUDGET_WRITTEN_TOTAL:${Math.round(writtenTotal * 100) / 100}`);
+  return file;
+}
 
 const contracts: Translate = rows => {
   const file = blank("contracts");

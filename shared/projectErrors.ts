@@ -1324,6 +1324,41 @@ export const projectErrorMessages = {
     en: "A report line is incomplete: labour and equipment need a name and a positive number, and a work line needs a description or a status.",
     ur: "رپورٹ کی ایک قطار نامکمل ہے: افرادی قوت اور آلات کے لیے نام اور مثبت عدد درکار ہے، اور کام کی قطار کے لیے تفصیل یا حیثیت ضروری ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_CORRECTION_NOT_SENT: {
+    ar: "التقرير ما زال بيد معدّه؛ عدّله مباشرة. التصحيح يُسجَّل فقط على تقرير أُرسل أو اعتُمد.",
+    en: "The report is still in its preparer's hands; edit it directly. A correction is recorded only on a report that was sent or approved.",
+    ur: "رپورٹ ابھی تیار کنندہ کے پاس ہے؛ اسے براہِ راست درست کریں۔ تصحیح صرف بھیجی یا منظور شدہ رپورٹ پر درج ہوتی ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_CORRECTION_EMPTY: {
+    ar: "اكتب ما الذي يُصحَّح وما الصحيح.",
+    en: "Write what is being corrected and what is right.",
+    ur: "لکھیں کہ کیا درست کیا جا رہا ہے اور صحیح کیا ہے۔",
+  },
+  PROJECT_OS_PERIOD_FROM_REQUIRED: {
+    ar: "حدّد بداية الفترة.",
+    en: "Give the start of the period.",
+    ur: "مدت کا آغاز بتائیں۔",
+  },
+  PROJECT_OS_PERIOD_INVERTED: {
+    ar: "نهاية الفترة قبل بدايتها.",
+    en: "The end of the period is before its start.",
+    ur: "مدت کا اختتام اس کے آغاز سے پہلے ہے۔",
+  },
+  PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_SET: {
+    ar: "لا مهندس مسؤول مُسمّى لهذا البلوك أو هذه المرحلة.",
+    en: "No engineer in charge is named for this block or phase.",
+    ur: "اس بلاک یا مرحلے کے لیے کوئی ذمہ دار انجینئر نامزد نہیں۔",
+  },
+  PROJECT_OS_PMC_SCOPE_UNKNOWN: {
+    ar: "هذا البلوك أو هذه المرحلة غير موجودة في المشروع.",
+    en: "This block or phase does not exist in the project.",
+    ur: "یہ بلاک یا مرحلہ اس پروجیکٹ میں موجود نہیں ہے۔",
+  },
+  PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_A_MEMBER: {
+    ar: "المهندس المختار ليس عضوًا فعّالًا في الشركة.",
+    en: "The chosen engineer is not an active member of the company.",
+    ur: "منتخب انجینئر کمپنی کا فعال رکن نہیں ہے۔",
+  },
   PROJECT_OS_SITE_REPORT_LOCKED: {
     ar: "التقرير أُرسل أو اعتُمد ولا يُعدَّل.",
     en: "The report has been sent or approved and cannot be changed.",

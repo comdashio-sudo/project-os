@@ -7,7 +7,9 @@ import { calculateProjectProgress, calculateUnitProgress, type PmcUnitActivitySt
 export type SummaryUnit = { id: string; villa: string; blockCode: string; phase: string | null; modelCode: string; unitWeight: number };
 export type SummaryDefinition = { id: string; modelCode: string; code: string; name: string; weightPercent: number };
 export type ActivitySummary = { code: string; name: string; villas: number; complete: number; underReview: number; inProgress: number; notStarted: number; completionPercent: number; earnedPercent: number };
-export type GroupSummary = { key: string; villas: number; progressPercent: number | null; villasWithoutNumber: number; completeCells: number; totalCells: number };
+/** Q-72 (6): the cells under an open NCR — how many, in how many villas, and the share of the scope's progress their weight stands for (held until the NCR closes). */
+export type HeldWeight = { cells: number; villas: number; percent: number };
+export type GroupSummary = { key: string; villas: number; progressPercent: number | null; held: HeldWeight; villasWithoutNumber: number; completeCells: number; totalCells: number };
 
 /** Weighted progress of villas that have a number; null — never a throw — when their total weight is 0 (a villa may weigh 0: review of #576, C). */
 function weighted(units: SummaryUnit[], progressOf: ReadonlyMap<string, number | null>): number | null {
@@ -18,7 +20,7 @@ function weighted(units: SummaryUnit[], progressOf: ReadonlyMap<string, number |
 
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
-export function summarizeProgress(input: { units: SummaryUnit[]; definitions: SummaryDefinition[]; statusOf: ReadonlyMap<string, PmcUnitActivityStatus>; factors: Record<PmcUnitActivityStatus, number> }) {
+export function summarizeProgress(input: { held?: ReadonlySet<string>; units: SummaryUnit[]; definitions: SummaryDefinition[]; statusOf: ReadonlyMap<string, PmcUnitActivityStatus>; factors: Record<PmcUnitActivityStatus, number> }) {
   const byModel = new Map<string, SummaryDefinition[]>();
   for (const definition of input.definitions) byModel.set(definition.modelCode, [...(byModel.get(definition.modelCode) ?? []), definition]);
   const statusFor = (unit: SummaryUnit, definition: SummaryDefinition) => input.statusOf.get(`${unit.id}:${definition.id}`) ?? "NOT_STARTED";
@@ -46,6 +48,15 @@ export function summarizeProgress(input: { units: SummaryUnit[]; definitions: Su
     .sort((a, b) => a.code.localeCompare(b.code, "en", { numeric: true }))
     .map(tally => ({ code: tally.code, name: tally.name, villas: tally.villas, complete: tally.complete, underReview: tally.underReview, inProgress: tally.inProgress, notStarted: tally.notStarted, completionPercent: tally.villas ? round((tally.complete / tally.villas) * 100) : 0, earnedPercent: tally.weight ? round((tally.earned / tally.weight) * 100) : 0 }));
 
+  // Q-72 (6): a cell (villa × item) under an open NCR holds its weight: counted here, never taken off the progress figure (the quality rule of the company still decides whether it can be completed)
+  const heldOf = (units: SummaryUnit[]): HeldWeight => {
+    let cells = 0; let weight = 0; const villas = new Set<string>(); const totalWeight = units.reduce((sum, unit) => sum + unit.unitWeight, 0);
+    for (const unit of units) for (const definition of byModel.get(unit.modelCode) ?? []) {
+      if (!input.held?.has(`${unit.id}:${definition.id}`)) continue;
+      cells += 1; villas.add(unit.id); weight += unit.unitWeight * definition.weightPercent / 100;
+    }
+    return { cells, villas: villas.size, percent: totalWeight > 0 ? round(weight / totalWeight * 100) : 0 };
+  };
   const groupBy = (keyOf: (unit: SummaryUnit) => string | null): GroupSummary[] => {
     const groups = new Map<string, SummaryUnit[]>();
     for (const unit of input.units) { const key = keyOf(unit); if (key) groups.set(key, [...(groups.get(key) ?? []), unit]); }
@@ -53,10 +64,15 @@ export function summarizeProgress(input: { units: SummaryUnit[]; definitions: Su
       const counted = units.filter(unit => progressOf.get(unit.id) != null);
       let completeCells = 0; let totalCells = 0;
       for (const unit of units) for (const definition of byModel.get(unit.modelCode) ?? []) { totalCells += 1; if (statusFor(unit, definition) === "COMPLETE") completeCells += 1; }
-      return { key, villas: units.length, progressPercent: weighted(units, progressOf), villasWithoutNumber: units.length - counted.length, completeCells, totalCells };
+      return { key, villas: units.length, progressPercent: weighted(units, progressOf), held: heldOf(units), villasWithoutNumber: units.length - counted.length, completeCells, totalCells };
     });
   };
   const counted = input.units.filter(unit => progressOf.get(unit.id) != null);
   const project = weighted(input.units, progressOf);
-  return { activities, blocks: groupBy(unit => unit.blockCode || null), phases: groupBy(unit => unit.phase), project: { villas: input.units.length, progressPercent: project, villasWithoutNumber: input.units.length - counted.length } };
+  const blocks = groupBy(unit => unit.blockCode || null); const phases = groupBy(unit => unit.phase);
+  // Q-72 (3): the villas and the cells of the blocks (and of the phases) add up to the project's — or the difference is named (a villa with no block, or no phase, is in the project and in no group)
+  const totalCells = Array.from(tallies.values()).reduce((sum, tally) => sum + tally.villas, 0);
+  const reconcile = (groups: GroupSummary[]) => { const villas = groups.reduce((sum, group) => sum + group.villas, 0); const cells = groups.reduce((sum, group) => sum + group.totalCells, 0);
+    return { villas, villasMissing: input.units.length - villas, cells, cellsMissing: totalCells - cells, matches: villas === input.units.length && cells === totalCells }; };
+  return { activities, blocks, phases, reconciliation: { blocks: reconcile(blocks), phases: reconcile(phases) }, project: { villas: input.units.length, progressPercent: project, held: heldOf(input.units), villasWithoutNumber: input.units.length - counted.length } };
 }
