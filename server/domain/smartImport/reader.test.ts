@@ -134,3 +134,24 @@ describe("translate (what the existing importers read)", () => {
     expect(translate("valuation", rows)).toBeNull();
   });
 });
+
+// Q-66 (4): a bill of quantities whose codes nest — the sections' own amounts are subtotals and are not counted twice. Synthetic data only.
+describe("a nested bill of quantities (Q-66 4)", () => {
+  const row = (rowNumber: number, code: string, name: string, amount: number | null) => ({ rowNumber, values: { code, name, amount }, display: {} });
+  it("POSITIVE: every row is kept (the tree), a section with amounts below it is written with 0, and the total is the leaves' once", () => {
+    const out = translate("boq", [row(2, "1", "أعمال مدنية", 1_500), row(3, "1.1", "حفر", 1_000), row(4, "1.2", "ردم", 500), row(5, "2", "كهرباء", 300)])!;
+    expect(out.rows).toEqual([["1", "أعمال مدنية", 0], ["1.1", "حفر", 1000], ["1.2", "ردم", 500], ["2", "كهرباء", 300]]);
+    expect(out.rows.reduce((sum, item) => sum + Number(item[2]), 0)).toBe(1800);
+    expect(out.notes).toEqual(["BOQ_SECTIONS_AS_SUBTOTALS:1", "BOQ_TREE_TOTAL:1800", "BOQ_QUANTITY_AND_RATE_NOT_CARRIED"]);
+  });
+  it("NEGATIVE: a section whose written amount differs from the items below is said with both numbers, neither changed; a section with nothing priced below keeps its own", () => {
+    const out = translate("boq", [row(2, "A", "Section", 1_000), row(3, "A.1", "x", 700), row(4, "A.2", "y", 200), row(5, "B", "Lump sum", 400), row(6, "B.1", "no price", null)])!;
+    expect(out.notes).toContain("BOQ_SECTION_DIFFERS:A:1000:900");
+    expect(out.rows).toEqual([["A", "Section", 0], ["A.1", "x", 700], ["A.2", "y", 200], ["B", "Lump sum", 400], ["B.1", "no price", 0]]);
+    expect(out.notes).toContain("BOQ_TREE_TOTAL:1300");
+  });
+  it("codes that do not nest (no «1» above «1.1») are read exactly as before", () => {
+    const out = translate("boq", [row(2, "1.1", "a", 10), row(3, "1.2", "b", 20)])!;
+    expect(out.notes).toEqual(["BOQ_QUANTITY_AND_RATE_NOT_CARRIED"]);
+  });
+});
