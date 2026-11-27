@@ -3064,6 +3064,27 @@ export const siteDailyReportPhotos = pgTable(
   ],
 );
 
+// Q-72 (5), 0060: a daily report that was sent is frozen; a correction is an ADDITIONAL record beside it (who, when, which part, what), never an edit of the sent figures.
+// Append-only by design (the application has no function that updates or deletes one; the database does not forbid it as it does for audit_logs); tied to a report of the SAME project.
+export const siteDailyReportCorrections = pgTable(
+  "site_daily_report_corrections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    reportId: varchar("report_id", { length: 36 }).notNull(),
+    section: varchar("section", { length: 24 }).notNull(),
+    note: text("note").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "site_daily_report_corrections_report_fk", columns: [table.reportId, table.tenantId, table.projectId], foreignColumns: [siteDailyReports.id, siteDailyReports.tenantId, siteDailyReports.projectId] }),
+    index("site_daily_report_corrections_report_idx").on(table.reportId),
+    check("site_daily_report_corrections_section_check", sql`${table.section} IN ('summary', 'labour', 'equipment', 'work', 'materials', 'hse', 'obstacles', 'weather', 'other')`),
+  ],
+);
+
 export const consultantSubmittalsTypeEnum = pgEnum("consultant_submittals_type", ["shop_drawing", "material_approval", "method_statement", "sample"]);
 export const consultantSubmittalsStatusEnum = pgEnum("consultant_submittals_status", ["draft", "sent", "replied", "closed"]);
 // What the contractor sends the consultant for approval: execution drawings, a material, a method statement, a sample. A resubmission is a new row with the next revision.

@@ -1,5 +1,5 @@
 {
-  "id": "9889d5c6-ab7a-447c-b337-1b1d49127d06",
+  "id": "0973fa24-bb13-4663-984f-b12376625f9f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -25970,6 +25970,146 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.site_daily_report_corrections": {
+      "name": "site_daily_report_corrections",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "section": {
+          "name": "section",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "site_daily_report_corrections_report_idx": {
+          "name": "site_daily_report_corrections_report_idx",
+          "columns": [
+            {
+              "expression": "report_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "site_daily_report_corrections_tenant_id_companies_id_fk": {
+          "name": "site_daily_report_corrections_tenant_id_companies_id_fk",
+          "tableFrom": "site_daily_report_corrections",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_corrections_project_id_projects_id_fk": {
+          "name": "site_daily_report_corrections_project_id_projects_id_fk",
+          "tableFrom": "site_daily_report_corrections",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_corrections_created_by_user_id_users_id_fk": {
+          "name": "site_daily_report_corrections_created_by_user_id_users_id_fk",
+          "tableFrom": "site_daily_report_corrections",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_corrections_report_fk": {
+          "name": "site_daily_report_corrections_report_fk",
+          "tableFrom": "site_daily_report_corrections",
+          "tableTo": "site_daily_reports",
+          "columnsFrom": [
+            "report_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_daily_report_corrections_section_check": {
+          "name": "site_daily_report_corrections_section_check",
+          "value": "\"site_daily_report_corrections\".\"section\" IN ('summary', 'labour', 'equipment', 'work', 'materials', 'hse', 'obstacles', 'weather', 'other')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.site_daily_report_equipment": {

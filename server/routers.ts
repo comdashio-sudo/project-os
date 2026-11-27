@@ -42,7 +42,7 @@ import { APPROVAL_STEPS, getReportApprovers, listInvitableProjectRoles, listProj
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
 import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
-import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, listSiteReportApproversForTenant, checkSiteDailyReportForTenant, copySiteDailyReportFromYesterday, HSE_KINDS, saveSiteDailyReportForTenant, saveSiteDailyReportSectionForTenant, submitSiteDailyReportForTenant } from "./siteReports";
+import { addSiteDailyReportCorrectionForTenant, CORRECTION_SECTIONS, attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, listSiteReportApproversForTenant, checkSiteDailyReportForTenant, copySiteDailyReportFromYesterday, HSE_KINDS, saveSiteDailyReportForTenant, saveSiteDailyReportSectionForTenant, submitSiteDailyReportForTenant } from "./siteReports";
 import { findMaterialForTenant, getIssueCellOptionsForTenant, issueMaterialToCellForTenant, listReturnableIssuesForTenant, listTransferTargetsForTenant, recordStocktakeForTenant, returnMaterialToWarehouseForTenant, transferBetweenProjectsForTenant } from "./warehouseOps";
 import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel } from "./scopeDashboards";
 import { levelReadsRouter } from "./levelReads";
@@ -650,6 +650,8 @@ export const appRouter = router({
       photoIds: z.array(z.string().uuid()).max(MAX_WEEKLY_PHOTOS) })).mutation(({ ctx, input }) => saveWeeklyReport({ userId: ctx.user.id, ...input })),
   }),
   siteReports: router({
+    // Q-72 (5): the correction of a sent report — an additional record, the sent report untouched
+    addCorrection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), section: z.enum(CORRECTION_SECTIONS), note: z.string().max(2000) })).mutation(({ ctx, input }) => addSiteDailyReportCorrectionForTenant({ userId: ctx.user.id, ...input })),
     options: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listFieldOptionsForTenant({ userId: ctx.user.id, ...input })),
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), status: z.enum(["draft", "submitted", "approved", "rejected"]).optional(), from: z.string().refine(isCalendarDay).optional(), to: z.string().refine(isCalendarDay).optional() })).query(({ ctx, input }) => listSiteDailyReportsForTenant({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid() })).query(({ ctx, input }) => getSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
