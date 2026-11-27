@@ -295,6 +295,19 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC and master-plan impo
     await expect(grid()).rejects.toThrow("PROJECT_OS_IMPORT_GRID_UNAVAILABLE");
   }, 120_000);
 
+  it("Q-66 batch 1: a file read with the company's remembered columns (Q-66 (6)) is shown in the grid read the same way", async () => {
+    const pmc = callerFor(users.pmc, "ext-pmc");
+    // the Q-31 test above confirmed «Plot Block, House, Kind» with a person's choice of columns: the next file of that shape is read with it
+    const { registered } = await upload(pmc, "pmc.locations", { name: "units-remembered.csv", bytes: Buffer.from("Plot Block,House,Kind\nBQ7,77001,A\nBQ7,77002,A\n", "utf8"), format: "csv" });
+    const done = await pollUntilDone(pmc, registered.id);
+    expect(done.view.status).toBe("validated");
+    expect((done.view.external!.report as { pmc: { details: { rememberedMapping?: unknown } } }).pmc.details.rememberedMapping).toBeTruthy();
+    const page = await pmc.dataImports.grid({ ...scope, importId: registered.id });
+    expect(page.fields.find(field => field.key === "unitNumber")?.header).toBe("House");
+    expect(page.counts).toMatchObject({ all: 2, ready: 2, errors: 0 });
+    expect(page.rows.map(row => row.cells.unitNumber.value)).toEqual(["77001", "77002"]);
+  }, 120_000);
+
   it("Q-66 batch 1: a long file is read a page at a time, with the counts of the whole file", async () => {
     const pmc = callerFor(users.pmc, "ext-pmc");
     const lines = ["Block Code,Unit Number,Model Code", ...Array.from({ length: 450 }, (_unused, index) => `BQ5,${75001 + index},A`)];
