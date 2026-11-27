@@ -33,6 +33,18 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-67: the fi
     await seed(a, [[702, "BLK 34", "PH2", "D"], [700, "BLK 33", "PH1", "C"], [701, "BLK 33", "PH1", "C"], [703, "BLK 34", null, "C"]]);
     await seed(b, [[900, "BLK 99", "PH9", "C"]]);
     await a.asOwner.pmc.updateProgress({ ...scopeOf(a), activityCode: "ACT01", villas: ["701"], status: "COMPLETE", date: siteToday() });
+    // Q-67 (6): a saved DXF drawing (no picture) of company a: villas 700 and 702 linked, one shape linked to nothing, one shape with unreadable points
+    const plan = randomUUID(); const version = randomUUID(); const drawing = randomUUID();
+    await client.query("INSERT INTO master_plans (id, tenant_id, project_id, code, title, created_by_user_id) VALUES ($1, $2, $3, 'MP-1', 'Plan (synthetic)', $4)", [plan, a.tenantId, a.projectId, a.owner.id]);
+    await client.query("INSERT INTO master_plan_versions (id, tenant_id, project_id, master_plan_id, version_number, version_kind, uploaded_by_user_id) VALUES ($1, $2, $3, $4, 1, 'original', $5)", [version, a.tenantId, a.projectId, plan, a.owner.id]);
+    await client.query("INSERT INTO master_plan_drawings (id, tenant_id, project_id, master_plan_version_id, created_by_user_id) VALUES ($1, $2, $3, $4, $5)", [drawing, a.tenantId, a.projectId, version, a.owner.id]);
+    const unitId = async (number: number) => (await client.query("SELECT id FROM pmc_units WHERE tenant_id = $1 AND unit_number = $2", [a.tenantId, number])).rows[0].id as string;
+    const square = (x: number) => JSON.stringify([{ x, y: 0 }, { x: x + 10, y: 0 }, { x: x + 10, y: 10 }, { x, y: 10 }]);
+    for (const [ref, points, villa] of [["p700", square(0), 700], ["p702", square(20), 702], ["free", square(40), null], ["bad", "not json", 701]] as const) {
+      const polygon = randomUUID();
+      await client.query("INSERT INTO master_plan_drawing_polygons (id, tenant_id, project_id, drawing_id, ref, label, points) VALUES ($1, $2, $3, $4, $5, '', $6)", [polygon, a.tenantId, a.projectId, drawing, ref, points]);
+      if (villa) await client.query("INSERT INTO master_plan_drawing_links (id, tenant_id, project_id, drawing_id, polygon_id, pmc_unit_id, confirmed_by_user_id) VALUES ($1, $2, $3, $4, $5, $6, $7)", [randomUUID(), a.tenantId, a.projectId, drawing, polygon, await unitId(villa), a.owner.id]);
+    }
   });
   afterAll(async () => {
     for (const fixture of [a, b]) if (fixture) {
@@ -59,6 +71,20 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-67: the fi
     expect(picker.villas.map(villa => [villa.villa, villa.status])).toEqual([["700", "NOT_STARTED"], ["701", "COMPLETE"], ["702", "NOT_STARTED"], ["703", "NOT_STARTED"]]);
     const activities = await a.asOwner.pmc.progressActivities(scopeOf(a));
     expect(activities.map(item => [item.code, item.sectionCode, item.models])).toEqual([["ACT01", "Q03", ["C"]], ["ACT02", "Q03", ["C", "D"]]]);
+  });
+
+  it("Q-67 (6) POSITIVE: the map's shapes are the drawing's shapes linked to a villa, with the villa; a DXF is read y-up; a shape linked to nothing or unreadable is left off", async () => {
+    const map = await a.asOwner.pmc.progressMapShapes(scopeOf(a));
+    expect(map.yUp).toBe(true);
+    expect(map.shapes.map(shape => shape.villa).sort()).toEqual(["700", "702"]);
+    expect(map.shapes.find(shape => shape.villa === "702")!.points[1]).toEqual({ x: 30, y: 0 });
+  });
+
+  it("Q-67 (6) NEGATIVE: a project with no linked drawing has no map; another company and a person without the PMC read are refused", async () => {
+    expect(await b.asOwner.pmc.progressMapShapes(scopeOf(b))).toEqual({ shapes: [], yUp: false });
+    await expect(b.asOwner.pmc.progressMapShapes(scopeOf(a))).rejects.toThrow();
+    await expect(b.asOwner.pmc.progressMapShapes({ tenantId: b.tenantId, projectId: a.projectId })).rejects.toThrow();
+    await expect(a.callerFor(a.people.hr).pmc.progressMapShapes(scopeOf(a))).rejects.toThrow();
   });
 
   it("NEGATIVE: another company sees nothing of this project, and a person without the PMC read is refused; this project's lists hold no villa of the other company", async () => {

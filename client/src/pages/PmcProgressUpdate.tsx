@@ -48,6 +48,8 @@ export default function PmcProgressUpdate() {
   const [activityCode, setActivityCode] = useState("");
   // Q-67 (2): the villas are chosen from the project's own phases, blocks, models and villas (pmc.progressPicker), with the chosen activity's status of each
   const [choice, setChoice] = useState<VillaChoice>(emptyChoice("block"));
+  // Q-67 (6): the project's master plan, when its drawing is linked to the villas, as a second way to choose them
+  const mapShapes = trpc.pmc.progressMapShapes.useQuery(scope, { enabled, retry: false, staleTime: 60_000 });
   const picker = trpc.pmc.progressPicker.useQuery({ ...scope, ...(activityCode ? { activityCode } : {}) }, { enabled, placeholderData: previous => previous });
   useEffect(() => { if (picker.data?.phases.length && choice.mode === "block" && !choice.blocks.length) setChoice(emptyChoice("phase")); }, [picker.data?.phases.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const [recent, setRecent] = useState<string[]>(() => readRecentActivities(projectId));
@@ -120,7 +122,7 @@ export default function PmcProgressUpdate() {
             )}
             <div className="border-t border-border" />{ask(1)}
             <SourceNotice query={picker} isArabic={language === "ar"} title={t.update.villas} />
-            {picker.isLoading ? <SkeletonRows rows={2} /> : picker.data ? <VillaPicker data={picker.data} choice={choice} onChoice={setChoice} /> : null}
+            {picker.isLoading ? <SkeletonRows rows={2} /> : picker.data ? <VillaPicker data={picker.data} choice={choice} onChoice={setChoice} models={activityCode ? activityModels : null} map={mapShapes.isError ? null : mapShapes.data ?? null} /> : null}
             <div className="border-t border-border" />{ask(2)}
             <Segmented label={t.update.status} value={status} onValueChange={value => setStatus(value as Status)} options={STATUSES.map(value => ({ value, label: c.statuses[value] }))} />
             <Field label={t.update.date} required>{props => <TextInput {...props} type="date" dir="ltr" max={siteTodayInBrowser()} value={date} onChange={event => setDate(event.target.value)} />}</Field>

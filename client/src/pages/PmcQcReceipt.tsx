@@ -49,6 +49,8 @@ export default function PmcQcReceipt() {
   const [activityCode, setActivityCode] = useState("");
   // Q-67 (5): the same choice of villas as the progress update — from the project's own phases, blocks, models and villas
   const [choice, setChoice] = useState<VillaChoice>(emptyChoice("block"));
+  // Q-67 (6): the project's master plan, when its drawing is linked to the villas, as a second way to choose them
+  const mapShapes = trpc.pmc.progressMapShapes.useQuery(scope, { enabled, retry: false, staleTime: 60_000 });
   const picker = trpc.pmc.progressPicker.useQuery({ ...scope, ...(activityCode ? { activityCode } : {}) }, { enabled, placeholderData: previous => previous });
   useEffect(() => { if (picker.data?.phases.length && choice.mode === "block" && !choice.blocks.length) setChoice(emptyChoice("phase")); }, [picker.data?.phases.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const [recent, setRecent] = useState<string[]>(() => readRecentActivities(projectId));
@@ -107,7 +109,7 @@ export default function PmcQcReceipt() {
               </>
             )}
             <SourceNotice query={picker} isArabic={language === "ar"} title={t.update.villas} />
-            {picker.isLoading ? <SkeletonRows rows={2} /> : picker.data ? <VillaPicker data={picker.data} choice={choice} onChoice={setChoice} /> : null}
+            {picker.isLoading ? <SkeletonRows rows={2} /> : picker.data ? <VillaPicker data={picker.data} choice={choice} onChoice={setChoice} models={activityCode ? activityModels : null} map={mapShapes.isError ? null : mapShapes.data ?? null} /> : null}
             <Segmented label={c.answer} value={answer} onValueChange={value => setAnswer(value as Answer)} options={ANSWERS.map(value => ({ value, label: c.answers[value] }))} />
             <Field label={t.update.date} required>{props => <TextInput {...props} type="date" dir="ltr" max={siteTodayInBrowser()} value={date} onChange={event => setDate(event.target.value)} />}</Field>
             <SelectionSummaryNote summary={summary} />
