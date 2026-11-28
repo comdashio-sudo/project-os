@@ -18,15 +18,15 @@ export function TwoPane({ main, aside, asideLabel, className }: { main: React.Re
   );
 }
 
-/** The page's primary action, fixed at the bottom. Leaves room under the page so the bar never covers its last line. */
+/** The page's primary action, fixed at the bottom. Leaves room under the page so the bar never covers its last line. Above the frame's phone bar it adds no second safe area (that bar already holds it: review C on #595). */
 export function StickyActionBar({ children, summary, label }: { children: React.ReactNode; summary?: React.ReactNode; label?: string }) {
   return (
     <>
       <div aria-hidden="true" className="h-20 print:hidden" />
-      <div data-sticky-action-bar="" role={label ? "region" : undefined} aria-label={label} className="fixed inset-x-0 z-30 border-t border-border bg-card/95 px-4 pt-3 backdrop-blur print:hidden" style={{ bottom: "var(--bottom-bar-h, 0px)", paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+      <div data-sticky-action-bar="" role={label ? "region" : undefined} aria-label={label} className="fixed inset-x-0 z-30 border-t border-border bg-card/95 px-4 pt-3 backdrop-blur print:hidden" style={{ bottom: "var(--bottom-bar-h, 0px)", paddingBottom: "max(0.75rem, var(--action-bar-safe, env(safe-area-inset-bottom)))" }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
-          {summary ? <p className="min-w-0 flex-1 text-sm" data-action-summary="">{summary}</p> : <span />}
-          <div className="flex flex-wrap items-center gap-2">{children}</div>
+          {summary ? <p className="min-w-0 basis-full text-sm text-muted-foreground sm:basis-auto sm:flex-1" data-action-summary="">{summary}</p> : null}
+          <div className={cn("flex flex-wrap items-center gap-2", summary ? "w-full sm:w-auto" : "w-full")}>{children}</div>
         </div>
       </div>
     </>
