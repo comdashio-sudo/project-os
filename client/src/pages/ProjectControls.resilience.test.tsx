@@ -380,4 +380,14 @@ describe("ProjectControls — sheet entry", () => {
     await waitFor(() => expect(state.saved).toHaveLength(1));
     expect(state.saved[0]).toMatchObject({ wbsItemId: "wbs-1", costCode: "CC-1", originalAmount: 1000, currentAmount: 1200 });
   });
+  it("Q-69: the planning page has one row of its parts, each link naming a part that is on the page; the board (no focus) has none", () => {
+    const { unmount } = render(<ProjectControls focus="planning" />);
+    const nav = screen.getByRole("navigation", { name: "Planning sections" });
+    const ids = Array.from(nav.querySelectorAll("a")).map(link => link.getAttribute("href")!.slice(1));
+    expect(ids).toEqual(["planning-centre", "planning-curve", "manager-schedule", "manager-assurance", "manager-oversight"]);
+    for (const id of ids) expect(document.getElementById(id), id).not.toBeNull();
+    unmount();
+    render(<ProjectControls />);
+    expect(screen.queryByRole("navigation", { name: "Planning sections" })).toBeNull();
+  });
 });
