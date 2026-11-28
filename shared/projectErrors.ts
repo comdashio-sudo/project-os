@@ -1249,6 +1249,21 @@ export const projectErrorMessages = {
     en: "This step cannot be taken now: the order is prepare, then review, then approve, and the report is not at this step.",
     ur: "یہ مرحلہ ابھی نہیں ہو سکتا: ترتیب تیاری، پھر جائزہ، پھر منظوری ہے، اور رپورٹ اس مرحلے پر نہیں ہے۔",
   },
+  PROJECT_OS_SITE_REPORT_LABOUR_TOO_MANY: {
+    ar: "عدد العمالة في خلية واحدة أكثر من 5000: راجع الرقم (غالبًا زيادة صفر).",
+    en: "A labour cell holds more than 5,000 people: check the figure (often an extra zero).",
+    ur: "ایک خانے میں 5,000 سے زیادہ مزدور ہیں؛ عدد جانچیں (اکثر ایک صفر زیادہ ہوتا ہے)۔",
+  },
+  PROJECT_OS_SITE_REPORT_EQUIPMENT_TOO_MANY: {
+    ar: "عدد المعدّات لآلة واحدة أكثر من 1000: راجع الرقم.",
+    en: "A machine count is above 1,000: check the figure.",
+    ur: "ایک مشین کی تعداد 1,000 سے زیادہ ہے؛ عدد جانچیں۔",
+  },
+  PROJECT_OS_SITE_REPORT_TEMPERATURE_RANGE: {
+    ar: "درجة الحرارة خارج المعقول (من -20 إلى 70 مئوية): راجع الرقم.",
+    en: "The temperature is out of range (-20 to 70 °C): check the figure.",
+    ur: "درجہ حرارت حد سے باہر ہے (-20 سے 70 °C)؛ عدد جانچیں۔",
+  },
   PROJECT_OS_SITE_REPORT_LABOUR_DUPLICATE: {
     ar: "خلية العمالة نفسها (الشركة والدور والوردية) مكررة في التقرير. اجمعها في سطر واحد.",
     en: "The same labour cell (company, role and shift) appears twice in the report. Put it on one row.",
@@ -1308,6 +1323,41 @@ export const projectErrorMessages = {
     ar: "بند التقرير ناقص: العمالة والمعدات تحتاج اسمًا وعددًا موجبًا، وبند العمل يحتاج وصفًا أو حالة.",
     en: "A report line is incomplete: labour and equipment need a name and a positive number, and a work line needs a description or a status.",
     ur: "رپورٹ کی ایک قطار نامکمل ہے: افرادی قوت اور آلات کے لیے نام اور مثبت عدد درکار ہے، اور کام کی قطار کے لیے تفصیل یا حیثیت ضروری ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_CORRECTION_NOT_SENT: {
+    ar: "التقرير ما زال بيد معدّه؛ عدّله مباشرة. التصحيح يُسجَّل فقط على تقرير أُرسل أو اعتُمد.",
+    en: "The report is still in its preparer's hands; edit it directly. A correction is recorded only on a report that was sent or approved.",
+    ur: "رپورٹ ابھی تیار کنندہ کے پاس ہے؛ اسے براہِ راست درست کریں۔ تصحیح صرف بھیجی یا منظور شدہ رپورٹ پر درج ہوتی ہے۔",
+  },
+  PROJECT_OS_SITE_REPORT_CORRECTION_EMPTY: {
+    ar: "اكتب ما الذي يُصحَّح وما الصحيح.",
+    en: "Write what is being corrected and what is right.",
+    ur: "لکھیں کہ کیا درست کیا جا رہا ہے اور صحیح کیا ہے۔",
+  },
+  PROJECT_OS_PERIOD_FROM_REQUIRED: {
+    ar: "حدّد بداية الفترة.",
+    en: "Give the start of the period.",
+    ur: "مدت کا آغاز بتائیں۔",
+  },
+  PROJECT_OS_PERIOD_INVERTED: {
+    ar: "نهاية الفترة قبل بدايتها.",
+    en: "The end of the period is before its start.",
+    ur: "مدت کا اختتام اس کے آغاز سے پہلے ہے۔",
+  },
+  PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_SET: {
+    ar: "لا مهندس مسؤول مُسمّى لهذا البلوك أو هذه المرحلة.",
+    en: "No engineer in charge is named for this block or phase.",
+    ur: "اس بلاک یا مرحلے کے لیے کوئی ذمہ دار انجینئر نامزد نہیں۔",
+  },
+  PROJECT_OS_PMC_SCOPE_UNKNOWN: {
+    ar: "هذا البلوك أو هذه المرحلة غير موجودة في المشروع.",
+    en: "This block or phase does not exist in the project.",
+    ur: "یہ بلاک یا مرحلہ اس پروجیکٹ میں موجود نہیں ہے۔",
+  },
+  PROJECT_OS_PMC_SCOPE_ENGINEER_NOT_A_MEMBER: {
+    ar: "المهندس المختار ليس عضوًا فعّالًا في الشركة.",
+    en: "The chosen engineer is not an active member of the company.",
+    ur: "منتخب انجینئر کمپنی کا فعال رکن نہیں ہے۔",
   },
   PROJECT_OS_SITE_REPORT_LOCKED: {
     ar: "التقرير أُرسل أو اعتُمد ولا يُعدَّل.",
@@ -1866,6 +1916,11 @@ export const projectErrorMessages = {
     en: "The site's old record was already imported into this project; it is imported only once.",
     ur: "سائٹ کا پرانا ریکارڈ اس پروجیکٹ میں پہلے ہی درآمد ہو چکا ہے؛ یہ صرف ایک بار درآمد ہوتا ہے۔",
   },
+  PROJECT_OS_PROGRESS_COMPUTED_FROM_PMC: {
+    ar: "تقدّم هذا البند محسوب من خلايا الفلل في PMC (أنشطته المربوطة)، فلا يُدخَل يدويًا. حدّث الإنجاز من «تحديث الإنجاز» أو التقرير اليومي.",
+    en: "This item's progress is computed from the villas' PMC cells (its linked activities), so it is not entered by hand. Update progress from the progress update or the daily report.",
+    ur: "اس آئٹم کی پیش رفت PMC میں ولاز کے خانوں (اس کی منسلک سرگرمیوں) سے نکالی جاتی ہے، اس لیے ہاتھ سے درج نہیں ہوتی۔ پیش رفت «پیش رفت اپ ڈیٹ» یا روزانہ رپورٹ سے اپ ڈیٹ کریں۔",
+  },
   PROJECT_OS_PROGRESS_LOG_DATE_INVALID: {
     ar: "تاريخ السجل غير صالح: اكتب التاريخ بالشكل سنة-شهر-يوم، وليكن «من» قبل «إلى» أو مثله.",
     en: "The log's date is not valid: write it as year-month-day, with «from» on or before «to».",
@@ -2030,6 +2085,11 @@ export const projectErrorMessages = {
     ar: "معاينة الفروق غير متاحة قبل نجاح التحقق من الملف.",
     en: "The difference preview is not available until the file passes validation.",
     ur: "فائل کی توثیق کامیاب ہونے تک فرق کا پیش نظارہ دستیاب نہیں ہے۔",
+  },
+  PROJECT_OS_IMPORT_GRID_UNAVAILABLE: {
+    ar: "جدول المراجعة متاح لملف PMC ينتظر تأكيدك فقط: ارفع الملف أو انتظر انتهاء تحليله.",
+    en: "The review table is available only for a PMC file waiting for your confirmation: upload the file or wait for its analysis to finish.",
+    ur: "جائزے کی جدول صرف اس PMC فائل کے لیے دستیاب ہے جو آپ کی تصدیق کی منتظر ہو: فائل اپ لوڈ کریں یا اس کے تجزیے کے ختم ہونے کا انتظار کریں۔",
   },
   PROJECT_OS_WORKBOOK_NOT_RECOGNISED: {
     ar: "هذا الملف ليس كراسة بيانات المشروع من داشيو (أو من إصدار آخر). نزّل الكراسة من المنصة واملأها ثم ارفعها.",

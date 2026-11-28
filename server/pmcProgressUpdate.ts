@@ -5,11 +5,12 @@
 // (from, to, who, when) and its audit row — all in ONE transaction; the villa's and the project's progress are then read from the weights and returned.
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { auditLogs, pmcActivityDefinitions, pmcActivityGroups, pmcBlocks, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { auditLogs, masterPlanDrawingLinks, masterPlanDrawingPolygons, masterPlanDrawings, pmcActivityDefinitions, pmcActivityGroups, pmcBlocks, pmcQcReceipts, pmcUnitActivityHistory, pmcUnitActivityProgress, pmcUnits, users } from "../drizzle/schema";
 import { applyCellStatuses, authorize, getPmcProgress, mine, type Scope } from "./pmcService";
 import { expandVillaRange } from "./pmcSiteService";
 import { siteToday, villaKey } from "./wo22Shared";
+import { matchBlock } from "./domain/blockMatch";
 
 export const PROGRESS_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETE"] as const;
 export type ProgressStatus = (typeof PROGRESS_STATUSES)[number];
@@ -19,19 +20,83 @@ export type ProgressIssue = { code: string; villa?: string; detail?: string };
 export const CONFIRM_ABOVE_VILLAS = 100;
 const refuse = (issues: ProgressIssue[]) => new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_SITE_UPDATE_INVALID", cause: { issues } });
 
-/** The activities of the weights table, once per code: its CSI section and its weight (the same code may weigh differently per model: the range is given). */
+/** The activities of the weights table, once per code: its CSI section (code and name) and its weight (the same code may weigh differently per model: the
+ * range is given), and the models that have it (Q-67: the screen names the chosen villas whose model has no such activity before the save). */
 export async function listProgressActivities(input: Scope) {
   const db = await authorize(input, "project.pmc.read");
-  const rows = await db.select({ code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent, section: pmcActivityGroups.name, sectionEn: pmcActivityGroups.nameEn })
-    .from(pmcActivityDefinitions).innerJoin(pmcActivityGroups, eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId)).where(mine(pmcActivityDefinitions, input));
+  const rows = await db.select({ code: pmcActivityDefinitions.code, name: pmcActivityDefinitions.name, nameEn: pmcActivityDefinitions.nameEn, weightPercent: pmcActivityDefinitions.weightPercent, modelCode: pmcActivityDefinitions.modelCode, sectionCode: pmcActivityGroups.code, section: pmcActivityGroups.name, sectionEn: pmcActivityGroups.nameEn })
+    .from(pmcActivityDefinitions).innerJoin(pmcActivityGroups, eq(pmcActivityGroups.id, pmcActivityDefinitions.groupId)).where(and(mine(pmcActivityDefinitions, input), eq(pmcActivityGroups.tenantId, input.tenantId), eq(pmcActivityGroups.projectId, input.projectId)));
   // Q-49: with the optional English names (null when there is none), for the screens' name switch
-  const byCode = new Map<string, { code: string; name: string; nameEn: string | null; section: string; sectionEn: string | null; minWeight: number; maxWeight: number }>();
+  const byCode = new Map<string, { code: string; name: string; nameEn: string | null; sectionCode: string; section: string; sectionEn: string | null; minWeight: number; maxWeight: number; models: string[] }>();
   for (const row of rows) {
     const weight = Number(row.weightPercent); const known = byCode.get(row.code);
-    if (!known) byCode.set(row.code, { code: row.code, name: row.name, nameEn: row.nameEn, section: row.section, sectionEn: row.sectionEn, minWeight: weight, maxWeight: weight });
-    else { known.minWeight = Math.min(known.minWeight, weight); known.maxWeight = Math.max(known.maxWeight, weight); }
+    if (!known) byCode.set(row.code, { code: row.code, name: row.name, nameEn: row.nameEn, sectionCode: row.sectionCode, section: row.section, sectionEn: row.sectionEn, minWeight: weight, maxWeight: weight, models: [row.modelCode] });
+    else { known.minWeight = Math.min(known.minWeight, weight); known.maxWeight = Math.max(known.maxWeight, weight); if (!known.models.includes(row.modelCode)) known.models.push(row.modelCode); }
   }
-  return Array.from(byCode.values()).sort((a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name));
+  return Array.from(byCode.values()).map(item => ({ ...item, models: item.models.sort() })).sort((a, b) => a.section.localeCompare(b.section) || a.name.localeCompare(b.name));
+}
+
+/**
+ * Q-67 (2)(3): what the field screens choose villas from — the project's own villas with their block, phase and model, and (for the activity chosen) each
+ * villa's current status, so the screen lists the phases, blocks and villas with their counts (never a typed code) and says, before the save, which chosen
+ * villas the activity does not apply to and which would move back. Read with project.pmc.read; every table filtered by the company and the project.
+ */
+export async function listProgressPicker(input: Scope & { activityCode?: string }) {
+  const db = await authorize(input, "project.pmc.read");
+  const [units, blocks] = await Promise.all([
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel, modelCode: pmcUnits.modelCode, blockId: pmcUnits.blockId, phase: pmcUnits.phase }).from(pmcUnits).where(mine(pmcUnits, input)),
+    db.select({ id: pmcBlocks.id, code: pmcBlocks.code }).from(pmcBlocks).where(mine(pmcBlocks, input)),
+  ]);
+  const blockCode = new Map(blocks.map(block => [block.id, block.code]));
+  const statusOf = new Map<string, string>();
+  if (input.activityCode?.trim()) {
+    const cells = await db.select({ unitId: pmcUnitActivityProgress.unitId, status: pmcUnitActivityProgress.status })
+      .from(pmcUnitActivityProgress).innerJoin(pmcActivityDefinitions, eq(pmcActivityDefinitions.id, pmcUnitActivityProgress.activityDefinitionId))
+      .where(and(mine(pmcUnitActivityProgress, input), eq(pmcActivityDefinitions.tenantId, input.tenantId), eq(pmcActivityDefinitions.projectId, input.projectId), eq(pmcActivityDefinitions.code, input.activityCode.trim())));
+    for (const cell of cells) statusOf.set(cell.unitId, cell.status);
+  }
+  const villas = units.map(unit => ({ villa: villaKey(unit.villaLabel ?? unit.unitNumber), number: unit.unitNumber, block: blockCode.get(unit.blockId) ?? "", phase: unit.phase?.trim() || null, model: unit.modelCode, status: input.activityCode?.trim() ? statusOf.get(unit.id) ?? "NOT_STARTED" : null }))
+    .sort((a, b) => a.number - b.number || a.villa.localeCompare(b.villa, "en", { numeric: true }));
+  const count = (key: (villa: (typeof villas)[number]) => string | null) => {
+    const counts = new Map<string, number>();
+    for (const villa of villas) { const value = key(villa); if (value) counts.set(value, (counts.get(value) ?? 0) + 1); }
+    return Array.from(counts.entries()).sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true })).map(([code, villas]) => ({ code, villas }));
+  };
+  return { villas, blocks: count(villa => villa.block || null), phases: count(villa => villa.phase), models: count(villa => villa.model) };
+}
+
+/**
+ * Q-67 (6): the project's master plan as the field screens choose villas on it — the shapes of the saved drawing (#567) that are linked to a PMC villa, each
+ * with its villa key; nothing when the project has no linked drawing (the screen then offers the list only). When several drawings carry links, the one with
+ * the most linked villas is shown. Read with project.pmc.read; every table filtered by the company and the project. Read only.
+ */
+export async function listProgressMapShapes(input: Scope) {
+  const db = await authorize(input, "project.pmc.read");
+  const scoped = <T extends { tenantId: unknown; projectId: unknown }>(table: T) => and(eq(table.tenantId as never, input.tenantId), eq(table.projectId as never, input.projectId));
+  const links = await db.select({ drawingId: masterPlanDrawingLinks.drawingId, polygonId: masterPlanDrawingLinks.polygonId, unitId: masterPlanDrawingLinks.pmcUnitId })
+    .from(masterPlanDrawingLinks).innerJoin(masterPlanDrawings, and(eq(masterPlanDrawings.id, masterPlanDrawingLinks.drawingId), scoped(masterPlanDrawings)))
+    .where(and(scoped(masterPlanDrawingLinks), isNotNull(masterPlanDrawingLinks.pmcUnitId)));
+  if (!links.length) return { shapes: [] as Array<{ villa: string; points: Array<{ x: number; y: number }> }>, yUp: false };
+  const perDrawing = new Map<string, number>();
+  for (const link of links) perDrawing.set(link.drawingId, (perDrawing.get(link.drawingId) ?? 0) + 1);
+  const drawingId = Array.from(perDrawing.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+  const chosen = links.filter(link => link.drawingId === drawingId);
+  const [polygons, units, [drawing]] = await Promise.all([
+    db.select({ id: masterPlanDrawingPolygons.id, points: masterPlanDrawingPolygons.points }).from(masterPlanDrawingPolygons).where(and(scoped(masterPlanDrawingPolygons), eq(masterPlanDrawingPolygons.drawingId, drawingId))),
+    db.select({ id: pmcUnits.id, unitNumber: pmcUnits.unitNumber, villaLabel: pmcUnits.villaLabel }).from(pmcUnits).where(mine(pmcUnits, input)),
+    db.select({ background: masterPlanDrawings.background }).from(masterPlanDrawings).where(and(scoped(masterPlanDrawings), eq(masterPlanDrawings.id, drawingId))).limit(1),
+  ]);
+  const pointsOf = new Map(polygons.map(polygon => [polygon.id, polygon.points]));
+  const villaOf = new Map(units.map(unit => [unit.id, villaKey(unit.villaLabel ?? unit.unitNumber)]));
+  const shapes: Array<{ villa: string; points: Array<{ x: number; y: number }> }> = [];
+  for (const link of chosen) {
+    const villa = villaOf.get(link.unitId!); const points = pointsOf.get(link.polygonId);
+    if (!villa || !points) continue;
+    try { const parsed = JSON.parse(points) as Array<{ x: number; y: number }>; if (Array.isArray(parsed) && parsed.length >= 3) shapes.push({ villa, points: parsed.map(point => ({ x: Number(point.x), y: Number(point.y) })) }); }
+    catch { /* a shape that cannot be read is left off the map, never guessed */ }
+  }
+  // a drawing read from a picture (an image or a PDF page) has its y downwards like the screen; a DXF has it upwards (the drawing screen flips it the same way)
+  return { shapes, yUp: !drawing?.background };
 }
 
 export type ProgressUpdateInput = Scope & { activityCode: string; villas?: string[]; range?: string; blockCode?: string; modelCode?: string; phase?: string; status: ProgressStatus; date: string; queuedAt?: string; confirmCount?: number };
@@ -85,9 +150,11 @@ export async function resolveVillaBatch(db: Awaited<ReturnType<typeof authorize>
   if (input.range) { const expanded = expandVillaRange(input.range, Array.from(byVilla.keys())); if (!expanded) issues.push({ code: "SITE_RANGE_INVALID", detail: input.range }); else if (!expanded.length) issues.push({ code: "SITE_RANGE_EMPTY", detail: input.range }); else wanted = expanded; }
   if (input.blockCode) {
     const blocks = await db.select({ id: pmcBlocks.id, code: pmcBlocks.code, name: pmcBlocks.name }).from(pmcBlocks).where(mine(pmcBlocks, input));
-    const block = blocks.find(item => item.code === input.blockCode || item.name === input.blockCode);
-    if (!block) issues.push({ code: "SITE_BLOCK_UNKNOWN", detail: input.blockCode });
-    else wanted = units.filter(unit => unit.blockId === block.id).map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
+    // Q-67 (a): «33» means «BLK 33» (domain/blockMatch.ts); two blocks for one number are refused with both, never guessed
+    const found = matchBlock(blocks, input.blockCode);
+    if (found.ok) wanted = units.filter(unit => unit.blockId === found.block.id).map(unit => villaKey(unit.villaLabel ?? unit.unitNumber));
+    else if (found.reason === "ambiguous") issues.push({ code: "SITE_BLOCK_AMBIGUOUS", detail: found.options.join(" / ") });
+    else { issues.push({ code: "SITE_BLOCK_UNKNOWN", detail: input.blockCode }); if (found.suggestion) issues.push({ code: "SITE_BLOCK_DID_YOU_MEAN", detail: found.suggestion }); }
   }
   // Q-60: every villa of one model (the owner chooses «all of model C»); an unknown model is said by name
   // Q-60 batch 2c: every villa of one construction phase (PH1–PH4, from the villa register); an unknown phase is said by name

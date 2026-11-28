@@ -93,7 +93,7 @@ describe("ProjectPmc screens", () => {
     expect(guide.textContent).toContain("Who updated progress and when");
     fireEvent.click(screen.getByRole("tab", { name: "Approvals" }));
     expect(document.querySelector("[data-pmc-tab-guide]")!.textContent).toContain("Inspection requests sent to the consultant");
-    expect(document.querySelectorAll("[data-pmc-guide-all] dt")).toHaveLength(13);
+    expect(document.querySelectorAll("[data-pmc-guide-all] dt")).toHaveLength(14); // Q-63: the progress board is the 14th tab
     expect(document.querySelector("[data-pmc-not-in-platform]")!.textContent).toContain("Google Sheets");
   });
 
@@ -173,7 +173,7 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     const report = await screen.findByTestId("import-report");
     expect(report.textContent).toContain("The villa is not in the project"); // Q-31: said in words, no longer the raw code
     expect(report.textContent).toContain("Rejected rows: 2");
-    expect(screen.queryByText("Save the approved file")).toBeNull();
+    expect(screen.queryByText(/Confirm importing|Save the approved file/)).toBeNull();
   });
 
   it("shows the progress of a running analysis", async () => {
@@ -199,7 +199,7 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     fireEvent.click(screen.getByText("Check the file"));
     expect((await screen.findByTestId("import-report")).textContent).toContain("Will create: 500");
     expect(state.imports.confirm).not.toHaveBeenCalled(); // the analysis alone writes nothing
-    fireEvent.click(screen.getByText("Save the approved file"));
+    fireEvent.click(screen.getByText("Confirm importing 500 rows")); // Q-66 batch 1: the button names what it writes
     await waitFor(() => expect(state.imports.confirm).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", importId: IMPORT }));
   });
 
@@ -214,7 +214,7 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     const skipped = result.querySelector("[data-import-result-skipped]")!.textContent!;
     expect(skipped).toContain("Totals lines skipped: 1");
     expect(skipped).toContain("Rows skipped because their weight is zero or empty: 2");
-    expect(screen.queryByText("Save the approved file")).toBeNull(); // saved: nothing to confirm again
+    expect(screen.queryByText(/Confirm importing|Save the approved file/)).toBeNull(); // saved: nothing to confirm again
     fireEvent.click(screen.getByText("Open «Activities» to check"));
     expect(screen.getByRole("tab", { name: "Activities" }).getAttribute("aria-selected")).toBe("true");
   });
@@ -243,7 +243,7 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     await choose("units.csv");
     fireEvent.click(screen.getByText("Check the file"));
     expect(await screen.findByText("The file matches what is stored: nothing to save.")).toBeTruthy();
-    expect(screen.queryByText("Save the approved file")).toBeNull();
+    expect(screen.queryByText(/Confirm importing|Save the approved file/)).toBeNull();
   });
 
   it("D-59: the import tab also offers the site's old workbook (the next step the site update and the S-curve link to)", () => {

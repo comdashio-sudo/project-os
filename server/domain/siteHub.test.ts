@@ -16,7 +16,7 @@ describe("Q-36 (2 b): the site entry's readers", () => {
   it("POSITIVE and NEGATIVE: one code of any card opens the entry; a code of none (the warehouse keeper's) opens no card", () => {
     const opens = (codes: string[]) => SITE_HUB_PAGES.filter(page => pageAllowed(page, group => group.some(code => codes.includes(code))));
     expect(opens(["project.qc.receive"])).toEqual(["dailyReport"]);
-    expect(opens(["project.pmc.read"])).toEqual(["progress", "qc", "stalled", "progressLog", "completionReport"]); // Q-70 (1) and (2): the progress log and the completion report are cards for the same reader
+    expect(opens(["project.pmc.read"])).toEqual(["progress", "qc", "stalled", "progressLog", "completionReport", "activitySummary"]); // Q-70 (1)–(3): the progress log, the completion report and the activity summary are cards for the same reader
     expect(opens(["project.inventory.manage"])).toEqual([]);
     expect(SITE_HUB_READERS).not.toContain("project.inventory.manage");
   });

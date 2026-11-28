@@ -117,7 +117,8 @@ export function AppShell(props: Props) {
   const initials = props.user.name.split(" ").map(part => part[0]).slice(0, 2).join("").toUpperCase();
   const canDark = DIRECTIONS[direction].darkMode;
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground print:block print:min-h-0">
+    // Q-69: the header's and the phone bar's heights, so a page's sticky row sits under the header and its action bar above the phone bar
+    <div data-app-shell="" className={cn("flex min-h-screen flex-col bg-background text-foreground print:block print:min-h-0 [--shell-top:3.5rem]", props.bottomBar?.items.length && "[--bottom-bar-h:calc(3.5rem+1px+env(safe-area-inset-bottom))] md:[--bottom-bar-h:0px]")}>
       <header className="sticky top-0 z-30 print:hidden flex h-14 items-center gap-2 border-b border-border bg-card px-3 md:px-4">
         <Dialog.Root open={drawer} onOpenChange={setDrawer}>
           <Dialog.Trigger asChild><button type="button" aria-label={text.menu} className="grid h-11 w-11 place-items-center rounded-[var(--radius)] hover:bg-muted md:hidden"><MenuIcon className="h-5 w-5" aria-hidden="true" /></button></Dialog.Trigger>

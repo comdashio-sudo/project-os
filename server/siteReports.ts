@@ -6,7 +6,7 @@
 import { REPORT_RANGE_CAP } from "../shared/siteReportRange";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
-import { auditLogs, consultantSubmittals, membershipRoles, memberships, permissions, pmcActivityDefinitions, pmcBlocks, pmcInspectionRequests, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportApprovers, projectReportCounters, rfis, rolePermissions, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportLines, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportPhotos, siteDailyReportTomorrow, siteDailyReports, users } from "../drizzle/schema";
+import { auditLogs, consultantSubmittals, membershipRoles, memberships, permissions, pmcActivityDefinitions, pmcBlocks, pmcInspectionRequests, pmcUnitActivityProgress, pmcUnits, pmcZones, projectCompanies, projectEquipment, projectLabourRoles, projectProfiles, projectReportApprovers, projectReportCounters, rfis, rolePermissions, siteDailyReportCorrections, siteDailyReportEquipment, siteDailyReportHse, siteDailyReportLabour, siteDailyReportLines, siteDailyReportMaterials, siteDailyReportObstacles, siteDailyReportPhotos, siteDailyReportTomorrow, siteDailyReports, users } from "../drizzle/schema";
 import { siteToday } from "./wo22Shared";
 import { violates } from "./projectProfile";
 import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultCommercialCatalog, getDb, getTenantAccessSnapshot } from "./db";
@@ -17,6 +17,7 @@ import { takeDirectUpload } from "./directUploadKeys";
 import { applyCellStatus, type CellWarning } from "./pmcService";
 import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { qcCompletionGate } from "./qualityGate";
+import { reportsNeedApproval } from "./reportCounting";
 import { storageDelete, storageGetSignedUrl, storagePut } from "./storage";
 import { DAILY_REPORT_READERS } from "../shared/pageAccess";
 
@@ -91,6 +92,16 @@ async function nextReportNumber(tx: Tx, input: Scope) {
   return `${profile?.prefix ?? "DR"}-${String(row.lastNumber).padStart(4, "0")}`;
 }
 
+/**
+ * Q-72 (5): what one daily report can plausibly hold. The screen's own limits were far wider (a labour cell up to 100,000 people, a machine count up to 10,000, a temperature from -50): a typo
+ * («5000» for «50», «8» for «80 °C») went through and then fed every weekly and monthly total. A figure outside these is refused by name, never trimmed or corrected silently.
+ */
+export const DAILY_REPORT_LIMITS = { labourPerCell: 5000, equipmentCount: 1000, temperatureMin: -20, temperatureMax: 70 } as const;
+function validateRanges(input: { labour?: ReportLabourInput[]; equipment?: ReportEquipmentInput[]; temperatureC?: number }) {
+  if ((input.labour ?? []).some(row => row.headcount > DAILY_REPORT_LIMITS.labourPerCell)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_LABOUR_TOO_MANY");
+  if ((input.equipment ?? []).some(row => row.count > DAILY_REPORT_LIMITS.equipmentCount)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_EQUIPMENT_TOO_MANY");
+  if (input.temperatureC !== undefined && (input.temperatureC < DAILY_REPORT_LIMITS.temperatureMin || input.temperatureC > DAILY_REPORT_LIMITS.temperatureMax)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_TEMPERATURE_RANGE");
+}
 /** The labour matrix and the equipment name only this project's companies, roles and machines (the composite foreign keys hold the same; this says it first, translated). */
 async function validateResources(db: Db, input: Scope, labour: ReportLabourInput[], equipment: ReportEquipmentInput[]) {
   const cells = new Set<string>();
@@ -159,6 +170,7 @@ export async function saveSiteDailyReportForTenant(input: Scope & ReportInput) {
   if (!access.edit.includes("site") || (input.hse?.length && !access.edit.includes("hse")) || (input.materials?.length && !access.edit.includes("qc"))) throw notYours();
   if (!realDate(input.reportDate)) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_INVALID");
   if (input.reportDate > today()) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_DATE_FUTURE");
+  validateRanges(input);
   await validateLines(db, input, input.lines);
   await validateResources(db, input, input.labour ?? [], input.equipment ?? []);
   await validateSections(db, input, input);
@@ -225,12 +237,61 @@ export async function submitSiteDailyReportForTenant(input: Scope & { reportId: 
   holdsStep((await chainOf(db, input)).prepare, input.userId); // D-45 (c): when the project names who prepares, only that person sends
   const [{ lines }] = await db.select({ lines: sql<number>`count(*)::int` }).from(siteDailyReportLines).where(eq(siteDailyReportLines.reportId, report.id));
   if (!lines && !report.summary) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_EMPTY");
+  // Q-71 (2): when the company's daily reports need no approval (the default), sending makes the report final — it moves its villas' cells as an approval did.
+  // Villas QC has not accepted under a «block» rule stay where they are (listed as skipped; nothing reaches COMPLETE without its receipt). Moving cells
+  // needs the PMC update permission: a sender without it leaves the report waiting for an approver, as with the rule on, and is told why.
+  if (!(await reportsNeedApproval(db, input.tenantId))) {
+    const plan = await planApproval(db, input, report.id);
+    if (plan.gate.mode === "block" && plan.gate.notAccepted.length) {
+      const held = new Set(plan.gate.notAccepted.map(cell => `${cell.unitId}:${cell.activityDefinitionId}`));
+      const left = plan.moving.filter(cell => held.has(`${cell.unitId}:${cell.activityDefinitionId}`));
+      plan.moving = plan.moving.filter(cell => !held.has(`${cell.unitId}:${cell.activityDefinitionId}`));
+      plan.skipped.push(...left.map(cell => ({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId, reason: "QC_NOT_ACCEPTED" as const, current: plan.current(cell), reported: cell.status })));
+      plan.gate = { ...plan.gate, notAccepted: [] };
+    }
+    const mayMove = !plan.moving.length || await mayUpdatePmc(input);
+    if (mayMove) {
+      const { applied, warnings } = await finalizeReport(db, input, report, plan, { by: "sender", from: ["draft", "rejected"] });
+      return { id: report.id, status: "approved" as const, final: true as const, applied, skipped: plan.skipped, warnings };
+    }
+  }
   await db.transaction(async tx => {
     const changed = await tx.update(siteDailyReports).set({ status: "submitted", submittedAt: new Date(), reviewNote: null, checkedByUserId: null, checkedAt: null, checkNote: null }).where(and(eq(siteDailyReports.id, report.id), inArray(siteDailyReports.status, ["draft", "rejected"]))).returning({ id: siteDailyReports.id });
     if (!changed.length) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_LOCKED");
     await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.submitted", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: report.reportDate }) });
   });
-  return { id: report.id, status: "submitted" as const };
+  return { id: report.id, status: "submitted" as const, final: false as const };
+}
+
+export const CORRECTION_SECTIONS = ["summary", "labour", "equipment", "work", "materials", "hse", "obstacles", "weather", "other"] as const;
+/**
+ * Q-72 (5): a report that was sent or approved is frozen; its correction is an ADDITIONAL record beside it (who, when, which part, what), never an edit of the sent figures.
+ * Whoever may prepare reports (project.field.manage) adds one, only to a report that is no longer in the preparer's hands, in one transaction with its audit row.
+ */
+export async function addSiteDailyReportCorrectionForTenant(input: Scope & { reportId: string; section: (typeof CORRECTION_SECTIONS)[number]; note: string }) {
+  const db = await authorize(input, "project.field.manage");
+  const report = await ownReport(db, input);
+  if (report.status === "draft" || report.status === "rejected") throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_CORRECTION_NOT_SENT");
+  const note = input.note.trim();
+  if (!note) throw refuse("BAD_REQUEST", "PROJECT_OS_SITE_REPORT_CORRECTION_EMPTY");
+  const id = crypto.randomUUID();
+  await db.transaction(async tx => {
+    await tx.insert(siteDailyReportCorrections).values({ id, tenantId: input.tenantId, projectId: input.projectId, reportId: report.id, section: input.section, note, createdByUserId: input.userId });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.correction_added", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: report.reportDate, section: input.section, correctionId: id }) });
+  });
+  return { id, reportId: report.id };
+}
+
+/** May this person move PMC cells on the project (the PMC feature and project.pmc.update)? Only «you do not hold it» is false; any other failure is rethrown. */
+async function mayUpdatePmc(input: Scope) {
+  try {
+    await ensureDefaultCommercialCatalog((await getDb())!);
+    await assertTenantFeatureAccess({ userId: input.userId, tenantId: input.tenantId, product: "PROJECT", permission: "project.pmc.update", featureCode: "PMC", scope: { type: "project", id: input.projectId } });
+    return true;
+  } catch (error) {
+    if (error instanceof TRPCError && error.code === "FORBIDDEN") return false;
+    throw error;
+  }
 }
 
 export type AppliedCell = { unitId: string; activityDefinitionId: string; from: PmcUnitActivityStatus | null; to: PmcUnitActivityStatus };
@@ -254,6 +315,34 @@ async function planApproval(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, 
   const completing = moving.filter(cell => cell.status === "COMPLETE");
   const gate = await qcCompletionGate(db, input.tenantId, completing.map(cell => ({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId })));
   return { moving, skipped, gate, current: (cell: { unitId: string; activityDefinitionId: string }) => currentOf.get(`${cell.unitId}:${cell.activityDefinitionId}`) ?? ("NOT_STARTED" as PmcUnitActivityStatus) };
+}
+
+type ApprovalPlan = Awaited<ReturnType<typeof planApproval>>;
+/**
+ * Makes a report final and moves its villas' cells, in one transaction: the approver's approval, or — Q-71 (2), when the company's daily reports need no
+ * approval — the preparer's own sending. The status moves only from the states given (a concurrent change is refused, never overwritten).
+ */
+async function finalizeReport(db: Db, input: Scope, report: { id: string; reportDate: string }, plan: ApprovalPlan, how: { by: "approver" | "sender"; from: Array<"draft" | "rejected" | "submitted">; note?: string }) {
+  const applied: AppliedCell[] = []; const warnings: CellWarning[] = [];
+  const now = new Date();
+  await db.transaction(async tx => {
+    const set = how.by === "approver"
+      ? { status: "approved" as const, reviewedByUserId: input.userId, reviewedAt: now, reviewNote: how.note?.trim() || null }
+      // sent with no approval: final as sent — no reviewer is recorded (nobody reviewed it)
+      : { status: "approved" as const, submittedAt: now, reviewedByUserId: null, reviewedAt: null, reviewNote: null, checkedByUserId: null, checkedAt: null, checkNote: null };
+    const changed = await tx.update(siteDailyReports).set(set).where(and(eq(siteDailyReports.id, report.id), inArray(siteDailyReports.status, how.from))).returning({ id: siteDailyReports.id });
+    if (!changed.length) throw refuse("CONFLICT", how.by === "approver" ? "PROJECT_OS_SITE_REPORT_NOT_SUBMITTED" : "PROJECT_OS_SITE_REPORT_LOCKED");
+    for (const cell of plan.moving) {
+      const result = await applyCellStatus(tx, { userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId, status: cell.status, note: `Daily report ${report.reportDate}` }, now);
+      if (result.changed) applied.push({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId, from: result.from as PmcUnitActivityStatus | null, to: cell.status });
+      warnings.push(...result.warnings);
+    }
+    // the approver's row is the one it always was; a report made final by sending (no approval rule) says so
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: how.by === "approver" ? "site_report.approved" : "site_report.submitted_final", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: report.reportDate, applied: applied.length, skipped: plan.skipped.length, warnings: warnings.length, leftForQc: plan.skipped.filter(cell => cell.reason === "QC_NOT_ACCEPTED").map(cell => ({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId })), ...(how.by === "sender" ? { approvalRule: "off" } : {}) }) });
+    await emitWebhookEvent(tx, input.tenantId, "daily_report.approved", { reportId: report.id, projectId: input.projectId, reportDate: report.reportDate, cellsMoved: applied.length });
+  });
+  kickWebhookDelivery();
+  return { applied, warnings };
 }
 
 export async function reviewSiteDailyReportForTenant(input: Scope & { reportId: string; decision: "approve" | "reject"; note?: string; dryRun?: boolean; leaveNotAccepted?: boolean }) {
@@ -295,20 +384,7 @@ export async function reviewSiteDailyReportForTenant(input: Scope & { reportId: 
     throw refuse("CONFLICT", "PROJECT_OS_QC_NOT_ACCEPTED");
   }
   if (input.dryRun) return { id: report.id, status: "submitted" as const, applied: plan.moving.map(cell => ({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId, from: null, to: cell.status })) as AppliedCell[], skipped: plan.skipped, warnings: (plan.gate.notAccepted.length ? [{ code: "QC_NOT_ACCEPTED" as const }] : []) as CellWarning[], notAccepted: plan.gate.notAccepted };
-  const applied: AppliedCell[] = []; const warnings: CellWarning[] = [];
-  await db.transaction(async tx => {
-    const changed = await tx.update(siteDailyReports).set({ status: "approved", reviewedByUserId: input.userId, reviewedAt: new Date(), reviewNote: input.note?.trim() || null }).where(and(eq(siteDailyReports.id, report.id), eq(siteDailyReports.status, "submitted"))).returning({ id: siteDailyReports.id });
-    if (!changed.length) throw refuse("CONFLICT", "PROJECT_OS_SITE_REPORT_NOT_SUBMITTED");
-    const now = new Date();
-    for (const cell of plan.moving) {
-      const result = await applyCellStatus(tx, { userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId, status: cell.status, note: `Daily report ${report.reportDate}` }, now);
-      if (result.changed) applied.push({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId, from: result.from as PmcUnitActivityStatus | null, to: cell.status });
-      warnings.push(...result.warnings);
-    }
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "site_report.approved", entityType: "site_daily_report", entityId: report.id, metadata: JSON.stringify({ projectId: input.projectId, reportDate: report.reportDate, applied: applied.length, skipped: plan.skipped.length, warnings: warnings.length, leftForQc: plan.skipped.filter(cell => cell.reason === "QC_NOT_ACCEPTED").map(cell => ({ unitId: cell.unitId, activityDefinitionId: cell.activityDefinitionId })) }) });
-    await emitWebhookEvent(tx, input.tenantId, "daily_report.approved", { reportId: report.id, projectId: input.projectId, reportDate: report.reportDate, cellsMoved: applied.length });
-  });
-  kickWebhookDelivery();
+  const { applied, warnings } = await finalizeReport(db, input, report, plan, { by: "approver", from: ["submitted"], note: input.note });
   return { id: report.id, status: "approved" as const, applied, skipped: plan.skipped, warnings, notAccepted: [] as typeof plan.gate.notAccepted };
 }
 
@@ -397,6 +473,8 @@ function hideSections<T extends Awaited<ReturnType<typeof readReport>>>(read: T,
     report: site ? read.report : { ...read.report, weather: null, temperatureC: null, wind: null, workHours: null, summary: null, obstacles: null },
     lines: site ? read.lines : [], labour: site ? read.labour : [], equipment: site ? read.equipment : [], obstacleItems: site ? read.obstacleItems : [], tomorrow: site ? read.tomorrow : [], photos: site ? read.photos : [],
     hse: hse ? read.hse : [],
+    // a correction names a part of the report: whoever may not see that part does not read what it says either
+    corrections: read.corrections.filter(row => (row.section === "hse" ? hse : row.section === "materials" ? qc : site)),
     materials: qc ? read.materials : [],
     inspections: qc ? read.inspections : { wir: { submitted: 0, approved: 0, rejected: 0, pending: 0, items: [] }, rfi: { submitted: 0, approved: 0, rejected: 0, pending: 0, items: [] } },
     totals: {
@@ -414,6 +492,7 @@ async function readReport(db: Db, input: Scope & { reportId: string }) {
   const section = <T extends typeof siteDailyReportMaterials | typeof siteDailyReportHse | typeof siteDailyReportObstacles | typeof siteDailyReportTomorrow>(table: T) => db.select().from(table as never).where(and(mine(table, input), eq(table.reportId, report.id))).orderBy(asc(table.sortOrder));
   const [materials, hse, obstacleItems, tomorrow] = await Promise.all([section(siteDailyReportMaterials), section(siteDailyReportHse), section(siteDailyReportObstacles), section(siteDailyReportTomorrow)]) as [
     Array<typeof siteDailyReportMaterials.$inferSelect>, Array<typeof siteDailyReportHse.$inferSelect>, Array<typeof siteDailyReportObstacles.$inferSelect>, Array<typeof siteDailyReportTomorrow.$inferSelect>];
+  const corrections = await db.select({ id: siteDailyReportCorrections.id, section: siteDailyReportCorrections.section, note: siteDailyReportCorrections.note, createdByUserId: siteDailyReportCorrections.createdByUserId, createdAt: siteDailyReportCorrections.createdAt }).from(siteDailyReportCorrections).where(and(mine(siteDailyReportCorrections, input), eq(siteDailyReportCorrections.reportId, report.id))).orderBy(asc(siteDailyReportCorrections.createdAt));
   const [lines, photos, labour, equipment, cumulative] = await Promise.all([
     db.select().from(siteDailyReportLines).where(eq(siteDailyReportLines.reportId, report.id)).orderBy(asc(siteDailyReportLines.sortOrder)),
     db.select().from(siteDailyReportPhotos).where(eq(siteDailyReportPhotos.reportId, report.id)).orderBy(asc(siteDailyReportPhotos.createdAt)),
@@ -443,6 +522,7 @@ async function readReport(db: Db, input: Scope & { reportId: string }) {
     labour,
     equipment: equipment.map(row => ({ ...row, hours: numeric(row.hours) })),
     materials: materials.map(row => ({ ...row, quantity: Number(row.quantity) })),
+    corrections,
     hse, obstacleItems, tomorrow: tomorrow.map(row => ({ ...row, quantity: numeric(row.quantity) })),
     inspections: {
       wir: { ...tally(wirs.map(row => wirState(row.responseCode))), items: wirs.map(row => ({ ...row, state: wirState(row.responseCode) })) },

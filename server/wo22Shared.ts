@@ -1,5 +1,6 @@
 // Work order 22: what the site / consultant / monthly-report services share — the PMC gate (licence feature + named permission + tenant + project),
 // "today" on the site's clock, and the villa-number key that ties a unit across the three sources.
+import { toLatinDigits } from "./domain/blockMatch";
 import { and, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { dataImports, pmcUnits } from "../drizzle/schema";
@@ -34,8 +35,8 @@ export async function holds(input: Scope, permission: string) {
 export function siteToday(now = new Date()) { return new Date(now.getTime() + 3 * 3_600_000).toISOString().slice(0, 10); }
 export const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 
-/** «0268», «V-268», «268» → «268» */
-export const villaKey = (value: string | number | null | undefined) => { const match = String(value ?? "").match(/\d+/g); return match ? String(Number(match[match.length - 1])) : String(value ?? "").trim().toLowerCase(); };
+/** «0268», «V-268», «268», «٢٦٨» → «268» */
+export const villaKey = (value: string | number | null | undefined) => { const text = toLatinDigits(String(value ?? "")); const match = text.match(/\d+/g); return match ? String(Number(match[match.length - 1])) : text.trim().toLowerCase(); };
 
 export type UnitRow = { id: string; unitNumber: number; villaLabel: string | null; modelCode: string; blockId: string };
 export async function unitsByVilla(db: Pick<Db, "select">, input: Scope) {

@@ -24,6 +24,11 @@ export type ExportMeta = {
   company?: string;
   project?: string;
   exportedAt: Date;
+  /** Q-72 (1): who asked for the file, and the filters the screen had on (words), so a file found later says where it came from. */
+  exportedBy?: string;
+  filters?: string;
+  /** A name for the person's time zone; the UTC offset of their clock when not given. */
+  timeZone?: string;
   /** The language of the workbook: its headings, its direction (Arabic and Urdu are right to left) and its labels. */
   locale: Language;
 };
@@ -37,11 +42,16 @@ export type ExportLayout = {
   rows: ExportCell[][];
 };
 
-const LABELS: Record<Language, { company: string; project: string; exported: string }> = {
-  ar: { company: "الشركة", project: "المشروع", exported: "تاريخ التصدير" },
-  en: { company: "Company", project: "Project", exported: "Exported on" },
-  ur: { company: "کمپنی", project: "پروجیکٹ", exported: "برآمد کی تاریخ" },
+const LABELS: Record<Language, { company: string; project: string; exported: string; filters: string; by: string; generated: string; rowCount: string }> = {
+  ar: { company: "الشركة", project: "المشروع", exported: "تاريخ التصدير", filters: "الفلاتر", by: "طلبه", generated: "وقت التوليد", rowCount: "عدد الصفوف" },
+  en: { company: "Company", project: "Project", exported: "Exported on", filters: "Filters", by: "Requested by", generated: "Generated at", rowCount: "Rows" },
+  ur: { company: "کمپنی", project: "پروجیکٹ", exported: "برآمد کی تاریخ", filters: "فلٹرز", by: "درخواست کنندہ", generated: "تیاری کا وقت", rowCount: "قطاروں کی تعداد" },
 };
+const pad = (value: number) => String(value).padStart(2, "0");
+/** The offset of the person's clock from UTC, «UTC+03:00» (the zone's name is not read: one place formats dates, components/ds/format.ts). */
+const offsetName = (date: Date) => { const minutes = -date.getTimezoneOffset(); const sign = minutes < 0 ? "-" : "+"; return `UTC${sign}${pad(Math.floor(Math.abs(minutes) / 60))}:${pad(Math.abs(minutes) % 60)}`; };
+/** The day and the minute on the person's own clock, with the offset named: «2026-11-27 03:40 (UTC+03:00)». */
+const stamp = (date: Date, timeZone?: string) => `${isoDay(date)} ${pad(date.getHours())}:${pad(date.getMinutes())} (${timeZone ?? offsetName(date)})`;
 
 /** The calendar day where the person is, not in UTC: an export made after 21:00 in Riyadh must not carry tomorrow's date. */
 const isoDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -74,14 +84,24 @@ export function buildExportLayout<Row>(columns: readonly ExportColumn<Row>[], ro
   if (meta.company) metaRows.push([labels.company, meta.company]);
   if (meta.project) metaRows.push([labels.project, meta.project]);
   metaRows.push([labels.exported, isoDay(meta.exportedAt)]);
-  const cells = rows.map(row => columns.map<ExportCell>(column => {
-    const raw = column.value(row);
-    if (isCellSpec(raw)) return { value: normalise(raw.value), kind: raw.kind };
-    return { value: normalise(raw), kind: column.kind ?? inferKind(raw) };
+  // Q-72 (1): a file says where it came from — who asked, the filters, when (with the zone) and how many rows — then a blank line, then the table
+  if (meta.exportedBy) metaRows.push([labels.by, meta.exportedBy]);
+  if (meta.filters) metaRows.push([labels.filters, meta.filters]);
+  metaRows.push([labels.generated, stamp(meta.exportedAt, meta.timeZone)]);
+  metaRows.push([labels.rowCount, String(rows.length)]);
+  const raw = rows.map(row => columns.map<ExportCell>(column => {
+    const value = column.value(row);
+    if (isCellSpec(value)) return { value: normalise(value.value), kind: value.kind };
+    return { value: normalise(value), kind: column.kind ?? inferKind(value) };
   }));
+  // a column that is wholly a percentage is exported as plain numbers ×100 under a header that says «(%)», not as an Excel percent format that hides what the number is;
+  // a column that mixes kinds keeps each cell's own format (its header cannot name two units)
+  const percentColumns = columns.map((column, index) => (raw.length ? raw.every(row => row[index].kind === "percent" || row[index].value === null) && raw.some(row => row[index].kind === "percent") : column.kind === "percent"));
+  const cells = raw.map(row => row.map((cell, index) => (percentColumns[index] && cell.kind === "percent" ? { value: typeof cell.value === "number" ? Math.round(cell.value * 100 * 1e6) / 1e6 : cell.value, kind: "number" as const } : cell)));
   // A column that holds money carries the currency name in its header, so no figure is a bare number.
   const headerRow = columns.map((column, index) => {
     const hasMoney = column.kind === "money" || cells.some(row => row[index].kind === "money");
+    if (percentColumns[index]) return `${column.header} (%)`;
     return hasMoney ? `${column.header} (${BASE_CURRENCY[meta.locale]})` : column.header;
   });
   return { metaRows, headerRow, rows: cells };

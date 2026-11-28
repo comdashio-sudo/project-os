@@ -5,7 +5,7 @@
 import React, { useMemo, useState } from "react";
 import { useParams } from "wouter";
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Field, Select, TextInput } from "@/components/ds";
-import { formatDate } from "@/components/ds/format";
+import { formatDate, formatPercent } from "@/components/ds/format";
 import { PageMain, PageTitle } from "@/components/pageFrame";
 import { SourceNotice } from "@/components/SectionResilience";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -27,12 +27,23 @@ const text = {
 const time = (value: Date | string | null | undefined) => (value ? new Date(value).getTime() : null);
 const csvCell = (value: unknown) => { const raw = value === null || value === undefined ? "" : value instanceof Date ? value.toISOString().slice(0, 10) : String(value); return /[",\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw; };
 
+const COMPUTED_TEXT = {
+  ar: { header: "التقدم (محسوب من PMC)", hint: "محسوب من خلايا الفلل في PMC لمجموعات الأوزان المربوطة بمرحلة النشاط؛ لا يُدخَل يدويًا", from: "من مجموعات", reasons: { NO_VILLA: "بلا فيلا", NO_STAGE: "بلا مرحلة", STAGE_NOT_LINKED: "مرحلة غير مربوطة", VILLA_NOT_IN_PROJECT: "فيلا خارج المشروع", NO_WEIGHT: "بلا وزن" } },
+  en: { header: "Progress (computed from PMC)", hint: "Computed from the villas' PMC cells of the weight groups linked to the activity's stage; not entered by hand", from: "from groups", reasons: { NO_VILLA: "no villa", NO_STAGE: "no stage", STAGE_NOT_LINKED: "stage not linked", VILLA_NOT_IN_PROJECT: "villa not in project", NO_WEIGHT: "no weight" } },
+  ur: { header: "پیش رفت (PMC سے نکالی گئی)", hint: "سرگرمی کے مرحلے سے منسلک وزن گروپوں کے لیے PMC میں ولاز کے خانوں سے نکالی گئی؛ ہاتھ سے درج نہیں ہوتی", from: "گروپوں سے", reasons: { NO_VILLA: "ولا نہیں", NO_STAGE: "مرحلہ نہیں", STAGE_NOT_LINKED: "مرحلہ منسلک نہیں", VILLA_NOT_IN_PROJECT: "ولا منصوبے سے باہر", NO_WEIGHT: "وزن نہیں" } },
+};
+
 export default function LiveSchedule() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { language, isArabic } = useLanguage();
+  const ct = pickLanguage(language, COMPUTED_TEXT);
   const t = pickLanguage(language, text);
   const title = pickLanguage(language, PAGE_NAMES.liveSchedule);
   const query = trpc.schedule.live.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId) });
+  // Q-71 (1) batch 2: each activity's progress computed from the villas' PMC cells, read-only. A reader without PMC read is refused by the server: the
+  // column is then not shown (isError), and a project with no stage linked answers `linked: false` — no column of zeros either way
+  const computed = trpc.schedule.computedProgress.useQuery({ tenantId, projectId }, { enabled: Boolean(tenantId && projectId), retry: false });
+  const computedOf = useMemo(() => new Map((!computed.isError && computed.data?.linked ? computed.data.activities : []).map(row => [row.activityId, row])), [computed.data, computed.isError]);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const data = query.data;
@@ -101,7 +112,7 @@ export default function LiveSchedule() {
           <CardBody className="overflow-x-auto p-0">
             {shown.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{t.none}</p> : (
               <table className="w-full min-w-[900px] text-sm" data-live-rows>
-                <thead><tr className="border-b text-start text-xs text-muted-foreground"><th className="p-2 text-start">{t.code}</th><th className="p-2 text-start">{t.name}</th><th className="p-2 text-start">{t.forecastStart}</th><th className="p-2 text-start">{t.forecastFinish}</th><th className="p-2 text-start">{t.startVar}</th><th className="p-2 text-start">{t.finishVar}</th><th className="p-2 text-start">{t.float}</th><th className="w-[30%] p-2 text-start">{t.gantt}</th></tr></thead>
+                <thead><tr className="border-b text-start text-xs text-muted-foreground"><th className="p-2 text-start">{t.code}</th><th className="p-2 text-start">{t.name}</th><th className="p-2 text-start">{t.forecastStart}</th><th className="p-2 text-start">{t.forecastFinish}</th><th className="p-2 text-start">{t.startVar}</th><th className="p-2 text-start">{t.finishVar}</th><th className="p-2 text-start">{t.float}</th>{computedOf.size > 0 && <th className="p-2 text-start" title={ct.hint}>{ct.header}</th>}<th className="w-[30%] p-2 text-start">{t.gantt}</th></tr></thead>
                 <tbody>{shown.map(row => {
                   const base = place(row.baselineStart, row.baselineFinish); const forecast = place(row.forecastStart, row.forecastFinish);
                   return <tr key={row.id} className="border-b align-middle" data-activity={row.code} data-critical={row.critical === true ? "true" : undefined}>
@@ -112,6 +123,7 @@ export default function LiveSchedule() {
                     <td className="p-2">{signed(row.startVarianceDays)}</td>
                     <td className={`p-2 ${(row.finishVarianceDays ?? 0) > 0 ? "font-semibold text-destructive" : ""}`}>{signed(row.finishVarianceDays)}</td>
                     <td className="p-2">{row.totalFloatHours === null ? t.na : <bdi dir="ltr">{row.totalFloatHours}</bdi>}</td>
+                    {computedOf.size > 0 && (() => { const c = computedOf.get(row.id); return <td className="p-2" data-computed-activity={row.id} title={c?.groupCodes.length ? `${ct.from} ${c.groupCodes.join(language === "en" ? ", " : "، ")}` : undefined}>{!c ? t.na : c.percent === null ? <span className="text-muted-foreground">{ct.reasons[c.reason ?? "NO_WEIGHT"]}</span> : <bdi dir="ltr" className="font-semibold">{formatPercent(c.percent)}</bdi>}</td>; })()}
                     <td className="p-2"><div dir="ltr" className="relative h-6 rounded bg-muted/40">
                       {base ? <span className="absolute top-4 h-1.5 rounded bg-muted-foreground/40" style={base} /> : null}
                       {forecast ? <span className={`absolute top-1 h-3 rounded ${row.critical ? "bg-destructive" : "bg-primary"}`} style={forecast} /> : null}

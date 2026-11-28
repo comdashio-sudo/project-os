@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ kind: "master-plan" }));
 vi.mock("wouter", () => ({ Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p", kind: h.kind }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ language: "en", isArabic: false }) }));
+vi.mock("@/components/P6ImportCard", () => ({ P6ImportCard: () => <div data-screen="p6-import" /> }));
 vi.mock("./ProjectImports", () => ({ ProjectImports: () => <div data-screen="programme" /> }));
 vi.mock("./ProjectOperationalImports", () => ({ ProjectOperationalImports: () => <div data-screen="operational" /> }));
 vi.mock("./ProjectReferenceLists", () => ({ ProjectReferenceLists: () => <div data-screen="reference" /> }));
@@ -22,7 +23,7 @@ describe("ProjectImportKind (Q-56 1)", () => {
   it("POSITIVE: each kind shows its own import screen and title, and nothing else", () => {
     for (const [kind, expected, title] of [
       ["master-plan", ["master-plan-drawing", "master-plan"], "Master plan drawing"], ["reference", ["reference"], "reference lists"],
-      ["operational", ["operational"], "operational data"], ["programme", ["programme"], "programme and cost"],
+      ["operational", ["operational"], "operational data"], ["programme", ["p6-import", "programme"], "programme and cost"],
     ] as const) {
       h.kind = kind; render(<ProjectImportKind />);
       expect(screens(), kind).toEqual(expected);

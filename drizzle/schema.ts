@@ -3064,6 +3064,48 @@ export const siteDailyReportPhotos = pgTable(
   ],
 );
 
+// Q-72 (5), 0060: a daily report that was sent is frozen; a correction is an ADDITIONAL record beside it (who, when, which part, what), never an edit of the sent figures.
+// Append-only by design (the application has no function that updates or deletes one; the database does not forbid it as it does for audit_logs); tied to a report of the SAME project.
+export const siteDailyReportCorrections = pgTable(
+  "site_daily_report_corrections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    reportId: varchar("report_id", { length: 36 }).notNull(),
+    section: varchar("section", { length: 24 }).notNull(),
+    note: text("note").notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ name: "site_daily_report_corrections_report_fk", columns: [table.reportId, table.tenantId, table.projectId], foreignColumns: [siteDailyReports.id, siteDailyReports.tenantId, siteDailyReports.projectId] }),
+    index("site_daily_report_corrections_report_idx").on(table.reportId),
+    check("site_daily_report_corrections_section_check", sql`${table.section} IN ('summary', 'labour', 'equipment', 'work', 'materials', 'hse', 'obstacles', 'weather', 'other')`),
+  ],
+);
+
+// Q-72 (4), 0061: the engineer in charge of a block or a phase of the project — one per scope, set by whoever manages PMC, shown beside the block or phase in the activity summary.
+export const pmcScopeEngineers = pgTable(
+  "pmc_scope_engineers",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => companies.id),
+    projectId: varchar("project_id", { length: 36 }).notNull().references(() => projects.id),
+    scopeType: varchar("scope_type", { length: 8 }).notNull(),
+    scopeKey: varchar("scope_key", { length: 80 }).notNull(),
+    engineerUserId: integer("engineer_user_id").notNull().references(() => users.id),
+    updatedByUserId: integer("updated_by_user_id").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("pmc_scope_engineers_scope_unique").on(table.projectId, table.scopeType, table.scopeKey),
+    index("pmc_scope_engineers_tenant_project_idx").on(table.tenantId, table.projectId),
+    check("pmc_scope_engineers_type_check", sql`${table.scopeType} IN ('block', 'phase')`),
+  ],
+);
+
 export const consultantSubmittalsTypeEnum = pgEnum("consultant_submittals_type", ["shop_drawing", "material_approval", "method_statement", "sample"]);
 export const consultantSubmittalsStatusEnum = pgEnum("consultant_submittals_status", ["draft", "sent", "replied", "closed"]);
 // What the contractor sends the consultant for approval: execution drawings, a material, a method statement, a sample. A resubmission is a new row with the next revision.
@@ -3137,6 +3179,9 @@ export const tenantPolicies = pgTable(
     materialApprovalMode: tenantPoliciesModeEnum("material_approval_mode").default("warn").notNull(),
     // work order 14: an open NCR on a unit and activity keeps an inspection from counting as accepted (block, the default), only warns, or is ignored
     ncrAcceptanceMode: tenantPoliciesModeEnum("ncr_acceptance_mode").default("block").notNull(),
+    // Q-71 (the owner, 26-11: «why does the daily report wait for approval? it is just sent»): off (the default) — sending a daily report makes it final; on — it
+    // waits for the project's approver, as before
+    dailyReportApproval: boolean("daily_report_approval").default(false).notNull(),
     updatedByUserId: integer("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

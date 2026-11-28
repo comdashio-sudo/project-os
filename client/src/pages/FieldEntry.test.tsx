@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   progressError: null as unknown, sheet: { data: undefined, isLoading: false, error: null } as Record<string, unknown>, sheetCalls: vi.fn(), team: vi.fn(), teamResult: { saved: 0, errors: [] } as { saved: number; errors: Array<{ index: number; assignmentId: string; code: string }> },
   teamError: null as unknown, sheetRefetch: vi.fn(), sent: vi.fn(), receipt: vi.fn(), receiptError: null as unknown, sendError: null as unknown, me: { id: 7 } as { id: number } | null, variables: {} as Record<string, unknown>,
 }));
+// Q-67 (5): the field bar's villa list reads pmc.progressPicker; these tests keep the typed number it falls back to
+vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", () => undefined], Link: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 const permissionState = vi.hoisted(() => ({ canConfirmWork: true }));
@@ -54,6 +56,21 @@ describe("FieldEntry (phone entry)", () => {
     expect(state.progress).toHaveBeenCalledWith(expect.objectContaining({ tenantId: "t", projectId: "p", wbsItemId: "x1", percentComplete: 75 }));
     expect(screen.getByRole("status").textContent).toContain("Saved: 1 · Foundations → 75%");
     expect(screen.getByText("Record another")).toBeTruthy();
+  });
+
+  it("Q-71 (1): an item PMC computes is shown with its percent and source and cannot be picked; a manual item still can", () => {
+    load({ ...context, wbs: [{ ...context.wbs[0], computedFromPmc: true, pmcActivityCodes: ["WALLS", "SLAB"] }, { ...context.wbs[1], computedFromPmc: false, pmcActivityCodes: [] }] } as never);
+    const computed = screen.getByText("1 · Foundations").closest("li")!;
+    expect(computed.querySelector("button")).toBeNull();
+    expect(computed.textContent).toContain("40%");
+    expect(computed.textContent).toContain("computed from the villas' PMC cells");
+    expect(computed.textContent).toContain("WALLS، SLAB");
+    fireEvent.click(screen.getByText("1 · Foundations"));
+    expect(screen.queryByText("75%")).toBeNull(); // no percentage buttons opened for it
+    fireEvent.click(screen.getByText("2 · Structure"));
+    fireEvent.click(screen.getByText("75%"));
+    fireEvent.click(screen.getByText("Save"));
+    expect(state.progress).toHaveBeenCalledWith(expect.objectContaining({ wbsItemId: "x2", percentComplete: 75 }));
   });
 
   it("cannot save progress before a percentage is chosen, and steps by five from the last value", () => {

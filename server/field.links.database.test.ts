@@ -1,4 +1,5 @@
 import fixtureDb from "./testing/pgCompat";
+import { requireReportApproval } from "./testing/reportApproval";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { ENV } from "./_core/env";
@@ -56,6 +57,7 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("the daily report, submit
     const [rows] = await connection.query<{ id: number; openId: string }[]>("SELECT id, openId FROM users WHERE openId LIKE 'fld-%'");
     for (const key of KEYS) { userIds[key] = rows.find(row => row.openId === `fld-${key}`)!.id; callers[key] = callerFor(userIds[key], `fld-${key}`); }
     ({ tenantId } = await callers.owner.tenant.create({ legalName: "Field Links Co.", slug: SLUG, packageCode: "ALL-IN-ONE" }));
+    await requireReportApproval(tenantId); // Q-71 (2): this file tests the approval chain
     await connection.query("INSERT INTO projects (id, tenantId, code, name, projectType, currency, status) VALUES (?, ?, 'FL-1', 'Villas', 'villas', 'SAR', 'active')", [P, tenantId]);
     const administration = await callers.owner.tenant.administration({ tenantId });
     const roleOf = (code: string) => administration.roles.find(role => role.code === code)!.id;

@@ -3,7 +3,7 @@
 export type Concept =
   | "itemCode" | "description" | "unit" | "quantity" | "rate" | "amount"
   | "start" | "finish" | "activityId" | "activityName" | "wbsCode" | "status" | "progress" | "duration"
-  | "costCode" | "originalAmount" | "currentAmount"
+  | "costCode" | "originalAmount" | "currentAmount" | "allocationPercent"
   | "contractCode" | "contractTitle" | "counterparty" | "contractValue" | "currency"
   | "category" | "specification" | "supplier" | "date"
   | "previousQuantity" | "currentQuantity" | "cumulativeQuantity" | "retention" | "advance"
@@ -24,8 +24,9 @@ export const DICTIONARY: Record<Concept, string[]> = {
   status: ["الحالة", "حالة", "status", "state", "حالة النشاط", "activity status", "وضع النشاط"],
   progress: ["نسبة الانجاز", "الانجاز", "% الانجاز", "نسبة", "التقدم", "نسبة التقدم", "الانجاز %", "progress", "% complete", "percent complete", "complete", "pct", "completion %", "actual %", "% done", "نسبة الاكتمال", "نسبة الانجاز %"],
   duration: ["المدة", "مدة", "مدة النشاط", "المدة بالايام", "duration", "dur", "days", "original duration", "الايام", "عدد الايام", "مدة (يوم)"],
-  costCode: ["رمز التكلفة", "كود التكلفة", "بند الميزانية", "رمز بند الميزانية", "كود بند الميزانية", "رقم الحساب", "الحساب", "كود الحساب", "cost code", "budget code", "account", "account code", "cost account", "cost item", "code", "الكود", "رمز", "البند", "رقم البند"],
-  originalAmount: ["القيمة الاصلية", "الميزانية الاصلية", "المبلغ الاصلي", "الميزانية", "الميزانية المعتمدة", "القيمة المعتمدة", "original", "original budget", "original amount", "budget", "approved budget", "baseline budget", "initial budget", "الميزانية الاولية"],
+  costCode: ["wbs number", "wbs no", "wbs no.", "رقم wbs", "رمز التكلفة", "كود التكلفة", "بند الميزانية", "رمز بند الميزانية", "كود بند الميزانية", "رقم الحساب", "الحساب", "كود الحساب", "cost code", "budget code", "account", "account code", "cost account", "cost item", "code", "الكود", "رمز", "البند", "رقم البند"],
+  originalAmount: ["budget amount", "مبلغ الميزانية", "القيمة الاصلية", "الميزانية الاصلية", "المبلغ الاصلي", "الميزانية", "الميزانية المعتمدة", "القيمة المعتمدة", "original", "original budget", "original amount", "budget", "approved budget", "baseline budget", "initial budget", "الميزانية الاولية"],
+  allocationPercent: ["نسبة التوزيع", "نسبة الحصة", "نسبة من الاب", "allocation %", "allocation percent", "share %", "share of parent", "% of parent", "percentage", "percent", "%"],
   currentAmount: ["القيمة الحالية", "الميزانية الحالية", "الميزانية المعدلة", "المعدلة", "المبلغ الحالي", "بعد التعديل", "التقدير الحالي", "current", "current budget", "revised budget", "revised", "current amount", "forecast", "latest budget", "adjusted budget"],
   contractCode: ["رقم العقد", "رمز العقد", "كود العقد", "رقم الاتفاقية", "contract no", "contract number", "contract code", "contract id", "agreement no", "contract ref", "العقد رقم"],
   contractTitle: ["موضوع العقد", "اسم العقد", "عنوان العقد", "وصف العقد", "العقد", "الموضوع", "contract title", "contract name", "title", "subject", "scope of work", "contract description", "اسم المشروع"],

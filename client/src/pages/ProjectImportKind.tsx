@@ -1,6 +1,7 @@
 // Q-56 (1): each card of the import page opens the import of ITS kind, on a page of its own, instead of all three landing on the same group of the project
 // board (controls#manager-assurance, where the first thing on screen was the reference lists — labour — whatever card was pressed). The screens are the
 // same components the board shows, unchanged; this page only puts one of them on its own address with its own title.
+import { P6ImportCard } from "@/components/P6ImportCard";
 import React from "react";
 import { Link, useParams } from "wouter";
 import { PageMain, PageTitle } from "@/components/pageFrame";
@@ -37,7 +38,7 @@ export default function ProjectImportKind() {
       <PageTitle eyebrow={<Link href={`/projects/${tenantId}/${projectId}/import`} className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">{pickLanguage(language, back)}</Link>}
         title={known ? pickLanguage(language, IMPORT_KIND_TITLES[known]) : pickLanguage(language, PAGE_NAMES.imports)} />
       {/* each screen in its own boundary: a failure in one (the drawing, the plan board) never takes the page down (G-100) */}
-      {known ? (known === "master-plan" ? [MasterPlanDrawing, ProjectMasterPlan] : [{ programme: ProjectImports, operational: ProjectOperationalImports, reference: ProjectReferenceLists }[known]]).map((Screen, index) => (
+      {known ? (known === "master-plan" ? [MasterPlanDrawing, ProjectMasterPlan] : [...(known === "programme" ? [P6ImportCard] : []), { programme: ProjectImports, operational: ProjectOperationalImports, reference: ProjectReferenceLists }[known]]).map((Screen, index) => (
         <SectionErrorBoundary key={index} title={pickLanguage(language, IMPORT_KIND_TITLES[known])} isArabic={isArabic}><Screen {...scope} /></SectionErrorBoundary>
       )) : null}
       {!known ? <p className="text-sm text-muted-foreground">{pickLanguage(language, back)}</p> : null}

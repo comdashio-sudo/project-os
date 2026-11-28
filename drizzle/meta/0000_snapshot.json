@@ -1,5 +1,5 @@
 {
-  "id": "3c8c0f09-c72e-4927-9b15-6de66b7c8016",
+  "id": "da50134b-95f3-410a-a01d-66f40312094a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -17785,6 +17785,182 @@
       },
       "isRLSEnabled": false
     },
+    "public.pmc_scope_engineers": {
+      "name": "pmc_scope_engineers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope_type": {
+          "name": "scope_type",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope_key": {
+          "name": "scope_key",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "engineer_user_id": {
+          "name": "engineer_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pmc_scope_engineers_scope_unique": {
+          "name": "pmc_scope_engineers_scope_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scope_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scope_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pmc_scope_engineers_tenant_project_idx": {
+          "name": "pmc_scope_engineers_tenant_project_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pmc_scope_engineers_tenant_id_companies_id_fk": {
+          "name": "pmc_scope_engineers_tenant_id_companies_id_fk",
+          "tableFrom": "pmc_scope_engineers",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pmc_scope_engineers_project_id_projects_id_fk": {
+          "name": "pmc_scope_engineers_project_id_projects_id_fk",
+          "tableFrom": "pmc_scope_engineers",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pmc_scope_engineers_engineer_user_id_users_id_fk": {
+          "name": "pmc_scope_engineers_engineer_user_id_users_id_fk",
+          "tableFrom": "pmc_scope_engineers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "engineer_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pmc_scope_engineers_updated_by_user_id_users_id_fk": {
+          "name": "pmc_scope_engineers_updated_by_user_id_users_id_fk",
+          "tableFrom": "pmc_scope_engineers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "pmc_scope_engineers_type_check": {
+          "name": "pmc_scope_engineers_type_check",
+          "value": "\"pmc_scope_engineers\".\"scope_type\" IN ('block', 'phase')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.pmc_site_activities": {
       "name": "pmc_site_activities",
       "schema": "",
@@ -25972,6 +26148,146 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.site_daily_report_corrections": {
+      "name": "site_daily_report_corrections",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "section": {
+          "name": "section",
+          "type": "varchar(24)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "site_daily_report_corrections_report_idx": {
+          "name": "site_daily_report_corrections_report_idx",
+          "columns": [
+            {
+              "expression": "report_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "site_daily_report_corrections_tenant_id_companies_id_fk": {
+          "name": "site_daily_report_corrections_tenant_id_companies_id_fk",
+          "tableFrom": "site_daily_report_corrections",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_corrections_project_id_projects_id_fk": {
+          "name": "site_daily_report_corrections_project_id_projects_id_fk",
+          "tableFrom": "site_daily_report_corrections",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_corrections_created_by_user_id_users_id_fk": {
+          "name": "site_daily_report_corrections_created_by_user_id_users_id_fk",
+          "tableFrom": "site_daily_report_corrections",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "site_daily_report_corrections_report_fk": {
+          "name": "site_daily_report_corrections_report_fk",
+          "tableFrom": "site_daily_report_corrections",
+          "tableTo": "site_daily_reports",
+          "columnsFrom": [
+            "report_id",
+            "tenant_id",
+            "project_id"
+          ],
+          "columnsTo": [
+            "id",
+            "tenant_id",
+            "project_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_daily_report_corrections_section_check": {
+          "name": "site_daily_report_corrections_section_check",
+          "value": "\"site_daily_report_corrections\".\"section\" IN ('summary', 'labour', 'equipment', 'work', 'materials', 'hse', 'obstacles', 'weather', 'other')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.site_daily_report_equipment": {
       "name": "site_daily_report_equipment",
       "schema": "",
@@ -32419,6 +32735,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'block'"
+        },
+        "daily_report_approval": {
+          "name": "daily_report_approval",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "updated_by_user_id": {
           "name": "updated_by_user_id",

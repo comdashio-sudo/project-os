@@ -6,6 +6,7 @@ import SiteDailyReport from "./SiteDailyReport";
 
 const h = vi.hoisted(() => ({
   language: "en" as "ar" | "en" | "ur", submittalsError: null as unknown, canWrite: true, canReview: true,
+  dailyApproval: true as boolean | null, submitResult: { id: "r1", status: "submitted", final: false } as Record<string, unknown>,
   save: vi.fn(), submit: vi.fn(), review: vi.fn(), attach: vi.fn(), upload: vi.fn(), seed: vi.fn(),
   roles: [] as Array<{ id: string; name: string; category: string; active: boolean }>, rolesError: null as unknown, machines: [] as Array<{ id: string; equipmentType: string; model: string | null; plateOrSize: string | null; active: boolean }>,
   reports: [] as Array<{ id: string; reportDate: string; status: string; weather: string | null }>,
@@ -20,6 +21,8 @@ const h = vi.hoisted(() => ({
   approvers: { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }, { userId: 9, name: "Manager Nine" }] } as { named: boolean; reviewFirst: boolean; people: Array<{ userId: number; name: string | null }> },
   reviewError: null as null | { message: string; data: { projectError: { code: string } } },
 }));
+// Q-67 (5): the field bar's villa list reads pmc.progressPicker; these tests keep the typed number it falls back to
+vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
 vi.mock("@/components/ds", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds")>()), Select: (await import("../test/dsSelectStandIn")).NativeSelect }));
 vi.mock("wouter", () => ({ useLocation: () => ["/", vi.fn()], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: h.language === "ar", language: h.language, isRtl: h.language !== "en" }) }));
@@ -33,7 +36,7 @@ const options = {
 };
 vi.mock("@/lib/trpc", () => {
   const mutation = (name: "save" | "submit" | "review" | "attachPhoto") => ({ useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void; onError?: (error: unknown, variables: unknown) => void }) => ({
-    mutate: (input: unknown) => { const key = name === "attachPhoto" ? "attach" : name; h[key](input); if (name === "review" && h.reviewError && !(input as { dryRun?: boolean }).dryRun && !(input as { leaveNotAccepted?: boolean }).leaveNotAccepted) { config.onError?.(h.reviewError, input); return; } const result = name === "save" ? { id: "r1", status: "draft" } : name === "review" ? ((input as { dryRun?: boolean }).dryRun ? h.dryRun : { applied: [], skipped: [] }) : { id: "r1", status: "submitted" }; config.onSuccess?.(result, input); },
+    mutate: (input: unknown) => { const key = name === "attachPhoto" ? "attach" : name; h[key](input); if (name === "review" && h.reviewError && !(input as { dryRun?: boolean }).dryRun && !(input as { leaveNotAccepted?: boolean }).leaveNotAccepted) { config.onError?.(h.reviewError, input); return; } const result = name === "save" ? { id: "r1", status: "draft" } : name === "review" ? ((input as { dryRun?: boolean }).dryRun ? h.dryRun : { applied: [], skipped: [] }) : h.submitResult; config.onSuccess?.(result, input); },
     mutateAsync: async (input: unknown) => { h.attach(input); config.onSuccess?.({}, input); return {}; }, isPending: false, error: null,
   }) });
   return { trpc: {
@@ -45,6 +48,7 @@ vi.mock("@/lib/trpc", () => {
       approvers: { get: { useQuery: () => ({ data: { prepare: { membershipId: "m5", userId: 5, name: "Site Writer" }, review: { membershipId: "m7", userId: 7, name: "Reviewer Seven" }, approve: null }, isLoading: false, error: null }) } },
     },
     auth: { me: { useQuery: () => ({ data: h.me }) } },
+    policy: { effective: { useQuery: () => ({ data: h.dailyApproval === null ? undefined : { dailyReportApproval: h.dailyApproval }, isLoading: false, error: null }) } },
     useUtils: () => ({ siteReports: { list: { invalidate: vi.fn() }, get: { fetch: async () => h.detail } } }),
     submittals: { list: { useQuery: (input: { submittalType?: string }) => (h.submittalsError ? { data: undefined, isLoading: false, error: h.submittalsError, isError: true, status: "error", refetch: vi.fn() } : { data: input.submittalType === "material_approval" ? [{ id: "00000000-0000-4000-8000-0000000000aa", submittalNumber: "MA-007", title: "Blocks" }] : [], isLoading: false, error: null, refetch: vi.fn() }) } },
     siteReports: {
@@ -54,13 +58,14 @@ vi.mock("@/lib/trpc", () => {
       get: { useQuery: (_input: unknown, config: { enabled: boolean }) => ({ data: config.enabled ? { ...h.detail, photos: h.detail.photos } : undefined, error: null, refetch: vi.fn() }) },
       save: mutation("save"), submit: mutation("submit"), review: mutation("review"), attachPhoto: mutation("attachPhoto"),
       export: { useMutation: () => ({ mutateAsync: vi.fn(async () => ({ url: "https://files.example.test/x.xlsx", fileName: "x.xlsx" })), isPending: false, error: null }) },
+      addCorrection: { useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }) },
       copyFromYesterday: { useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void; onError?: (error: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { h.copy(input); if (h.copyError && !(input as { sourceReportId?: string }).sourceReportId) { config.onError?.(h.copyError, input); return; } config.onSuccess?.({ id: "r-copy" }, input); }, isPending: false, error: null }) },
       check: { useMutation: (config: { onSuccess?: (result: unknown, variables: unknown) => void }) => ({ mutate: (input: unknown) => { h.check(input); config.onSuccess?.({}, input); }, isPending: false, error: null }) },
     },
   } };
 });
 
-beforeEach(() => { h.copyError = null; h.reviewError = null; h.approvers = { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }, { userId: 9, name: "Manager Nine" }] }; h.check.mockReset(); h.copy.mockReset(); h.companiesError = null; h.me = { id: 7 }; h.language = "en"; h.submittalsError = null; h.detail.report.status = "rejected"; h.detail.materials = []; h.detail.hse = []; h.detail.obstacleItems = []; h.detail.tomorrow = []; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
+beforeEach(() => { h.dailyApproval = true; h.submitResult = { id: "r1", status: "submitted", final: false }; h.copyError = null; h.reviewError = null; h.approvers = { named: false, reviewFirst: false, people: [{ userId: 7, name: "Reviewer Seven" }, { userId: 9, name: "Manager Nine" }] }; h.check.mockReset(); h.copy.mockReset(); h.companiesError = null; h.me = { id: 7 }; h.language = "en"; h.submittalsError = null; h.detail.report.status = "rejected"; h.detail.materials = []; h.detail.hse = []; h.detail.obstacleItems = []; h.detail.tomorrow = []; h.canWrite = true; h.canReview = true; h.reports = []; h.seed.mockReset(); h.rolesError = null;
   h.roles = [{ id: "r-mason", name: "Masons", category: "direct", active: true }, { id: "r-old", name: "Retired trade", category: "direct", active: false }];
   h.machines = [{ id: "e-mix", equipmentType: "Mixer", model: null, plateOrSize: null, active: true }, { id: "e-old", equipmentType: "Crane", model: "C-9", plateOrSize: "50 t", active: false }]; for (const key of ["save", "submit", "review", "attach", "upload"] as const) h[key].mockReset(); h.upload.mockResolvedValue("uploads/key-0123456789"); });
 afterEach(cleanup);
@@ -138,6 +143,29 @@ describe("SiteDailyReport — the engineer's side", () => {
     expect(h.submit).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", reportId: "r1" });
     expect(screen.getByText("This report is sent or approved and cannot be edited.")).toBeTruthy();
     expect(screen.queryByText("Save draft")).toBeNull();
+  });
+
+  it("Q-71 (2): with the company's approval rule off, the button says «Send the report» and a sent report says it is final — with the cells QC held back counted", () => {
+    h.dailyApproval = false; h.submitResult = { id: "r1", status: "approved", final: true, applied: [{}], skipped: [{ reason: "QC_NOT_ACCEPTED" }, { reason: "NOT_FORWARD" }], warnings: [] };
+    render(<SiteDailyReport />);
+    fireEvent.click(screen.getByText("Add equipment")); type("Equipment", "Mixer");
+    expect(screen.queryByText("Send for approval")).toBeNull();
+    fireEvent.click(screen.getByText("Save draft"));
+    fireEvent.click(screen.getByText("Send the report").closest("button")!);
+    expect(h.submit).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", reportId: "r1" });
+    expect(screen.getByText("The report was sent and is final: it counts in the week and month. Progress cells updated: 1. Cells not updated because their inspection is not accepted: 1")).toBeTruthy();
+    expect(screen.queryByText("The report was sent for approval")).toBeNull();
+  });
+
+  it("Q-71 (2) NEGATIVE: while the rule is unknown the wording is neutral (never «for approval» by guess); a report that waits says so", () => {
+    h.dailyApproval = null;
+    render(<SiteDailyReport />);
+    fireEvent.click(screen.getByText("Add equipment")); type("Equipment", "Mixer");
+    fireEvent.click(screen.getByText("Save draft"));
+    fireEvent.click(screen.getByText("Send the report").closest("button")!);
+    // the server decides: here it answered that the report waits (the rule was on after all)
+    expect(screen.getByText("The report was sent for approval")).toBeTruthy();
+    expect(screen.queryByText(/is final/)).toBeNull();
   });
 
   it("a photo needs a saved draft; the camera input asks for the back camera; the file goes to storage and is attached", async () => {

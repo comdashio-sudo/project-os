@@ -1,4 +1,5 @@
 import { type ExportLocale } from "@shared/exportLocale";
+import { PROGRESS_COMPUTED_FROM_PMC, pmcComputedWbs, progressSourceOf } from "./progressSource";
 import { isReservedMailDomain, mailGateConfigFromEnv } from "./emailGate";
 import { emitWebhookEvent, kickWebhookDelivery } from "./integrations/webhooks";
 import { loadTenantPolicy, materialApprovalState } from "./qualityGate";
@@ -1435,14 +1436,15 @@ export async function getProjectControlsForTenant(input: { userId: number; tenan
   const settledByCommitment = await settledAmountsByCommitment(db, input.tenantId, [input.projectId]);
   const inventoryValue = (await inventoryValueByProject(db, input.tenantId, [input.projectId])).get(input.projectId) ?? 0;
   const cashFlow = calculateOperationalCashFlow({ inventoryValue, budgetAmounts: budgets.map(row => Number(row.currentAmount)), costEntries: costs.map(row => ({ amount: Number(row.amount), status: row.status })), commitments: commitmentRows.map(row => ({ amount: Number(row.amount), status: row.status, settledAmount: settledByCommitment.get(row.id) ?? 0 })) });
-  const full = { project: projectRows[0]!, wbs, activities: activitiesForProject, budgets, costs, progress, latestEvm: latestEvm[0] ?? null, latestHealth: latestHealth[0] ?? null, cashFlow };
+  const computedWbs = await pmcComputedWbs(db, input); // Q-71 (1): which items PMC computes
+  const full = { project: projectRows[0]!, wbs: wbs.map(row => ({ ...row, ...progressSourceOf(computedWbs, row.id) })), activities: activitiesForProject, budgets, costs, progress, latestEvm: latestEvm[0] ?? null, latestHealth: latestHealth[0] ?? null, cashFlow };
   // Q-17 (205-1): the money of the project (budget, cost, cash flow, earned value) is for project.cashflow.read, or for a power over that money itself.
   // Without it the same read answers the schedule and progress only: the amounts are null and the money lists are empty, and moneyVisible says so.
   if (projectMoneyVisible(snapshot, input.projectId)) return { ...full, moneyVisible: true as boolean };
   return {
     ...full,
     project: { ...full.project, currentBudget: null, actualCost: null, forecastCost: null },
-    wbs: wbs.map(row => ({ ...row, plannedValue: null, earnedValue: null, actualCost: null })),
+    wbs: full.wbs.map(row => ({ ...row, plannedValue: null, earnedValue: null, actualCost: null })),
     activities: activitiesForProject.map(row => ({ ...row, plannedValue: null, earnedValue: null })),
     budgets: [], costs: [], latestEvm: null, cashFlow: null, moneyVisible: false as boolean,
   };
@@ -2622,9 +2624,10 @@ export async function transitionEmployeeTimeEntryForTenant(input: { userId: numb
       if (loaded.hourlyCost !== null) { hourlyRate = loaded.hourlyCost; rateSource = "loaded"; }
     }
   }
-  const costEntryId = input.status === "approved" ? crypto.randomUUID() : undefined; const progressEntryId = input.status === "approved" && entry.reportedProgressPercent !== null && entry.reportedProgressPercent !== undefined ? crypto.randomUUID() : undefined;
-  await db.transaction(async tx => { if (costEntryId) await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, amount: String(Math.round(Number(entry.actualHours) * hourlyRate * 100) / 100), entryType: "actual", status: "posted", incurredAt: entry.workDate, category: "labour", sourceType: "time_entry", sourceId: entry.id }); if (progressEntryId) await tx.insert(progressEntries).values({ id: progressEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, activityId: entry.activityId, progressPercent: String(entry.reportedProgressPercent), status: "submitted", measuredAt: entry.workDate }); await tx.update(employeeTimeEntries).set({ status: input.status, reviewedByUserId: input.status === "approved" || input.status === "rejected" ? input.userId : undefined, costEntryId, progressEntryId, rateSource: input.status === "approved" ? rateSource : undefined }).where(eq(employeeTimeEntries.id, entry.id)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.time_entry_transitioned", entityType: "employee_time_entry", entityId: entry.id, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: entry.status, status: input.status, costEntryId, progressEntryId, rateSource: input.status === "approved" ? rateSource : undefined }) }); });
-  return { id: entry.id, previousStatus: entry.status, status: input.status, costEntryId, progressEntryId };
+  const costEntryId = input.status === "approved" ? crypto.randomUUID() : undefined; const computedFromPmc = input.status === "approved" && entry.wbsItemId ? (await pmcComputedWbs(db, input)).has(entry.wbsItemId) : false; // Q-71 (1): the hours are approved, the percent of an item PMC computes is not copied
+  const progressEntryId = input.status === "approved" && !computedFromPmc && entry.reportedProgressPercent !== null && entry.reportedProgressPercent !== undefined ? crypto.randomUUID() : undefined;
+  await db.transaction(async tx => { if (costEntryId) await tx.insert(costEntries).values({ id: costEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, amount: String(Math.round(Number(entry.actualHours) * hourlyRate * 100) / 100), entryType: "actual", status: "posted", incurredAt: entry.workDate, category: "labour", sourceType: "time_entry", sourceId: entry.id }); if (progressEntryId) await tx.insert(progressEntries).values({ id: progressEntryId, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: entry.wbsItemId, activityId: entry.activityId, progressPercent: String(entry.reportedProgressPercent), status: "submitted", measuredAt: entry.workDate }); await tx.update(employeeTimeEntries).set({ status: input.status, reviewedByUserId: input.status === "approved" || input.status === "rejected" ? input.userId : undefined, costEntryId, progressEntryId, rateSource: input.status === "approved" ? rateSource : undefined }).where(eq(employeeTimeEntries.id, entry.id)); await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "employee.time_entry_transitioned", entityType: "employee_time_entry", entityId: entry.id, metadata: JSON.stringify({ projectId: input.projectId, previousStatus: entry.status, status: input.status, costEntryId, progressEntryId, rateSource: input.status === "approved" ? rateSource : undefined, ...(computedFromPmc && entry.reportedProgressPercent !== null ? { progressNotCopied: "COMPUTED_FROM_PMC" } : {}) }) }); });
+  return { id: entry.id, previousStatus: entry.status, status: input.status, costEntryId, progressEntryId, ...(computedFromPmc && entry.reportedProgressPercent !== null ? { progressNotCopied: "COMPUTED_FROM_PMC" as const } : {}) };
 }
 
 type PerformanceAccess = { employee: { id: string; linkedUserId: number | null; employeeNumber: string; fullName: string }; isOwn: boolean };
@@ -3246,11 +3249,12 @@ export async function getFieldEntryContextForTenant(input: { userId: number; ten
   const lastIssued = new Map<string, number>();
   issues.forEach(i => { if (!lastCost.has(`issue:${i.materialId}`) && Number(i.unitCost) > 0) lastCost.set(`issue:${i.materialId}`, Number(i.unitCost)); lastIssued.set(i.materialId, (lastIssued.get(i.materialId) ?? 0) + 1); });
   const latestProgress = new Map<string, { percent: number; measuredAt: Date }>();
+  const computedWbs = await pmcComputedWbs(db, input);
   progress.forEach(p => { if (p.wbsItemId && !latestProgress.has(p.wbsItemId)) latestProgress.set(p.wbsItemId, { percent: Number(p.progressPercent), measuredAt: p.measuredAt }); });
   return {
     warehouses,
     materials: materials.map(m => ({ ...m, lastUnitCost: seesStockMoney ? lastCost.get(`issue:${m.id}`) ?? lastCost.get(m.id) ?? null : null, timesIssued: lastIssued.get(m.id) ?? 0, onHand: warehouses.map(w => { const position = positionAt(w.id, m.id); return { warehouseId: w.id, quantity: position.quantity, averageCost: seesStockMoney ? position.averageCost : null, priced: position.averageCost !== null }; }) })).sort((a, b) => b.timesIssued - a.timesIssued || a.code.localeCompare(b.code)),
-    wbs: wbs.map(w => ({ ...w, lastPercent: latestProgress.get(w.id)?.percent ?? null, lastMeasuredAt: latestProgress.get(w.id)?.measuredAt ?? null })),
+    wbs: wbs.map(w => ({ ...w, lastPercent: latestProgress.get(w.id)?.percent ?? null, lastMeasuredAt: latestProgress.get(w.id)?.measuredAt ?? null, ...progressSourceOf(computedWbs, w.id) })),
     lastIssuedWbsItemId: issues[0]?.wbsItemId ?? null,
     // Issued purchase orders a storekeeper can receive against, each with the material last received on it (the likely next one).
     purchaseOrders: issuedOrders.map(order => ({ id: order.id, purchaseOrderNumber: order.purchaseOrderNumber, supplierName: order.supplierName, currency: order.currency, hasCommitment: Boolean(order.commitmentId), lastReceivedMaterialId: receipts.find(receipt => receipt.purchaseOrderId === order.id)?.materialId ?? null })),
@@ -4040,6 +4044,8 @@ export async function createProgressEntry(input: { userId: number; tenantId: str
   assertTenantAccess(snapshot, { tenantId: input.tenantId, product: "PROJECT", permission: "project.progress.manage", scope: { type: "project", id: input.projectId } });
   await assertProjectWithinTenant({ tenantId: input.tenantId, projectId: input.projectId });
   await assertWbsItemWithinProject({ tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId });
+  // Q-71 (1): an item a PMC activity computes takes no typed percent (server/progressSource.ts)
+  if ((await pmcComputedWbs(db, input)).has(input.wbsItemId)) throw new TRPCError({ code: "CONFLICT", message: PROGRESS_COMPUTED_FROM_PMC });
   const id = crypto.randomUUID();
   await db.transaction(async tx => {
     await tx.insert(progressEntries).values({ id, tenantId: input.tenantId, projectId: input.projectId, wbsItemId: input.wbsItemId, progressPercent: String(input.percentComplete), measuredAt: input.reportedAt, status: "submitted" });

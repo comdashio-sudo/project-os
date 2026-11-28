@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 240_000 });
 import { createRoleFixture } from "../scripts/lib/roleFixture.mjs";
 import { getOperationsOverview } from "./operationsOverview";
+import { requireReportApproval } from "./testing/reportApproval";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
 
 // Q-53 (adviser 20-11): «التشغيل» on the test database, as the restricted application role, through the real procedure and the function behind it.
@@ -25,6 +26,7 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-53: the op
     a = await createRoleFixture({ label: "ops-a" }); b = await createRoleFixture({ label: "ops-b" });
     const q = (text: string, values: unknown[] = []) => owner.query(text, values);
     const T = a.tenantId, P = a.projectId;
+    await requireReportApproval(T); // the seed holds a waiting report: the approval chain is on (Q-71 (2): off by default, checked below)
 
     // the operations manager, invited at company scope the way the administrator does it
     const email = `ops53.${a.tenantId.slice(0, 6)}@e2e.example.test`;
@@ -113,6 +115,10 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-53: the op
     // villas and a plan (100% planned by now), but no approved completion: the actual is null for want of a source, never 0
     expect(noReports.progress).toEqual({ actual: null, planned: 100, deviation: null, reason: "NO_REPORTS" });
     expect(seeded.progress).toEqual({ actual: 30, planned: 50, deviation: -20, reason: null });
+    // Q-71 (2): with the company's approval rule off, the submitted report of 11-12 counts as sent (SLAB on villa 1: 30 + 40 / 4 = 40); back on, it waits again
+    await requireReportApproval(a.tenantId, false);
+    expect((await getOperationsOverview({ userId: ops.id, tenantId: a.tenantId, now: NOW })).projects[0].progress.actual).toBe(40);
+    await requireReportApproval(a.tenantId, true);
     // October's task and the milestone of 11-15, both past their planned finish and not completed (the levels dashboards count the same way); December's is not due
     expect(seeded.overdueActivities).toBe(2);
     expect(seeded.openNcrs).toBe(2);

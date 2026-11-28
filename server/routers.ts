@@ -8,6 +8,7 @@ import { addProjectMeetingAction, addProjectMeetingItem, createProjectMeeting, e
 import { adoptScheduleBaseline, compareScheduleSnapshots, getLiveSchedule } from "./scheduleSnapshots";
 import { getScheduleVillaLinks } from "./scheduleVillaLinks";
 import { getScheduleStageMapping, saveScheduleStageMapping } from "./scheduleStageMapping";
+import { getActivityComputedProgress } from "./activityComputedService";
 import { getPlannedCurve } from "./plannedCurveService";
 import { getOperationsOverview } from "./operationsOverview";
 import { completeMyActionForTenant, getMyWorkForTenant } from "./myWork";
@@ -41,7 +42,7 @@ import { APPROVAL_STEPS, getReportApprovers, listInvitableProjectRoles, listProj
 import { MEASURE_UNITS, listEquipment, listLabourRoles, listSiteActivityMeasures, saveEquipment, saveLabourRole, seedDefaultLabourRoles, setEquipmentActive, setLabourRoleActive, setSiteActivityMeasure } from "./projectReferenceLists";
 import { closeConsultantSubmittalForTenant, createConsultantSubmittalForTenant, listConsultantSubmittalsForTenant, listSubmittalReplyCodesForTenant, replyConsultantSubmittalForTenant, saveSubmittalReplyCodesForManager, sendConsultantSubmittalForTenant, SUBMITTAL_TYPES } from "./consultantSubmittals";
 import { getEffectivePolicyForProject, getTenantPolicyForManager, setTenantPolicyForManager } from "./qualityGate";
-import { attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, listSiteReportApproversForTenant, checkSiteDailyReportForTenant, copySiteDailyReportFromYesterday, HSE_KINDS, saveSiteDailyReportForTenant, saveSiteDailyReportSectionForTenant, submitSiteDailyReportForTenant } from "./siteReports";
+import { addSiteDailyReportCorrectionForTenant, CORRECTION_SECTIONS, attachSiteReportPhotoForTenant, getSiteDailyReportForTenant, listFieldOptionsForTenant, listSiteDailyReportsForTenant, reviewSiteDailyReportForTenant, listSiteReportApproversForTenant, checkSiteDailyReportForTenant, copySiteDailyReportFromYesterday, HSE_KINDS, saveSiteDailyReportForTenant, saveSiteDailyReportSectionForTenant, submitSiteDailyReportForTenant } from "./siteReports";
 import { findMaterialForTenant, getIssueCellOptionsForTenant, issueMaterialToCellForTenant, listReturnableIssuesForTenant, listTransferTargetsForTenant, recordStocktakeForTenant, returnMaterialToWarehouseForTenant, transferBetweenProjectsForTenant } from "./warehouseOps";
 import { getCompanyLevel, getPortfolioLevel, getProjectLevel, getWarehouseLevel } from "./scopeDashboards";
 import { levelReadsRouter } from "./levelReads";
@@ -61,7 +62,7 @@ import { confirmTenantDeletion, previewTenantData, requestTenantDeletion } from 
 import { PMC_IMPORT_KINDS } from "./domain/pmcImport";
 import { withClientRequest } from "./clientRequests";
 import { exportPmcScreen, getPmcScreen } from "./pmcScreensService";
-import { getPmcSiteMap, getPmcUnitCard, savePmcUnitGeometries, uploadPmcSitePlan } from "./pmcPlanService";
+import { getPmcProgressBoard, getPmcSiteMap, getPmcUnitCard, savePmcUnitGeometries, uploadPmcSitePlan } from "./pmcPlanService";
 import { getPmcProgramme } from "./pmcProgrammeService";
 import { PMC_SCREEN_NAMES, type PmcScreenName } from "./domain/pmcScreenExport";
 import { analyzePmcImport, confirmPmcImport } from "./pmcImportService";
@@ -81,7 +82,7 @@ const riskPatchSchema = z.object({
   residualProbability: riskScale.nullable(), residualSeverity: riskScale.nullable(), response: riskText(4000), mitigation: riskText(4000), trigger: riskText(2000),
   ownerMembershipId: z.string().uuid().nullable(), nextReviewAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), status: z.enum(["open", "mitigating", "accepted"]),
 }).partial().strict();
-import { createImportUpload, deleteImportTemplate, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportCorrection, requestImportReanalysis, saveImportTemplate } from "./importJobs";
+import { createImportUpload, deleteImportTemplate, getImportGrid, getImportProgress, listImportTemplates, previewImportDiff, registerImportUpload, requestImportConfirmation, requestImportCorrection, requestImportReanalysis, saveImportTemplate } from "./importJobs";
 import { createMaterialIssueForTenant, createProjectWarehouseForTenant, getProjectWarehousesForTenant, recordWarehouseInventoryTransactionForTenant, transferWarehouseInventoryForTenant } from "./db";
 import { createProcurementRequisitionForTenant, createSupplierForTenant, getProcurementRegisterForTenant, linkProcurementRequisitionPurchaseOrderForTenant, transitionProcurementRequisitionForTenant } from "./db";
 import { createGoodsReceiptNoteForTenant, getGoodsReceiptNotesForTenant } from "./db";
@@ -114,8 +115,10 @@ import { getStalledUnits, setStallThreshold } from "./stalledUnits";
 import { getPmcProgressLog } from "./pmcProgressLog";
 import { LOG_SOURCES } from "./domain/progressLog";
 import { COMPLETION_STATUSES, getPmcCompletionReport } from "./pmcCompletionReport";
+import { listScopeEngineerCandidates, setPmcScopeEngineer } from "./pmcScopeEngineers";
+import { getPmcActivitySummary } from "./pmcActivitySummary";
 import { quickSearch } from "./quickSearch";
-import { listPmcProgressHistory, listProgressActivities, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
+import { listPmcProgressHistory, listProgressActivities, listProgressMapShapes, listProgressPicker, PROGRESS_STATUSES, updatePmcProgress } from "./pmcProgressUpdate";
 import { undoPmcProgressBatch, undoPmcQcReceiptBatch } from "./pmcUndo";
 import { beginEnrolment, confirmEnrolment, getCompanySecurity, mfaStatus, setCompanyRequireTwoStep, setOwnTwoStep, verifySecondStep } from "./mfa";
 import { deferralEnds, MFA_DEFERRAL_COOKIE, MFA_DEFERRAL_COOKIE_MAX_AGE_MS, signDeferral } from "./_core/mfaDeferral";
@@ -307,10 +310,17 @@ export const appRouter = router({
     structure: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcStructure({ userId: ctx.user.id, ...input })),
     // Q-4: the site engineer's progress update on the weights table (server/pmcProgressUpdate.ts): the activities, one atomic update for several villas, the history
     progressActivities: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressActivities({ userId: ctx.user.id, ...input })),
+    progressMapShapes: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listProgressMapShapes({ userId: ctx.user.id, ...input })),
+    progressPicker: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80).optional() })).query(({ ctx, input }) => listProgressPicker({ userId: ctx.user.id, ...input })),
     updateProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().trim().max(80), villas: z.array(z.string().trim().min(1).max(40)).max(20000).optional(), range: z.string().trim().max(40).optional(), blockCode: z.string().trim().max(80).optional(), modelCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional(), status: z.enum(PROGRESS_STATUSES), date: z.string().trim().max(10), queuedAt: z.string().datetime().optional(), confirmCount: z.number().int().positive().optional(), clientRequestId: z.string().uuid().optional() })).mutation(({ ctx, input: { clientRequestId, ...input } }) => withClientRequest({ tenantId: input.tenantId, userId: ctx.user.id, requestId: clientRequestId, action: "pmc.updateProgress" }, () => updatePmcProgress({ userId: ctx.user.id, ...input }))),
     progressHistory: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), villa: z.string().trim().max(40).optional(), limit: z.number().int().min(1).max(100).optional() })).query(({ ctx, input }) => listPmcProgressHistory({ userId: ctx.user.id, ...input })),
     // Q-70 (1): the progress log — one row per entry a person made, with its villas, before → after and source (server/pmcProgressLog.ts)
     progressLog: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), from: z.string().trim().max(10).optional(), to: z.string().trim().max(10).optional(), byUserId: z.number().int().positive().optional(), blockCode: z.string().trim().max(80).optional(), activityCode: z.string().trim().max(80).optional(), source: z.enum(LOG_SOURCES as [string, ...string[]], { message: "PROJECT_OS_PROGRESS_LOG_SOURCE_INVALID" }).optional() })).query(({ ctx, input }) => getPmcProgressLog({ userId: ctx.user.id, ...input, source: input.source as (typeof LOG_SOURCES)[number] | undefined })),
+    // Q-70 (3): the activity summary — per activity, block and phase, by the PMC progress rules (server/pmcActivitySummary.ts)
+    // Q-72 (4): the engineer in charge of a block or a phase (server/pmcScopeEngineers.ts); null clears it
+    scopeEngineerCandidates: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listScopeEngineerCandidates({ userId: ctx.user.id, ...input })),
+    setScopeEngineer: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), scopeType: z.enum(["block", "phase"]), scopeKey: z.string().trim().min(1).max(80), engineerUserId: z.number().int().positive().nullable() })).mutation(({ ctx, input }) => setPmcScopeEngineer({ userId: ctx.user.id, ...input })),
+    activitySummary: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional(), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })).query(({ ctx, input }) => getPmcActivitySummary({ userId: ctx.user.id, ...input })),
     // Q-70 (2): the completion report — one row per villa × activity, in pages (server/pmcCompletionReport.ts)
     completionReport: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), blockCode: z.string().trim().max(80).optional(), phase: z.string().trim().max(40).optional(), activityCode: z.string().trim().max(80).optional(), status: z.enum(COMPLETION_STATUSES).optional(), villa: z.string().trim().max(40).optional(), offset: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(5000).optional() })).query(({ ctx, input }) => getPmcCompletionReport({ userId: ctx.user.id, ...input })),
     // Q-14 (a): the stalled villas (working days since the last progress or QC movement) and the project's threshold (server/stalledUnits.ts)
@@ -349,6 +359,8 @@ export const appRouter = router({
     pendingAtVerifier: pmcScreen("pending"),
     stagesView: pmcScreen("stages"),
     programme: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgramme({ userId: ctx.user.id, ...input })),
+    // Q-63: the progress board (KPI bar, villa counts, each villa's progress and this month's increase); the same PMC read gate as the site map
+    progressBoard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPmcProgressBoard({ userId: ctx.user.id, ...input })),
     siteMap: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), activityCode: z.string().max(80).optional(), names: z.enum(["ar", "en"]).optional(), language: z.enum(EXPORT_LOCALES).optional() })).query(({ ctx, input }) => getPmcSiteMap({ userId: ctx.user.id, ...input })),
     unitCard: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitNumber: z.number().int().min(0), names: z.enum(["ar", "en"]).optional(), language: z.enum(EXPORT_LOCALES).optional() })).query(({ ctx, input }) => getPmcUnitCard({ userId: ctx.user.id, ...input })),
     uploadSitePlan: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileName: z.string().trim().min(1).max(255) }).and(z.union([z.object({ base64: z.string().min(1).max(12_000_000) }), z.object({ uploadKey: z.string().min(1).max(1024) })]))).mutation(({ ctx, input }) => uploadPmcSitePlan({ userId: ctx.user.id, ...input })),
@@ -386,6 +398,8 @@ export const appRouter = router({
     confirm: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), approvedDiffHash: z.string().regex(/^[0-9a-f]{64}$/).optional() })).mutation(({ ctx, input }) => requestImportConfirmation({ userId: ctx.user.id, ...input })),
     // Export → edit → re-import: what the file would change, row by row, before anything is written.
     diff: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), kind: z.enum(["new", "modified", "conflict", "all"]).optional(), offset: z.number().int().min(0).max(10_000_000).optional() })).query(({ ctx, input }) => previewImportDiff({ userId: ctx.user.id, ...input })),
+    // Q-66 batch 1: the review grid of a PMC import (every row as the importer read it, a page at a time) — reads only
+    grid: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), importId: z.string().uuid(), tab: z.enum(["all", "ready", "corrected", "errors", "ignored"]).optional(), search: z.string().max(200).optional(), offset: z.number().int().min(0).max(10_000_000).optional() })).query(({ ctx, input }) => getImportGrid({ userId: ctx.user.id, ...input })),
     // The blank import template of a module, generated from the importer's own field table.
     template: protectedProcedure.input(z.object({ moduleCode: z.union([importModuleSchema, z.enum(LEDGER_MODULES)]), locale: z.enum(EXPORT_LOCALES) })).mutation(({ input }) => buildImportTemplateForUser(input)),
     // Q-51 batch 1: «كراسة بيانات المشروع» — the whole project in one workbook, built from the importers' own field tables (server/domain/projectWorkbook.ts)
@@ -644,10 +658,12 @@ export const appRouter = router({
       photoIds: z.array(z.string().uuid()).max(MAX_WEEKLY_PHOTOS) })).mutation(({ ctx, input }) => saveWeeklyReport({ userId: ctx.user.id, ...input })),
   }),
   siteReports: router({
+    // Q-72 (5): the correction of a sent report — an additional record, the sent report untouched
+    addCorrection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid(), section: z.enum(CORRECTION_SECTIONS), note: z.string().max(2000) })).mutation(({ ctx, input }) => addSiteDailyReportCorrectionForTenant({ userId: ctx.user.id, ...input })),
     options: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listFieldOptionsForTenant({ userId: ctx.user.id, ...input })),
     list: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), status: z.enum(["draft", "submitted", "approved", "rejected"]).optional(), from: z.string().refine(isCalendarDay).optional(), to: z.string().refine(isCalendarDay).optional() })).query(({ ctx, input }) => listSiteDailyReportsForTenant({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportId: z.string().uuid() })).query(({ ctx, input }) => getSiteDailyReportForTenant({ userId: ctx.user.id, ...input })),
-    save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weather: z.string().trim().max(24).optional(), temperatureC: z.number().min(-50).max(70).optional(), summary: z.string().trim().max(5000).optional(), obstacles: z.string().trim().max(5000).optional(), lines: z.array(z.object({ lineType: z.enum(["labour", "equipment", "work"]), label: z.string().trim().max(160).optional(), quantity: z.number().finite().min(0).max(100000).optional(), hours: z.number().finite().min(0).max(24).optional(), description: z.string().trim().max(2000).optional(), pmcUnitId: z.string().uuid().optional(), pmcActivityDefinitionId: z.string().uuid().optional(), reportedStatus: z.enum(["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).optional(), plannedQuantity: z.number().finite().min(0).max(1e9).optional(), actualQuantity: z.number().finite().min(0).max(1e9).optional() })).max(300),
+    save: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), reportDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weather: z.string().trim().max(24).optional(), temperatureC: z.number().finite().optional() /* the range is checked by name in siteReports.ts (Q-72 5) */, summary: z.string().trim().max(5000).optional(), obstacles: z.string().trim().max(5000).optional(), lines: z.array(z.object({ lineType: z.enum(["labour", "equipment", "work"]), label: z.string().trim().max(160).optional(), quantity: z.number().finite().min(0).max(100000).optional(), hours: z.number().finite().min(0).max(24).optional(), description: z.string().trim().max(2000).optional(), pmcUnitId: z.string().uuid().optional(), pmcActivityDefinitionId: z.string().uuid().optional(), reportedStatus: z.enum(["NOT_STARTED", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETE"]).optional(), plannedQuantity: z.number().finite().min(0).max(1e9).optional(), actualQuantity: z.number().finite().min(0).max(1e9).optional() })).max(300),
       // D-45 (a): the header's wind and working hours, the labour matrix and the equipment of the day
       wind: z.string().trim().max(24).optional(), workHours: z.number().finite().min(0).max(24).optional(),
       labour: z.array(z.object({ companyId: z.string().uuid(), labourRoleId: z.string().uuid(), shift: z.enum(["day", "night"]), headcount: z.number().int().min(0).max(100000) })).max(600).optional(),
@@ -687,7 +703,7 @@ export const appRouter = router({
   policy: router({
     effective: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getEffectivePolicyForProject({ userId: ctx.user.id, ...input })),
     get: protectedProcedure.input(z.object({ tenantId: z.string().uuid() })).query(({ ctx, input }) => getTenantPolicyForManager({ userId: ctx.user.id, ...input })),
-    set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), qcCompletionMode: z.enum(["off", "warn", "block"]), qcAcceptedCodes: z.array(z.string().trim().min(1).max(4)).min(1).max(8), materialApprovalMode: z.enum(["off", "warn", "block"]), ncrAcceptanceMode: z.enum(["off", "warn", "block"]).optional() })).mutation(({ ctx, input }) => setTenantPolicyForManager({ userId: ctx.user.id, ...input })),
+    set: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), qcCompletionMode: z.enum(["off", "warn", "block"]), qcAcceptedCodes: z.array(z.string().trim().min(1).max(4)).min(1).max(8), materialApprovalMode: z.enum(["off", "warn", "block"]), ncrAcceptanceMode: z.enum(["off", "warn", "block"]).optional(), dailyReportApproval: z.boolean().optional() })).mutation(({ ctx, input }) => setTenantPolicyForManager({ userId: ctx.user.id, ...input })),
   }),
   cells: router({
     card: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), unitId: z.string().uuid(), activityDefinitionId: z.string().uuid().optional() })).query(({ ctx, input }) => getCellCardForTenant({ userId: ctx.user.id, ...input })),
@@ -1164,6 +1180,8 @@ export const appRouter = router({
     // Q-61 (5): a later P6 import adopted as the new baseline — explicit, with a reason, audited (project.schedule.manage / project.manage)
     adoptBaseline: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), snapshotId: z.string().uuid(), reason: z.string().max(500) })).mutation(({ ctx, input }) => adoptScheduleBaseline({ userId: ctx.user.id, ...input })),
     plannedCurve: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getPlannedCurve({ userId: ctx.user.id, ...input })),
+    // Q-71 (1) batch 2: each P6 activity's progress computed from the villas' PMC cells (server/activityComputedService.ts), read-only
+    computedProgress: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => getActivityComputedProgress({ userId: ctx.user.id, ...input })),
     // Q-23: what changed between two snapshots of the project (an earlier and a later), activity by activity
     compare: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fromSnapshotId: z.string().uuid(), toSnapshotId: z.string().uuid() })).query(({ ctx, input }) => compareScheduleSnapshots({ userId: ctx.user.id, ...input })),
   }),

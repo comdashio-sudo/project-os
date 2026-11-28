@@ -14,13 +14,14 @@ type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 /** Any handle that can run a select/execute: the database or a transaction on it. */
 type Reader = Pick<Db, "select" | "execute">;
 export type PolicyMode = "off" | "warn" | "block";
-export type TenantPolicy = { qcCompletionMode: PolicyMode; qcAcceptedCodes: string[]; materialApprovalMode: PolicyMode; ncrAcceptanceMode: PolicyMode };
-export const DEFAULT_POLICY: TenantPolicy = { qcCompletionMode: "warn", qcAcceptedCodes: ["A", "B"], materialApprovalMode: "warn", ncrAcceptanceMode: "block" };
+export type TenantPolicy = { qcCompletionMode: PolicyMode; qcAcceptedCodes: string[]; materialApprovalMode: PolicyMode; ncrAcceptanceMode: PolicyMode; dailyReportApproval: boolean };
+// Q-71 (2): a daily report needs no approval unless the company turns the rule on
+export const DEFAULT_POLICY: TenantPolicy = { qcCompletionMode: "warn", qcAcceptedCodes: ["A", "B"], materialApprovalMode: "warn", ncrAcceptanceMode: "block", dailyReportApproval: false };
 
 export async function loadTenantPolicy(reader: Reader, tenantId: string): Promise<TenantPolicy> {
   const [row] = await reader.select().from(tenantPolicies).where(eq(tenantPolicies.tenantId, tenantId)).limit(1);
   if (!row) return DEFAULT_POLICY;
-  return { qcCompletionMode: row.qcCompletionMode, qcAcceptedCodes: row.qcAcceptedCodes.split(",").map(code => code.trim()).filter(Boolean), materialApprovalMode: row.materialApprovalMode, ncrAcceptanceMode: row.ncrAcceptanceMode };
+  return { qcCompletionMode: row.qcCompletionMode, qcAcceptedCodes: row.qcAcceptedCodes.split(",").map(code => code.trim()).filter(Boolean), materialApprovalMode: row.materialApprovalMode, ncrAcceptanceMode: row.ncrAcceptanceMode, dailyReportApproval: row.dailyReportApproval };
 }
 
 export async function getTenantPolicyForManager(input: { userId: number; tenantId: string }) {
@@ -42,7 +43,7 @@ export async function getEffectivePolicyForProject(input: { userId: number; tena
   return loadTenantPolicy(db, input.tenantId);
 }
 
-export async function setTenantPolicyForManager(input: { userId: number; tenantId: string; qcCompletionMode: PolicyMode; qcAcceptedCodes: string[]; materialApprovalMode: PolicyMode; ncrAcceptanceMode?: PolicyMode }) {
+export async function setTenantPolicyForManager(input: { userId: number; tenantId: string; qcCompletionMode: PolicyMode; qcAcceptedCodes: string[]; materialApprovalMode: PolicyMode; ncrAcceptanceMode?: PolicyMode; dailyReportApproval?: boolean }) {
   await assertTenantManager(input.userId, input.tenantId);
   const db = await getDb();
   if (!db) throw new Error("Database connection is not available");
@@ -51,12 +52,14 @@ export async function setTenantPolicyForManager(input: { userId: number; tenantI
   const before = await loadTenantPolicy(db, input.tenantId);
   // a caller that does not mention the NCR rule leaves it as it is
   const ncrAcceptanceMode = input.ncrAcceptanceMode ?? before.ncrAcceptanceMode;
+  // Q-71 (2): the same for the daily report rule
+  const dailyReportApproval = input.dailyReportApproval ?? before.dailyReportApproval;
   await db.transaction(async tx => {
-    const values = { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes.join(","), materialApprovalMode: input.materialApprovalMode, ncrAcceptanceMode, updatedByUserId: input.userId };
+    const values = { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes.join(","), materialApprovalMode: input.materialApprovalMode, ncrAcceptanceMode, dailyReportApproval, updatedByUserId: input.userId };
     await tx.insert(tenantPolicies).values({ id: crypto.randomUUID(), tenantId: input.tenantId, ...values }).onConflictDoUpdate({ target: tenantPolicies.tenantId, set: { ...values, updatedAt: new Date() } });
-    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "tenant.policy_changed", entityType: "tenant_policy", entityId: input.tenantId, metadata: JSON.stringify({ before, after: { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes, materialApprovalMode: input.materialApprovalMode, ncrAcceptanceMode } }) });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "tenant.policy_changed", entityType: "tenant_policy", entityId: input.tenantId, metadata: JSON.stringify({ before, after: { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes, materialApprovalMode: input.materialApprovalMode, ncrAcceptanceMode, dailyReportApproval } }) });
   });
-  return { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes, materialApprovalMode: input.materialApprovalMode, ncrAcceptanceMode } satisfies TenantPolicy;
+  return { qcCompletionMode: input.qcCompletionMode, qcAcceptedCodes: codes, materialApprovalMode: input.materialApprovalMode, ncrAcceptanceMode, dailyReportApproval } satisfies TenantPolicy;
 }
 
 export type CellRef = { unitId: string; activityDefinitionId: string };
