@@ -432,4 +432,19 @@ describe("PMC data freshness: the age of a source in each language", () => {
     }
     expect(PMC_TEXT.ur.freshness).toBe("ڈیٹا کی تازگی");
   });
+  it("Q-69: the fourteen tabs are one row kept under the header (no wrapping), and choosing one brings it into the row's view", () => {
+    const seen: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) { seen.push(this.textContent ?? ""); } as typeof original;
+    try {
+      render(<ProjectPmc />);
+      const row = document.querySelector("[data-pmc-tabs]") as HTMLElement;
+      expect(row.className).toMatch(/\bsticky\b/);
+      expect(row.className).not.toMatch(/\bflex-wrap\b/);
+      expect(row.style.top).toBe("var(--shell-top, 0px)");
+      const tabs = Array.from(row.querySelectorAll('[role="tab"]'));
+      fireEvent.click(tabs[tabs.length - 1]);
+      expect(seen.at(-1)).toBe(tabs[tabs.length - 1].textContent);
+    } finally { HTMLElement.prototype.scrollIntoView = original; }
+  });
 });

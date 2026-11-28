@@ -19,10 +19,10 @@ export function TwoPane({ main, aside, asideLabel, className }: { main: React.Re
 }
 
 /** The page's primary action, fixed at the bottom. Leaves room under the page so the bar never covers its last line. Above the frame's phone bar it adds no second safe area (that bar already holds it: review C on #595). */
-export function StickyActionBar({ children, summary, label }: { children: React.ReactNode; summary?: React.ReactNode; label?: string }) {
+export function StickyActionBar({ children, summary, label, spacer = true }: { children: React.ReactNode; summary?: React.ReactNode; label?: string; spacer?: boolean }) {
   return (
     <>
-      <div aria-hidden="true" className="h-20 print:hidden" />
+      {spacer ? <ActionBarSpacer /> : null}
       <div data-sticky-action-bar="" role={label ? "region" : undefined} aria-label={label} className="fixed inset-x-0 z-30 border-t border-border bg-card/95 px-4 pt-3 backdrop-blur print:hidden" style={{ bottom: "var(--bottom-bar-h, 0px)", paddingBottom: "max(0.75rem, var(--action-bar-safe, env(safe-area-inset-bottom)))" }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
           {summary ? <p className="min-w-0 basis-full text-sm text-muted-foreground sm:basis-auto sm:flex-1" data-action-summary="">{summary}</p> : null}
@@ -31,6 +31,11 @@ export function StickyActionBar({ children, summary, label }: { children: React.
       </div>
     </>
   );
+}
+
+/** The room the action bar needs under the page's last line — for a page whose bar sits inside a card (review B on #597: the room belongs at the page's end, not in the card). */
+export function ActionBarSpacer() {
+  return <div aria-hidden="true" data-action-bar-spacer="" className="h-20 print:hidden" />;
 }
 
 export type Section = { id: string; label: string };

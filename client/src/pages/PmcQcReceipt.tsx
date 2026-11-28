@@ -8,7 +8,7 @@ import { Button, Card, CardBody, CardHeader, CardTitle, Field, Segmented, Skelet
 import { SearchCombobox, type ComboOption } from "@/components/SearchCombobox";
 import { SelectionSummaryNote, VillaPicker, emptyChoice } from "@/components/VillaPicker";
 import { readRecentActivities, rememberActivity, summarizeSelection, villasOf, type VillaChoice } from "@/lib/villaPicker";
-import { StickyActionBar } from "@/components/layout/pageLayout";
+import { ActionBarSpacer, StickyActionBar } from "@/components/layout/pageLayout";
 import { FieldShell } from "@/components/FieldShell";
 import { UndoLastSave } from "@/components/UndoLastSave";
 import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
@@ -122,7 +122,7 @@ export default function PmcQcReceipt() {
             )}
           </CardBody>
           {/* the save stays at the bottom of the screen on a phone, as in the owner's own tool (Q-69: the shared action bar) */}
-          <StickyActionBar label={t.update.save}><Button size="lg" className="min-h-12 w-full" loading={update.isPending} disabled={!activityCode || !summary.applicable.length} onClick={submit}>{t.update.save}</Button></StickyActionBar>
+          <StickyActionBar label={t.update.save} spacer={false}><Button size="lg" className="min-h-12 w-full sm:ms-auto sm:w-auto sm:min-w-64" loading={update.isPending} disabled={!activityCode || !summary.applicable.length} onClick={submit}>{t.update.save}</Button></StickyActionBar>
         </Card>
       </WriteGate>
       {lastSave && <UndoLastSave savedAt={lastSave.at} undone={lastSave.undone} pending={undo.isPending} error={undo.error ? getLocalizedProjectError(undo.error, language) : null} onUndo={() => undo.mutate({ ...scope, batchId: lastSave.batchId })} />}
@@ -150,6 +150,7 @@ export default function PmcQcReceipt() {
         </CardBody>
       </Card>
       </div>
+      <ActionBarSpacer />
     </FieldShell>
   );
 }
