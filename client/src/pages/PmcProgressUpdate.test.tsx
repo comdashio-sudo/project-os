@@ -278,4 +278,10 @@ describe("PmcProgressUpdate (Q-4)", () => {
     save();
     expect(h.mutate).toHaveBeenCalledWith(expect.objectContaining({ activityCode: "FOOT", villas: ["1"] }));
   });
+  it("Q-69: the save is on the shared action bar, a named region fixed above the phone bar", () => {
+    render(<PmcProgressUpdate />);
+    const bar = screen.getByRole("region", { name: /Save/ });
+    expect(bar.hasAttribute("data-sticky-action-bar")).toBe(true);
+    expect(bar.contains(screen.getByRole("button", { name: /Save/ }))).toBe(true);
+  });
 });
