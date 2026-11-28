@@ -160,4 +160,12 @@ describe("the proposed texts (D-49 b)", () => {
       expect(card.textContent).toContain("80.0%");
     } finally { activities[0].name = "Blockwork"; activities[0].nameEn = undefined; }
   });
+  it("Q-69: a section row jumps to the week's three parts, and the save is on the shared action bar", () => {
+    render(<WeeklyReport />);
+    const nav = screen.getByRole("navigation", { name: "Report sections" });
+    for (const id of ["week-figures", "week-words", "week-photos"]) expect(nav.querySelector(`a[href="#${id}"]`)).not.toBeNull();
+    for (const id of ["week-figures", "week-words", "week-photos"]) expect(document.getElementById(id)).not.toBeNull();
+    const bar = screen.getByRole("region", { name: /Save/ });
+    expect(bar.hasAttribute("data-sticky-action-bar")).toBe(true);
+  });
 });

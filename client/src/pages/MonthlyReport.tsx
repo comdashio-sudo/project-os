@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SectionNav } from "@/components/layout/pageLayout";
 import { AwaitingApprovalNote } from "@/components/dailyReport/ApprovalWho";
 import { Link, useParams } from "wouter";
 import { Button, Card, CardBody, CardHeader, CardTitle, Field, TableScroll, TextInput, formatDate, formatNumber } from "@/components/ds";
@@ -24,6 +25,9 @@ export const currentMonth = (today = new Date()) => today.toISOString().slice(0,
 export const shiftMonth = (month: string, by: number) => { const date = new Date(`${month}-01T00:00:00Z`); date.setUTCMonth(date.getUTCMonth() + by); return date.toISOString().slice(0, 7); };
 const value = (figure: number | null | undefined, decimals = 1) => (figure === null || figure === undefined ? "—" : formatNumber(figure, decimals));
 
+// Q-69: the section row's own name, distinct from the page title's
+const SECTIONS_LABEL = { ar: "أقسام التقرير", en: "Report sections", ur: "رپورٹ کے حصے" } as const;
+
 export default function MonthlyReport() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { language } = useLanguage();
@@ -42,16 +46,18 @@ export default function MonthlyReport() {
           <Field label={t.month}>{props => <TextInput {...props} type="month" value={month} onChange={event => setMonth(event.target.value)} />}</Field>
           <Button variant="secondary" onClick={() => setMonth(shiftMonth(month, 1))}>{t.next}</Button>
       </>} />
+      {/* Q-69: the shared section row — the figures, the S-curve and the exports, kept under the header */}
+      <SectionNav label={pickLanguage(language, SECTIONS_LABEL)} sections={[{ id: "month-figures", label: t.figures }, { id: "month-curve", label: t.curve }, { id: "month-exports", label: t.exports }]} />
       {report.error ? <SectionFailed title={t.figures} error={report.error} isArabic={language === "ar"} onRetry={() => report.refetch()} /> : data ? (
         <>
         {/* Q-56 (4a): the figures count approved reports only — say how many of the period's reports still wait for an approver */}
         <AwaitingApprovalNote scope={scope} count={(data as { awaitingApproval?: number }).awaitingApproval} />
-        <Card aria-label={t.figures} data-month-figures>
+        <Card id="month-figures" aria-label={t.figures} data-month-figures className="scroll-mt-28">
           <CardHeader><CardTitle>{t.figures}</CardTitle><p className="text-sm text-muted-foreground"><bdi>{formatDate(data.period.start, language)}</bdi> – <bdi>{formatDate(data.period.end, language)}</bdi></p></CardHeader>
           <CardBody className="flex flex-col gap-4">
             <dl className="grid grid-cols-2 gap-2 sm:grid-cols-6">{([[t.reports, data.reports.length], [t.workingDays, data.period.workingDayCount], [t.missing, data.missingWorkingDays.length], [t.direct, data.labour.period.direct], [t.indirect, data.labour.period.indirect], [t.ncrOpen, data.quality.ncr.open]] as const).map(([label, figure]) => (
               <div key={label} className="rounded-[var(--radius)] bg-muted p-2"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="text-lg font-semibold">{formatNumber(figure)}</dd></div>))}</dl>
-            <h2 className="text-sm font-semibold">{t.curve}</h2>
+            <h2 id="month-curve" className="scroll-mt-28 text-sm font-semibold">{t.curve}</h2>
             {data.sCurve.plannedSource ? null : <p role="note" className="text-sm text-muted-foreground">{t.noPlan}</p>}
             <TableScroll label={t.curve}>
               <table className="w-full text-sm" data-s-curve><thead className="text-xs text-muted-foreground"><tr>{[t.point, t.planned, t.actual, t.deviation].map(head => <th key={head} scope="col" className="p-2 text-start">{head}</th>)}</tr></thead>
@@ -63,6 +69,7 @@ export default function MonthlyReport() {
         </>
       ) : null}
       {profile.error ? <p role="note" className="text-sm text-muted-foreground">{t.noProfile}</p> : null}
+      <div id="month-exports" className="scroll-mt-28" />
       <WeeklyExports title={t.exports} fileBase={`monthly-report-${month}`} deck={data && (profile.data !== undefined || profile.error) ? {
         number: monthlyReportNumber(profile.data?.reportPrefix ?? null, month), figures: data as unknown as DeckFigures, labels: {}, texts: {}, photos: [],
         logos: [profile.data?.logos.client?.url ?? null, profile.data?.logos.consultant?.url ?? null, profile.data?.logos.contractor?.url ?? null],

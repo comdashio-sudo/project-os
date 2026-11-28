@@ -262,7 +262,8 @@
     @apply bg-background text-foreground;
     font-family: var(--font-latin);
     width: 100%;
-    overflow-x: hidden;
+    /* Q-69: clip, not hidden — hidden makes the element a scroll box, and every sticky header, section row and toolbar inside stopped sticking */
+    overflow-x: clip;
     /* Q-54: a long figure or word wraps inside its card instead of leaving it (the audit found 20 such: totals, labels); words still break only when nothing else fits */
     overflow-wrap: break-word;
   }
@@ -270,7 +271,7 @@
   main {
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
   html[dir="rtl"] body {
     font-family: var(--font-arabic);
