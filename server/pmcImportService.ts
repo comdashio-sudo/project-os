@@ -156,7 +156,7 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
   const prepared = await prepareRows(db, input, parsed, fileHash);
   // what the reader did quietly is said in the report too: totals lines skipped, sections filled down (Q-31 review of #370, Q-47)
   // Q-48: and the columns no field reads, with a few of their values, so a person sees each was seen and left aside
-  const notes = parsed.notes && (parsed.notes.skippedTotals || parsed.notes.filledDown || parsed.notes.ignoredColumns?.length || parsed.notes.edits?.length || parsed.notes.ignoredRows?.length || parsed.notes.readRows?.length || parsed.notes.preview?.length || parsed.notes.outlineHeadings) ? parsed.notes : {};
+  const notes = parsed.notes && (parsed.notes.skippedTotals || parsed.notes.filledDown || parsed.notes.ignoredColumns?.length || parsed.notes.edits?.length || parsed.notes.replaced?.length || parsed.notes.ignoredRows?.length || parsed.notes.readRows?.length || parsed.notes.preview?.length || parsed.notes.outlineHeadings) ? parsed.notes : {};
   // Q-66 (4): how the file's numeric dates were read (day or month first), said in the report
   const dateReading = pmcDateReading(input.kind, parsed.rows);
   return { ...prepared, report: { ...prepared.report, details: { ...prepared.report.details, ...columns, ...notes, ...(dateReading ? { dateOrder: dateReading } : {}) } }, source: { headers: parsed.columns?.headers ?? parsed.headers, rememberedId: remembered?.id ?? null } };
@@ -423,8 +423,8 @@ async function rememberMapping(tx: Tx, input: Scope & { kind: PmcImportKind; use
 
 /** Q-50 batch 4: the corrections a report carries (each with the file's value and the one used), for the audit row of the write. */
 const correctionsOf = (report: PmcImportReport) => {
-  const details = report.details as { edits?: PmcAppliedEdit[]; ignoredRows?: number[]; readRows?: number[] };
-  return { ...(details.edits?.length ? { edits: details.edits } : {}), ...(details.ignoredRows?.length ? { ignoredRows: details.ignoredRows } : {}), ...(details.readRows?.length ? { readRows: details.readRows } : {}) };
+  const details = report.details as { edits?: PmcAppliedEdit[]; replaced?: unknown[]; ignoredRows?: number[]; readRows?: number[] };
+  return { ...(details.edits?.length ? { edits: details.edits } : {}), ...(details.replaced?.length ? { replaced: details.replaced } : {}), ...(details.ignoredRows?.length ? { ignoredRows: details.ignoredRows } : {}), ...(details.readRows?.length ? { readRows: details.readRows } : {}) };
 };
 
 /**

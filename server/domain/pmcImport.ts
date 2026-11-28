@@ -207,16 +207,23 @@ export type PmcImportColumns = { headers: string[]; fields: Array<{ key: string;
 /** Q-48: a column the file has and no field reads, shown in the preview with a few of its values so a person sees it was seen and left aside. */
 export type PmcIgnoredColumn = { header: string; samples: string[] };
 /** Q-50 batch 4: what a person corrected in the preview — a cell of a row (by the field it is read for) or a row left out — never written to the stored file. */
-export type PmcImportEdits = { cells: Array<{ row: number; field: string; value: string }>; ignoreRows: number[]; /** Q-50 4c: rows the reader took for a totals line, read as data by the person's choice */ readRows?: number[] };
+export type PmcImportEdits = { cells: Array<{ row: number; field: string; value: string }>; ignoreRows: number[]; /** Q-50 4c: rows the reader took for a totals line, read as data by the person's choice */ readRows?: number[];
+  /** Q-66 batch 1 (5b): «apply this correction to every cell like it» — in the column read for `field`, every cell that reads `from` is read as `to`. Applied
+   *  before the cell corrections (a cell corrected by itself keeps its own value); a rule no cell matches is refused, never dropped. */
+  replace?: Array<{ field: string; from: string; to: string }> };
+/** A «same value» rule as the analysis applied it: the column it read and how many cells it changed. */
+export type PmcAppliedReplace = { field: string; header: string; from: string; to: string; cells: number };
 /** Q-50 4c: how the reader classed a row of the table — read as data, skipped as a totals line, or left out by the person — with the cells of its mapped fields. */
 export type PmcRowClass = "data" | "total" | "leftOut";
 /** Q-66 (grid): `filled` — a cell the reader filled (a section written once above its rows), with the value it read; the file's own cell is in `cells`. */
-export type PmcPreviewRow = { row: number; class: PmcRowClass; cells: Record<string, string>; filled?: Record<string, string> };
+export type PmcPreviewRow = { row: number; class: PmcRowClass; cells: Record<string, string>; filled?: Record<string, string>;
+  /** Q-66 (5b): the cells a «same value» rule changed, with the value the file holds. */
+  replaced?: Record<string, string> };
 /** The rows the report shows with their class; a person classifies the rest in the file. */
 export const PMC_PREVIEW_ROWS = 30;
 /** An applied cell correction, with the value the file holds, for the report and the audit trail. */
 export type PmcAppliedEdit = { row: number; field: string; header: string; from: string; to: string };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; readRows?: number[]; preview?: PmcPreviewRow[]; outlineHeadings?: number; chosenColumns?: Array<{ field: string; header: string; over: string[] }>; errorColumns?: string[]; wide?: { sheetName: string; models: string[]; groups: number; phases: number } } };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; replaced?: PmcAppliedReplace[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; readRows?: number[]; preview?: PmcPreviewRow[]; outlineHeadings?: number; chosenColumns?: Array<{ field: string; header: string; over: string[] }>; errorColumns?: string[]; wide?: { sheetName: string; models: string[]; groups: number; phases: number } } };
 /** Q-50 batch 5a: a totals line the reader skipped, with the weight it carries in the file (compared with the sum read, never used as data). */
 export type PmcFileTotal = { row: number; value: string; model?: string };
 /** The comparison of the file's own totals line with what was read, in the file's units (fractions or percent). */
@@ -448,17 +455,37 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   // field no column is read for, is refused with the row — never dropped silently
   const ignored = new Set<number>();
   const forced = new Set<number>();
+  const replacedAt: Record<number, Record<string, string>> = {};
   if (input.edits) {
     const indexOf = new Map(rowNumbers.map((rowNumber, index) => [rowNumber, index] as const));
     const refused: PmcImportError[] = [];
     for (const row of input.edits.ignoreRows) { if (indexOf.has(row)) ignored.add(row); else refused.push({ rowNumber: row, code: "IMPORT_EDIT_INVALID" }); }
     for (const row of input.edits.readRows ?? []) { if (indexOf.has(row) && !ignored.has(row)) forced.add(row); else refused.push({ rowNumber: row, code: "IMPORT_EDIT_INVALID" }); }
+    const replacedRules: PmcAppliedReplace[] = [];
+    for (const rule of input.edits.replace ?? []) {
+      const header = mapping.get(rule.field);
+      const from = rule.from.trim();
+      const to = rule.to.trim(); // B's note on #593: a trailing space in the new value never reaches the checks
+      if (!header) { refused.push({ rowNumber: 0, code: "IMPORT_EDIT_INVALID", field: rule.field, detail: from }); continue; }
+      let cells = 0;
+      rows.forEach((row, index) => {
+        if (String(row[header] ?? "").trim() !== from) return;
+        row[header] = to;
+        (replacedAt[index] ??= {})[rule.field] = from;
+        cells += 1;
+      });
+      if (!cells) refused.push({ rowNumber: 0, code: "IMPORT_EDIT_INVALID", field: rule.field, detail: from });
+      else replacedRules.push({ field: rule.field, header, from, to, cells });
+    }
+    if (replacedRules.length) notes.replaced = replacedRules;
     const applied: PmcAppliedEdit[] = [];
     for (const edit of input.edits.cells) {
       const index = indexOf.get(edit.row);
       const header = mapping.get(edit.field);
       if (index === undefined || !header) { refused.push({ rowNumber: edit.row, code: "IMPORT_EDIT_INVALID", field: edit.field }); continue; }
-      const from = String(rows[index][header] ?? "").trim();
+      // a cell a «same value» rule changed is corrected by itself from the file's own value
+      const from = replacedAt[index]?.[edit.field] ?? String(rows[index][header] ?? "").trim();
+      if (replacedAt[index]) delete replacedAt[index][edit.field];
       rows[index][header] = edit.value;
       applied.push({ row: edit.row, field: edit.field, header, from, to: edit.value });
     }
@@ -472,7 +499,7 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   const previewLimit = input.previewLimit ?? PMC_PREVIEW_ROWS;
   const classify = (index: number, rowClass: PmcRowClass, filled?: Record<string, string>) => {
     if (preview.length >= previewLimit) return;
-    preview.push({ row: rowNumbers[index], class: rowClass, cells: Object.fromEntries(fields.filter(field => mapping.has(field.key)).map(field => [field.key, String(rows[index][mapping.get(field.key)!] ?? "").trim()])), ...(filled ? { filled } : {}) });
+    preview.push({ row: rowNumbers[index], class: rowClass, cells: Object.fromEntries(fields.filter(field => mapping.has(field.key)).map(field => [field.key, String(rows[index][mapping.get(field.key)!] ?? "").trim()])), ...(filled ? { filled } : {}), ...(replacedAt[index] && Object.keys(replacedAt[index]).length ? { replaced: replacedAt[index] } : {}) });
   };
   // Q-48: a section merged over its rows and left with no name is empty on purpose — those rows do not take the section above them
   const csiColumn = mapping.has("csi") ? headers.indexOf(mapping.get("csi")!) + 1 : 0;

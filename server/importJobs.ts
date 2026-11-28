@@ -22,12 +22,14 @@ import { analyzeExternalImport, applyExternalImport, authorizeExternalImport, is
 import type { PmcImportEdits } from "./domain/pmcImport";
 import { buildImportGrid, countGrid, filterGrid, GRID_PAGE_SIZE, WEIGHTS_FIELD_OF, type GridTab } from "./domain/importGrid";
 import { gridOfPmcImport } from "./pmcImportService";
+import { cleanedWorkbook } from "./domain/importGridWorkbook";
+import type { InterfaceLanguage } from "../shared/interfaceLanguages";
 import { DIFF_PAGE_SIZE, summariseDiff } from "./domain/importCycle";
 import { auditEmployeeRecordsRead, isLedgerModule, ledgerPlanHash, planLedgerImport } from "./ledgerImports";
 import { assertTenantAccess } from "./domain/authorization";
 import { insertChunked } from "./importBulk";
 import { confirmP6Import } from "./p6Import";
-import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageDelete, storageHead, storageList, storageRead } from "./storage";
+import { MAX_DIRECT_UPLOAD_BYTES, storageCreateUploadUrl, storageDelete, storageHead, storageList, storagePut, storageRead } from "./storage";
 
 /** A running job that has not touched its heartbeat for this long is dead: the function's own limit (300 s) is shorter. */
 export const IMPORT_JOB_STALL_MS = 6 * 60 * 1000;
@@ -157,8 +159,8 @@ async function analyseExternal(db: Db, job: JobIdentity, record: { moduleCode: E
     await insertChunked(tx, dataImportErrors, analysis.errors.map(error => ({ id: randomUUID(), importId: job.importId, rowNumber: error.rowNumber, code: error.code, severity: "error" as const, suggestedFix: error.field ?? null, value: error.detail ? error.detail.slice(0, 200) : null })));
     await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_uploaded", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, totalRows: analysis.totalRows, errorCount: analysis.errors.length }) });
     // Q-50 batch 4: every correction the analysis used — row, field, the file's column, the file's value and the value used — in the same transaction as the verdict
-    const details = (analysis.report.pmc as { details?: { edits?: unknown[]; ignoredRows?: number[]; readRows?: number[] } } | undefined)?.details;
-    if (details?.edits?.length || details?.ignoredRows?.length || details?.readRows?.length) await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_cells_corrected", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, edits: details.edits ?? [], ignoredRows: details.ignoredRows ?? [], readRows: details.readRows ?? [] }) });
+    const details = (analysis.report.pmc as { details?: { edits?: unknown[]; replaced?: unknown[]; ignoredRows?: number[]; readRows?: number[] } } | undefined)?.details;
+    if (details?.edits?.length || details?.replaced?.length || details?.ignoredRows?.length || details?.readRows?.length) await tx.insert(auditLogs).values({ id: randomUUID(), tenantId: job.tenantId, actorUserId: job.userId, action: "data_import_cells_corrected", entityType: "data_import", entityId: job.importId, metadata: JSON.stringify({ projectId: job.projectId, moduleCode: record.moduleCode, fileHash: record.fileHash, edits: details.edits ?? [], ...(details.replaced?.length ? { replaced: details.replaced } : {}), ignoredRows: details.ignoredRows ?? [], readRows: details.readRows ?? [] }) });
   });
 }
 
@@ -387,7 +389,7 @@ export async function requestImportCorrection(input: { userId: number; tenantId:
   await authorizeExternalImport({ ...input, moduleCode: record.moduleCode as ExternalModule });
   if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_NOT_CONFIRMABLE" });
   const summary = parseJson<Record<string, unknown>>(record.summaryJson, {});
-  const edits = input.edits.cells.length || input.edits.ignoreRows.length || input.edits.readRows?.length ? input.edits : undefined;
+  const edits = input.edits.cells.length || input.edits.ignoreRows.length || input.edits.readRows?.length || input.edits.replace?.length ? input.edits : undefined; // Q-66 (5b): a set of rules alone is a correction too
   const taken = await db.update(dataImports)
     .set({ status: "analyzing", summaryJson: JSON.stringify({ ...summary, edits }), progressPercent: 5, progressStage: "queued", failureReason: null, attempts: 0, heartbeatAt: null, startedAt: null, completedAt: null })
     .where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId), inArray(dataImports.status, ["uploaded", "validated"])))
@@ -484,6 +486,12 @@ export async function sweepImportJobs(now = Date.now()) {
     await storageDelete(object.key).catch(error => logError("import.orphan_delete_failed", error));
     orphansRemoved += 1;
   }
+  // Q-66 (8): the cleaned copies a person downloaded (.../cleaned/): a copy for the link it was made for, removed after a day
+  for (const object of await storageList("imports/")) {
+    if (!object.key.includes("/cleaned/") || !object.lastModified || now - object.lastModified.getTime() < ORPHAN_UPLOAD_MAX_AGE_MS) continue;
+    await storageDelete(object.key).catch(error => logError("import.cleaned_delete_failed", error));
+    orphansRemoved += 1;
+  }
   // The same for the attachment and site-plan uploads (server/directUpload.ts): a pending object nobody turned into a document or a plan.
   for (const object of await storageList("uploads/")) {
     if (!object.key.includes("/pending/") || !object.lastModified || now - object.lastModified.getTime() < ORPHAN_UPLOAD_MAX_AGE_MS) continue;
@@ -522,22 +530,56 @@ export async function previewImportDiff(input: { userId: number; tenantId: strin
  * corrections the import holds, one page at a time (a file of 50,000 rows is never sent at once), with the count of each tab over the whole file. Reads
  * only, behind the same gates as the report; an import that is not waiting for its confirmation has no grid.
  */
-export async function getImportGrid(input: { userId: number; tenantId: string; projectId: string; importId: string; tab?: GridTab; search?: string; offset?: number }) {
-  const { db } = await importAccess(input);
+/** The grid of an import whose caller has passed `importAccess` (each exported caller calls it first, and hands its connection here). */
+async function loadImportGrid(input: { userId: number; tenantId: string; projectId: string; importId: string }, db: Db) {
   const record = await readRecord(db, input);
   const kind = isExternalModule(record.moduleCode) ? pmcKindOf(record.moduleCode) : null;
   if (!kind) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_GRID_UNAVAILABLE" });
   await authorizeExternalImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, moduleCode: record.moduleCode as ExternalModule, context: contextOf(record.summaryJson) });
   if (record.status !== "uploaded" && record.status !== "validated") throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_GRID_UNAVAILABLE" });
   const [file] = await db.select({ fileKey: dataImports.fileKey, fileHash: dataImports.fileHash, sourceFormat: dataImports.sourceFormat, mappingJson: dataImports.mappingJson }).from(dataImports).where(and(eq(dataImports.id, input.importId), eq(dataImports.tenantId, input.tenantId), eq(dataImports.projectId, input.projectId))).limit(1);
+  // Review of #590 (B): a page, a tab or a search letter must not read and check the whole file again. The rows built for this reading are kept for a short
+  // while — after the gates above, which every call passes — keyed by the import, its file, its columns, its corrections and when it was last analysed.
+  const key = JSON.stringify([input.tenantId, input.projectId, input.importId, file!.fileHash, file!.mappingJson, record.summaryJson ? editsOf(record.summaryJson) ?? null : null, record.updatedAt ? new Date(record.updatedAt).getTime() : 0]);
+  const now = Date.now();
+  for (const [cachedKey, cached] of Array.from(gridCache)) if (now - cached.at > GRID_CACHE_MS) gridCache.delete(cachedKey);
+  const cached = gridCache.get(key);
+  if (cached) return cached.value;
   const bytes = await storageRead(file!.fileKey);
   if (!bytes.length || bytes.length > MAX_DIRECT_UPLOAD_BYTES || createHash("sha256").update(bytes).digest("hex") !== file!.fileHash) throw new TRPCError({ code: "BAD_REQUEST", message: "PROJECT_OS_IMPORT_FILE_INVALID" });
   const read = await gridOfPmcImport({ userId: input.userId, tenantId: input.tenantId, projectId: input.projectId, kind, format: file!.sourceFormat as "xlsx" | "csv", bytes, mappingOverride: storedMapping(file!.mappingJson), edits: editsOf(record.summaryJson) });
   const rows = buildImportGrid({ preview: read.preview, fields: read.fields.map(field => field.key), errors: read.errors, edits: read.edits, scaledFromFractions: read.scaledFromFractions, ...(kind === "weights" ? { fieldOf: WEIGHTS_FIELD_OF } : {}) });
+  const value = { kind, read, rows };
+  gridCache.set(key, { at: now, value });
+  while (gridCache.size > GRID_CACHE_ENTRIES) gridCache.delete(gridCache.keys().next().value!);
+  return value;
+}
+/** How long, and how many, built grids are kept per server instance. */
+export const GRID_CACHE_MS = 30_000;
+const GRID_CACHE_ENTRIES = 8;
+const gridCache = new Map<string, { at: number; value: { kind: NonNullable<ReturnType<typeof pmcKindOf>>; read: Awaited<ReturnType<typeof gridOfPmcImport>>; rows: ReturnType<typeof buildImportGrid> } }>();
+
+export async function getImportGrid(input: { userId: number; tenantId: string; projectId: string; importId: string; tab?: GridTab; search?: string; offset?: number }) {
+  const { db } = await importAccess(input);
+  const { kind, read, rows } = await loadImportGrid(input, db);
   const tab = input.tab ?? "all";
   const shown = filterGrid(rows, tab, input.search);
   const offset = input.offset ?? 0;
   return { kind, fields: read.fields, ignoredColumns: read.ignoredColumns, counts: countGrid(rows), tab, shownTotal: shown.length, offset, pageSize: GRID_PAGE_SIZE, rows: shown.slice(offset, offset + GRID_PAGE_SIZE), fileErrors: rows.length ? [] : read.errors.slice(0, 20) };
+}
+
+/**
+ * Q-66 batch 1 (8): the cleaned copy of a PMC import — every row of the grid in an xlsx with the grid's colours and a notes column, in the language of the
+ * person who asks, put in Storage under the import's own prefix and handed back as a signed link (a file of 50,000 rows does not fit a response). Behind the
+ * grid's gates; the copy is removed by the import sweep after a day.
+ */
+export async function downloadCleanedImport(input: { userId: number; tenantId: string; projectId: string; importId: string; language: InterfaceLanguage }) {
+  const { db } = await importAccess(input);
+  const { kind, read, rows } = await loadImportGrid(input, db);
+  const bytes = await cleanedWorkbook({ rows, fields: read.fields, language: input.language });
+  const fileName = `pmc-${kind}-${input.importId.slice(0, 8)}-cleaned.xlsx`;
+  const stored = await storagePut(`imports/${input.tenantId}/${input.projectId}/cleaned/${input.importId}/${randomUUID()}/${fileName}`, bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  return { url: stored.url, fileName, rows: rows.length };
 }
 
 /*

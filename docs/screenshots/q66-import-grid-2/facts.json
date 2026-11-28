@@ -1,0 +1,206 @@
+[
+ {
+  "lang": "ar",
+  "width": 390,
+  "tabs": [
+   "الكل 11",
+   "جاهز 8",
+   "صُحّح 4",
+   "أخطاء 1",
+   "متجاهَل 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 6,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 صف جاهز1 صف مرفوض",
+  "offer": "طبّق «0.12» على كل خلية «0.12x» في عمود الوزنهذه الخلية فقططبّق على كل خلية مثلها",
+  "download": "بالألوان نفسها وعمود ملاحظات، لترسله لمن عبّأ الملف.نزّل النسخة المنظّفة (Excel)",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ar",
+  "width": 1280,
+  "tabs": [
+   "الكل 11",
+   "جاهز 8",
+   "صُحّح 4",
+   "أخطاء 1",
+   "متجاهَل 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 6,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 صف جاهز1 صف مرفوض",
+  "offer": "طبّق «0.12» على كل خلية «0.12x» في عمود الوزنهذه الخلية فقططبّق على كل خلية مثلها",
+  "download": "بالألوان نفسها وعمود ملاحظات، لترسله لمن عبّأ الملف.نزّل النسخة المنظّفة (Excel)",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 390,
+  "tabs": [
+   "All 11",
+   "Ready 8",
+   "Corrected 4",
+   "Errors 1",
+   "Ignored 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 6,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 rows ready1 rows rejected",
+  "offer": "Apply «0.12» to every «0.12x» in the Weight columnThis cell onlyApply to every cell like it",
+  "download": "In the same colours with a notes column, to send to whoever filled in the file.Download the cleaned copy (Excel)",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "en",
+  "width": 1280,
+  "tabs": [
+   "All 11",
+   "Ready 8",
+   "Corrected 4",
+   "Errors 1",
+   "Ignored 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 6,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 rows ready1 rows rejected",
+  "offer": "Apply «0.12» to every «0.12x» in the Weight columnThis cell onlyApply to every cell like it",
+  "download": "In the same colours with a notes column, to send to whoever filled in the file.Download the cleaned copy (Excel)",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 390,
+  "tabs": [
+   "سب 11",
+   "تیار 8",
+   "درست کیا گیا 4",
+   "غلطیاں 1",
+   "نظرانداز 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 6,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 قطاریں تیار1 قطاریں مسترد",
+  "offer": "وزن کالم میں ہر «0.12x» پر «0.12» لاگو کریںصرف یہ خانہاس جیسے ہر خانے پر لاگو کریں",
+  "download": "انہی رنگوں اور نوٹس کے کالم کے ساتھ، فائل بھرنے والے کو بھیجنے کے لیے۔صاف شدہ نقل ڈاؤن لوڈ کریں (Excel)",
+  "hScroll": false,
+  "errors": []
+ },
+ {
+  "lang": "ur",
+  "width": 1280,
+  "tabs": [
+   "سب 11",
+   "تیار 8",
+   "درست کیا گیا 4",
+   "غلطیاں 1",
+   "نظرانداز 2"
+  ],
+  "states": {
+   "ok": 30,
+   "corrected": 6,
+   "ignored": 8
+  },
+  "rows": [
+   "4:ready",
+   "5:corrected",
+   "6:corrected",
+   "7:ready",
+   "8:error",
+   "9:ignored",
+   "10:ready",
+   "11:corrected",
+   "12:ready",
+   "13:corrected",
+   "14:ignored"
+  ],
+  "summary": "8 قطاریں تیار1 قطاریں مسترد",
+  "offer": "وزن کالم میں ہر «0.12x» پر «0.12» لاگو کریںصرف یہ خانہاس جیسے ہر خانے پر لاگو کریں",
+  "download": "انہی رنگوں اور نوٹس کے کالم کے ساتھ، فائل بھرنے والے کو بھیجنے کے لیے۔صاف شدہ نقل ڈاؤن لوڈ کریں (Excel)",
+  "hScroll": false,
+  "errors": []
+ }
+]

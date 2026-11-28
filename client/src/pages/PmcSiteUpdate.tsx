@@ -1,13 +1,12 @@
 // Work order 22: the site engineer's update from the phone. One activity, several villas (a list, a range «268-272», or a whole block), one status and its date.
 // The server refuses the whole entry before writing anything when one villa is wrong, and says which; the entry is saved under the signed-in account, never a typed e-mail.
-import React, { useMemo, useState } from "react";
-import { Link, useParams } from "wouter";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useParams } from "wouter";
 import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, SkeletonRows, TextInput, notify } from "@/components/ds";
 import { SearchCombobox, type ComboOption } from "@/components/SearchCombobox";
 import { SelectionSummaryNote, VillaPicker, emptyChoice } from "@/components/VillaPicker";
 import { summarizeSelection, villasOf, type VillaChoice } from "@/lib/villaPicker";
 import { FieldShell } from "@/components/FieldShell";
-import { PAGE_NAMES } from "@shared/pageNames";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
@@ -36,6 +35,11 @@ export default function PmcSiteUpdate() {
   const t = pickLanguage(language, wo22Text);
   const scope = { tenantId, projectId };
   const activities = trpc.pmcSite.activities.useQuery(scope, { enabled: Boolean(tenantId && projectId) });
+  // Q-70 (5) (I72, adviser 28-11): one progress screen. A project with no activities from the old site workbook has nothing here — the person is taken to
+  // «تحديث الإنجاز» at once (no data is touched); a project that has them keeps this screen as «the consultant's site status», reached from the comparison
+  const [, navigate] = useLocation();
+  const noSiteWorkbook = activities.isSuccess && (activities.data ?? []).length === 0;
+  useEffect(() => { if (noSiteWorkbook) navigate(`/m/${tenantId}/${projectId}/progress`, { replace: true }); }, [noSiteWorkbook, navigate, tenantId, projectId]);
   const [activityId, setActivityId] = useState("");
   // Q-67 (5): the villas from the project's own phases, blocks, models and villas (pmc.progressPicker), as in the progress update and the QC receipt; a person
   // who may not read them, or a list that failed, keeps the typed list, range and block below
@@ -75,7 +79,7 @@ export default function PmcSiteUpdate() {
 
   return (
     // Q-36 (step 5): the field screens' one frame (FieldShell) — the title, the way back to the field entry, the ways between the field screens
-    <FieldShell title={t.update.title} backHref={`/m/${tenantId}/${projectId}`} backLabel={pickLanguage(language, PAGE_NAMES.fieldEntry)} tenantId={tenantId} projectId={projectId} current="siteUpdate">
+    <FieldShell title={t.update.title} backHref={`/projects/${tenantId}/${projectId}/site-consultant`} backLabel={t.goToComparison} tenantId={tenantId} projectId={projectId} current="siteUpdate">
       <p className="text-sm text-muted-foreground">{t.update.summary}</p>
       <WriteGate permission="project.pmc.update" projectId={projectId} reason={{ ar: wo22Text.ar.noUpdatePermission, en: wo22Text.en.noUpdatePermission, ur: wo22Text.ur.noUpdatePermission }}>
         <Card>

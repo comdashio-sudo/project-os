@@ -52,6 +52,11 @@ describe("Q-66 batch 1: the import review grid", () => {
     expect(buildImportGrid({ preview: [{ row: 4, class: "data", cells: { weight: "x" } }], fields: ["weight"], errors: [{ rowNumber: 4, code: "IMPORT_INVALID_NUMBER", field: "weightPercent" }] })[0].rowErrors).toEqual([{ code: "IMPORT_INVALID_NUMBER" }]);
   });
 
+  it("Q-66 (5b): a cell a «same value» rule changed is corrected, with the file's value", () => {
+    const [row] = buildImportGrid({ preview: [{ row: 3, class: "data", cells: { modelCode: "A" }, replaced: { modelCode: "a" } }], fields: ["modelCode"], errors: [] });
+    expect(row).toMatchObject({ status: "corrected", cells: { modelCode: { value: "A", from: "a", why: "replaced" } } });
+  });
+
   it("a file of whole percents is shown as written (no fraction marks)", () => {
     const plain = buildImportGrid({ preview: [{ row: 2, class: "data", cells: { weight: "60" } }], fields: ["weight"], errors: [], scaledFromFractions: false });
     expect(plain[0]).toMatchObject({ status: "ready", cells: { weight: { value: "60" } } });
