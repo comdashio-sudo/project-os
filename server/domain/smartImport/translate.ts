@@ -81,7 +81,8 @@ const boq: Translate = rows => {
     if (totals.has(code)) return totals.get(code)!;
     const below = children.get(code) ?? [];
     let total: number | null;
-    if (!below.length) total = byCode.get(code)!.amount;
+    // a credit line (a negative amount) is written as 0, like every BOQ line: the total adds what is written, and the credit is named below (review of #591, C)
+    if (!below.length) { const own = byCode.get(code)!.amount; total = own === null ? null : Math.max(0, own); }
     else { const sums = below.map(totalOf).filter((value): value is number => value !== null); total = sums.length ? round2(sums.reduce((a, b) => a + b, 0)) : byCode.get(code)!.amount; }
     totals.set(code, total); return total;
   };
@@ -93,7 +94,10 @@ const boq: Translate = rows => {
       sections += 1;
       if (item.amount !== null && Math.abs(item.amount - belowTotal) > 0.005) file.notes.push(`BOQ_SECTION_DIFFERS:${item.code}:${item.amount}:${belowTotal}`);
       file.rows.push([item.code, item.name, 0]);
-    } else file.rows.push([item.code, item.name, Math.max(0, item.amount ?? 0)]);
+    } else {
+      if (item.amount !== null && item.amount < 0) file.notes.push(`BOQ_NEGATIVE_NOT_WRITTEN:${item.code}:${item.amount}`);
+      file.rows.push([item.code, item.name, Math.max(0, item.amount ?? 0)]);
+    }
   }
   if (sections) {
     file.notes.push(`BOQ_SECTIONS_AS_SUBTOTALS:${sections}`);

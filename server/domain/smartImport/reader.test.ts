@@ -150,6 +150,12 @@ describe("a nested bill of quantities (Q-66 4)", () => {
     expect(out.rows).toEqual([["A", "Section", 0], ["A.1", "x", 700], ["A.2", "y", 200], ["B", "Lump sum", 400], ["B.1", "no price", 0]]);
     expect(out.notes).toContain("BOQ_TREE_TOTAL:1300");
   });
+  it("review of #591 (C): a credit line under a section is written as 0 and named; the tree's total adds what is written", () => {
+    const out = translate("boq", [row(2, "1", "Section", null), row(3, "1.1", "Works", 1_000), row(4, "1.2", "Credit", -50)])!;
+    expect(out.rows).toEqual([["1", "Section", 0], ["1.1", "Works", 1000], ["1.2", "Credit", 0]]);
+    expect(out.notes).toContain("BOQ_NEGATIVE_NOT_WRITTEN:1.2:-50");
+    expect(out.notes).toContain("BOQ_TREE_TOTAL:1000");
+  });
   it("codes that do not nest (no «1» above «1.1») are read exactly as before", () => {
     const out = translate("boq", [row(2, "1.1", "a", 10), row(3, "1.2", "b", 20)])!;
     expect(out.notes).toEqual(["BOQ_QUANTITY_AND_RATE_NOT_CARRIED"]);
