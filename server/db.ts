@@ -2911,6 +2911,16 @@ export async function saveSalaryStructureForTenant(input: { userId: number; tena
   return { id };
 }
 
+/** Q-38 batch 2: whoever sets salary structures (project.payroll.structure for the whole company) chooses whose — so he reads the active employees'
+ *  number and name only (nothing personal, nothing paid: no identity, contact, salary or HR file). The full register stays project.hr.manage (listEmployees),
+ *  and a structure's amounts stay project.payroll.sensitive.read (getSalaryStructureForTenant). Read only. */
+export async function getSalaryStructureEmployeesForTenant(input: { userId: number; tenantId: string }) {
+  const db = await getDb(); if (!db) throw new Error("Database connection is not available");
+  await assertPayrollAccess({ ...input, permission: "project.payroll.structure" });
+  return db.select({ id: employees.id, employeeNumber: employees.employeeNumber, fullName: employees.fullName }).from(employees)
+    .where(and(eq(employees.tenantId, input.tenantId), eq(employees.employmentStatus, "active"))).orderBy(employees.employeeNumber);
+}
+
 export async function getSalaryStructureForTenant(input: { userId: number; tenantId: string; employeeId: string }) {
   const db = await getDb(); if (!db) throw new Error("Database connection is not available");
   await assertPayrollAccess({ ...input, permission: "project.payroll.sensitive.read" });

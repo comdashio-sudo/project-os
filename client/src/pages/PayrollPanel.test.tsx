@@ -22,13 +22,13 @@ vi.mock("@/lib/projectErrors", () => ({ getLocalizedProjectError: () => "Localiz
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     employees: {
-      list: { useQuery: (...args: unknown[]) => { state.employeesQuery(...args); return { data: [{ id: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner" }], error: null, isLoading: false }; } },
       payroll: {
         capabilities: { useQuery: () => ({ data: state.capabilities, error: null, isLoading: false }) },
         runs: { useQuery: () => ({ data: state.runs, error: null, isLoading: false, refetch: vi.fn() }) },
         allocationProjects: { useQuery: () => ({ data: [{ id: "project-1", code: "PRJ-01", name: "Payroll project" }], error: null }) },
         allocationOptions: { useQuery: () => ({ data: { wbs: [{ id: "wbs-1", code: "WBS-01", name: "Payroll work package" }], activities: [{ id: "activity-1", code: "ACT-01", name: "Payroll activity", wbsItemId: "wbs-1" }] }, error: null }) },
         salaryStructure: {
+          employees: { useQuery: (...args: unknown[]) => { state.employeesQuery(...args); return { data: [{ id: "employee-1", employeeNumber: "EMP-01", fullName: "Amina Planner" }], error: null, isLoading: false }; } },
           get: { useQuery: (...args: unknown[]) => { state.structureQuery(...args); return { data: { id: "structure-1", baseSalary: "10000.00", housingAllowance: "2000.00", gosiRate: "0.0975", eosMonthlyAccrual: "750.00", currency: "SAR" }, error: null, isLoading: false }; } },
           save: { useMutation: () => ({ mutate: state.save, isPending: false, error: null }) },
         },
@@ -178,11 +178,19 @@ describe("Q-38 (P1-06): fields named, sensitive reads asked for only by whom the
     expect(screen.getByLabelText("Base salary").closest("label")!.querySelector("span")!.textContent).toBe("Base salary");
   });
 
-  it("Q-38 NEGATIVE: without the employee register permission the employee list is not asked for, and the screen says why", () => {
+  it("Q-38 batch 2: whoever sets structures chooses the employee by number and name without the employee register permission (project.hr.manage)", () => {
     state.denied.add("project.hr.manage");
     render(<PayrollPanel tenantId="tenant-1" />);
-    expect(screen.getByRole("note").textContent).toContain("project.hr.manage");
+    expect(screen.queryByRole("note")).toBeNull(); // no «ask for the HR permission» sentence any more
+    expect(state.employeesQuery).toHaveBeenCalledWith({ tenantId: "tenant-1" }, { enabled: true });
+    expect(document.body.textContent).toContain("EMP-01 · Amina Planner");
+  });
+
+  it("Q-38 batch 2 NEGATIVE: without project.payroll.structure the list is never asked for", () => {
+    state.capabilities = { ...state.capabilities, canManageStructure: false };
+    render(<PayrollPanel tenantId="tenant-1" />);
     expect(state.employeesQuery.mock.calls.every(([, options]) => !(options as { enabled?: boolean }).enabled)).toBe(true);
+    state.capabilities = { ...state.capabilities, canManageStructure: true };
   });
 
   it("Q-38 NEGATIVE: without the sensitive payroll read, «view the protected structure» is not offered and the structure is never asked for", () => {
