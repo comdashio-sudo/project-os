@@ -166,7 +166,7 @@ const budget: Translate = rows => {
     if (seen.has(code)) { exclude(file, row, `DUPLICATE_CODE:${code}`); continue; }
     seen.add(code);
     const current = num(row.values.currentAmount) ?? (defaulted += 1, original);
-    file.rows.push([code, Math.max(0, original), Math.max(0, current)]);
+    file.rows.push([code, Math.max(0, original), Math.max(0, current), text(row.values.activityNo)]);
   }
   if (defaulted) file.notes.push("BUDGET_CURRENT_DEFAULTED_TO_ORIGINAL");
   return file;
@@ -195,7 +195,7 @@ function budgetTree(file: TranslatedFile, rows: NormalizedRow[]): TranslatedFile
     if (node.writtenAsLeaf) file.notes.push(`BUDGET_PARENT_WRITTEN_AS_LEAF:${node.code}:${node.total}`);
     if (node.total < 0) file.notes.push(`BUDGET_NEGATIVE_NOT_WRITTEN:${node.code}:${node.total}`);
     const current = num(row?.values.currentAmount) ?? (defaulted += 1, node.total);
-    file.rows.push([node.code, Math.max(0, node.total), Math.max(0, current)]);
+    file.rows.push([node.code, Math.max(0, node.total), Math.max(0, current), text(row?.values.activityNo)]);
     writtenTotal += Math.max(0, node.total);
   }
   for (const difference of tree.parentDifferences) file.notes.push(`BUDGET_PARENT_DIFFERS:${difference.code}:${difference.written}:${difference.childrenSum}`);

@@ -1,5 +1,5 @@
 {
-  "id": "da50134b-95f3-410a-a01d-66f40312094a",
+  "id": "52d3b55c-d5ba-43ae-8a1c-aa17e782c205",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -2035,6 +2035,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'0'"
+        },
+        "activity_no": {
+          "name": "activity_no",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

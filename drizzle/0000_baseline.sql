@@ -340,6 +340,7 @@ CREATE TABLE "budget_lines" (
 	"cost_code" varchar(80) NOT NULL,
 	"original_amount" numeric(18, 2) DEFAULT '0' NOT NULL,
 	"current_amount" numeric(18, 2) DEFAULT '0' NOT NULL,
+	"activity_no" varchar(80),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

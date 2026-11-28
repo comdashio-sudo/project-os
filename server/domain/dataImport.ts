@@ -13,7 +13,7 @@ export type ImportError = { rowNumber: number; code: string; field?: string; /**
 /** What an analysis ignored on purpose (a real XER's other tables): shown as a warning, never an error. */
 export const analysisWarnings = (analysis: object): ImportError[] => ("warnings" in analysis ? (analysis as { warnings: ImportError[] }).warnings : []);
 export type WbsImportRow = { rowNumber: number; values: { code: string; name: string; plannedValue: number } };
-export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number } };
+export type BudgetImportRow = { rowNumber: number; values: { costCode: string; originalAmount: number; currentAmount: number; activityNo?: string } };
 export type ContractImportRow = { rowNumber: number; values: { code: string; title: string; counterparty: string; contractValue: number; currency: string } };
 export type MaterialImportRow = { rowNumber: number; values: { code: string; description: string; unitOfMeasure: string; category: string; referenceSpecification?: string } };
 export type OpeningBalanceImportRow = { rowNumber: number; values: { warehouseCode: string; materialCode: string; quantity: number; unitCost: number } };
@@ -35,6 +35,7 @@ const templates: Record<ImportModuleCode, Field[]> = {
     { key: "costCode", required: true, aliases: ["cost code", "رمز التكلفة"] },
     { key: "originalAmount", required: true, aliases: ["original amount", "القيمة الأصلية"] },
     { key: "currentAmount", required: true, aliases: ["current amount", "القيمة الحالية"] },
+    { key: "activityNo", required: false, aliases: ["activity no", "activity no.", "activity number", "activity id", "رقم النشاط"] },
   ],
   contracts: [
     { key: "code", required: true, aliases: ["contract code", "code", "رمز العقد", "الرمز"] },
@@ -276,11 +277,12 @@ export async function analyzeImportFile(input: { moduleCode: ImportModuleCode; f
         const costCode = requiredText(row[mapping.costCode]);
         const originalAmount = nonnegativeNumber(row[mapping.originalAmount]);
         const currentAmount = nonnegativeNumber(row[mapping.currentAmount]);
+        const activityNo = mapping.activityNo ? requiredText(row[mapping.activityNo]) || undefined : undefined; // Q-65: optional, stored as written
         if (!costCode) errors.push({ rowNumber, code: "IMPORT_REQUIRED_VALUE_MISSING", field: "costCode" });
         if (originalAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "originalAmount" });
         if (currentAmount === undefined) errors.push({ rowNumber, code: "IMPORT_INVALID_NUMBER", field: "currentAmount" });
         if (costCode && fileKeys.has(costCode)) errors.push({ rowNumber, code: "IMPORT_DUPLICATE_FILE_KEY", field: "costCode" });
-        if (costCode && originalAmount !== undefined && currentAmount !== undefined && !fileKeys.has(costCode)) { fileKeys.add(costCode); validRows.push({ rowNumber, values: { costCode, originalAmount, currentAmount } }); }
+        if (costCode && originalAmount !== undefined && currentAmount !== undefined && !fileKeys.has(costCode)) { fileKeys.add(costCode); validRows.push({ rowNumber, values: { costCode, originalAmount, currentAmount, ...(activityNo ? { activityNo } : {}) } }); }
         return;
       }
       if (input.moduleCode === "openingBalances") {
@@ -325,7 +327,7 @@ const ledgerExportHeaders = (moduleCode: LedgerModule) => Object.fromEntries((["
 const exportHeaders: Record<ExportModuleCode, Partial<Record<ExportLocale, Record<string, string>>>> = {
   costs: ledgerExportHeaders("costs"), purchaseOrders: ledgerExportHeaders("purchaseOrders"), employees: ledgerExportHeaders("employees"), timeEntries: ledgerExportHeaders("timeEntries"),
   wbs: { ar: { code: "رمز WBS", name: "اسم WBS", plannedValue: "القيمة المخططة" }, en: { code: "WBS Code", name: "WBS Name", plannedValue: "Planned Value" } },
-  budget: { ar: { costCode: "رمز التكلفة", originalAmount: "القيمة الأصلية", currentAmount: "القيمة الحالية" }, en: { costCode: "Cost Code", originalAmount: "Original Amount", currentAmount: "Current Amount" } },
+  budget: { ar: { costCode: "رمز التكلفة", originalAmount: "القيمة الأصلية", currentAmount: "القيمة الحالية", activityNo: "رقم النشاط" }, en: { costCode: "Cost Code", originalAmount: "Original Amount", currentAmount: "Current Amount", activityNo: "Activity No." } },
   contracts: { ar: { code: "رمز العقد", title: "اسم العقد", counterparty: "الطرف المتعاقد", contractValue: "قيمة العقد", currency: "العملة" }, en: { code: "Contract Code", title: "Contract Title", counterparty: "Counterparty", contractValue: "Contract Value", currency: "Currency" } },
   materials: { ar: { code: "رمز المادة", description: "وصف المادة", unitOfMeasure: "وحدة القياس", category: "الفئة", referenceSpecification: "المواصفة المرجعية" }, en: { code: "Material Code", description: "Description", unitOfMeasure: "Unit of Measure", category: "Category", referenceSpecification: "Reference Specification" } },
   activities: { ar: { code: "رمز النشاط", name: "اسم النشاط", plannedValue: "القيمة المخططة", plannedStartAt: "البداية المخططة", plannedFinishAt: "النهاية المخططة", status: "الحالة" }, en: { code: "Activity Code", name: "Activity Name", plannedValue: "Planned Value", plannedStartAt: "Planned Start", plannedFinishAt: "Planned Finish", status: "Status" } },
@@ -356,7 +358,7 @@ export const importModuleFields = (moduleCode: ImportModuleCode) => templates[mo
 // X-1: the import template is generated from the SAME field table the importer reads (`templates`), so a column added to an import appears in its template with no second edit.
 const templateExamples: Record<ImportModuleCode, Record<"ar" | "en", string[][]>> = {
   wbs: { ar: [["1.1", "الأعمال التمهيدية", "100000"]], en: [["1.1", "Preliminaries", "100000"]] },
-  budget: { ar: [["CIVIL", "500000", "525000"]], en: [["CIVIL", "500000", "525000"]] },
+  budget: { ar: [["CIVIL", "500000", "525000", "A1010"]], en: [["CIVIL", "500000", "525000", "A1010"]] },
   contracts: { ar: [["CON-001", "عقد الأعمال المدنية", "المقاول الرئيسي", "2500000", "SAR"]], en: [["CON-001", "Civil works contract", "Main Contractor", "2500000", "SAR"]] },
   materials: { ar: [["MAT-CONC-40", "خرسانة إنشائية", "m3", "خرسانة", "ASTM C94"]], en: [["MAT-CONC-40", "Structural concrete", "m3", "Concrete", "ASTM C94"]] },
   openingBalances: { ar: [["WH-01", "MAT-CONC-40", "120", "310.00"]], en: [["WH-01", "MAT-CONC-40", "120", "310.00"]] },

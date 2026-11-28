@@ -26,4 +26,11 @@ describe("budgetByCode", () => {
     expect(rows.find(row => row.code === "P")).toMatchObject({ leaf: true, original: 1_000_000 });
     expect(budgetByCode([])).toEqual({ rows: [], total: { original: 0, current: 0 } });
   });
+  it("Q-65: a leaf carries the activity number it was imported with, a parent carries none", () => {
+    const { rows } = budgetByCode([{ costCode: "GC.1.01", originalAmount: 5, currentAmount: 5, activityNo: " A-1010 " }, { costCode: "GC.1.02", originalAmount: 7, currentAmount: 7, activityNo: null }]);
+    const byCode = Object.fromEntries(rows.map(row => [row.code, row]));
+    expect(byCode["GC.1.01"].activityNo).toBe("A-1010");
+    expect(byCode["GC.1.02"].activityNo).toBe("");
+    expect(byCode["GC.1"].activityNo).toBe("");
+  });
 });

@@ -1931,6 +1931,8 @@ export const budgetLines = pgTable(
     costCode: varchar("cost_code", { length: 80 }).notNull(),
     originalAmount: numeric("original_amount", { precision: 18, scale: 2 }).default("0").notNull(),
     currentAmount: numeric("current_amount", { precision: 18, scale: 2 }).default("0").notNull(),
+    // Q-65 (0062): the schedule activity number the budget line belongs to, as the owner's cost sheet writes it («Activity No.»); optional, shown beside the line in the cost tree
+    activityNo: varchar("activity_no", { length: 80 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

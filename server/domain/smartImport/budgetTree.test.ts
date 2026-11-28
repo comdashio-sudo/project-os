@@ -61,7 +61,7 @@ describe("hierarchical budget through the smart reader (Q-65)", () => {
   });
   it("a flat budget (no nesting, no percentages) is read exactly as before", async () => {
     const { file } = await read([[0, "CIVIL", "Civil", null, 500_000, null], [0, "MEP", "MEP", null, 300_000, null]]);
-    expect(file.rows).toEqual([["CIVIL", 500000, 500000], ["MEP", 300000, 300000]]);
+    expect(file.rows).toEqual([["CIVIL", 500000, 500000, ""], ["MEP", 300000, 300000, ""]]); // the optional activity number is an empty fourth cell when the file has none
     expect(file.notes).toEqual(["BUDGET_CURRENT_DEFAULTED_TO_ORIGINAL"]);
   });
   it("review of #583 (B): a parent that wrote an amount over children with neither an amount nor a percentage is written as its branch's one line — the total says what is written, nothing vanishes", async () => {
@@ -86,5 +86,14 @@ describe("hierarchical budget through the smart reader (Q-65)", () => {
     expect(file.notes).toContain("BUDGET_NEGATIVE_NOT_WRITTEN:GC.9.2:-200");
     expect(file.notes).toContain("BUDGET_TREE_TOTAL:800");
     expect(file.notes).toContain("BUDGET_WRITTEN_TOTAL:1000");
+  });
+  it("Q-65: the owner's «Activity No.» column is read into the fourth cell of each written leaf (a parent that is not written carries none)", async () => {
+    const { understood, file } = await read([
+      [1, "GC.200", "Group", null, null, null],
+      [2, "GC.200.01", "Foundations", "A-1010", 1_000, null],
+      [2, "GC.200.02", "Structure", null, 2_000, null],
+    ]);
+    expect(understood.columns.map(column => column.fieldKey)).toContain("activityNo");
+    expect(file.rows).toEqual([["GC.200.01", 1000, 1000, "A-1010"], ["GC.200.02", 2000, 2000, ""]]);
   });
 });
