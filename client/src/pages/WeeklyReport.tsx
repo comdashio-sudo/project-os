@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { SectionNav, StickyActionBar } from "@/components/layout/pageLayout";
 import { AwaitingApprovalNote } from "@/components/dailyReport/ApprovalWho";
 import { ActivityNameToggle, hasEnglishNames, useActivityLabel, useActivityNameLanguage } from "@/lib/activityNames";
 import { Link, useParams } from "wouter";
@@ -53,6 +54,9 @@ export function currentWeekStart(today = new Date()) { const day = new Date(Date
 const shift = (weekStart: string, days: number) => { const day = new Date(`${weekStart}T00:00:00Z`); day.setUTCDate(day.getUTCDate() + days); return iso(day); };
 const figure = (value: number | null | undefined, decimals = 0) => (value === null || value === undefined ? "—" : formatNumber(value, decimals));
 
+// Q-69: the section row's own name, distinct from the page title's
+const SECTIONS_LABEL = { ar: "أقسام التقرير", en: "Report sections", ur: "رپورٹ کے حصے" } as const;
+
 export default function WeeklyReport() {
   const { tenantId = "", projectId = "" } = useParams<{ tenantId: string; projectId: string }>();
   const { language } = useLanguage();
@@ -97,11 +101,13 @@ export default function WeeklyReport() {
           <Field label={t.week}>{props => <TextInput {...props} type="date" value={weekStart} onChange={event => setWeekStart(event.target.value)} />}</Field>
           <Button variant="secondary" onClick={() => setWeekStart(shift(weekStart, 7))}>{t.next}</Button>
       </>} />
+      {/* Q-69: the shared section row — the week's three parts, kept under the header */}
+      <SectionNav label={pickLanguage(language, SECTIONS_LABEL)} sections={[{ id: "week-figures", label: t.figures }, { id: "week-words", label: t.words }, { id: "week-photos", label: t.photos }]} />
       {figures.error ? <SectionFailed title={t.figures} error={figures.error} isArabic={language === "ar"} onRetry={() => figures.refetch()} /> : data ? (
         <>
         {/* Q-56 (4a): the figures count approved reports only — say how many of the period's reports still wait for an approver */}
         <AwaitingApprovalNote scope={scope} count={(data as { awaitingApproval?: number }).awaitingApproval} />
-        <Card aria-label={t.figures} data-week-figures>
+        <Card id="week-figures" aria-label={t.figures} data-week-figures className="scroll-mt-28">
           <CardHeader><CardTitle>{t.figures}</CardTitle><p className="text-sm text-muted-foreground"><bdi dir="ltr">{formatDate(data.period.start, language)} – {formatDate(data.period.end, language)}</bdi></p></CardHeader>
           <CardBody className="flex flex-col gap-4">
             {withEnglish && <ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} />}
@@ -121,14 +127,14 @@ export default function WeeklyReport() {
         </>
       ) : null}
       {saved.error ? <SectionFailed title={t.words} error={saved.error} isArabic={language === "ar"} onRetry={() => saved.refetch()} /> : (
-        <Card aria-label={t.words}>
+        <Card id="week-words" aria-label={t.words} className="scroll-mt-28">
           <CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>{t.words}</CardTitle>{canWrite ? <Button variant="secondary" disabled={!data} onClick={suggest}>{t.suggest}</Button> : null}</div>{canWrite ? null : <p role="note" className="text-sm text-muted-foreground">{t.readOnly}</p>}</CardHeader>
           <CardBody className="grid gap-4 md:grid-cols-2">
             {TEXTS.map(key => <Field key={key} label={t.labels[key]}>{props => <TextArea {...props} dir="auto" maxLength={8000} readOnly={!canWrite} value={texts[key]} onChange={event => setTexts(current => ({ ...current, [key]: event.target.value }))} />}</Field>)}
           </CardBody>
         </Card>
       )}
-      <Card aria-label={t.photos}>
+      <Card id="week-photos" aria-label={t.photos} className="scroll-mt-28">
         <CardHeader><CardTitle>{t.photos}</CardTitle><p className="text-sm text-muted-foreground" aria-live="polite">{t.chosen(photoIds.length)}</p></CardHeader>
         <CardBody>{photos.length === 0 ? <p className="text-sm text-muted-foreground">{t.noPhotos}</p> : (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">{photos.map(photo => (
@@ -147,11 +153,10 @@ export default function WeeklyReport() {
         parties: [profile.data?.clientName ?? null, profile.data?.consultantName ?? null, profile.data?.contractorName ?? null],
       } : null} />
       {canWrite ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <Button loading={save.isPending} onClick={() => { setNotice(null); save.mutate({ ...scope, weekStart, texts, photoIds }); }}>{save.isPending ? t.saving : t.save}</Button>
-          {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-          {save.error ? <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError(save.error, language)}</p> : null}
-        </div>
+        // Q-69: the save on the shared action bar, its outcome as the bar's line
+        <StickyActionBar label={t.save} summary={save.error ? <span role="alert" className="text-danger-soft-foreground">{getLocalizedProjectError(save.error, language)}</span> : notice ? <span role="status">{notice}</span> : undefined}>
+          <Button size="lg" className="min-h-12 w-full sm:w-auto" loading={save.isPending} onClick={() => { setNotice(null); save.mutate({ ...scope, weekStart, texts, photoIds }); }}>{save.isPending ? t.saving : t.save}</Button>
+        </StickyActionBar>
       ) : null}
     </PageMain>
   );

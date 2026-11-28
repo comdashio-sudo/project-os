@@ -75,4 +75,9 @@ describe("the monthly report page (D-53 b)", () => {
     render(<MonthlyReport />);
     expect(screen.getByRole("heading", { name: "ماہانہ رپورٹ" })).toBeTruthy();
   });
+  it("Q-69: a section row jumps to the figures, the S-curve and the exports, each with its anchor on the page", () => {
+    render(<MonthlyReport />);
+    const nav = screen.getByRole("navigation", { name: "Report sections" });
+    for (const id of ["month-figures", "month-curve", "month-exports"]) { expect(nav.querySelector(`a[href="#${id}"]`)).not.toBeNull(); expect(document.getElementById(id)).not.toBeNull(); }
+  });
 });
