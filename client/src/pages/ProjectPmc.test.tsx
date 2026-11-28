@@ -40,7 +40,7 @@ const h = vi.hoisted(() => {
   return { screenQuery, reply };
 });
 vi.mock("@/lib/uploadLimit", async importOriginal => ({ ...(await importOriginal<typeof import("@/lib/uploadLimit")>()), putToStorage: state.put }));
-vi.mock("@/lib/trpc", async () => ({ trpc: { ...(await import("../test/importsTrpcMock")).importsTrpc(state.imports), auth: { me: { useQuery: () => ({ data: { id: 1 }, error: null }) } }, directUploads: { create: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }) } }, pmcSite: { percentages: { useQuery: () => ({ isLoading: false, error: null, data: undefined }) } }, pmc: {
+vi.mock("@/lib/trpc", async () => ({ trpc: { ...(await import("../test/importsTrpcMock")).importsTrpc(state.imports), auth: { me: { useQuery: () => ({ data: { id: 1 }, error: null }) } }, directUploads: { create: { useMutation: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }) } }, pmcSite: { percentages: { useQuery: () => ({ isLoading: false, error: null, data: undefined }) } }, pmc: { columnProfiles: { useQuery: () => ({ data: (globalThis as { __q66Profiles?: unknown[] }).__q66Profiles ?? [], isLoading: false, isError: false, error: null }) }, deleteColumnProfile: { useMutation: (options: { onSuccess?: () => void }) => ({ mutate: (input: unknown) => { (globalThis as { __q66Deleted?: unknown[] }).__q66Deleted = [...((globalThis as { __q66Deleted?: unknown[] }).__q66Deleted ?? []), input]; options.onSuccess?.(); }, isPending: false, error: null }) },
   importStatus: { useQuery: () => ({ data: undefined, error: null }) },
   // Q-49: the names switch reads the catalogue structure (no English name here: no switch)
   structure: { useQuery: () => ({ data: { models: [] }, error: null }) },
@@ -159,6 +159,36 @@ describe("ProjectPmc import (direct upload, G-139)", () => {
     fireEvent.change(screen.getByLabelText("Choose an Excel or CSV file"), { target: { files: [fileOf(name)] } });
     await waitFor(() => expect((screen.getByText("Check the file").closest("button") as HTMLButtonElement).disabled).toBe(false));
   };
+
+  it("Q-66 (6): the company's remembered columns are listed with their kind and map, and forgotten in two steps", async () => {
+    (globalThis as { __q66Profiles?: unknown[] }).__q66Profiles = [{ id: "00000000-0000-4000-8000-0000000000a1", kind: "locations", mapping: { blockCode: "Plot Block", unitNumber: "House" }, headers: 3, timesUsed: 2, updatedAt: "2026-11-27T10:00:00Z" }];
+    render(<ProjectPmc />);
+    open("Import");
+    const section = document.querySelector("[data-column-profiles]")!;
+    expect(section.querySelector('[data-column-profile="locations"]')!.textContent).toContain("Plot Block");
+    expect(section.textContent).toContain("used 2 times");
+    fireEvent.click(within(section as HTMLElement).getByRole("button", { name: "Forget this choice" }));
+    // NEGATIVE: nothing is deleted before the confirmation
+    expect((globalThis as { __q66Deleted?: unknown[] }).__q66Deleted).toBeUndefined();
+    fireEvent.click(within(section as HTMLElement).getByRole("button", { name: "Confirm forgetting" }));
+    expect((globalThis as { __q66Deleted?: unknown[] }).__q66Deleted).toEqual([{ tenantId: "t", projectId: "p", profileId: "00000000-0000-4000-8000-0000000000a1" }]);
+    (globalThis as { __q66Profiles?: unknown[] }).__q66Profiles = undefined; (globalThis as { __q66Deleted?: unknown[] }).__q66Deleted = undefined;
+  });
+
+  it("Q-66 (4): the report says in which order the file's numeric dates were read, with an example; a file with no such dates says nothing", async () => {
+    state.imports.progress = view({ status: "validated", external: external(pmcReport({ details: { dateOrder: { order: "dmy", dates: 6 } } })) });
+    render(<ProjectPmc />);
+    await choose("status.csv");
+    fireEvent.click(screen.getByText("Check the file"));
+    const report = await screen.findByTestId("import-report");
+    expect(report.querySelector("[data-date-order]")!.textContent).toBe("The file's dates (6) were read day first: 05/09/2026 = 5 September 2026. If your file writes the month first, correct it before confirming.");
+    cleanup();
+    state.imports.progress = view({ status: "validated", external: external(pmcReport()) });
+    render(<ProjectPmc />);
+    await choose("status.csv");
+    fireEvent.click(screen.getByText("Check the file"));
+    expect((await screen.findByTestId("import-report")).querySelector("[data-date-order]")).toBeNull();
+  });
 
   it("uploads straight to storage, shows the job's report with every rejected row, and offers no Save while there are errors", async () => {
     state.imports.progress = view({ status: "uploaded", external: external(pmcReport({ errorCount: 2, errors: [{ rowNumber: 2, code: "PMC_UNIT_NOT_FOUND", field: "unitNumber", detail: "99" }, { rowNumber: 4, code: "PMC_STATUS_INVALID", field: "status" }], canConfirm: false })) });
@@ -431,5 +461,20 @@ describe("PMC data freshness: the age of a source in each language", () => {
       for (const source of ["locations", "catalog", "status", "requests", "baseline"] as const) expect(PMC_TEXT[language].sources[source]).toBeTruthy();
     }
     expect(PMC_TEXT.ur.freshness).toBe("ڈیٹا کی تازگی");
+  });
+  it("Q-69: the fourteen tabs are one row kept under the header (no wrapping), and choosing one brings it into the row's view", () => {
+    const seen: string[] = [];
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) { seen.push(this.textContent ?? ""); } as typeof original;
+    try {
+      render(<ProjectPmc />);
+      const row = document.querySelector("[data-pmc-tabs]") as HTMLElement;
+      expect(row.className).toMatch(/\bsticky\b/);
+      expect(row.className).not.toMatch(/\bflex-wrap\b/);
+      expect(row.style.top).toBe("var(--shell-top, 0px)");
+      const tabs = Array.from(row.querySelectorAll('[role="tab"]'));
+      fireEvent.click(tabs[tabs.length - 1]);
+      expect(seen.at(-1)).toBe(tabs[tabs.length - 1].textContent);
+    } finally { HTMLElement.prototype.scrollIntoView = original; }
   });
 });

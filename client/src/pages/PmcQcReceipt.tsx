@@ -4,10 +4,11 @@
 import { ActivityNameToggle, hasEnglishNames, useActivityLabel, useActivityNameLanguage } from "@/lib/activityNames";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "wouter";
-import { Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Field, Segmented, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
+import { Button, Card, CardBody, CardHeader, CardTitle, Field, Segmented, SkeletonRows, TextInput, formatPercent, notify } from "@/components/ds";
 import { SearchCombobox, type ComboOption } from "@/components/SearchCombobox";
 import { SelectionSummaryNote, VillaPicker, emptyChoice } from "@/components/VillaPicker";
 import { readRecentActivities, rememberActivity, summarizeSelection, villasOf, type VillaChoice } from "@/lib/villaPicker";
+import { ActionBarSpacer, StickyActionBar } from "@/components/layout/pageLayout";
 import { FieldShell } from "@/components/FieldShell";
 import { UndoLastSave } from "@/components/UndoLastSave";
 import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
@@ -120,8 +121,8 @@ export default function PmcQcReceipt() {
               </div>
             )}
           </CardBody>
-          {/* the save stays at the bottom of the screen on a phone, as in the owner's own tool */}
-          <CardFooter className="sticky bottom-0 bg-card"><Button size="lg" className="w-full" loading={update.isPending} disabled={!activityCode || !summary.applicable.length} onClick={submit}>{t.update.save}</Button></CardFooter>
+          {/* the save stays at the bottom of the screen on a phone, as in the owner's own tool (Q-69: the shared action bar) */}
+          <StickyActionBar label={t.update.save} spacer={false}><Button size="lg" className="min-h-12 w-full sm:ms-auto sm:w-auto sm:min-w-64" loading={update.isPending} disabled={!activityCode || !summary.applicable.length} onClick={submit}>{t.update.save}</Button></StickyActionBar>
         </Card>
       </WriteGate>
       {lastSave && <UndoLastSave savedAt={lastSave.at} undone={lastSave.undone} pending={undo.isPending} error={undo.error ? getLocalizedProjectError(undo.error, language) : null} onUndo={() => undo.mutate({ ...scope, batchId: lastSave.batchId })} />}
@@ -149,6 +150,7 @@ export default function PmcQcReceipt() {
         </CardBody>
       </Card>
       </div>
+      <ActionBarSpacer />
     </FieldShell>
   );
 }

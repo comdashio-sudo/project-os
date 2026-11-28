@@ -21,7 +21,8 @@ export function importsTrpc(state: ImportsMockState) {
   });
   const invalidate = { invalidate: vi.fn() };
   return {
-    useUtils: () => ({ dataImports: { progress: invalidate, diff: invalidate, templates: invalidate } }),
+    // pmc.columnProfiles: the remembered-columns list (Q-66 (6)) refreshes itself after a forget; without it the PMC page test threw after it had passed (main red since #598)
+    useUtils: () => ({ dataImports: { progress: invalidate, diff: invalidate, templates: invalidate }, pmc: { columnProfiles: invalidate } }),
     dataImports: {
       list: { useQuery: () => ({ data: state.list, refetch: vi.fn() }) },
       detail: { useQuery: () => ({ data: state.detail, refetch: vi.fn(), error: null }) },

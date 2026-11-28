@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pmcDefinitionKey, planBaselineDates } from "./pmcImport";
+import { pmcDateReading, pmcDefinitionKey, planBaselineDates } from "./pmcImport";
 
 // Q-66 (4): the PMC import reads dates as the owner's files write them, each column's day/month order decided from all its values. Synthetic data only.
 const context = { definitions: new Map([[pmcDefinitionKey("C", "IP-001"), "d1"], [pmcDefinitionKey("C", "IP-002"), "d2"]]), stored: new Map() };
@@ -29,5 +29,17 @@ describe("PMC import dates (Q-66 4)", () => {
     expect(result.errors.map(error => [error.code, error.field])).toEqual([["PMC_DATE_INVALID", "startDate"], ["PMC_DATE_INVALID", "endDate"]]);
     // review of #589 (A): a bare year typed as a number is not an Excel date (it would read as 1905)
     expect(plan([["C", "IP-001", 2026, "2026-12-31"]]).errors.map(error => [error.code, error.field])).toEqual([["PMC_DATE_INVALID", "startDate"]]);
+  });
+});
+
+describe("how a file's numeric dates were read, for the report (Q-66 4)", () => {
+  const rows = (pairs: Array<[unknown, unknown]>) => pairs.map(([startDate, endDate], index) => ({ rowNumber: index + 2, cells: { modelCode: "C", activityCode: "IP-001", startDate, endDate } }));
+  it("POSITIVE: day first by default, month first when a date can only be read that way — with how many numeric dates the file has", () => {
+    expect(pmcDateReading("baselineDates", rows([["05/09/2026", "15/10/2026"]]))).toEqual({ order: "dmy", dates: 2 });
+    expect(pmcDateReading("baselineDates", rows([["09/05/2026", "12/25/2026"]]))).toEqual({ order: "mdy", dates: 2 });
+  });
+  it("NEGATIVE: a file with ISO dates, date cells or no date columns has nothing to say", () => {
+    expect(pmcDateReading("baselineDates", rows([["2026-09-05", new Date("2026-10-15")]]))).toBeNull();
+    expect(pmcDateReading("locations", rows([["05/09/2026", "15/10/2026"]]))).toBeNull();
   });
 });

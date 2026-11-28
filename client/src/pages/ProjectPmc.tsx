@@ -4,6 +4,7 @@ import { PmcColumnMapping, type PmcImportColumns } from "@/components/PmcColumnM
 import { ActivityNameToggle, hasEnglishNames, useActivityNameLanguage, type ActivityNameLanguage } from "@/lib/activityNames";
 import { DirectImportRunner, type DirectImportView } from "@/components/DirectImportRunner";
 import { ImportTemplatesList } from "@/components/ImportTemplates";
+import { PmcColumnProfiles } from "@/components/PmcColumnProfiles";
 import { SiteWorkbookImport } from "@/components/SiteWorkbookImport";
 import { PageMain, PageHeader } from "@/components/pageFrame";
 import { SectionErrorBoundary } from "@/components/SectionResilience";
@@ -80,6 +81,12 @@ export const PMC_TEXT = {
   },
 };
 const text = PMC_TEXT;
+// Q-66 (4): the line that says in which order the file's numeric dates were read, with an example
+const DATE_ORDER = {
+  ar: (order: "dmy" | "mdy", n: number) => order === "dmy" ? `قُرئت تواريخ الملف (${n}) يومًا أولًا: 05/09/2026 = 5 سبتمبر 2026. إن كان ملفك يكتب الشهر أولًا فصحّح الملف قبل التأكيد.` : `قُرئت تواريخ الملف (${n}) شهرًا أولًا لأن فيه تاريخًا لا يُقرأ إلا هكذا (مثل 12/25/2026): 09/05/2026 = 5 سبتمبر 2026.`,
+  en: (order: "dmy" | "mdy", n: number) => order === "dmy" ? `The file's dates (${n}) were read day first: 05/09/2026 = 5 September 2026. If your file writes the month first, correct it before confirming.` : `The file's dates (${n}) were read month first, since one of them can only be read that way (such as 12/25/2026): 09/05/2026 = 5 September 2026.`,
+  ur: (order: "dmy" | "mdy", n: number) => order === "dmy" ? `فائل کی تاریخیں (${n}) پہلے دن کے ساتھ پڑھی گئیں: 05/09/2026 = 5 ستمبر 2026۔ اگر آپ کی فائل پہلے مہینہ لکھتی ہے تو تصدیق سے پہلے درست کریں۔` : `فائل کی تاریخیں (${n}) پہلے مہینے کے ساتھ پڑھی گئیں کیونکہ ان میں سے ایک صرف اسی طرح پڑھی جا سکتی ہے (جیسے 12/25/2026): 09/05/2026 = 5 ستمبر 2026۔`,
+};
 // Q-66 (6): the note above the columns when a remembered choice was used
 const REMEMBERED_MAPPING = {
   ar: (n: number) => `قُرئت الأعمدة بالربط الذي اختارته شركتك لملف بالشكل نفسه من قبل (${n} حقول). غيّره أدناه إن لزم.`,
@@ -303,7 +310,7 @@ function ImportPanel({ tenantId, projectId, t, isArabic, onOpenActivities }: { t
   // asked again every few seconds while an import is on its way, so «analysing» turns into «waiting for confirmation» or «import complete» by itself
   const importStatus = trpc.pmc.importStatus.useQuery({ tenantId, projectId }, { refetchInterval: query => (query.state.data?.some(row => row.state === "analyzing" || row.state === "pending") ? 5000 : false) });
   // The file goes browser → Storage on a signed URL (up to 50 MB), is analysed by a background job with a progress bar, and is written only after the person has read the report and confirmed.
-  type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number }; details?: { rememberedMapping?: { name: string; fields: string[] }; edits?: AppliedEdit[]; replaced?: AppliedReplace[]; ignoredRows?: number[]; readRows?: number[]; preview?: PreviewRow[]; ignoredZeroWeight?: number; scaledFromFractions?: boolean; skippedTotals?: number; filledDown?: number; outlineHeadings?: number; ignoredColumns?: Array<{ header: string; samples: string[] }>; roundedTotals?: Array<{ modelCode: string; totalWeight: number }>; totalChecks?: Array<{ row: number; fileValue: number | null; readSum: number; status: "matches" | "differs" | "not_comparable" }>; columns?: PmcImportColumns; models?: Array<{ modelCode: string; activities: number; totalWeight: number }> } };
+  type Report = { totalRows: number; errorCount: number; errors: Array<{ rowNumber: number; code: string; field?: string; detail?: string }>; counts: { create: number; update: number; unchanged: number }; details?: { dateOrder?: { order: "dmy" | "mdy"; dates: number }; rememberedMapping?: { name: string; fields: string[] }; edits?: AppliedEdit[]; replaced?: AppliedReplace[]; ignoredRows?: number[]; readRows?: number[]; preview?: PreviewRow[]; ignoredZeroWeight?: number; scaledFromFractions?: boolean; skippedTotals?: number; filledDown?: number; outlineHeadings?: number; ignoredColumns?: Array<{ header: string; samples: string[] }>; roundedTotals?: Array<{ modelCode: string; totalWeight: number }>; totalChecks?: Array<{ row: number; fileValue: number | null; readSum: number; status: "matches" | "differs" | "not_comparable" }>; columns?: PmcImportColumns; models?: Array<{ modelCode: string; activities: number; totalWeight: number }> } };
   const renderReport = (view: DirectImportView) => {
     const report = (view.external?.report as { pmc?: Report } | undefined)?.pmc;
     if (!report) return null;
@@ -341,6 +348,8 @@ function ImportPanel({ tenantId, projectId, t, isArabic, onOpenActivities }: { t
         {/* Q-50 batch 4b: a rejected row corrected here (a cell, or the row left out) instead of in Excel — audited, and analysed again before anything is written */}
         {report.details?.columns && (report.errors.some(error => error.rowNumber > 0) || (report.details.edits ?? []).length > 0 || (report.details.ignoredRows ?? []).length > 0 || (report.details.preview ?? []).length > 0) && <PmcRowCorrections key={`${view.id}:corrections:${JSON.stringify([report.details.edits ?? [], report.details.ignoredRows ?? [], report.details.readRows ?? [], report.errors.map(error => error.rowNumber)])}`} tenantId={tenantId} projectId={projectId} importId={view.id} errors={report.errors} fields={report.details.columns.fields.filter(field => field.header).map(field => field.key)} applied={report.details.edits ?? []} ignoredRows={report.details.ignoredRows ?? []} readRows={report.details.readRows ?? []} preview={report.details.preview ?? []} replaced={report.details.replaced ?? []} language={language} />}
         {report.errorCount === 0 && view.external && !view.external.canConfirm && <p className="text-sm text-muted-foreground">{t.alreadyUpToDate}</p>}
+        {/* Q-66 (4): how the file's numeric dates were read — a month-first file whose every day is 12 or less is seen before it is confirmed */}
+        {report.details?.dateOrder && <p className="rounded-md bg-muted px-2 py-1 text-sm" data-date-order={report.details.dateOrder.order}>{pickLanguage(language, DATE_ORDER)(report.details.dateOrder.order, report.details.dateOrder.dates)}</p>}
         {/* Q-66 (6): the columns were read with the choice this company made for a file of the same shape — said, and still changeable below */}
         {report.details?.rememberedMapping && <p className="rounded-md bg-info-soft px-2 py-1 text-sm text-info-soft-foreground" data-remembered-mapping>{pickLanguage(language, REMEMBERED_MAPPING)(report.details.rememberedMapping.fields.length)}</p>}
         {/* Q-31 (P0-02): which column each field came from; a person can pick another one and analyse again (key: a new report resets the choice) */}
@@ -376,6 +385,7 @@ function ImportPanel({ tenantId, projectId, t, isArabic, onOpenActivities }: { t
         <DirectImportRunner tenantId={tenantId} projectId={projectId} moduleCode={`pmc.${kind}`} isArabic={isArabic} fileLabel={t.chooseFile} analyzeLabel={t.analyze} confirmLabel={view => { const rows = (view.external?.report as { pmc?: Report } | undefined)?.pmc?.totalRows; return rows ? t.confirmRows(rows) : t.confirm; }} showErrors={false} renderReport={renderReport} renderResult={renderResult} templates />
         {/* Q-50 batch 2b: the company's saved PMC column templates */}
         <ImportTemplatesList tenantId={tenantId} projectId={projectId} kinds={Object.keys(t.importKinds).map(code => `pmc.${code}`)} kindLabel={code => (t.importKinds as Record<string, string>)[code.replace(/^pmc\./, "")]} language={language} />
+        <PmcColumnProfiles tenantId={tenantId} projectId={projectId} language={language} kindLabel={kind => (t.importKinds as Record<string, string>)[kind]} />
       </div></WriteGate>
       {/* D-59: the site's old workbook — what the site-update screen and the S-curve stand on; their empty states link here (?tab=import) */}
       <WriteGate permission={"project.pmc.manage"} projectId={projectId}><SiteWorkbookImport tenantId={tenantId} projectId={projectId} /></WriteGate>
@@ -394,6 +404,9 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   const [tab, setTab] = useState<Tab>(() => { const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"); return (TABS as readonly string[]).includes(asked ?? "") ? asked as Tab : "latestUpdates"; });
   const [filters, setFilters] = useState<Filters>({});
   const bodyRef = useRef<HTMLElement>(null);
+  const tabsRef = useRef<HTMLElement>(null);
+  // Q-69: the open tab is scrolled into the row's view (a phone shows three or four of the fourteen)
+  useEffect(() => { tabsRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }, [tab]);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState(false);
   const [period, setPeriod] = useState<(typeof PERIODS)[number][0]>("default");
@@ -428,7 +441,8 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
         {/* Work order 22: the three percentages and the two site screens */}
         <section className="space-y-3 print:hidden"><div className="flex flex-wrap gap-2"><Link href={`/projects/${tenantId}/${projectId}/site-consultant`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToComparison}</Button></Link><Link href={`/m/${tenantId}/${projectId}/site-update`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToUpdate}</Button></Link></div><SourcePercentages tenantId={tenantId} projectId={projectId} levels={false} /></section>
         {withEnglish && <div className="print:hidden"><ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} /></div>}
-        <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-[var(--radius)] border px-4 text-sm font-medium ${tab === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
+        {/* Q-69: one row of tabs kept under the header, scrolling sideways on a phone instead of wrapping into four rows */}
+        <nav ref={tabsRef} role="tablist" data-pmc-tabs="" style={{ top: "var(--shell-top, 0px)" }} className="sticky z-20 -mx-4 flex gap-2 overflow-x-auto border-b border-border bg-background/95 px-4 py-2 backdrop-blur print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] shrink-0 whitespace-nowrap rounded-[var(--radius)] border px-4 text-sm font-medium ${tab === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
         {/* Q-37 (c): what the open tab is for and when to use it; the whole list, and what PMC does not have, one click away */}
         <section className="space-y-2 print:hidden" data-pmc-tab-guide={tab}>
           <p className="text-sm text-muted-foreground">{pickLanguage(language, PMC_TAB_GUIDE[tab].what)} <span className="font-semibold text-foreground">{pickLanguage(language, PMC_GUIDE_LABELS.when)}:</span> {pickLanguage(language, PMC_TAB_GUIDE[tab].when)}</p>

@@ -100,5 +100,12 @@ describe("ProjectImports confirmation", () => {
     expect(note.textContent).toContain("An import never deletes a record");
     expect(note.textContent).toContain("1.1"); expect(note.textContent).toContain("1.2");
   });
+  it("Q-69: the confirm sits on the shared action bar (a named region) so it stays in reach below a long preview", async () => {
+    const user = await startImport();
+    const button = await screen.findByRole("button", { name: "Confirm import" });
+    const bar = screen.getByRole("region", { name: "Confirm import" });
+    expect(bar.hasAttribute("data-sticky-action-bar")).toBe(true);
+    expect(bar.contains(button)).toBe(true);
+  });
 });
 

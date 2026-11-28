@@ -99,4 +99,17 @@ describe("PmcQcReceipt (Q-5)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Undo this save" }));
     expect(h.undo).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", batchId: "44444444-4444-4444-8444-444444444444" });
   });
+  it("Q-69: the save is on the shared action bar, a named region fixed above the phone bar", () => {
+    render(<PmcQcReceipt />);
+    const bar = screen.getByRole("region", { name: /Save/ });
+    expect(bar.hasAttribute("data-sticky-action-bar")).toBe(true);
+    expect(bar.contains(screen.getByRole("button", { name: /Save/ }))).toBe(true);
+  });
+  it("Q-69 (review B on #597): the bar's room is at the page's end, once, not inside the form's card", () => {
+    render(<PmcQcReceipt />);
+    const spacers = document.querySelectorAll("[data-action-bar-spacer]");
+    expect(spacers).toHaveLength(1);
+    const bar = document.querySelector("[data-sticky-action-bar]")!;
+    expect(bar.previousElementSibling?.hasAttribute("data-action-bar-spacer") ?? false).toBe(false);
+  });
 });

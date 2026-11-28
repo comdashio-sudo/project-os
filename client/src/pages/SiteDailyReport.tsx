@@ -1,6 +1,7 @@
 import { DailyRangeExport } from "@/components/dailyReport/DailyRangeExport";
 import { Button } from "@/components/ui/button";
 import { CameraCapture, Select } from "@/components/ds";
+import { StickyActionBar } from "@/components/layout/pageLayout";
 import { FieldShell, fieldInput, showDate, tap } from "@/components/FieldShell";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage } from "@/lib/language";
@@ -376,7 +377,7 @@ export default function SiteDailyReport() {
       <WriteGate permission="project.field.manage" projectId={projectId} reason={{ ar: text.ar.noPermission, en: text.en.noPermission, ur: text.ur.noPermission }}>
         {/* specification §3: sections 0 to 10 in order; one column on a phone (the site engineer), two on a desk (the planning engineer) */}
         {/* room under the last section for the save bar, which is fixed to the bottom of a phone's screen (a sticky bar would be lost in an overflow ancestor) */}
-        <CheckedForm className="space-y-3 pb-24 lg:pb-0" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); autoSaving.current = false; sending.current = signature; save.mutate({ ...body(), clientRequestId: crypto.randomUUID() }); }}>
+        <CheckedForm className="space-y-3" onSubmit={event => { event.preventDefault(); if (locked || problems.length > 0 || save.isPending) return; setMessage(null); autoSaving.current = false; sending.current = signature; save.mutate({ ...body(), clientRequestId: crypto.randomUUID() }); }}>
           {!reportId && !locked && (
             <div className="space-y-1 rounded-xl border bg-card p-3" data-copy-yesterday>
               <Button type="button" variant="outline" className={tap} disabled={copy.isPending} onClick={() => { setMessage(null); copy.mutate({ ...scope, reportDate: date }); }}>{coreText.copy}</Button>
@@ -448,11 +449,10 @@ export default function SiteDailyReport() {
           {!locked && (
             // the save bar stays in reach of the thumb while the site engineer scrolls the sections
             // Q-58 (2): one bar for the whole report, fixed to a phone's screen and held at the bottom of a desk's view while the sections scroll
-            <div data-save-bar className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t bg-background p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] lg:sticky lg:px-0 lg:shadow-none">
-              <p className="col-span-2 text-xs text-muted-foreground" role="status" data-autosaved={autoSavedAt ? "" : undefined}>{autoSavedAt ? layout.autosaved(formatDateTime(autoSavedAt, language)) : layout.autosaveHint}</p>
+            <StickyActionBar label={t.save} summary={<span role="status" data-autosaved={autoSavedAt ? "" : undefined}>{autoSavedAt ? layout.autosaved(formatDateTime(autoSavedAt, language)) : layout.autosaveHint}</span>}><div data-save-bar className="grid w-full grid-cols-2 gap-2 sm:w-96">
               <Button type="submit" variant="outline" className={`${tap} text-base`} disabled={problems.length > 0 || save.isPending}>{save.isPending ? t.saving : t.save}</Button>
               <Button type="button" className={`${tap} text-base`} disabled={!reportId || problems.length > 0 || submit.isPending} onClick={() => { setMessage(null); if (reportId) submit.mutate({ ...scope, reportId }); }}>{submit.isPending ? t.submitting : approvalOn ? t.submit : t.send}</Button>
-            </div>
+            </div></StickyActionBar>
           )}
         </CheckedForm>
       </WriteGate>

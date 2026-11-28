@@ -65,7 +65,7 @@ import { exportPmcScreen, getPmcScreen } from "./pmcScreensService";
 import { getPmcProgressBoard, getPmcSiteMap, getPmcUnitCard, savePmcUnitGeometries, uploadPmcSitePlan } from "./pmcPlanService";
 import { getPmcProgramme } from "./pmcProgrammeService";
 import { PMC_SCREEN_NAMES, type PmcScreenName } from "./domain/pmcScreenExport";
-import { analyzePmcImport, confirmPmcImport } from "./pmcImportService";
+import { analyzePmcImport, confirmPmcImport, deletePmcColumnProfile, listPmcColumnProfiles } from "./pmcImportService";
 import { PMC_INSPECTION_STEPS, PMC_STATUSES, advancePmcInspectionStep, createPmcInspectionRequest, getPmcProgress, getPmcStatusFactors, listPmcInspectionRequests, listPmcVerificationStatuses, respondPmcInspection, savePmcVerificationStatuses, setPmcStatusFactors, setPmcUnitActivityStatus } from "./pmcService";
 import { applyMasterPlanMappingFile, importMasterPlanSpatialEntitiesFromFile } from "./db";
 import { createMasterPlanSnapshotForTenant, getMasterPlanSnapshotsForTenant, getMasterPlanVisualizationRulesForTenant, saveMasterPlanVisualizationRuleForTenant } from "./db";
@@ -366,6 +366,9 @@ export const appRouter = router({
     uploadSitePlan: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), fileName: z.string().trim().min(1).max(255) }).and(z.union([z.object({ base64: z.string().min(1).max(12_000_000) }), z.object({ uploadKey: z.string().min(1).max(1024) })]))).mutation(({ ctx, input }) => uploadPmcSitePlan({ userId: ctx.user.id, ...input })),
     saveUnitGeometries: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), geojson: z.string().min(2).max(8_000_000) })).mutation(({ ctx, input }) => savePmcUnitGeometries({ userId: ctx.user.id, ...input })),
     exportScreen: protectedProcedure.input(pmcScreenInput.extend({ screen: z.enum(PMC_SCREEN_NAMES), locale: z.enum(EXPORT_LOCALES) })).mutation(({ ctx, input }) => exportPmcScreen({ userId: ctx.user.id, ...input })),
+    // Q-66 (6): the company's remembered column choices for PMC files — seen and deleted by whoever imports them
+    columnProfiles: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid() })).query(({ ctx, input }) => listPmcColumnProfiles({ userId: ctx.user.id, ...input })),
+    deleteColumnProfile: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), profileId: z.string().uuid() })).mutation(({ ctx, input }) => deletePmcColumnProfile({ userId: ctx.user.id, ...input })),
     analyzeImport: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), kind: z.enum(PMC_IMPORT_KINDS), format: z.enum(["xlsx", "csv"]), base64: z.string().min(1).max(12_000_000) })).mutation(({ ctx, input }) => analyzePmcImport({ userId: ctx.user.id, ...input })),
     confirmImport: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), kind: z.enum(PMC_IMPORT_KINDS), format: z.enum(["xlsx", "csv"]), base64: z.string().min(1).max(12_000_000), approvedHash: z.string().length(64) })).mutation(({ ctx, input }) => confirmPmcImport({ userId: ctx.user.id, ...input })),
     respondInspection: protectedProcedure.input(z.object({ tenantId: z.string().uuid(), projectId: z.string().uuid(), inspectionRequestId: z.string().uuid(), responseCode: z.enum(["A", "B", "C", "UR"]) })).mutation(({ ctx, input }) => respondPmcInspection({ userId: ctx.user.id, ...input })),
