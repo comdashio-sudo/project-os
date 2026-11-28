@@ -44,6 +44,7 @@ import { ProjectMasterPlan as ProjectMasterPlanContent } from "./ProjectMasterPl
 import { MasterPlanDrawing as MasterPlanDrawingContent } from "@/components/MasterPlanDrawing";
 import { PlanningControlCenter } from "@/components/PlanningControlCenter";
 import { VillaPlannedCurve } from "@/components/VillaPlannedCurve";
+import { BudgetTreeSection } from "@/components/BudgetTreeSection";
 import { WbsTree } from "@/components/WbsTree";
 import { calculatePlanningControl } from "@/lib/planningControl";
 import { DashboardSectionReporter } from "@/components/DashboardSectionReporter";
@@ -346,6 +347,8 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
         </div>
         {/* Q-64 batch 2: the progress section — the planned S-curve from the baseline against the site's actual (own gate: project.pmc.read; it says why when there is no baseline yet) */}
         {focus === "planning" ? <div id="planning-curve" className="mt-5 scroll-mt-32"><VillaPlannedCurve tenantId={tenantId} projectId={projectId} /></div> : null}
+        {/* Q-65: the budget as a tree by cost code (the lines are the leaves; a parent is the sum of its leaves). Drawn only when the page holds budget lines, which it does not for someone who may not see the money */}
+        {focus === "planning" && financialsQuery.data ? <div className="mt-5"><BudgetTreeSection budgets={data.budgets} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} /></div> : null}
 
         {apiError && <p className="mt-5 rounded-xl bg-danger-soft p-4 text-sm text-danger-soft-foreground">{getLocalizedProjectError(apiError, isArabic)}</p>}
         {scheduleQuery.isLoading && <div className="mt-5"><SectionMessage title={pickLanguage(language, { ar: "الجدولة وWBS", en: "Schedule and WBS", ur: "شیڈول اور WBS" })} isArabic={isArabic} kind="loading" /></div>}

@@ -19,7 +19,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
 } }));
 
 const count = (create: number, update = 0, unchanged = 0) => ({ create, update, unchanged, absent: 0 });
-const plan = (over: Record<string, unknown> = {}) => ({ fileHash: "a".repeat(64), counts: { wbs: count(1413), activities: count(16469), relationships: count(46592), calendars: count(3), resources: count(0), assignments: count(0), codeTypes: count(11), codeValues: count(200), codeAssignments: count(181148) }, issues: [], warnings: ["P6_CURRENCY_DIFFERS"], canConfirm: true, summary: { activities: 16469 }, ...over });
+const plan = (over: Record<string, unknown> = {}) => ({ fileHash: "a".repeat(64), counts: { wbs: count(1413), activities: count(16469), relationships: count(46592), calendars: count(3), resources: count(0), assignments: count(0), codeTypes: count(11), codeValues: count(200), codeAssignments: count(181148) }, issues: [], warnings: ["XER_CURRENCY_DIFFERS:SAR->USD"], canConfirm: true, summary: { activities: 16469 }, ...over });
 const pick = async () => { const user = userEvent.setup({ applyAccept: false }); await user.upload(document.querySelector("input[type=file]") as HTMLInputElement, new File(["%T\tPROJWBS"], "schedule.xer", { type: "text/plain" })); return user; };
 
 beforeEach(() => {
@@ -41,7 +41,9 @@ describe("P6ImportCard (Q-61 P6)", () => {
     expect(h.createUpload).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", fileName: "schedule.xer" });
     const row = (entity: string) => document.querySelector(`[data-entity='${entity}']`)!.textContent;
     expect(row("activities")).toContain("16,469"); expect(row("relationships")).toContain("46,592"); expect(row("codeAssignments")).toContain("181,148");
-    expect(screen.getByText("P6_CURRENCY_DIFFERS")).toBeTruthy(); // a note does not block
+    // Q-66 (4): a note does not block, and it is said in words, not as its code
+    expect(document.querySelector("[data-smart-notes]")!.textContent).toContain("The schedule's currency differs from the project's (SAR->USD).");
+    expect(document.body.textContent).not.toContain("XER_CURRENCY_DIFFERS");
     await user.click(screen.getByRole("button", { name: "Confirm the import" }));
     expect(h.confirm).toHaveBeenCalledWith({ tenantId: "t", projectId: "p", uploadKey: "imports/t/p/smart/k/schedule.xer", fileName: "schedule.xer", kind: "xer", forced: {}, approvedHash: "a".repeat(64) });
     h.progress = { status: "importing", progressPercent: 30, progressStage: "writing", failureReason: null, createdRows: 0, updatedRows: 0 };

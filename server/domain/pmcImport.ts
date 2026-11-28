@@ -169,6 +169,17 @@ function dateColumns(rows: ParsedRow[], fields: string[]) {
   return (_field: string, value: unknown) => importDate(value, order);
 }
 
+/** Q-66 (4): the date columns of each kind, and how a file's numeric day/month dates were read — said in the report («dates read day first»), so a rare
+ * month-first file whose every day is 12 or less is seen before it is confirmed. Null when the file writes no date as d/m/y or m/d/y (ISO, a date cell). */
+const DATE_FIELDS: Partial<Record<PmcImportKind, string[]>> = { status: ["changedAt"], requests: ["requestedAt"], baseline: ["period"], baselineDates: ["startDate", "endDate"] };
+const NUMERIC_DMY = /^\s*[\d٠-٩۰-۹]{1,2}[/.\-][\d٠-٩۰-۹]{1,2}[/.\-][\d٠-٩۰-۹]{2,4}\s*$/;
+export function pmcDateReading(kind: PmcImportKind, rows: ParsedRow[]): { order: DateOrder; dates: number } | null {
+  const fields = DATE_FIELDS[kind];
+  if (!fields) return null;
+  const values = rows.flatMap(row => fields.map(field => row.cells[field])).filter((value): value is string => typeof value === "string" && NUMERIC_DMY.test(value));
+  return values.length ? { order: inferDateOrder(values), dates: values.length } : null;
+}
+
 /** "1-10, 15, 20-22" -> [1..10, 15, 20..22]; a reversed range is an error, not a silent swap (rule 6). */
 export function parseUnitList(value: unknown): { units: number[]; error?: "PMC_UNIT_LIST_INVALID" | "PMC_UNIT_RANGE_INVALID" } {
   const tokens = text(value).split(/[,;،\s]+/).filter(Boolean);
