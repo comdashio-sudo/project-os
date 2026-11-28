@@ -12,9 +12,9 @@ export const CYCLE_MODULES: readonly CycleModuleCode[] = ["wbs", "budget", "cont
 
 type FieldKind = "text" | "money";
 /** The business key plus the fields an import is allowed to change; the key itself is never "modified" (a new key is a new row). */
-export const cycleFields: Record<CycleModuleCode, { key: string; fields: Array<{ name: string; kind: FieldKind }> }> = {
+export const cycleFields: Record<CycleModuleCode, { key: string; fields: Array<{ name: string; kind: FieldKind; optional?: true }> }> = {
   wbs: { key: "code", fields: [{ name: "name", kind: "text" }, { name: "plannedValue", kind: "money" }] },
-  budget: { key: "costCode", fields: [{ name: "originalAmount", kind: "money" }, { name: "currentAmount", kind: "money" }] },
+  budget: { key: "costCode", fields: [{ name: "originalAmount", kind: "money" }, { name: "currentAmount", kind: "money" }, { name: "activityNo", kind: "text", optional: true }] },
   contracts: { key: "code", fields: [{ name: "title", kind: "text" }, { name: "counterparty", kind: "text" }, { name: "contractValue", kind: "money" }, { name: "currency", kind: "text" }] },
   materials: { key: "code", fields: [{ name: "description", kind: "text" }, { name: "unitOfMeasure", kind: "text" }, { name: "category", kind: "text" }, { name: "referenceSpecification", kind: "text" }] },
 };
@@ -50,6 +50,8 @@ export function diffImportRows(moduleCode: CycleModuleCode, fileRows: readonly F
     // The file carries the version the row had when it was exported; if the platform moved on since, the file would silently overwrite newer work.
     if (row.fileVersion && row.fileVersion !== current.version) return { rowNumber: row.rowNumber, key, kind: "conflict", changes: [], conflict: "VERSION_CHANGED" };
     const changes = definition.fields.flatMap((field): FieldChange[] => {
+      // an optional field the file does not give (no column, or a blank cell) is not a change: an import never clears what the platform holds
+      if (field.optional && !cleanText(row.values[field.name])) return [];
       const before = normalise(field.kind, current.values[field.name]);
       const after = normalise(field.kind, row.values[field.name]);
       return before === after ? [] : [{ field: field.name, oldValue: before, newValue: after }];

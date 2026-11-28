@@ -46,12 +46,12 @@ async function settle(projectId: string, importId: string): Promise<View> {
     await new Promise(resolve => setTimeout(resolve, 150));
   }
 }
-async function directImport(projectId: string, moduleCode: string, name: string, bytes: Uint8Array) {
+async function directImport(projectId: string, moduleCode: string, name: string, bytes: Uint8Array, duplicateMode?: "update_existing") {
   const at = { tenantId, projectId };
   const target = await owner().dataImports.createUpload({ ...at, moduleCode: moduleCode as never, fileName: name, sourceFormat: "xlsx" });
   const put = await fetch(target.uploadUrl, { method: "PUT", headers: target.headers, body: Buffer.from(bytes) });
   if (!put.ok) throw new Error(`PUT failed ${put.status}`);
-  const registered = await owner().dataImports.registerUpload({ ...at, moduleCode: moduleCode as never, fileName: name, sourceFormat: "xlsx", uploadKey: target.uploadKey });
+  const registered = await owner().dataImports.registerUpload({ ...at, moduleCode: moduleCode as never, fileName: name, sourceFormat: "xlsx", uploadKey: target.uploadKey, ...(duplicateMode ? { duplicateMode } : {}) });
   // a file the screen previews (the operational ledgers) is confirmed with the hash of the differences the person saw, as the screen sends it
   return { view: await settle(projectId, registered.id), confirm: async () => {
     const diff = await owner().dataImports.diff({ ...at, importId: registered.id }).catch(() => null);
@@ -103,7 +103,24 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("Q-56 (6): every template
       if (locale === "ar") { const done = await directImportConfirm(view).catch((error: Error) => ({ status: `refused ${error.message}`, failureReason: null })); if (done.status !== "completed") failures.push(`${moduleCode}/${locale} confirm: ${done.status} ${done.failureReason ?? ""}`); }
     }
     expect(failures).toEqual([]);
+    // Q-65: the budget template's optional «Activity No.» column is saved with the line
+    const [[line]] = await connection.query<{ activityNo: string | null }[]>("SELECT activity_no AS \"activityNo\" FROM budget_lines WHERE projectId = ? AND costCode = 'CIVIL'", [P1]);
+    expect(line.activityNo).toBe("A1010");
   }, 300_000);
+
+  it("Q-65: a later budget file WITHOUT the Activity No. column (or with it blank) changes the amounts and leaves the stored activity number; one that gives a number replaces it", async () => {
+    const stored = async () => (await connection.query<{ activityNo: string | null; originalAmount: string }[]>("SELECT activity_no AS \"activityNo\", original_amount AS \"originalAmount\" FROM budget_lines WHERE projectId = ? AND costCode = 'CIVIL'", [P1]))[0][0];
+    const run = await directImport(P1, "budget", "budget-no-activity.xlsx", await xlsx([["Cost Code", "Original Amount", "Current Amount"], ["CIVIL", 600000, 625000]]), "update_existing");
+    expect(run.view.analysis?.errors ?? []).toEqual([]);
+    await run.confirm();
+    expect(await stored()).toMatchObject({ activityNo: "A1010", originalAmount: "600000.00" }); // the amounts moved, the activity number stayed
+    const blank = await directImport(P1, "budget", "budget-blank-activity.xlsx", await xlsx([["Cost Code", "Original Amount", "Current Amount", "Activity No."], ["CIVIL", 610000, 625000, ""]]), "update_existing");
+    await blank.confirm();
+    expect(await stored()).toMatchObject({ activityNo: "A1010", originalAmount: "610000.00" }); // a blank cell never clears it either
+    const given = await directImport(P1, "budget", "budget-new-activity.xlsx", await xlsx([["Cost Code", "Original Amount", "Current Amount", "Activity No."], ["CIVIL", 610000, 625000, "A2020"]]), "update_existing");
+    await given.confirm();
+    expect((await stored()).activityNo).toBe("A2020");
+  }, 120_000);
 
   it("NEGATIVE: a template whose rows name what the project does not have yet is refused row by row with what is missing — never saved silently", async () => {
     const empty = "56c00000-0000-4000-8000-0000000000b1";

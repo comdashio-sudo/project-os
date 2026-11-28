@@ -4,7 +4,7 @@ export type ImportModuleCode = "wbs" | "budget" | "contracts" | "materials" | "s
 
 export const importTemplateHeaders: Record<ImportModuleCode, Record<"ar" | "en", string[]>> = {
   wbs: { ar: ["رمز WBS", "اسم WBS", "القيمة المخططة"], en: ["WBS Code", "WBS Name", "Planned Value"] },
-  budget: { ar: ["رمز التكلفة", "القيمة الأصلية", "القيمة الحالية"], en: ["Cost Code", "Original Amount", "Current Amount"] },
+  budget: { ar: ["رمز التكلفة", "القيمة الأصلية", "القيمة الحالية", "رقم النشاط"], en: ["Cost Code", "Original Amount", "Current Amount", "Activity No."] },
   contracts: { ar: ["رمز العقد", "اسم العقد", "الطرف المتعاقد", "قيمة العقد", "العملة"], en: ["Contract Code", "Contract Title", "Counterparty", "Contract Value", "Currency"] },
   materials: { ar: ["رمز المادة", "وصف المادة", "وحدة القياس", "الفئة", "المواصفة المرجعية"], en: ["Material Code", "Description", "Unit of Measure", "Category", "Reference Specification"] },
   openingBalances: { ar: ["رمز المستودع", "رمز المادة", "الكمية", "تكلفة الوحدة"], en: ["Warehouse Code", "Material Code", "Quantity", "Unit Cost"] },

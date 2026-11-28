@@ -9,7 +9,7 @@ afterEach(() => cleanup());
 
 // Q-65: the budget as a tree by cost code on the planning page. Synthetic codes only.
 const lines = [
-  { costCode: "GC.100-000.01", originalAmount: "1000.00", currentAmount: "1100.00" },
+  { costCode: "GC.100-000.01", originalAmount: "1000.00", currentAmount: "1100.00", activityNo: "A-1010" },
   { costCode: "GC.100-000.02", originalAmount: "2500.50", currentAmount: "2500.50" },
   { costCode: "GC.100-001.01", originalAmount: "400.00", currentAmount: "400.00" },
 ];
@@ -26,5 +26,12 @@ describe("BudgetTreeSection", () => {
   it("draws nothing for a budget with no lines (someone who may not see the money gets none)", () => {
     const view = render(<BudgetTreeSection budgets={[]} currency="SAR" />);
     expect(view.container.querySelector("[data-budget-tree]")).toBeNull();
+  });
+  it("Q-65: the leaf shows its activity number in its own column, a parent shows none", () => {
+    const view = render(<BudgetTreeSection budgets={lines} currency="SAR" />);
+    expect(Array.from(view.container.querySelectorAll("thead th")).map(cell => cell.textContent)).toContain("Activity No.");
+    const rowOf = (code: string) => Array.from(view.container.querySelectorAll("tbody tr")).find(row => row.textContent!.startsWith(code))!.textContent!;
+    expect(rowOf("GC.100-000.01")).toContain("A-1010");
+    expect(rowOf("GC.100-000.02")).not.toContain("A-");
   });
 });
