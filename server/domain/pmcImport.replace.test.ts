@@ -15,6 +15,12 @@ describe("Q-66 (5b): a «same value» rule", () => {
     expect(parsed.notes?.preview?.map(row => row.replaced ?? null)).toEqual([{ modelCode: "a" }, { modelCode: "a" }, null, { modelCode: "a" }, { modelCode: "a" }]);
   });
 
+  it("B's note on #593: spaces around the new value are trimmed too, so «A » is read and checked as «A»", async () => {
+    const parsed = await parse({ cells: [], ignoreRows: [], replace: [{ field: "modelCode", from: "a", to: " A  " }] }, 100);
+    expect(models(parsed)).toEqual([[2, "A"], [3, "A"], [4, "B"], [5, "A"], [6, "A"]]);
+    expect(parsed.notes?.replaced?.[0].to).toBe("A");
+  });
+
   it("a cell corrected by itself keeps its own value over the rule, and its correction names the file's value", async () => {
     const parsed = await parse({ cells: [{ row: 5, field: "modelCode", value: "C" }], ignoreRows: [], replace: [{ field: "modelCode", from: "a", to: "A" }] }, 100);
     expect(models(parsed)).toContainEqual([5, "C"]);

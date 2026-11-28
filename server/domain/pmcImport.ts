@@ -454,16 +454,17 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
     for (const rule of input.edits.replace ?? []) {
       const header = mapping.get(rule.field);
       const from = rule.from.trim();
+      const to = rule.to.trim(); // B's note on #593: a trailing space in the new value never reaches the checks
       if (!header) { refused.push({ rowNumber: 0, code: "IMPORT_EDIT_INVALID", field: rule.field, detail: from }); continue; }
       let cells = 0;
       rows.forEach((row, index) => {
         if (String(row[header] ?? "").trim() !== from) return;
-        row[header] = rule.to;
+        row[header] = to;
         (replacedAt[index] ??= {})[rule.field] = from;
         cells += 1;
       });
       if (!cells) refused.push({ rowNumber: 0, code: "IMPORT_EDIT_INVALID", field: rule.field, detail: from });
-      else replacedRules.push({ field: rule.field, header, from, to: rule.to, cells });
+      else replacedRules.push({ field: rule.field, header, from, to, cells });
     }
     if (replacedRules.length) notes.replaced = replacedRules;
     const applied: PmcAppliedEdit[] = [];
