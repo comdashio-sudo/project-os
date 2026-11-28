@@ -27,7 +27,8 @@ function FieldTabs({ tenantId, projectId, current }: { tenantId: string; project
   const [, navigate] = useLocation();
   const [unit, setUnit] = React.useState("");
   const base = `/m/${tenantId}/${projectId}`;
-  const tabs = [["entry", base, t.entry], ["siteUpdate", `${base}/site-update`, t.siteUpdate], ["progress", `${base}/progress`, t.progress], ["qc", `${base}/qc`, t.qc], ["report", `${base}/report`, t.report], ["submittals", `/projects/${tenantId}/${projectId}/submittals`, t.submittals], ["quality", `/projects/${tenantId}/${projectId}/quality`, t.quality]] as const;
+  const tabs = [["entry", base, t.entry], ["progress", `${base}/progress`, t.progress], ["qc", `${base}/qc`, t.qc], ["report", `${base}/report`, t.report], ["submittals", `/projects/${tenantId}/${projectId}/submittals`, t.submittals], ["quality", `/projects/${tenantId}/${projectId}/quality`, t.quality]] as const;
+  // Q-70 (5) (I72, adviser 28-11): one progress screen — «تحديث الإنجاز»; the old site-workbook screen is reached from the comparison, not from this bar
   // Q-33: a tab is drawn only when its page's server reads would answer (shared/pageAccess.ts); the submittals tab is not in the table yet.
   // Q-36 (step 5): the field entry and the site update are field screens too, and the daily report has its gate now (#410)
   const can = { entry: useCanPage("fieldEntry", projectId), siteUpdate: useCanPage("siteUpdate", projectId), progress: useCanPage("progress", projectId), qc: useCanPage("qc", projectId), report: useCanPage("dailyReport", projectId), quality: useCanPage("quality", projectId) } as Record<string, boolean>;
