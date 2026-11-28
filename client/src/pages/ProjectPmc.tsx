@@ -404,6 +404,9 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
   const [tab, setTab] = useState<Tab>(() => { const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"); return (TABS as readonly string[]).includes(asked ?? "") ? asked as Tab : "latestUpdates"; });
   const [filters, setFilters] = useState<Filters>({});
   const bodyRef = useRef<HTMLElement>(null);
+  const tabsRef = useRef<HTMLElement>(null);
+  // Q-69: the open tab is scrolled into the row's view (a phone shows three or four of the fourteen)
+  useEffect(() => { tabsRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }, [tab]);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState(false);
   const [period, setPeriod] = useState<(typeof PERIODS)[number][0]>("default");
@@ -438,7 +441,8 @@ export function ProjectPmcWorkspace({ embedded = false }: { embedded?: boolean }
         {/* Work order 22: the three percentages and the two site screens */}
         <section className="space-y-3 print:hidden"><div className="flex flex-wrap gap-2"><Link href={`/projects/${tenantId}/${projectId}/site-consultant`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToComparison}</Button></Link><Link href={`/m/${tenantId}/${projectId}/site-update`}><Button variant="outline" className="min-h-[44px]">{pickLanguage(language, wo22Text).goToUpdate}</Button></Link></div><SourcePercentages tenantId={tenantId} projectId={projectId} levels={false} /></section>
         {withEnglish && <div className="print:hidden"><ActivityNameToggle value={nameLanguage} onChange={setNameLanguage} /></div>}
-        <nav role="tablist" className="flex flex-wrap gap-2 print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] rounded-[var(--radius)] border px-4 text-sm font-medium ${tab === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
+        {/* Q-69: one row of tabs kept under the header, scrolling sideways on a phone instead of wrapping into four rows */}
+        <nav ref={tabsRef} role="tablist" data-pmc-tabs="" style={{ top: "var(--shell-top, 0px)" }} className="sticky z-20 -mx-4 flex gap-2 overflow-x-auto border-b border-border bg-background/95 px-4 py-2 backdrop-blur print:hidden">{TABS.map(key => <button key={key} role="tab" type="button" aria-selected={tab === key} className={`min-h-[44px] shrink-0 whitespace-nowrap rounded-[var(--radius)] border px-4 text-sm font-medium ${tab === key ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-foreground hover:bg-muted"}`} onClick={() => setTab(key)}>{t.tabs[key]}</button>)}</nav>
         {/* Q-37 (c): what the open tab is for and when to use it; the whole list, and what PMC does not have, one click away */}
         <section className="space-y-2 print:hidden" data-pmc-tab-guide={tab}>
           <p className="text-sm text-muted-foreground">{pickLanguage(language, PMC_TAB_GUIDE[tab].what)} <span className="font-semibold text-foreground">{pickLanguage(language, PMC_GUIDE_LABELS.when)}:</span> {pickLanguage(language, PMC_TAB_GUIDE[tab].when)}</p>

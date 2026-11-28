@@ -105,4 +105,11 @@ describe("PmcQcReceipt (Q-5)", () => {
     expect(bar.hasAttribute("data-sticky-action-bar")).toBe(true);
     expect(bar.contains(screen.getByRole("button", { name: /Save/ }))).toBe(true);
   });
+  it("Q-69 (review B on #597): the bar's room is at the page's end, once, not inside the form's card", () => {
+    render(<PmcQcReceipt />);
+    const spacers = document.querySelectorAll("[data-action-bar-spacer]");
+    expect(spacers).toHaveLength(1);
+    const bar = document.querySelector("[data-sticky-action-bar]")!;
+    expect(bar.previousElementSibling?.hasAttribute("data-action-bar-spacer") ?? false).toBe(false);
+  });
 });

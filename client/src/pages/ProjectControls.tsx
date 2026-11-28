@@ -1,4 +1,5 @@
 import { indicatorBasisLine } from "@/lib/indicatorBasis";
+import { SectionNav } from "@/components/layout/pageLayout";
 import { PAGE_NAMES } from "@shared/pageNames";
 import { PageHeader, PageMain } from "@/components/pageFrame";
 import { ProjectBoardHero } from "@/components/ProjectBoardHero";
@@ -332,12 +333,20 @@ export default function ProjectControls({ focus = null }: { focus?: ControlsFocu
         </>}
         {/* Q-59 (2): the planning centre and the state of the board's three reads belong to planning: on the board and on the planning page */}
         {(!focus || focus === "planning") && <>
+        {/* Q-69: on the planning page, one row of its parts kept under the header; a group opens when its link is followed (the hash it already listens to) */}
+        {focus === "planning" ? <SectionNav label={pickLanguage(language, { ar: "أقسام التخطيط", en: "Planning sections", ur: "منصوبہ بندی کے حصے" })} sections={[
+          { id: "planning-centre", label: pickLanguage(language, { ar: "مركز التحكم", en: "Control centre", ur: "کنٹرول سینٹر" }) },
+          { id: "planning-curve", label: t.progress },
+          { id: "manager-schedule", label: pickLanguage(language, { ar: "تحديث التخطيط والتكلفة", en: "Schedule & cost updates", ur: "شیڈول اور لاگت کی تازہ کاری" }) },
+          { id: "manager-assurance", label: t.planningAndData },
+          { id: "manager-oversight", label: t.supportAndOversight },
+        ]} /> : null}
 
-        <div>
+        <div id="planning-centre" className="scroll-mt-32">
           <PlanningControlCenter result={planningControl} plan={planVsActual} activities={data.activities} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} isLoading={boqQuery.isLoading || procurementQuery.isLoading || warehouseQuery.isLoading || contractsQuery.isLoading} onUpload={upload} />
         </div>
         {/* Q-64 batch 2: the progress section — the planned S-curve from the baseline against the site's actual (own gate: project.pmc.read; it says why when there is no baseline yet) */}
-        {focus === "planning" ? <div className="mt-5"><VillaPlannedCurve tenantId={tenantId} projectId={projectId} /></div> : null}
+        {focus === "planning" ? <div id="planning-curve" className="mt-5 scroll-mt-32"><VillaPlannedCurve tenantId={tenantId} projectId={projectId} /></div> : null}
         {/* Q-65: the budget as a tree by cost code (the lines are the leaves; a parent is the sum of its leaves). Drawn only when the page holds budget lines, which it does not for someone who may not see the money */}
         {focus === "planning" && financialsQuery.data ? <div className="mt-5"><BudgetTreeSection budgets={data.budgets} currency={String(("currency" in data.project ? data.project.currency : "SAR") ?? "SAR")} /></div> : null}
 
@@ -488,7 +497,7 @@ function OperationsGroup({ id, level, title, children, defaultOpen = false, lazy
     // Q-64: the group is open and in view; its internal name stays out of the address (it read «planning#manager-assurance»). The page keeps the group open from its own state.
     if (id.startsWith("manager-") && typeof window !== "undefined") window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
   }, [hash, id]);
-  return <details id={id} className="scroll-mt-5 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" open={defaultOpen || linked} onToggle={event => { if ((event.currentTarget as HTMLDetailsElement).open) setOpened(true); }}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{title}</span><span className="text-xs font-medium text-primary">+</span></summary><div className="space-y-5 border-t border-border p-4 sm:p-5">{!lazy || opened || defaultOpen || linked ? children : null}</div></details>;
+  return <details id={id} className="scroll-mt-32 rounded-[var(--radius-lg)] border border-border bg-card shadow-sm" open={defaultOpen || linked} onToggle={event => { if ((event.currentTarget as HTMLDetailsElement).open) setOpened(true); }}><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-foreground marker:content-none"><span>{title}</span><span className="text-xs font-medium text-primary">+</span></summary><div className="space-y-5 border-t border-border p-4 sm:p-5">{!lazy || opened || defaultOpen || linked ? children : null}</div></details>;
 }
 
 /** Q-14: the project's stalled villas as a link with their count (stalled + long-stalled); a failed reading shows the link without a count. */

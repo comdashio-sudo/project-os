@@ -8,7 +8,7 @@ import { Button, Card, CardBody, CardHeader, CardTitle, Field, Segmented, Skelet
 import { SearchCombobox, type ComboOption } from "@/components/SearchCombobox";
 import { SelectionSummaryNote, VillaPicker, emptyChoice } from "@/components/VillaPicker";
 import { readRecentActivities, rememberActivity, summarizeSelection, villasOf, type VillaChoice } from "@/lib/villaPicker";
-import { StickyActionBar } from "@/components/layout/pageLayout";
+import { ActionBarSpacer, StickyActionBar } from "@/components/layout/pageLayout";
 import { FieldShell } from "@/components/FieldShell";
 import { UndoLastSave } from "@/components/UndoLastSave";
 import { OfflineQueuePanel } from "@/components/OfflineQueuePanel";
@@ -136,13 +136,13 @@ export default function PmcProgressUpdate() {
             )}
           </CardBody>
           {/* the save stays at the bottom of the screen on a phone, as in the owner's own tool (Q-69: the shared action bar) */}
-          <StickyActionBar label={t.update.save}>
+          <StickyActionBar label={t.update.save} spacer={false}>
             {confirmCount !== null ? (
               <div role="alertdialog" aria-label={c.confirmSave(confirmCount)} data-confirm-count={confirmCount} className="flex w-full flex-col gap-2 rounded-md border border-warning bg-warning-soft p-3 text-sm text-warning-soft-foreground">
                 <p>{c.confirmMany(confirmCount)}</p>
                 <div className="flex gap-2"><Button size="lg" className="min-h-12 flex-1" loading={update.isPending} onClick={() => submit(confirmCount)}>{c.confirmSave(confirmCount)}</Button><Button size="lg" variant="secondary" className="min-h-12" onClick={() => setConfirmCount(null)}>{c.cancel}</Button></div>
               </div>
-            ) : <Button size="lg" className="min-h-14 w-full rounded-[14px] bg-hero text-hero-foreground hover:bg-hero/90" loading={update.isPending} disabled={!activityCode || !villasGiven} onClick={() => submit()}>{t.update.save}</Button>}
+            ) : <Button size="lg" className="min-h-14 w-full rounded-[14px] sm:ms-auto sm:w-auto sm:min-w-64 bg-hero text-hero-foreground hover:bg-hero/90" loading={update.isPending} disabled={!activityCode || !villasGiven} onClick={() => submit()}>{t.update.save}</Button>}
           </StickyActionBar>
         </Card>
       </WriteGate>
@@ -168,6 +168,7 @@ export default function PmcProgressUpdate() {
         </CardBody>
       </Card>
       </div>
+      <ActionBarSpacer />
     </FieldShell>
   );
 }
