@@ -5,7 +5,7 @@ import { createRoleFixture } from "../scripts/lib/roleFixture.mjs";
 import { getDb } from "./db";
 import { deleteTenantData } from "./tenantData";
 import { isTestDatabaseUrl } from "./testing/testDatabase";
-import { analyzePmcImport, confirmPmcImport } from "./pmcImportService";
+import { analyzePmcImport, confirmPmcImport, deletePmcColumnProfile, listPmcColumnProfiles } from "./pmcImportService";
 
 // Q-66 (6): the PMC import remembers, for each company, the columns a person chose for a file of a given shape, and reads the company's next file of that
 // shape with them. Synthetic data only.
@@ -58,5 +58,23 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-66 (6): th
     const plain = await analyzePmcImport(call(a, csv("Block Code,Unit Number,Model Code\nBQ3,71005,A\n")));
     expect(plain.errorCount).toBe(0);
     expect((plain.details as { rememberedMapping?: unknown }).rememberedMapping).toBeUndefined();
+  });
+
+  it("Q-66 (6) screen: the company's remembered choices are listed with their kind, map and use count; another company sees none and cannot delete it; a deleted choice is forgotten", async () => {
+    const mine = { userId: a.owner.id, tenantId: a.tenantId, projectId: a.projectId };
+    const listed = await listPmcColumnProfiles(mine);
+    expect(listed).toEqual([expect.objectContaining({ kind: "locations", mapping: CHOICE, headers: 3, timesUsed: 2 })]);
+    // NEGATIVE: another company's list is empty, and deleting this company's choice from there is refused by name
+    const theirs = { userId: b.owner.id, tenantId: b.tenantId, projectId: b.projectId };
+    expect(await listPmcColumnProfiles(theirs)).toEqual([]);
+    await expect(deletePmcColumnProfile({ ...theirs, profileId: listed[0].id })).rejects.toThrow("PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND");
+    expect(await profiles(a.tenantId)).toHaveLength(1);
+    // deleted: the audit row is written and the next file of that shape asks for its columns again
+    await deletePmcColumnProfile({ ...mine, profileId: listed[0].id });
+    expect(await profiles(a.tenantId)).toEqual([]);
+    expect((await client.query("SELECT count(*)::int AS n FROM audit_logs WHERE tenant_id = $1 AND action = 'pmc.column_profile_deleted'", [a.tenantId])).rows[0].n).toBe(1);
+    expect((await analyzePmcImport(call(a, csv(`${OWN}BQ1,71009,A\n`)))).errorCount).toBeGreaterThan(0);
+    // a second delete of the same choice is refused, not taken for success
+    await expect(deletePmcColumnProfile({ ...mine, profileId: listed[0].id })).rejects.toThrow("PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND");
   });
 });

@@ -35,6 +35,8 @@ import { assertProjectWithinTenant, assertTenantFeatureAccess, ensureDefaultComm
 import {
   monthStart,
   parsePmcImportFile,
+  PMC_IMPORT_KINDS,
+  pmcDateReading,
   pmcDefinitionKey,
   planBaseline,
   planBaselineDates,
@@ -155,7 +157,9 @@ async function prepare(db: Db, input: Scope & { kind: PmcImportKind; format: "xl
   // what the reader did quietly is said in the report too: totals lines skipped, sections filled down (Q-31 review of #370, Q-47)
   // Q-48: and the columns no field reads, with a few of their values, so a person sees each was seen and left aside
   const notes = parsed.notes && (parsed.notes.skippedTotals || parsed.notes.filledDown || parsed.notes.ignoredColumns?.length || parsed.notes.edits?.length || parsed.notes.ignoredRows?.length || parsed.notes.readRows?.length || parsed.notes.preview?.length || parsed.notes.outlineHeadings) ? parsed.notes : {};
-  return { ...prepared, report: { ...prepared.report, details: { ...prepared.report.details, ...columns, ...notes } }, source: { headers: parsed.columns?.headers ?? parsed.headers, rememberedId: remembered?.id ?? null } };
+  // Q-66 (4): how the file's numeric dates were read (day or month first), said in the report
+  const dateReading = pmcDateReading(input.kind, parsed.rows);
+  return { ...prepared, report: { ...prepared.report, details: { ...prepared.report.details, ...columns, ...notes, ...(dateReading ? { dateOrder: dateReading } : {}) } }, source: { headers: parsed.columns?.headers ?? parsed.headers, rememberedId: remembered?.id ?? null } };
 }
 
 /** The checks and the plan for rows that are already read (a file's rows, or the rows a unit-completion matrix was turned into). `db` may be a transaction: later kinds then see what earlier ones wrote. */
@@ -368,6 +372,32 @@ export async function prepareRows(db: Db, input: Scope & { kind: PmcImportKind; 
       for (const row of plan.updates) await tx.update(pmcBaselines).set({ plannedPercent: String(row.plannedPercent) }).where(eq(pmcBaselines.id, row.id));
     },
   };
+}
+
+/**
+ * Q-66 (6) (I3 28-11): the company's remembered PMC column choices, to see and to forget — the kind, the field ← column map, how often each was used and when it
+ * last changed. Whoever imports PMC files (project.pmc.manage) sees and deletes them; the company's own only (tenant filter). A deleted choice is simply not
+ * remembered any more: the next file of that shape asks for its columns again. Deleting writes its audit row in the same transaction; a choice that is gone
+ * (another person deleted it) is refused by name, never taken for success.
+ */
+export async function listPmcColumnProfiles(input: Scope) {
+  const db = await authorize(input);
+  const rows = await db.select({ id: importSourceProfiles.id, kind: importSourceProfiles.kind, columnMapJson: importSourceProfiles.columnMapJson, headerSignature: importSourceProfiles.headerSignature, timesUsed: importSourceProfiles.timesUsed, updatedAt: importSourceProfiles.updatedAt })
+    .from(importSourceProfiles).where(and(eq(importSourceProfiles.tenantId, input.tenantId), inArray(importSourceProfiles.kind, PMC_IMPORT_KINDS.map(pmcProfileKind))));
+  const parse = <T,>(text: string, fallback: T): T => { try { return JSON.parse(text) as T; } catch { return fallback; } };
+  return rows.map(row => ({ id: row.id, kind: row.kind.replace(/^pmc_/, "") as PmcImportKind, mapping: parse<Record<string, string>>(row.columnMapJson, {}), headers: parse<string[]>(row.headerSignature, []).length, timesUsed: row.timesUsed, updatedAt: row.updatedAt }))
+    .sort((a, b) => a.kind.localeCompare(b.kind) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+export async function deletePmcColumnProfile(input: Scope & { profileId: string }) {
+  const db = await authorize(input);
+  return db.transaction(async tx => {
+    const [gone] = await tx.delete(importSourceProfiles).where(and(eq(importSourceProfiles.id, input.profileId), eq(importSourceProfiles.tenantId, input.tenantId), inArray(importSourceProfiles.kind, PMC_IMPORT_KINDS.map(pmcProfileKind))))
+      .returning({ id: importSourceProfiles.id, kind: importSourceProfiles.kind });
+    if (!gone) throw new TRPCError({ code: "NOT_FOUND", message: "PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND" });
+    await tx.insert(auditLogs).values({ id: crypto.randomUUID(), tenantId: input.tenantId, actorUserId: input.userId, action: "pmc.column_profile_deleted", entityType: "import_source_profile", entityId: gone.id, metadata: JSON.stringify({ projectId: input.projectId, kind: gone.kind }) });
+    return { id: gone.id };
+  });
 }
 
 /** Keeps (or counts) the column choice of a confirmed PMC import. A choice is saved only when a person made one (the mapping override). */

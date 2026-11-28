@@ -6,6 +6,7 @@ import { pickLanguage } from "@/lib/language";
 import { useCan } from "@/lib/permissions";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { SmartImportNotes } from "@/components/SmartImportNotes";
 import { MAX_IMPORT_UPLOAD_BYTES, MAX_IMPORT_UPLOAD_MB, putToStorage, UploadFailure } from "@/lib/uploadLimit";
 import { importModulePermissions } from "@shared/importPermissions";
 
@@ -119,7 +120,7 @@ export function P6ImportCard({ tenantId, projectId }: { tenantId: string; projec
           <td className="p-2"><bdi dir="ltr">{formatNumber(plan.counts[entity].create)}</bdi></td><td className="p-2"><bdi dir="ltr">{formatNumber(plan.counts[entity].update)}</bdi></td><td className="p-2"><bdi dir="ltr">{formatNumber(plan.counts[entity].unchanged)}</bdi></td></tr>)}</tbody>
       </table></div>
       {plan.issues.length ? <div role="alert" data-p6-issues><p className="text-sm font-semibold text-danger-soft-foreground">{t.problems}</p><ul className="mt-1 list-disc ps-5 text-sm">{plan.issues.map((issue, index) => <li key={`${issue.code}${index}`}><bdi dir="ltr">{issue.code}{issue.detail ? ` — ${issue.detail}` : ""}</bdi></li>)}</ul></div> : null}
-      {plan.warnings.length ? <div><p className="text-sm font-semibold">{t.warnings}</p><ul className="mt-1 list-disc ps-5 text-sm text-muted-foreground">{plan.warnings.map((warning, index) => <li key={`${warning}${index}`}><bdi dir="ltr">{warning}</bdi></li>)}</ul></div> : null}
+      <SmartImportNotes notes={plan.warnings} language={language} title={t.warnings} />
       <div className="flex flex-wrap gap-3"><Button className="min-h-11" disabled={!plan.canConfirm || plan.issues.length > 0} loading={confirm.isPending} onClick={() => void approve()}>{t.confirm}</Button><Button className="min-h-11" variant="secondary" onClick={reset}>{t.another}</Button></div>
     </div> : null}
     {step === "importing" && progress.isError ? <p role="alert" data-p6-progress-error className="mt-4 text-sm text-danger-soft-foreground">{t.progressFailed}</p> : null}
