@@ -14,6 +14,9 @@ import React, { useMemo, useState } from "react";
 // nothing is written before the person confirms the new report. The corrections already applied are listed, each can be undone; the full set is sent each time.
 export type AppliedEdit = { row: number; field: string; header: string; from: string; to: string };
 type RowError = { rowNumber: number; code: string; field?: string; detail?: string };
+/** Q-66 (5b): «every cell like it» — in the column read for `field`, each cell reading `from` reads `to`; `cells`: how many the analysis changed. */
+export type ReplaceRule = { field: string; from: string; to: string };
+export type AppliedReplace = ReplaceRule & { header: string; cells: number };
 export type PreviewRow = { row: number; class: "data" | "total" | "leftOut"; cells: Record<string, string> };
 
 const text = {
@@ -39,7 +42,7 @@ export const MAX_CORRECTABLE_ROWS = 20;
 const key = (row: number, field: string) => `${row}:${field}`;
 
 /** The full set the server receives: the applied corrections still kept (with any new value typed over them), the new ones typed, and the rows left out. */
-export function correctionsOf(applied: AppliedEdit[], undone: ReadonlySet<string>, drafts: Readonly<Record<string, string>>, ignore: ReadonlySet<number>, read: ReadonlySet<number> = new Set()) {
+export function correctionsOf(applied: AppliedEdit[], undone: ReadonlySet<string>, drafts: Readonly<Record<string, string>>, ignore: ReadonlySet<number>, read: ReadonlySet<number> = new Set(), replace: ReplaceRule[] = []) {
   const cells = new Map<string, { row: number; field: string; value: string }>();
   for (const edit of applied) if (!undone.has(key(edit.row, edit.field))) cells.set(key(edit.row, edit.field), { row: edit.row, field: edit.field, value: edit.to });
   for (const [draftKey, value] of Object.entries(drafts)) {
@@ -48,15 +51,17 @@ export function correctionsOf(applied: AppliedEdit[], undone: ReadonlySet<string
     cells.set(draftKey, { row, field, value: value.trim() });
   }
   const readRows = Array.from(read).filter(row => !ignore.has(row)).sort((a, b) => a - b);
-  return { cells: Array.from(cells.values()).filter(cell => !ignore.has(cell.row)).sort((a, b) => a.row - b.row || a.field.localeCompare(b.field)), ignoreRows: Array.from(ignore).sort((a, b) => a - b), ...(readRows.length ? { readRows } : {}) };
+  return { cells: Array.from(cells.values()).filter(cell => !ignore.has(cell.row)).sort((a, b) => a.row - b.row || a.field.localeCompare(b.field)), ignoreRows: Array.from(ignore).sort((a, b) => a - b), ...(readRows.length ? { readRows } : {}), ...(replace.length ? { replace: replace.map(({ field, from, to }) => ({ field, from, to })) } : {}) };
 }
 
-export function PmcRowCorrections({ tenantId, projectId, importId, errors, fields, applied, ignoredRows, readRows = [], preview = [], language }: {
+export function PmcRowCorrections({ tenantId, projectId, importId, errors, fields, applied, ignoredRows, readRows = [], preview = [], replaced = [], language }: {
   tenantId: string; projectId: string; importId: string; errors: RowError[];
   /** The fields read from a column of this file (a correction is by field; one no column is read for cannot be corrected). */
   fields: string[]; applied: AppliedEdit[]; ignoredRows: number[];
   /** Q-50 4c: the rows the reader took for totals that the person reads as data, and the first rows with their class. */
-  readRows?: number[]; preview?: PreviewRow[]; language: Language;
+  readRows?: number[]; preview?: PreviewRow[];
+  /** Q-66 (5b): the «every cell like it» rules the analysis holds — kept in every set this panel sends. */
+  replaced?: ReplaceRule[]; language: Language;
 }) {
   const t = pickLanguage(language, text);
   const labels = pickLanguage<Record<string, string>>(language, PMC_FIELD_LABELS);
@@ -73,8 +78,8 @@ export function PmcRowCorrections({ tenantId, projectId, importId, errors, field
   const [read, setRead] = useState<Set<number>>(() => new Set(readRows));
   const utils = trpc.useUtils();
   const correct = trpc.dataImports.correct.useMutation({ onSuccess: () => utils.dataImports.progress.invalidate() });
-  const next = correctionsOf(applied, undone, drafts, ignore, read);
-  const current = correctionsOf(applied, new Set(), {}, new Set(ignoredRows), new Set(readRows));
+  const next = correctionsOf(applied, undone, drafts, ignore, read, replaced);
+  const current = correctionsOf(applied, new Set(), {}, new Set(ignoredRows), new Set(readRows), replaced);
   // a row's class as the person now sets it; «total» is offered only for a row the reader took for totals
   const wasTotal = (row: PreviewRow) => row.class === "total" || readRows.includes(row.row);
   const classNow = (row: PreviewRow) => (ignore.has(row.row) ? "leftOut" : wasTotal(row) && !read.has(row.row) ? "total" : "data");

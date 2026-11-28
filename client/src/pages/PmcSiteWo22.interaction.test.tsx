@@ -4,10 +4,10 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ update: vi.fn(), act: vi.fn(), saveNote: vi.fn(), updateError: null as unknown, canAct: true, noDifferences: false, noActivities: false, curve: null as unknown, picker: undefined as unknown }));
+const state = vi.hoisted(() => ({ update: vi.fn(), act: vi.fn(), saveNote: vi.fn(), updateError: null as unknown, canAct: true, noDifferences: false, noActivities: false, curve: null as unknown, picker: undefined as unknown, navigate: vi.fn() }));
 // Q-67 (5): the field bar's villa list reads pmc.progressPicker; these tests keep the typed number it falls back to
 vi.mock("@/components/UnitJump", () => ({ UnitJump: ({ fallback }: { fallback: React.ReactNode }) => <>{fallback}</> }));
-vi.mock("wouter", () => ({ useLocation: () => ["/", () => undefined], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
+vi.mock("wouter", () => ({ useLocation: () => ["/", state.navigate], Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, useParams: () => ({ tenantId: "t", projectId: "p" }) }));
 vi.mock("@/contexts/LanguageContext", () => ({ useLanguage: () => ({ isArabic: false, language: "en", isRtl: false }) }));
 vi.mock("@/lib/permissions", () => ({ WriteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>, useCan: () => state.canAct, useCanPage: () => true }));
 vi.mock("@/components/ds/Feedback", async importOriginal => ({ ...(await importOriginal<typeof import("@/components/ds/Feedback")>()), Toaster: () => null, notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -23,7 +23,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
   pmc: { progressPicker: { useQuery: () => ({ data: state.picker, isLoading: false, isError: false, error: null }) } },
   useUtils: () => ({ pmcSite: new Proxy({}, { get: () => ({ invalidate: () => Promise.resolve() }) }) }),
   pmcSite: {
-    activities: { useQuery: () => ({ isLoading: false, error: null, data: state.noActivities ? [] : [{ id: "00000000-0000-4000-8000-0000000000aa", code: "S-1", csiName: "Civil", subName: null, name: "Block walls", weight: 0.1, modelCodesJson: null, sortOrder: 1, modelCodes: null, links: [{ activityCode: "A1", score: 0.9, confirmed: false }] }] }) },
+    activities: { useQuery: () => ({ isLoading: false, isSuccess: true, error: null, data: state.noActivities ? [] : [{ id: "00000000-0000-4000-8000-0000000000aa", code: "S-1", csiName: "Civil", subName: null, name: "Block walls", weight: 0.1, modelCodesJson: null, sortOrder: 1, modelCodes: null, links: [{ activityCode: "A1", score: 0.9, confirmed: false }] }] }) },
     update: { useMutation: (options: { onError?: (error: unknown) => void }) => ({ isPending: false, mutate: (input: unknown) => { state.update(input); if (state.updateError) options.onError?.(state.updateError); } }) },
     percentages: { useQuery: h.ok({ project: h.shares, byZone: [{ key: "Z1", ...h.shares }], byBlock: [{ key: "B1", ...h.shares }], byUnit: [], readiness: { siteActivities: 1, confirmedLinks: 1, consultantColumns: 1, unlinkedColumns: 0 } }) },
     comparison: { useQuery: () => ({ isLoading: false, error: null, data: state.noDifferences ? { summary: [], notCompared: 0, totals: { siteDoneNotReceived: 0, receivedNotDone: 0 }, total: 0, rows: [], readiness: {} } : { summary: [{ section: "Civil", compared: 4, bothDone: 1, neither: 1, siteDoneNotReceived: 1, receivedNotDone: 1 }], notCompared: 0, totals: { siteDoneNotReceived: 1, receivedNotDone: 1 }, total: 2, rows: [h.row("268", "site_done_not_received"), h.row("270", "received_not_done")], readiness: {} } }) },
@@ -51,10 +51,16 @@ describe("site update from the phone", () => {
     const next = document.querySelector("[data-empty-next]")!;
     expect(next.textContent).toContain("No site activities yet");
     expect(within(next as HTMLElement).getByRole("link", { name: "Import the site workbook" }).getAttribute("href")).toBe("/projects/t/p/pmc?tab=import");
+    // Q-70 (5) (I72): a project with no old site workbook is taken to the one progress screen at once
+    expect(state.navigate).toHaveBeenCalledWith("/m/t/p/progress", { replace: true });
     unmount();
+    state.navigate.mockClear();
     state.noActivities = false;
     render(<PmcSiteUpdate />);
     expect(document.querySelector("[data-empty-next]")).toBeNull();
+    // NEGATIVE: a project that has the old site activities stays here — the consultant's site status, back to the comparison
+    expect(state.navigate).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Comparison: site ↔ consultant" }).getAttribute("href")).toBe("/projects/t/p/site-consultant");
   });
 
   it("keeps Save disabled until an activity is chosen, whatever villas are typed", () => {
@@ -165,7 +171,7 @@ describe("site ↔ consultant screen at a phone's width (design review of #215)"
     render(<PmcSiteConsultant />);
     expect(screen.getByText(/agree on everything compared/)).toBeTruthy();
     const list = screen.getByRole("table", { name: "Differences" });
-    expect(within(list).getByRole("link", { name: "Update site progress" }).getAttribute("href")).toBe("/m/t/p/site-update");
+    expect(within(list).getByRole("link", { name: "Consultant site status (comparison)" }).getAttribute("href")).toBe("/m/t/p/site-update");
   });
 
   it("the S-curve without a plan links to the import, and with a plan writes its axis labels as page text", () => {

@@ -2,14 +2,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ds/Select";
 import { mappingOf, type ColumnReport } from "@/components/ColumnMapping";
-import { correctionsOf, type AppliedEdit } from "@/components/PmcRowCorrections";
+import { correctionsOf, type AppliedEdit, type AppliedReplace, type ReplaceRule } from "@/components/PmcRowCorrections";
 import { PMC_FIELD_LABELS, pmcImportReason } from "@/lib/pmcImportMessages";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { pickLanguage, type Language } from "@/lib/language";
 import { trpc } from "@/lib/trpc";
 import type { AppRouter } from "../../../server/routers";
 import type { inferRouterOutputs } from "@trpc/server";
-import { CheckCircle2, Search, XCircle } from "lucide-react";
+import { CheckCircle2, Download, Search, XCircle } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 // Q-66 batch 1 (the owner, 26-11: «when importing, the files should show like an Excel table, clearer than one row at a time, after processing, to confirm it»;
@@ -29,32 +29,35 @@ const text = {
   ar: {
     title: "الملف بعد المعالجة", hint: "هكذا قرأ النظام ملفك. انقر مرتين على خلية لتصحيحها؛ لا يُحفظ شيء قبل تأكيدك.", row: "الصف",
     tabs: { all: "الكل", ready: "جاهز", corrected: "صُحّح", errors: "أخطاء", ignored: "متجاهَل" } as Record<Tab, string>, search: "ابحث في الجدول",
-    why: { edited: "صحّحته أنت", filledDown: "أُخذ من الصف أعلاه (القسم مكتوب مرة واحدة فوق بنوده)", fraction: "كسر في الملف قُرئ نسبة مئوية" } as Record<string, string>,
+    why: { edited: "صحّحته أنت", replaced: "صحّحت كل خلية مثلها في هذا العمود", filledDown: "أُخذ من الصف أعلاه (القسم مكتوب مرة واحدة فوق بنوده)", fraction: "كسر في الملف قُرئ نسبة مئوية" } as Record<string, string>,
     inFile: "في الملف", empty: "فارغ", ignoredTotal: "سطر مجموع: لا يُقرأ", ignoredLeftOut: "تركته أنت: لا يُقرأ", unused: "أعمدة في ملفك لن تُستورد",
     source: (field: string) => `عمود «${field}» في ملفك`, notRead: "لا يُقرأ", remap: "أعد القراءة بهذه الأعمدة", remapNote: "قراءة الملف بأعمدة أخرى تُسقط تصحيحات الخلايا.",
-    edits: (count: number) => `${count} تصحيح لم يُحلَّل بعد`, apply: "أعد التحليل بهذه التصحيحات", discard: "تراجع عنها", editLabel: (field: string, row: number) => `${field} · الصف ${row}`,
+    edits: (count: number) => `${count} تصحيح لم يُحلَّل بعد`, offer: (to: string, from: string, field: string) => `طبّق «${to}» على كل خلية «${from}» في عمود ${field}`, notNow: "هذه الخلية فقط", applyAll: "طبّق على كل خلية مثلها",
+    rules: "كل خلية مثلها", rule: (from: string, to: string, field: string) => `${field}: كل «${from}» ← «${to}»`, cells: (count: number) => `${count} خلية`, undo: "تراجع", undone: "سيُلغى", apply: "أعد التحليل بهذه التصحيحات", discard: "تراجع عنها", editLabel: (field: string, row: number) => `${field} · الصف ${row}`,
     ready: (count: number) => `${count} صف جاهز`, rejected: (count: number) => `${count} صف مرفوض`, checks: "مجاميع التحقق", noRows: "لا صفوف في هذا التبويب.", loading: "جارٍ تحميل الصفوف…", failed: "تعذّر تحميل الجدول",
-    shown: (shown: number, total: number) => `${shown} من ${total}`,
+    shown: (shown: number, total: number) => `${shown} من ${total}`, download: "نزّل النسخة المنظّفة (Excel)", downloading: "جارٍ تجهيز الملف…", downloadHint: "بالألوان نفسها وعمود ملاحظات، لترسله لمن عبّأ الملف.",
   },
   en: {
     title: "The file after processing", hint: "This is how the platform read your file. Double-click a cell to correct it; nothing is saved before you confirm.", row: "Row",
     tabs: { all: "All", ready: "Ready", corrected: "Corrected", errors: "Errors", ignored: "Ignored" } as Record<Tab, string>, search: "Search the table",
-    why: { edited: "You corrected it", filledDown: "Taken from the row above (the section is written once above its items)", fraction: "A fraction in the file read as a percent" } as Record<string, string>,
+    why: { edited: "You corrected it", replaced: "You corrected every cell like it in this column", filledDown: "Taken from the row above (the section is written once above its items)", fraction: "A fraction in the file read as a percent" } as Record<string, string>,
     inFile: "In the file", empty: "empty", ignoredTotal: "Totals line: not read", ignoredLeftOut: "You left it out: not read", unused: "Columns of your file that will not be imported",
     source: (field: string) => `Column for «${field}» in your file`, notRead: "Not read", remap: "Read again with these columns", remapNote: "Reading the file with other columns drops the cell corrections.",
-    edits: (count: number) => `${count} correction(s) not analysed yet`, apply: "Analyse again with these corrections", discard: "Discard them", editLabel: (field: string, row: number) => `${field} · row ${row}`,
+    edits: (count: number) => `${count} correction(s) not analysed yet`, offer: (to: string, from: string, field: string) => `Apply «${to}» to every «${from}» in the ${field} column`, notNow: "This cell only", applyAll: "Apply to every cell like it",
+    rules: "Every cell like it", rule: (from: string, to: string, field: string) => `${field}: every «${from}» → «${to}»`, cells: (count: number) => `${count} cell(s)`, undo: "Undo", undone: "Will be removed", apply: "Analyse again with these corrections", discard: "Discard them", editLabel: (field: string, row: number) => `${field} · row ${row}`,
     ready: (count: number) => `${count} rows ready`, rejected: (count: number) => `${count} rows rejected`, checks: "Totals checks", noRows: "No rows in this tab.", loading: "Loading rows…", failed: "The table could not be loaded",
-    shown: (shown: number, total: number) => `${shown} of ${total}`,
+    shown: (shown: number, total: number) => `${shown} of ${total}`, download: "Download the cleaned copy (Excel)", downloading: "Preparing the file…", downloadHint: "In the same colours with a notes column, to send to whoever filled in the file.",
   },
   ur: {
     title: "پروسیسنگ کے بعد فائل", hint: "پلیٹ فارم نے آپ کی فائل ایسے پڑھی۔ کسی خانے کو درست کرنے کے لیے اس پر دو بار کلک کریں؛ آپ کی تصدیق سے پہلے کچھ محفوظ نہیں ہوتا۔", row: "قطار",
     tabs: { all: "سب", ready: "تیار", corrected: "درست کیا گیا", errors: "غلطیاں", ignored: "نظرانداز" } as Record<Tab, string>, search: "جدول میں تلاش کریں",
-    why: { edited: "آپ نے درست کیا", filledDown: "اوپر والی قطار سے لیا گیا (سیکشن اپنی آئٹمز کے اوپر ایک بار لکھا ہے)", fraction: "فائل میں کسر کو فیصد کے طور پر پڑھا گیا" } as Record<string, string>,
+    why: { edited: "آپ نے درست کیا", replaced: "آپ نے اس کالم میں اس جیسے ہر خانے کو درست کیا", filledDown: "اوپر والی قطار سے لیا گیا (سیکشن اپنی آئٹمز کے اوپر ایک بار لکھا ہے)", fraction: "فائل میں کسر کو فیصد کے طور پر پڑھا گیا" } as Record<string, string>,
     inFile: "فائل میں", empty: "خالی", ignoredTotal: "میزان کی سطر: نہیں پڑھی جاتی", ignoredLeftOut: "آپ نے چھوڑ دی: نہیں پڑھی جاتی", unused: "آپ کی فائل کے کالم جو امپورٹ نہیں ہوں گے",
     source: (field: string) => `آپ کی فائل میں «${field}» کا کالم`, notRead: "نہیں پڑھا جاتا", remap: "ان کالموں کے ساتھ دوبارہ پڑھیں", remapNote: "دوسرے کالموں سے فائل پڑھنے پر خانوں کی درستیاں ختم ہو جاتی ہیں۔",
-    edits: (count: number) => `${count} درستیاں جن کا ابھی تجزیہ نہیں ہوا`, apply: "ان درستیوں کے ساتھ دوبارہ تجزیہ کریں", discard: "انہیں واپس لیں", editLabel: (field: string, row: number) => `${field} · قطار ${row}`,
+    edits: (count: number) => `${count} درستیاں جن کا ابھی تجزیہ نہیں ہوا`, offer: (to: string, from: string, field: string) => `${field} کالم میں ہر «${from}» پر «${to}» لاگو کریں`, notNow: "صرف یہ خانہ", applyAll: "اس جیسے ہر خانے پر لاگو کریں",
+    rules: "اس جیسا ہر خانہ", rule: (from: string, to: string, field: string) => `${field}: ہر «${from}» ← «${to}»`, cells: (count: number) => `${count} خانے`, undo: "واپس لیں", undone: "ہٹا دیا جائے گا", apply: "ان درستیوں کے ساتھ دوبارہ تجزیہ کریں", discard: "انہیں واپس لیں", editLabel: (field: string, row: number) => `${field} · قطار ${row}`,
     ready: (count: number) => `${count} قطاریں تیار`, rejected: (count: number) => `${count} قطاریں مسترد`, checks: "مجموعوں کی جانچ", noRows: "اس ٹیب میں کوئی قطار نہیں۔", loading: "قطاریں لوڈ ہو رہی ہیں…", failed: "جدول لوڈ نہیں ہو سکی",
-    shown: (shown: number, total: number) => `${shown} از ${total}`,
+    shown: (shown: number, total: number) => `${shown} از ${total}`, download: "صاف شدہ نقل ڈاؤن لوڈ کریں (Excel)", downloading: "فائل تیار ہو رہی ہے…", downloadHint: "انہی رنگوں اور نوٹس کے کالم کے ساتھ، فائل بھرنے والے کو بھیجنے کے لیے۔",
   },
 };
 
@@ -68,12 +71,14 @@ const NUMERIC = /^[-+]?[\d.,\u0660-\u0669\u066B\u066C]+%?$/;
 const NOT_READ = "__none";
 const cellKey = (row: number, field: string) => `${row}:${field}`;
 
-export function ImportGrid({ tenantId, projectId, importId, columns, applied, ignoredRows, readRows, checks = [], language }: {
+export function ImportGrid({ tenantId, projectId, importId, columns, applied, ignoredRows, readRows, replaced = [], checks = [], language }: {
   tenantId: string; projectId: string; importId: string;
   /** The columns the analysis read (each field's header can be changed from the grid). */
   columns: ColumnReport;
   /** The corrections the analysis already holds: the next set sent keeps them. */
   applied: AppliedEdit[]; ignoredRows: number[]; readRows: number[];
+  /** Q-66 (5b): the «every cell like it» rules the analysis holds, with how many cells each changed. */
+  replaced?: AppliedReplace[];
   /** The totals the importer checked (each model's weights = 100%, …), shown with ✅ / ❌ in the summary bar. */
   checks?: ImportGridCheck[]; language: Language;
 }) {
@@ -112,13 +117,33 @@ export function ImportGrid({ tenantId, projectId, importId, columns, applied, ig
   // corrections typed in the grid, sent together with the ones the analysis holds
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<{ row: number; field: string; value: string } | null>(null);
-  const correct = trpc.dataImports.correct.useMutation({ onSuccess: () => { setDrafts({}); return Promise.all([utils.dataImports.progress.invalidate(), utils.dataImports.grid.invalidate()]); } });
-  const pending = Object.keys(drafts).length;
+  // Q-66 (5b): a corrected cell offers its correction for every cell like it in the column — a rule the reader applies, however many cells it reaches
+  const [offer, setOffer] = useState<ReplaceRule | null>(null);
+  const [rules, setRules] = useState<ReplaceRule[]>([]);
+  const [dropped, setDropped] = useState<Set<string>>(new Set());
+  const ruleKey = (rule: { field: string; from: string }) => `${rule.field}\u0000${rule.from.trim()}`;
+  const correct = trpc.dataImports.correct.useMutation({ onSuccess: () => { setDrafts({}); setRules([]); setDropped(new Set()); setOffer(null); return Promise.all([utils.dataImports.progress.invalidate(), utils.dataImports.grid.invalidate()]); } });
+  const pending = Object.keys(drafts).length + rules.length + dropped.size;
+  const ruleSet = () => {
+    const byKey = new Map<string, ReplaceRule>();
+    for (const rule of replaced) if (!dropped.has(ruleKey(rule))) byKey.set(ruleKey(rule), { field: rule.field, from: rule.from, to: rule.to });
+    for (const rule of rules) byKey.set(ruleKey(rule), rule);
+    return Array.from(byKey.values());
+  };
+  const takeOffer = () => {
+    if (!offer) return;
+    setRules(previous => [...previous.filter(rule => ruleKey(rule) !== ruleKey(offer)), offer]);
+    // the cells of that column that read the same are covered by the rule: their own drafts go
+    setDrafts(previous => Object.fromEntries(Object.entries(previous).filter(([key]) => { const [row, field] = [Number(key.slice(0, key.indexOf(":"))), key.slice(key.indexOf(":") + 1)]; return field !== offer.field || rows.find(item => item.row === row)?.cells[field]?.value !== offer.from; })));
+    setOffer(null);
+  };
   // a column's source, changed from its header
   const [choice, setChoice] = useState<Record<string, string>>(() => Object.fromEntries(columns.fields.map(field => [field.key, field.header ?? NOT_READ])));
   const remapped = columns.fields.some(field => (choice[field.key] ?? NOT_READ) !== (field.header ?? NOT_READ));
   const reanalyze = trpc.dataImports.reanalyze.useMutation({ onSuccess: () => Promise.all([utils.dataImports.progress.invalidate(), utils.dataImports.grid.invalidate()]) });
   const fields = first.data?.fields ?? [];
+  // Q-66 (8): the cleaned copy is made on the server (a file of 50,000 rows) and opened from its signed link
+  const download = trpc.dataImports.gridDownload.useMutation({ onSuccess: result => { const link = document.createElement("a"); link.href = result.url; link.download = result.fileName; link.rel = "noopener"; document.body.appendChild(link); link.click(); link.remove(); } });
   const headerOptions = [{ value: NOT_READ, label: t.notRead }, ...columns.headers.map(header => ({ value: header, label: header }))];
 
   const commit = () => {
@@ -130,6 +155,7 @@ export function ImportGrid({ tenantId, projectId, importId, columns, applied, ig
       else out[cellKey(editing.row, editing.field)] = editing.value;
       return out;
     });
+    setOffer(original && original.value !== "" && editing.value.trim() !== "" && editing.value.trim() !== original.value ? { field: editing.field, from: original.value, to: editing.value.trim() } : null);
     setEditing(null);
   };
 
@@ -207,7 +233,7 @@ export function ImportGrid({ tenantId, projectId, importId, columns, applied, ig
                     const state = ignored ? "ignored" : stateOf(row, field.key);
                     return (
                       <td key={field.key} data-cell={field.key} data-state={state} tabIndex={ignored ? undefined : 0}
-                        className={`max-w-[18rem] border-b border-e border-border px-2 ${ignored ? "line-through" : tone[state]} ${NUMERIC.test(row.cells[field.key]?.value ?? "") ? "text-end [direction:ltr]" : ""}`}
+                        className={`max-w-[18rem] border-b border-e border-border px-2 ${ignored ? "line-through" : tone[state]} ${NUMERIC.test(drafts[cellKey(row.row, field.key)] ?? row.cells[field.key]?.value ?? "") ? "text-end [direction:ltr]" : ""}`}
                         onClick={() => setFocused(row.row)} onFocus={() => setFocused(row.row)}
                         onDoubleClick={() => { if (!ignored) setEditing({ row: row.row, field: field.key, value: drafts[cellKey(row.row, field.key)] ?? row.cells[field.key]?.value ?? "" }); }}
                         onKeyDown={event => { if (!ignored && event.key === "Enter" && !editing) setEditing({ row: row.row, field: field.key, value: drafts[cellKey(row.row, field.key)] ?? row.cells[field.key]?.value ?? "" }); }}>
@@ -238,14 +264,40 @@ export function ImportGrid({ tenantId, projectId, importId, columns, applied, ig
         <p className="text-xs text-muted-foreground">{t.remapNote}</p>
         <Button type="button" className="min-h-[44px]" disabled={reanalyze.isPending} onClick={() => reanalyze.mutate({ tenantId, projectId, importId, mappingOverride: mappingOf(choice) })}>{t.remap}</Button>
       </div>}
+      {offer && <div className="flex flex-col gap-2 rounded-lg border border-border p-2 sm:flex-row sm:items-center sm:justify-between" data-grid-offer>
+        <p className="text-sm"><bdi>{t.offer(offer.to, offer.from, label(offer.field))}</bdi></p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" className="min-h-[44px]" onClick={() => setOffer(null)}>{t.notNow}</Button>
+          <Button type="button" className="min-h-[44px]" onClick={takeOffer}>{t.applyAll}</Button>
+        </div>
+      </div>}
+      {(replaced.length > 0 || rules.length > 0) && <div className="space-y-1 rounded-lg border border-border p-2" data-grid-rules>
+        <p className="text-xs font-medium">{t.rules}</p>
+        <ul className="space-y-1">
+          {replaced.map(rule => { const gone = dropped.has(ruleKey(rule)); return (
+            <li key={`a:${ruleKey(rule)}`} className={`flex flex-wrap items-center justify-between gap-2 text-sm ${gone ? "opacity-50" : ""}`} data-rule="applied">
+              <span><bdi>{t.rule(rule.from, rule.to, label(rule.field))}</bdi> · <span className="text-muted-foreground">{gone ? t.undone : t.cells(rule.cells)}</span></span>
+              <Button type="button" variant="outline" className="min-h-[44px]" aria-pressed={gone} onClick={() => setDropped(previous => { const out = new Set(previous); if (out.has(ruleKey(rule))) out.delete(ruleKey(rule)); else out.add(ruleKey(rule)); return out; })}>{t.undo}</Button>
+            </li>); })}
+          {rules.map(rule => (
+            <li key={`n:${ruleKey(rule)}`} className="flex flex-wrap items-center justify-between gap-2 text-sm" data-rule="new">
+              <bdi>{t.rule(rule.from, rule.to, label(rule.field))}</bdi>
+              <Button type="button" variant="outline" className="min-h-[44px]" onClick={() => setRules(previous => previous.filter(item => ruleKey(item) !== ruleKey(rule)))}>{t.undo}</Button>
+            </li>))}
+        </ul>
+      </div>}
       {pending > 0 && <div className="flex flex-col gap-2 rounded-lg border border-warning bg-warning-soft p-2 sm:flex-row sm:items-center sm:justify-between" data-grid-drafts>
         <p className="font-medium text-warning-soft-foreground">{t.edits(pending)}</p>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" className="min-h-[44px]" onClick={() => setDrafts({})}>{t.discard}</Button>
-          <Button type="button" className="min-h-[44px]" disabled={correct.isPending} onClick={() => correct.mutate({ tenantId, projectId, importId, edits: correctionsOf(applied, new Set(), drafts, new Set(ignoredRows), new Set(readRows)) })}>{t.apply}</Button>
+          <Button type="button" variant="outline" className="min-h-[44px]" onClick={() => { setDrafts({}); setRules([]); setDropped(new Set()); }}>{t.discard}</Button>
+          <Button type="button" className="min-h-[44px]" disabled={correct.isPending} onClick={() => correct.mutate({ tenantId, projectId, importId, edits: correctionsOf(applied, new Set(), drafts, new Set(ignoredRows), new Set(readRows), ruleSet()) })}>{t.apply}</Button>
         </div>
       </div>}
-      {(correct.error || reanalyze.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError((correct.error ?? reanalyze.error)!, language)}</p>}
+      {first.data && rows.length > 0 && <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between" data-grid-download>
+        <p className="text-xs text-muted-foreground">{t.downloadHint}</p>
+        <Button type="button" variant="outline" className="min-h-[44px]" disabled={download.isPending} onClick={() => download.mutate({ tenantId, projectId, importId, language })}><Download className="me-2 h-4 w-4" aria-hidden />{download.isPending ? t.downloading : t.download}</Button>
+      </div>}
+      {(correct.error || reanalyze.error || download.error) && <p role="alert" className="text-sm text-danger-soft-foreground">{getLocalizedProjectError((correct.error ?? reanalyze.error ?? download.error)!, language)}</p>}
       {counts && <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2" data-grid-summary>
         <span className="rounded-full bg-success-soft px-2 py-0.5 text-success-soft-foreground">{t.ready(counts.ready)}</span>
         <span className={`rounded-full px-2 py-0.5 ${counts.errors ? "bg-danger-soft text-danger-soft-foreground" : "bg-muted"}`}>{t.rejected(counts.errors)}</span>

@@ -6,7 +6,7 @@ import { ImportGrid } from "./ImportGrid";
 
 // Q-66 batch 1: the review grid of a PMC import. Synthetic rows and values only.
 type Row = { index: number; row: number; class: "data" | "total" | "leftOut"; status: "ready" | "corrected" | "error" | "ignored"; cells: Record<string, { value: string; from?: string; why?: string; errors?: Array<{ code: string }> }>; rowErrors: Array<{ code: string }> };
-const state = vi.hoisted(() => ({ answer: null as unknown, inputs: [] as unknown[], rows: [] as unknown[], total: 0, counts: {} as Record<string, number>, fetch: vi.fn(), correct: vi.fn(), reanalyze: vi.fn() }));
+const state = vi.hoisted(() => ({ answer: null as unknown, inputs: [] as unknown[], rows: [] as unknown[], total: 0, counts: {} as Record<string, number>, fetch: vi.fn(), correct: vi.fn(), reanalyze: vi.fn(), download: vi.fn() }));
 vi.mock("@/lib/trpc", () => ({ trpc: {
   useUtils: () => ({ dataImports: { progress: { invalidate: vi.fn() }, grid: { invalidate: vi.fn(), fetch: state.fetch } } }),
   dataImports: {
@@ -18,6 +18,7 @@ vi.mock("@/lib/trpc", () => ({ trpc: {
     } },
     correct: { useMutation: () => ({ mutate: state.correct, isPending: false, error: null }) },
     reanalyze: { useMutation: () => ({ mutate: state.reanalyze, isPending: false, error: null }) },
+    gridDownload: { useMutation: (options: { onSuccess: (result: { url: string; fileName: string }) => void }) => ({ mutate: (input: unknown) => { state.download(input); options.onSuccess({ url: "https://storage.example.test/cleaned.xlsx", fileName: "pmc-cleaned.xlsx" }); }, isPending: false, error: null }) },
   },
 } }));
 vi.mock("@/components/ds/Select", () => ({ Select: ({ options, value, onValueChange, "aria-label": label }: { options: { value: string; label: string }[]; value: string; onValueChange: (value: string) => void; "aria-label": string }) => (
@@ -102,6 +103,50 @@ describe("ImportGrid (Q-66 batch 1)", () => {
     expect(screen.queryByLabelText("Villa number · row 5")).toBeNull();
   });
 
+  it("Q-66 (5b) POSITIVE: a corrected cell offers its correction for every cell like it in the column; taken, it goes as one rule with the full set", () => {
+    grid();
+    fireEvent.doubleClick(cell(2, "modelCode"));
+    fireEvent.change(screen.getByLabelText("Model · row 2"), { target: { value: "B" } });
+    fireEvent.keyDown(screen.getByLabelText("Model · row 2"), { key: "Enter" });
+    expect(document.querySelector("[data-grid-offer]")!.textContent).toContain("Apply «B» to every «A» in the Model column");
+    fireEvent.click(screen.getByRole("button", { name: "Apply to every cell like it" }));
+    expect(document.querySelector("[data-grid-offer]")).toBeNull();
+    expect(document.querySelector('[data-rule="new"]')!.textContent).toContain("Model: every «A» → «B»");
+    expect(screen.getByText("1 correction(s) not analysed yet")).toBeTruthy(); // the cell's own draft is covered by the rule
+    fireEvent.click(screen.getByRole("button", { name: "Analyse again with these corrections" }));
+    expect(state.correct).toHaveBeenCalledWith({ ...scope, edits: { cells: [{ row: 3, field: "unitNumber", value: "102" }], ignoreRows: [9], replace: [{ field: "modelCode", from: "A", to: "B" }] } });
+  });
+
+  it("Q-66 (5b): «this cell only» keeps the single correction; an applied rule is listed with its cells, and undoing it drops it from the next set", () => {
+    grid({ replaced: [{ field: "unitNumber", header: "Villa No", from: "1O1", to: "101", cells: 7 }] });
+    expect(document.querySelector('[data-rule="applied"]')!.textContent).toContain("Villa number: every «1O1» → «101» · 7 cell(s)");
+    fireEvent.doubleClick(cell(2, "modelCode"));
+    fireEvent.change(screen.getByLabelText("Model · row 2"), { target: { value: "C" } });
+    fireEvent.keyDown(screen.getByLabelText("Model · row 2"), { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "This cell only" }));
+    fireEvent.click(screen.getByRole("button", { name: "Analyse again with these corrections" }));
+    expect(state.correct).toHaveBeenLastCalledWith({ ...scope, edits: { cells: [{ row: 2, field: "modelCode", value: "C" }, { row: 3, field: "unitNumber", value: "102" }], ignoreRows: [9], replace: [{ field: "unitNumber", from: "1O1", to: "101" }] } });
+    cleanup();
+    grid({ replaced: [{ field: "unitNumber", header: "Villa No", from: "1O1", to: "101", cells: 7 }] });
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(document.querySelector('[data-rule="applied"]')!.textContent).toContain("Will be removed");
+    fireEvent.click(screen.getByRole("button", { name: "Analyse again with these corrections" }));
+    expect(state.correct).toHaveBeenLastCalledWith({ ...scope, edits: { cells: [{ row: 3, field: "unitNumber", value: "102" }], ignoreRows: [9] } });
+  });
+
+  it("NEGATIVE: no offer for an empty cell or an emptied one, nor when the value is typed back", () => {
+    grid();
+    fireEvent.doubleClick(cell(5, "unitNumber"));
+    fireEvent.doubleClick(cell(2, "unitNumber"));
+    fireEvent.change(screen.getByLabelText("Villa number · row 2"), { target: { value: "" } });
+    fireEvent.keyDown(screen.getByLabelText("Villa number · row 2"), { key: "Enter" });
+    expect(document.querySelector("[data-grid-offer]")).toBeNull();
+    fireEvent.doubleClick(cell(2, "modelCode"));
+    fireEvent.change(screen.getByLabelText("Model · row 2"), { target: { value: "A" } });
+    fireEvent.keyDown(screen.getByLabelText("Model · row 2"), { key: "Enter" });
+    expect(document.querySelector("[data-grid-offer]")).toBeNull();
+  });
+
   it("a column's source changed from its header is applied only by its button, as a new reading of the file", () => {
     grid();
     expect(screen.queryByRole("button", { name: "Read again with these columns" })).toBeNull();
@@ -125,6 +170,15 @@ describe("ImportGrid (Q-66 batch 1)", () => {
     expect(state.fetch).toHaveBeenCalledWith(expect.objectContaining({ ...scope, tab: "all", offset: 200 }));
     expect(document.querySelector('tr[data-row="195"]')).toBeTruthy();
     expect(document.querySelector('tr[data-row="2"]')).toBeNull();
+  });
+
+  it("Q-66 (8): «download the cleaned copy» asks the server in the page's language and opens the link it returns", () => {
+    const clicked = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    grid({ language: "ur" });
+    fireEvent.click(screen.getByRole("button", { name: "صاف شدہ نقل ڈاؤن لوڈ کریں (Excel)" }));
+    expect(state.download).toHaveBeenCalledWith({ ...scope, language: "ur" });
+    expect(clicked).toHaveBeenCalledTimes(1);
+    clicked.mockRestore();
   });
 
   it("the summary bar: rows ready and rejected, and each totals check with ✅ or ❌", () => {
