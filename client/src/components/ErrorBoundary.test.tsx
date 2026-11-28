@@ -37,6 +37,19 @@ describe("the app-wide error boundary", () => {
   it("reports only the error's name to the console", () => {
     render(<ErrorBoundary><Bomb /></ErrorBoundary>);
     const own = (console.error as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(call => call[0] === "[App] render failed");
-    expect(own).toEqual([["[App] render failed", "Error"]]);
+    expect(own).toEqual([["[App] render failed", "Error", expect.stringMatching(/^R-[A-Z0-9]{5}$/)]]); // the name and the short code, never the message
+  });
+
+  it("Q-68 (1): the last-resort screen shows a short code the person can read out, and the server is told the same code (by name only, never the message)", () => {
+    const sent: Array<{ url: string; body: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: { body?: string }) => { sent.push({ url, body: String(init?.body ?? "") }); return new Response("{}"); }));
+    const view = render(<ErrorBoundary><Bomb /></ErrorBoundary>);
+    const shown = view.container.querySelector("[data-failure-code]")!.textContent!;
+    expect(shown).toMatch(/^R-[A-Z0-9]{5}$/);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].url).toContain("diagnostics.renderFailed");
+    expect(JSON.parse(sent[0].body).json).toMatchObject({ code: shown, errorName: "Error" });
+    expect(sent[0].body).not.toContain("Sup3rS3cretPassw0rd"); // the message of the failure never leaves the browser
+    vi.unstubAllGlobals();
   });
 });

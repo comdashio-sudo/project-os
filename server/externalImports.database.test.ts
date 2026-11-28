@@ -5,6 +5,8 @@ import type { TrpcContext } from "./_core/context";
 import { ENV } from "./_core/env";
 import { appRouter } from "./routers";
 import { MAX_DIRECT_UPLOAD_BYTES } from "./storage";
+import ExcelJS from "exceljs";
+import { ORPHAN_UPLOAD_MAX_AGE_MS, sweepImportJobs } from "./importJobs";
 import { startFakeS3, type FakeS3 } from "./testing/fakeS3";
 
 // G-139 on a real database: the PMC files and the master-plan files no longer travel inside a request. They go browser → Storage by a signed URL (a REAL HTTP PUT),
@@ -30,7 +32,7 @@ async function clear() {
     await connection.query("DELETE r FROM data_import_row_results r INNER JOIN data_imports i ON i.id = r.importId WHERE i.tenantId = ?", [tenant]);
     await connection.query("DELETE e FROM data_import_errors e INNER JOIN data_imports i ON i.id = e.importId WHERE i.tenantId = ?", [tenant]);
     await connection.query("DELETE FROM data_imports WHERE tenantId = ?", [tenant]);
-    for (const table of ["document_versions", "project_documents", "pmc_site_plans", "pmc_unit_activity_history", "pmc_unit_activity_progress", "pmc_units", "pmc_blocks", "pmc_zones", "master_plan_spatial_entities", "master_plan_versions", "master_plans"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [tenant]);
+    for (const table of ["import_source_profiles", "document_versions", "project_documents", "pmc_site_plans", "pmc_unit_activity_history", "pmc_unit_activity_progress", "pmc_units", "pmc_blocks", "pmc_zones", "master_plan_spatial_entities", "master_plan_versions", "master_plans"]) await connection.query(`DELETE FROM ${table} WHERE tenantId = ?`, [tenant]);
     await connection.query("DELETE mr FROM membership_roles mr INNER JOIN roles r ON r.id = mr.roleId WHERE r.tenantId = ?", [tenant]);
     await connection.query("DELETE rp FROM role_permissions rp INNER JOIN roles r ON r.id = rp.roleId WHERE r.tenantId = ?", [tenant]);
     await connection.query("DELETE FROM roles WHERE tenantId = ?", [tenant]);
@@ -308,12 +310,71 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC and master-plan impo
     expect(page.rows.map(row => row.cells.unitNumber.value)).toEqual(["77001", "77002"]);
   }, 120_000);
 
+  it("Q-66 (5b): «every cell like it» — one rule corrects a column's value in every row, is audited with its count, shown in the grid, and written", async () => {
+    const pmc = callerFor(users.pmc, "ext-pmc");
+    const csv = Buffer.from("Block Code,Unit Number,Model Code\nBQ9,79001,a\nBQ9,79002,a\nBQ9,79003,B\nBQ9,79004,a\n", "utf8");
+    const { registered } = await upload(pmc, "pmc.locations", { name: "units-rule.csv", bytes: csv, format: "csv" });
+    await pollUntilDone(pmc, registered.id);
+    // NEGATIVE: a rule for a value no cell has is refused by name and nothing can be confirmed; the same rule twice is refused before anything runs
+    await pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [], ignoreRows: [], replace: [{ field: "modelCode", from: "Z", to: "A" }] } });
+    const refused = await pollUntilDone(pmc, registered.id);
+    expect(refused.view.analysis!.errors.map(error => [error.rowNumber, error.code])).toEqual([[0, "IMPORT_EDIT_INVALID"]]);
+    await expect(pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [], ignoreRows: [], replace: [{ field: "modelCode", from: "a", to: "A" }, { field: "modelCode", from: " a", to: "C" }] } })).rejects.toThrow("PROJECT_OS_IMPORT_EDITS_INVALID");
+    // POSITIVE: «a» → «A» in the whole column
+    await pmc.dataImports.correct({ ...scope, importId: registered.id, edits: { cells: [], ignoreRows: [], replace: [{ field: "modelCode", from: "a", to: "A" }] } });
+    const done = await pollUntilDone(pmc, registered.id);
+    expect(done.view.status).toBe("validated");
+    expect((done.view.external!.report as { pmc: { details: { replaced: unknown[] } } }).pmc.details.replaced).toEqual([{ field: "modelCode", header: "Model Code", from: "a", to: "A", cells: 3 }]);
+    const [audit] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND entityId = ? AND action = 'data_import_cells_corrected' ORDER BY createdAt DESC LIMIT 1", [T, registered.id]);
+    expect(JSON.parse(audit[0].metadata)).toMatchObject({ replaced: [{ field: "modelCode", from: "a", to: "A", cells: 3 }] });
+    const page = await pmc.dataImports.grid({ ...scope, importId: registered.id, tab: "corrected" });
+    expect(page.rows.map(row => [row.row, row.cells.modelCode])).toEqual([2, 3, 5].map(row => [row, { value: "A", from: "a", why: "replaced" }]));
+    expect(await pmc.dataImports.confirm({ ...scope, importId: registered.id })).toMatchObject({ status: "completed", createdRows: 4 });
+    const [units] = await connection.query<{ unitNumber: number; modelCode: string }[]>("SELECT unitNumber, modelCode FROM pmc_units WHERE tenantId = ? AND unitNumber BETWEEN 79001 AND 79004 ORDER BY unitNumber", [T]);
+    expect(units.map(unit => unit.modelCode)).toEqual(["A", "A", "B", "A"]);
+    const [confirmed] = await connection.query<{ metadata: string }[]>("SELECT metadata FROM audit_logs WHERE tenantId = ? AND action = 'pmc.import_confirmed' ORDER BY createdAt DESC LIMIT 1", [T]);
+    expect(JSON.parse(confirmed[0].metadata)).toMatchObject({ replaced: [{ from: "a", to: "A", cells: 3 }] });
+  }, 120_000);
+
+  it("Q-66 (8): the cleaned copy is the grid's rows in an xlsx behind a signed link, refused to whoever cannot read the grid, and swept after a day", async () => {
+    const pmc = callerFor(users.pmc, "ext-pmc");
+    const { registered } = await upload(pmc, "pmc.locations", { name: "units-cleaned.csv", bytes: Buffer.from("Block Code,Unit Number,Model Code\nBQ10,80001,A\nBQ10,80x02,A\n", "utf8"), format: "csv" });
+    await pollUntilDone(pmc, registered.id);
+    const copy = await pmc.dataImports.gridDownload({ ...scope, importId: registered.id, language: "en" });
+    expect(copy).toMatchObject({ rows: 2, fileName: expect.stringMatching(/^pmc-locations-.*-cleaned\.xlsx$/) });
+    const response = await fetch(copy.url);
+    expect(response.ok).toBe(true);
+    const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await response.arrayBuffer()));
+    const sheet = book.worksheets[0];
+    expect(sheet.rowCount).toBe(3);
+    expect(sheet.getCell("A3").value).toBe(3);
+    expect(sheet.getCell("E3").value).toBe("Error");
+    expect(String(sheet.getCell("F3").value)).toContain("Villa number");
+    const key = Array.from(s3.objects.keys()).find(item => item.includes(`/cleaned/${registered.id}/`))!;
+    expect(key.startsWith(`imports/${T}/${P}/cleaned/`)).toBe(true);
+    // NEGATIVE: the general importer and another company's member get no copy
+    await expect(callerFor(users.importer, "ext-importer").dataImports.gridDownload({ ...scope, importId: registered.id, language: "en" })).rejects.toThrow();
+    await expect(pmc.dataImports.gridDownload({ tenantId: T2, projectId: P2, importId: registered.id, language: "en" })).rejects.toThrow();
+    // a day later the sweep removes the copy (and only what is that old)
+    await sweepImportJobs(Date.now() + 60_000);
+    expect(s3.objects.has(key)).toBe(true);
+    await sweepImportJobs(Date.now() + ORPHAN_UPLOAD_MAX_AGE_MS + 60_000);
+    expect(s3.objects.has(key)).toBe(false);
+  }, 120_000);
+
   it("Q-66 batch 1: a long file is read a page at a time, with the counts of the whole file", async () => {
     const pmc = callerFor(users.pmc, "ext-pmc");
     const lines = ["Block Code,Unit Number,Model Code", ...Array.from({ length: 450 }, (_unused, index) => `BQ5,${75001 + index},A`)];
     const { registered } = await upload(pmc, "pmc.locations", { name: "units-grid-long.csv", bytes: Buffer.from(lines.join("\n"), "utf8"), format: "csv" });
     expect((await pollUntilDone(pmc, registered.id)).view.status).toBe("validated");
-    const pages = await Promise.all([0, 200, 400].map(offset => pmc.dataImports.grid({ ...scope, importId: registered.id, offset })));
+    const reads = () => s3.requests.filter(request => request.method === "GET" && !request.presigned).length;
+    const before = reads();
+    const pages = [];
+    for (const offset of [0, 200, 400]) pages.push(await pmc.dataImports.grid({ ...scope, importId: registered.id, offset }));
+    // review of #590 (B): the pages, the tabs and the search read the file once, not once each
+    expect(reads() - before).toBe(1);
+    await pmc.dataImports.grid({ ...scope, importId: registered.id, tab: "errors", search: "75001" });
+    expect(reads() - before).toBe(1);
     expect(pages.map(page => page.rows.length)).toEqual([200, 200, 50]);
     expect(pages[0].counts).toMatchObject({ all: 450, ready: 450 });
     expect(pages[2].rows.at(-1)).toMatchObject({ row: 451, cells: { unitNumber: { value: "75450" } } });

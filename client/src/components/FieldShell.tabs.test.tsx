@@ -18,9 +18,10 @@ afterEach(() => cleanup());
 const tabs = () => Array.from(document.querySelectorAll("nav a")).map(a => [a.textContent, a.getAttribute("href"), a.getAttribute("aria-current")]);
 
 describe("FieldShell ways between the field screens (Q-36 5)", () => {
-  it("POSITIVE: the field entry and the site update are field screens too, the open one marked", () => {
-    render(<FieldShell title="Update site progress" backHref="/m/t/p" backLabel="Field entry" tenantId="t" projectId="p" current="siteUpdate"><p>body</p></FieldShell>);
-    expect(tabs().slice(0, 3)).toEqual([["Field entry", "/m/t/p", null], ["Update site progress", "/m/t/p/site-update", "page"], ["Progress update", "/m/t/p/progress", null]]);
+  it("POSITIVE: the field entry is a field screen too, the open one marked; Q-70 (5): one progress screen — the old site update is not in the bar", () => {
+    render(<FieldShell title="Progress update" backHref="/m/t/p" backLabel="Field entry" tenantId="t" projectId="p" current="progress"><p>body</p></FieldShell>);
+    expect(tabs().slice(0, 2)).toEqual([["Field entry", "/m/t/p", null], ["Progress update", "/m/t/p/progress", "page"]]);
+    expect(tabs().some(([, href]) => href === "/m/t/p/site-update")).toBe(false);
   });
   it("NEGATIVE: a screen the person may not open has no tab — the site update, the daily report, the field entry", () => {
     h.denied = new Set(["siteUpdate", "dailyReport", "fieldEntry"]);
