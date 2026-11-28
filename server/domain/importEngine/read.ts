@@ -47,9 +47,15 @@ export function findHeaderRow<E extends HeaderEvaluation>(sheet: ExcelJS.Workshe
   return best!;
 }
 
+/**
+ * Q-66 batch 1 (7): what the reader found on every sheet of the workbook, in the workbook's order — so a screen can show each sheet as a tab and say which
+ * one was read and why. A hidden sheet is listed (it is part of the file) but never evaluated. Reporting only: the choice below does not depend on it.
+ */
+export type SheetSurvey<E extends HeaderEvaluation> = { name: string; hidden: boolean; candidate?: HeaderCandidate<E> };
+
 export type SheetChoice<E extends HeaderEvaluation> =
-  | { ok: true; sheet: ExcelJS.Worksheet; candidate: HeaderCandidate<E> }
-  | { ok: false; code: "IMPORT_EMPTY_WORKBOOK" | "IMPORT_SHEET_AMBIGUOUS"; detail?: string };
+  | { ok: true; sheet: ExcelJS.Worksheet; candidate: HeaderCandidate<E>; survey: SheetSurvey<E>[] }
+  | { ok: false; code: "IMPORT_EMPTY_WORKBOOK" | "IMPORT_SHEET_AMBIGUOUS"; detail?: string; survey?: SheetSurvey<E>[] };
 
 /**
  * The sheet to read: the one whose header row is complete. Two complete sheets are refused (IMPORT_SHEET_AMBIGUOUS, naming them) because either could be
@@ -59,9 +65,13 @@ export function chooseSheet<E extends HeaderEvaluation>(workbook: ExcelJS.Workbo
   const sheets = visibleSheets(workbook);
   if (sheets.length === 0) return { ok: false, code: "IMPORT_EMPTY_WORKBOOK" };
   const found = sheets.map(sheet => ({ sheet, candidate: findHeaderRow(sheet, evaluate, limits) }));
+  const survey: SheetSurvey<E>[] = workbook.worksheets.map(sheet => {
+    const item = found.find(entry => entry.sheet === sheet);
+    return { name: sheet.name, hidden: !item, ...(item ? { candidate: item.candidate } : {}) };
+  });
   const complete = found.filter(item => item.candidate.evaluation.complete);
-  if (complete.length > 1) return { ok: false, code: "IMPORT_SHEET_AMBIGUOUS", detail: complete.map(item => item.sheet.name).join(" | ") };
+  if (complete.length > 1) return { ok: false, code: "IMPORT_SHEET_AMBIGUOUS", detail: complete.map(item => item.sheet.name).join(" | "), survey };
   const closeness = (item: (typeof found)[number]) => item.candidate.evaluation.closeness ?? item.candidate.evaluation.found;
   const chosen = complete[0] ?? found.reduce((a, b) => (closeness(b) > closeness(a) ? b : a));
-  return { ok: true, ...chosen };
+  return { ok: true, ...chosen, survey };
 }

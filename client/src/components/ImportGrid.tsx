@@ -27,6 +27,10 @@ export type ImportGridCheck = { label: string; ok: boolean; detail?: string };
 
 const text = {
   ar: {
+    sheets: "أوراق الملف", sheetRead: "مقروءة", list: (items: string[]) => items.join("، "),
+    sheetWhy: { complete: (name: string, row?: number) => `قُرئت ورقة «${name}»: رأسها في الصف ${row} يسمّي كل الأعمدة المطلوبة.`, closest: (name: string, row?: number) => `قُرئت ورقة «${name}»: لا ورقة تسمّي كل الأعمدة المطلوبة، وهذه أقربها (رأسها في الصف ${row}).`, wide: (name: string) => `قُرئت ورقة «${name}»: جدول أوزان فيه عمود لكل نموذج.`,
+      missing: (name: string, _row?: number, missing?: string) => missing ? `لم تُقرأ ورقة «${name}»: ينقصها ${missing}.` : `لم تُقرأ ورقة «${name}»: لا تسمّي الأعمدة المطلوبة.`, ambiguous: (name: string) => `لم تُقرأ ورقة «${name}»: فيها كل الأعمدة المطلوبة مثل ورقة أخرى، فلا يُختار أيٌّ منهما قبل أن تبقي واحدة.`,
+      hidden: (name: string) => `لم تُقرأ ورقة «${name}»: مخفية في الملف.`, notRead: (name: string) => `لم تُقرأ ورقة «${name}»: قُرئ جدول الأوزان من ورقة أخرى.` },
     title: "الملف بعد المعالجة", hint: "هكذا قرأ النظام ملفك. انقر مرتين على خلية لتصحيحها؛ لا يُحفظ شيء قبل تأكيدك.", row: "الصف",
     tabs: { all: "الكل", ready: "جاهز", corrected: "صُحّح", errors: "أخطاء", ignored: "متجاهَل" } as Record<Tab, string>, search: "ابحث في الجدول",
     why: { edited: "صحّحته أنت", replaced: "صحّحت كل خلية مثلها في هذا العمود", filledDown: "أُخذ من الصف أعلاه (القسم مكتوب مرة واحدة فوق بنوده)", fraction: "كسر في الملف قُرئ نسبة مئوية" } as Record<string, string>,
@@ -38,6 +42,10 @@ const text = {
     shown: (shown: number, total: number) => `${shown} من ${total}`, download: "نزّل النسخة المنظّفة (Excel)", downloading: "جارٍ تجهيز الملف…", downloadHint: "بالألوان نفسها وعمود ملاحظات، لترسله لمن عبّأ الملف.",
   },
   en: {
+    sheets: "Sheets of the file", sheetRead: "read", list: (items: string[]) => items.join(", "),
+    sheetWhy: { complete: (name: string, row?: number) => `Sheet «${name}» was read: its header on row ${row} names every required column.`, closest: (name: string, row?: number) => `Sheet «${name}» was read: no sheet names every required column, and this one is the closest (header on row ${row}).`, wide: (name: string) => `Sheet «${name}» was read: a weights table with a column per model.`,
+      missing: (name: string, _row?: number, missing?: string) => missing ? `Sheet «${name}» was not read: it lacks ${missing}.` : `Sheet «${name}» was not read: it does not name the required columns.`, ambiguous: (name: string) => `Sheet «${name}» was not read: it holds every required column like another sheet, so neither is chosen until you keep one.`,
+      hidden: (name: string) => `Sheet «${name}» was not read: it is hidden in the file.`, notRead: (name: string) => `Sheet «${name}» was not read: the weights table was read from another sheet.` },
     title: "The file after processing", hint: "This is how the platform read your file. Double-click a cell to correct it; nothing is saved before you confirm.", row: "Row",
     tabs: { all: "All", ready: "Ready", corrected: "Corrected", errors: "Errors", ignored: "Ignored" } as Record<Tab, string>, search: "Search the table",
     why: { edited: "You corrected it", replaced: "You corrected every cell like it in this column", filledDown: "Taken from the row above (the section is written once above its items)", fraction: "A fraction in the file read as a percent" } as Record<string, string>,
@@ -49,6 +57,10 @@ const text = {
     shown: (shown: number, total: number) => `${shown} of ${total}`, download: "Download the cleaned copy (Excel)", downloading: "Preparing the file…", downloadHint: "In the same colours with a notes column, to send to whoever filled in the file.",
   },
   ur: {
+    sheets: "فائل کی شیٹس", sheetRead: "پڑھی گئی", list: (items: string[]) => items.join("، "),
+    sheetWhy: { complete: (name: string, row?: number) => `شیٹ «${name}» پڑھی گئی: قطار ${row} میں اس کا ہیڈر ہر لازمی کالم کا نام رکھتا ہے۔`, closest: (name: string, row?: number) => `شیٹ «${name}» پڑھی گئی: کوئی شیٹ ہر لازمی کالم کا نام نہیں رکھتی، اور یہ سب سے قریب ہے (ہیڈر قطار ${row} میں)۔`, wide: (name: string) => `شیٹ «${name}» پڑھی گئی: وزن کا جدول جس میں ہر ماڈل کا ایک کالم ہے۔`,
+      missing: (name: string, _row?: number, missing?: string) => missing ? `شیٹ «${name}» نہیں پڑھی گئی: اس میں ${missing} نہیں ہے۔` : `شیٹ «${name}» نہیں پڑھی گئی: یہ لازمی کالموں کے نام نہیں رکھتی۔`, ambiguous: (name: string) => `شیٹ «${name}» نہیں پڑھی گئی: اس میں ایک اور شیٹ کی طرح ہر لازمی کالم ہے، اس لیے جب تک آپ ایک نہ رکھیں کوئی نہیں چنی جاتی۔`,
+      hidden: (name: string) => `شیٹ «${name}» نہیں پڑھی گئی: یہ فائل میں چھپی ہوئی ہے۔`, notRead: (name: string) => `شیٹ «${name}» نہیں پڑھی گئی: وزن کا جدول دوسری شیٹ سے پڑھا گیا۔` },
     title: "پروسیسنگ کے بعد فائل", hint: "پلیٹ فارم نے آپ کی فائل ایسے پڑھی۔ کسی خانے کو درست کرنے کے لیے اس پر دو بار کلک کریں؛ آپ کی تصدیق سے پہلے کچھ محفوظ نہیں ہوتا۔", row: "قطار",
     tabs: { all: "سب", ready: "تیار", corrected: "درست کیا گیا", errors: "غلطیاں", ignored: "نظرانداز" } as Record<Tab, string>, search: "جدول میں تلاش کریں",
     why: { edited: "آپ نے درست کیا", replaced: "آپ نے اس کالم میں اس جیسے ہر خانے کو درست کیا", filledDown: "اوپر والی قطار سے لیا گیا (سیکشن اپنی آئٹمز کے اوپر ایک بار لکھا ہے)", fraction: "فائل میں کسر کو فیصد کے طور پر پڑھا گیا" } as Record<string, string>,
@@ -86,6 +98,7 @@ export function ImportGrid({ tenantId, projectId, importId, columns, applied, ig
   const labels = pickLanguage<Record<string, string>>(language, PMC_FIELD_LABELS);
   const label = (field: string) => labels[field] ?? field;
   const [tab, setTab] = useState<Tab>("all");
+  const [sheetShown, setSheetShown] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   useEffect(() => { const timer = setTimeout(() => setQuery(search.trim()), 300); return () => clearTimeout(timer); }, [search]);
@@ -249,6 +262,24 @@ export function ImportGrid({ tenantId, projectId, importId, columns, applied, ig
         </table>
         {first.isLoading || loadingMore ? <p className="p-3 text-muted-foreground">{t.loading}</p> : rows.length === 0 && <p className="p-3 text-muted-foreground">{t.noRows}</p>}
       </div>
+      {(() => {
+        // Q-66 batch 1 (7): a file of several sheets shows them as tabs under the grid, like Excel; the sheet read is marked, and each tab says why it was
+        // or was not read. Showing only: the grid stays the sheet the importer read.
+        const sheets = first.data?.sheets ?? [];
+        if (sheets.length < 2) return null;
+        const shown = sheets.find(sheet => sheet.name === sheetShown) ?? sheets.find(sheet => sheet.read) ?? sheets[0];
+        return <div className="space-y-1" data-grid-sheets>
+          <div className="flex gap-1 overflow-x-auto border-t border-border" role="group" aria-label={t.sheets}>
+            {sheets.map(sheet => (
+              <button key={sheet.name} type="button" aria-pressed={sheet.name === shown.name} data-sheet={sheet.name} data-sheet-read={sheet.read ? "yes" : "no"} onClick={() => setSheetShown(sheet.name)}
+                className={`min-h-[44px] shrink-0 rounded-b-md border border-t-0 px-3 text-sm ${sheet.name === shown.name ? "border-primary bg-card font-semibold" : "border-border bg-muted text-muted-foreground"} ${sheet.why === "hidden" ? "italic" : ""}`}>
+                <bdi>{sheet.name}</bdi>{sheet.read && <span className="ms-1 rounded-full bg-success-soft px-1.5 text-xs text-success-soft-foreground">{t.sheetRead}</span>}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground" aria-live="polite" data-sheet-why={shown.why}><bdi>{t.sheetWhy[shown.why](shown.name, shown.headerRow, shown.missing?.length ? t.list(shown.missing.map(label)) : undefined)}</bdi></p>
+        </div>;
+      })()}
       {first.data && <p className="text-xs text-muted-foreground" data-grid-shown>{t.shown(rows.length, total)}</p>}
       {(() => {
         const row = focused === null ? undefined : rows.find(item => item.row === focused);

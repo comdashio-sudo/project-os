@@ -223,7 +223,13 @@ export type PmcPreviewRow = { row: number; class: PmcRowClass; cells: Record<str
 export const PMC_PREVIEW_ROWS = 30;
 /** An applied cell correction, with the value the file holds, for the report and the audit trail. */
 export type PmcAppliedEdit = { row: number; field: string; header: string; from: string; to: string };
-export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; replaced?: PmcAppliedReplace[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; readRows?: number[]; preview?: PmcPreviewRow[]; outlineHeadings?: number; chosenColumns?: Array<{ field: string; header: string; over: string[] }>; errorColumns?: string[]; wide?: { sheetName: string; models: string[]; groups: number; phases: number } } };
+/**
+ * Q-66 batch 1 (7): one sheet of a workbook of several, as the reader saw it — read or not, and why: its header names every required field (complete), none
+ * did and it was the closest (closest), it is a weights table with a column per model (wide), it lacks required fields (missing, with them), another sheet
+ * also has every field (ambiguous: nothing is read), it is hidden, or it was not looked at because a wide weights table was read (notRead).
+ */
+export type PmcSheetNote = { name: string; read: boolean; why: "complete" | "closest" | "wide" | "missing" | "ambiguous" | "hidden" | "notRead"; headerRow?: number; missing?: string[] };
+export type ParsedFile = { headers: string[]; rows: ParsedRow[]; errors: PmcImportError[]; columns?: PmcImportColumns; notes?: { sheets?: PmcSheetNote[]; skippedTotals: number; filledDown: number; ignoredColumns?: PmcIgnoredColumn[]; edits?: PmcAppliedEdit[]; replaced?: PmcAppliedReplace[]; ignoredRows?: number[]; fileTotals?: PmcFileTotal[]; readRows?: number[]; preview?: PmcPreviewRow[]; outlineHeadings?: number; chosenColumns?: Array<{ field: string; header: string; over: string[] }>; errorColumns?: string[]; wide?: { sheetName: string; models: string[]; groups: number; phases: number } } };
 /** Q-50 batch 5a: a totals line the reader skipped, with the weight it carries in the file (compared with the sum read, never used as data). */
 export type PmcFileTotal = { row: number; value: string; model?: string };
 /** The comparison of the file's own totals line with what was read, in the file's units (fractions or percent). */
@@ -389,19 +395,31 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
     if (wide) {
       const inner = await parsePmcImportFile({ kind: "weights", format: "xlsx", bytes: wide.bytes, wideRead: true, previewLimit: input.previewLimit });
       const back = (row: number) => wide.rowMap.get(row) ?? row;
+      const sheets: PmcSheetNote[] | undefined = parsed.workbook.worksheets.length > 1 ? parsed.workbook.worksheets.map(sheet => sheet.name === wide.sheetName ? { name: sheet.name, read: true, why: "wide" as const } : { name: sheet.name, read: false, why: sheet.state === "hidden" || sheet.state === "veryHidden" ? "hidden" as const : "notRead" as const }) : undefined;
       return {
         ...inner,
         rows: inner.rows.map(row => ({ ...row, rowNumber: back(row.rowNumber) })),
         errors: inner.errors.map(error => ({ ...error, rowNumber: error.rowNumber ? back(error.rowNumber) : 0 })),
-        notes: { ...(inner.notes ?? { skippedTotals: 0, filledDown: 0 }), ...(inner.notes?.preview && input.previewLimit !== undefined ? { preview: inner.notes.preview.map(row => ({ ...row, row: back(row.row) })) } : {}), skippedTotals: (inner.notes?.skippedTotals ?? 0) + new Set(wide.totals.map(total => total.row)).size, fileTotals: wide.totals.map(total => ({ row: total.row, value: total.value, model: total.model })), wide: { sheetName: wide.sheetName, models: wide.models, groups: wide.groups, phases: wide.phases } },
+        notes: { ...(inner.notes ?? { skippedTotals: 0, filledDown: 0 }), ...(sheets ? { sheets } : {}), ...(inner.notes?.preview && input.previewLimit !== undefined ? { preview: inner.notes.preview.map(row => ({ ...row, row: back(row.row) })) } : {}), skippedTotals: (inner.notes?.skippedTotals ?? 0) + new Set(wide.totals.map(total => total.row)).size, fileTotals: wide.totals.map(total => ({ row: total.row, value: total.value, model: total.model })), wide: { sheetName: wide.sheetName, models: wide.models, groups: wide.groups, phases: wide.phases } },
       };
     }
   }
   // Q-31: a workbook may carry other sheets (notes, a cover, the villa list beside the weights): the sheet whose header names every required field is read
   // (Q-50: the shared reader in importEngine/read.ts).
   const choice = chooseSheet(parsed.workbook, pmcEvaluate(input.kind), headerSearchLimits(input.kind));
-  if (!choice.ok) return fail(choice.code, choice.detail);
+  const several = parsed.workbook.worksheets.length > 1;
+  const sheetNotes = (survey: NonNullable<typeof choice.survey>, readName?: string): PmcSheetNote[] | undefined => several ? survey.map(item => {
+    if (!item.candidate) return { name: item.name, read: false, why: "hidden" };
+    const { row, evaluation } = item.candidate;
+    const missing = evaluation.match.missing;
+    // the read sheet's missing columns are reported (after any column a person chose) by the checks themselves, not here
+    if (item.name === readName) return { name: item.name, read: true, why: evaluation.complete ? "complete" : "closest", headerRow: row };
+    return { name: item.name, read: false, why: evaluation.complete ? "ambiguous" : "missing", headerRow: row, ...(missing.length ? { missing } : {}) };
+  }) : undefined;
+  if (!choice.ok) { const failed = fail(choice.code, choice.detail); const sheets = choice.survey && sheetNotes(choice.survey); return sheets ? { ...failed, notes: { skippedTotals: 0, filledDown: 0, sheets } } : failed; }
   const { sheet, candidate } = choice;
+  const sheets = sheetNotes(choice.survey, sheet.name);
+  const sheetsOnly = sheets ? { notes: { skippedTotals: 0, filledDown: 0, sheets } } : {};
   const chosen = { headers: candidate.headers, match: candidate.evaluation.match };
   const { row: headerRow } = candidate;
   const { fields } = candidate.evaluation;
@@ -416,7 +434,7 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   const { headers, rows, rowNumbers } = worksheetToRows(sheet, PMC_IMPORT_LIMITS, headerRow, { uniqueHeaders: true });
   // a column with no name and nothing in it (a formatted margin) is not a column of the table
   const holdsData = (header: string) => !/^\([A-Z]+\)$/.test(header) || rows.some(row => String(row[header] ?? "").trim() !== "");
-  if (sheet.rowCount - headerRow > PMC_IMPORT_LIMITS.maxRows) return { headers, rows: [], errors: [{ rowNumber: 0, code: "IMPORT_TOO_MANY_ROWS" }] };
+  if (sheet.rowCount - headerRow > PMC_IMPORT_LIMITS.maxRows) return { headers, rows: [], errors: [{ rowNumber: 0, code: "IMPORT_TOO_MANY_ROWS" }], ...sheetsOnly };
   const errors: PmcImportError[] = [];
   // Q-60 (the owner's register): «Villa» written twice — «Villa 700» and «700». For the unit number, the one column whose every value is a whole number is read
   // and the other is left aside (said in the notes), instead of «ambiguous column». Any other ambiguity stays one, for a person to choose.
@@ -444,13 +462,13 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
   const chosenKeys = new Set(Object.entries(override ?? {}).filter(([key, header]) => key !== "__others__" && header && header !== "ignore").map(([key]) => key));
   const hints = columnHints(fields, offered, resolved, chosenKeys);
   const columns: PmcImportColumns = { headers: offered, fields: fields.map(field => ({ key: field.key, required: field.required, header: resolved[field.key], ...hints[field.key] })), overridden: Boolean(override) };
-  if (errors.length) return { headers, rows: [], errors, columns };
+  if (errors.length) return { headers, rows: [], errors, columns, ...sheetsOnly };
   const mapping = match.mapping;
   const out: ParsedRow[] = [];
   const used = new Set(mapping.values());
   const ignoredColumns: PmcIgnoredColumn[] = headers.filter(header => header && !used.has(header) && holdsData(header))
     .map(header => ({ header, samples: Array.from(new Set(rows.map(row => String(row[header] ?? "").trim()).filter(Boolean))).slice(0, 3) }));
-  const notes: NonNullable<ParsedFile["notes"]> = { skippedTotals: 0, filledDown: 0, ...(ignoredColumns.length ? { ignoredColumns } : {}), ...(chosenColumns.length ? { chosenColumns } : {}), ...(errorColumns.length ? { errorColumns } : {}) };
+  const notes: NonNullable<ParsedFile["notes"]> = { skippedTotals: 0, filledDown: 0, ...(sheets ? { sheets } : {}), ...(ignoredColumns.length ? { ignoredColumns } : {}), ...(chosenColumns.length ? { chosenColumns } : {}), ...(errorColumns.length ? { errorColumns } : {}) };
   // Q-50 batch 4: the person's corrections, applied to the rows as read (the stored file is untouched). A correction of a row the table does not have, or of a
   // field no column is read for, is refused with the row — never dropped silently
   const ignored = new Set<number>();
@@ -489,7 +507,7 @@ export async function parsePmcImportFile(input: { kind: PmcImportKind; format: "
       rows[index][header] = edit.value;
       applied.push({ row: edit.row, field: edit.field, header, from, to: edit.value });
     }
-    if (refused.length) return { headers, rows: [], errors: refused, columns };
+    if (refused.length) return { headers, rows: [], errors: refused, columns, ...sheetsOnly };
     if (applied.length) notes.edits = applied;
     if (ignored.size) notes.ignoredRows = Array.from(ignored).sort((a, b) => a - b);
     if (forced.size) notes.readRows = Array.from(forced).sort((a, b) => a - b);
