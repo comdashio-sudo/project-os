@@ -63,6 +63,19 @@ describe("units Tracker import", () => {
     expect(screen.queryByRole("button", { name: "Confirm the import" })).toBeNull();
   });
 
+  it("Q-66 (4): the reader's notes on the file are shown in the page's language, never as their codes", async () => {
+    h.language = "ar";
+    const base = (plan([]) as { matrixPlan: Record<string, unknown> }).matrixPlan;
+    h.analysis = { matrixPlan: { ...base, summary: { units: 1230, warnings: ["REPORT_DATE_MISSING", "SERIAL_MISSING", "SOMETHING_NEW:1"] } } };
+    render(<TrackerImport tenantId="t" projectId="p" onImported={() => undefined} />);
+    choose("tracker.xlsx");
+    fireEvent.click(screen.getByRole("button", { name: "حلّل الملف" }));
+    const notes = await waitFor(() => { const found = document.querySelector("[data-smart-notes]"); expect(found).toBeTruthy(); return found!; });
+    expect(notes.textContent).toContain("لا تاريخ للتقرير في الملف.");
+    expect(notes.textContent).toContain("بعض الوحدات بلا رقم تسلسلي.");
+    expect(notes.textContent).not.toContain("REPORT_DATE_MISSING");
+    expect(notes.textContent).toContain("SOMETHING_NEW:1"); // a note the list does not know is shown as written, never hidden
+  });
   it("a file that is not a Tracker says so; a wrong type is refused before anything is sent", async () => {
     h.analysis = { understanding: {} };
     render(<TrackerImport tenantId="t" projectId="p" onImported={vi.fn()} />);

@@ -7,6 +7,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { pickLanguage, type Language } from "@/lib/language";
 import { getLocalizedProjectError } from "@/lib/projectErrors";
 import { trpc } from "@/lib/trpc";
+import { SmartImportNotes } from "@/components/SmartImportNotes";
 import { MAX_IMPORT_UPLOAD_BYTES, MAX_IMPORT_UPLOAD_MB, putToStorage, UploadFailure } from "@/lib/uploadLimit";
 import { equipmentImportHeaders } from "@shared/importTemplateHeaders";
 import { projectErrorMessages } from "@shared/projectErrors";
@@ -18,21 +19,21 @@ import { ledgerErrorLabel } from "@/lib/ledgerMessages";
 const text = {
   ar: {
     equipmentTitle: "استيراد قائمة المعدات من Excel", columns: "الأعمدة المتوقعة:", chooseFile: "ملف Excel", analyze: "حلّل الملف", confirm: "أكّد الاستيراد",
-    trackerTitle: "استيراد Tracker الوحدات", trackerHelp: "رأسه: م | المرحلة | البلوك | رقم الفيلا | النموذج، ثم عمود لكل نشاط بحالة Completed أو On going. لا يُكتب شيء قبل التأكيد.",
+    trackerTitle: "استيراد Tracker الوحدات", notes: "ملاحظات القارئ", trackerHelp: "رأسه: م | المرحلة | البلوك | رقم الفيلا | النموذج، ثم عمود لكل نشاط بحالة Completed أو On going. لا يُكتب شيء قبل التأكيد.",
     uploading: "جارٍ رفع الملف", analyzing: "جارٍ تحليل الملف…", noFile: "اختر ملفًا قبل التحليل.", typeError: "الصيغة المقبولة XLSX.", sizeError: `حجم الملف أكبر من ${MAX_IMPORT_UPLOAD_MB} ميغابايت.`, uploadFailed: "تعذّر رفع الملف إلى التخزين. أعد المحاولة.",
     plan: "ما سيكتبه الاستيراد", newUnits: "وحدات جديدة", completing: "خلايا تكتمل", inProgress: "وحدات تُلمس", unchanged: "خلايا بلا تغيير", regressed: "مكتملة لا تُرجَع", errors: "أخطاء تمنع الاستيراد", row: "الصف",
     importing: "جارٍ الاستيراد…", done: (units: number) => `اكتمل الاستيراد: ${units} وحدة في الملف.`, notTracker: "هذا الملف ليس Tracker وحدات ولا مصفوفة إنجاز.",
   },
   en: {
     equipmentTitle: "Import the equipment list from Excel", columns: "Expected columns:", chooseFile: "Excel file", analyze: "Analyse the file", confirm: "Confirm the import",
-    trackerTitle: "Import the units Tracker", trackerHelp: "Its header: No. | Phase | Block | Villa number | Model, then one column per activity holding Completed or On going. Nothing is written before you confirm.",
+    trackerTitle: "Import the units Tracker", notes: "Reader notes", trackerHelp: "Its header: No. | Phase | Block | Villa number | Model, then one column per activity holding Completed or On going. Nothing is written before you confirm.",
     uploading: "Uploading the file", analyzing: "Analysing the file…", noFile: "Choose a file before analysing.", typeError: "The accepted format is XLSX.", sizeError: `The file is larger than ${MAX_IMPORT_UPLOAD_MB} MB.`, uploadFailed: "The file could not be uploaded to storage. Try again.",
     plan: "What the import would write", newUnits: "New units", completing: "Cells completed", inProgress: "Units touched", unchanged: "Cells unchanged", regressed: "Completed cells kept", errors: "Problems that stop the import", row: "Row",
     importing: "Importing…", done: (units: number) => `Import complete: ${units} units in the file.`, notTracker: "This file is neither a units Tracker nor a progress matrix.",
   },
   ur: {
     equipmentTitle: "Excel سے سازوسامان کی فہرست درآمد کریں", columns: "متوقع کالم:", chooseFile: "Excel فائل", analyze: "فائل کا تجزیہ کریں", confirm: "درآمد کی تصدیق کریں",
-    trackerTitle: "یونٹس کا Tracker درآمد کریں", trackerHelp: "سرخی: نمبر | مرحلہ | بلاک | ولا نمبر | ماڈل، پھر ہر سرگرمی کا ایک کالم جس میں Completed یا On going ہو۔ تصدیق سے پہلے کچھ نہیں لکھا جاتا۔",
+    trackerTitle: "یونٹس کا Tracker درآمد کریں", notes: "پڑھنے کے نوٹس", trackerHelp: "سرخی: نمبر | مرحلہ | بلاک | ولا نمبر | ماڈل، پھر ہر سرگرمی کا ایک کالم جس میں Completed یا On going ہو۔ تصدیق سے پہلے کچھ نہیں لکھا جاتا۔",
     uploading: "فائل اپ لوڈ ہو رہی ہے", analyzing: "فائل کا تجزیہ ہو رہا ہے…", noFile: "تجزیہ سے پہلے ایک فائل منتخب کریں۔", typeError: "قابلِ قبول فارمیٹ XLSX ہے۔", sizeError: `فائل ${MAX_IMPORT_UPLOAD_MB} MB سے بڑی ہے۔`, uploadFailed: "فائل اسٹوریج پر اپ لوڈ نہیں ہو سکی۔ دوبارہ کوشش کریں۔",
     plan: "درآمد کیا لکھے گی", newUnits: "نئے یونٹس", completing: "مکمل ہونے والے خانے", inProgress: "متاثرہ یونٹس", unchanged: "بغیر تبدیلی کے خانے", regressed: "مکمل خانے جو واپس نہیں ہوں گے", errors: "درآمد روکنے والی غلطیاں", row: "قطار",
     importing: "درآمد ہو رہی ہے…", done: (units: number) => `درآمد مکمل: فائل میں ${units} یونٹس۔`, notTracker: "یہ فائل نہ یونٹس کا Tracker ہے نہ پیش رفت میٹرکس۔",
@@ -127,6 +128,7 @@ export function TrackerImport({ tenantId, projectId, onImported }: { tenantId: s
         <div className="space-y-3" data-plan>
           <h4 className="text-sm font-semibold">{t.plan}</h4>
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">{counts.map(([label, value]) => <div key={label} className="rounded-[var(--radius)] bg-muted p-2"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="text-lg font-semibold">{formatNumber(value)}</dd></div>)}</dl>
+          <SmartImportNotes notes={plan.summary.warnings} language={language} title={t.notes} />
           {plan.errors.length > 0 ? (
             <div role="alert" className="space-y-1 rounded-[var(--radius)] bg-danger-soft p-3 text-sm text-danger-soft-foreground">
               <p className="font-semibold">{t.errors} ({formatNumber(plan.errors.length)})</p>

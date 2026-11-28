@@ -59,4 +59,25 @@ describe.skipIf(!isTestDatabaseUrl(process.env.TEST_DATABASE_URL))("Q-66 (6): th
     expect(plain.errorCount).toBe(0);
     expect((plain.details as { rememberedMapping?: unknown }).rememberedMapping).toBeUndefined();
   });
+
+  it("Q-66 (6) screen: the company's remembered choices are listed with their kind, map and use count; another company sees none and cannot delete it; a deleted choice is forgotten", async () => {
+    const mine = { tenantId: a.tenantId, projectId: a.projectId };
+    const listed = await a.asOwner.pmc.columnProfiles(mine);
+    expect(listed).toEqual([expect.objectContaining({ kind: "locations", mapping: CHOICE, headers: 3, timesUsed: 2 })]);
+    // NEGATIVE: another company's list is empty, and deleting this company's choice from there is refused by name; a person without the PMC manage right is refused
+    const theirs = { tenantId: b.tenantId, projectId: b.projectId };
+    expect(await b.asOwner.pmc.columnProfiles(theirs)).toEqual([]);
+    await expect(b.asOwner.pmc.deleteColumnProfile({ ...theirs, profileId: listed[0].id })).rejects.toThrow("PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND");
+    await expect(b.asOwner.pmc.columnProfiles(mine)).rejects.toThrow();
+    await expect(a.callerFor(a.people.hr).pmc.columnProfiles(mine)).rejects.toThrow();
+    await expect(a.callerFor(a.people.hr).pmc.deleteColumnProfile({ ...mine, profileId: listed[0].id })).rejects.toThrow();
+    expect(await profiles(a.tenantId)).toHaveLength(1);
+    // deleted: the audit row is written and the next file of that shape asks for its columns again
+    await a.asOwner.pmc.deleteColumnProfile({ ...mine, profileId: listed[0].id });
+    expect(await profiles(a.tenantId)).toEqual([]);
+    expect((await client.query("SELECT count(*)::int AS n FROM audit_logs WHERE tenant_id = $1 AND action = 'pmc.column_profile_deleted'", [a.tenantId])).rows[0].n).toBe(1);
+    expect((await analyzePmcImport(call(a, csv(`${OWN}BQ1,71009,A\n`)))).errorCount).toBeGreaterThan(0);
+    // a second delete of the same choice is refused, not taken for success
+    await expect(a.asOwner.pmc.deleteColumnProfile({ ...mine, profileId: listed[0].id })).rejects.toThrow("PROJECT_OS_IMPORT_TEMPLATE_NOT_FOUND");
+  });
 });
