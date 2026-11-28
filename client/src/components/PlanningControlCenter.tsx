@@ -36,9 +36,9 @@ export function PlanningControlCenter({ result, currency, isLoading = false, onU
       noScheduleTitle: "لا جدول زمني بعد", noScheduleAction: "ارفع الجدول", noBudgetTitle: "لا ميزانية بعد", noBudgetAction: "ارفع الميزانية",
       moneyHidden: "المبالغ مخفية عنك: تحتاج صلاحية قراءة التدفق النقدي.", next: "الخطوات التالية",
       upcoming: "الأسبوعان القادمان", toStart: "تبدأ", toFinish: "تنتهي", more: (n: number) => `و${n} أخرى`,
-      undated: (n: number) => `${n} نشاطًا بلا تواريخ: أضف تواريخها ليظهر الجدول كاملًا.`,
-      unlinkedBoq: (n: number) => `${n} بندًا من جدول الكميات غير مربوط ببند في هيكل العمل.`,
-      unlinkedCost: (n: number) => `${n} تكلفة فعلية غير مربوطة ببند في هيكل العمل.`,
+      undated: (n: number) => `الأنشطة بلا تواريخ: ${n}. أضف تواريخها ليظهر الجدول كاملًا.`,
+      unlinkedBoq: (n: number) => `بنود جدول الكميات غير المربوطة ببند في هيكل العمل: ${n}.`,
+      unlinkedCost: (n: number) => `التكاليف الفعلية غير المربوطة ببند في هيكل العمل: ${n}.`,
     },
     en: {
       title: "Planning and control", controlled: "On track", attention: "Needs attention", loading: "Working out the picture…",
