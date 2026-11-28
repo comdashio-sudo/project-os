@@ -89,4 +89,10 @@ describe("row classes (Q-50 4c)", () => {
     expect(screen.getByRole("button", { name: "أعد التحليل بهذه التصحيحات" }).hasAttribute("disabled")).toBe(true);
     expect(correctionsOf([], new Set(), {}, new Set([3]), new Set([3]))).toEqual({ cells: [], ignoreRows: [3] });
   });
+  it("Q-66 (5b): the «every cell like it» rules the analysis holds are kept in every set this panel sends (the set replaces the last one)", () => {
+    render(<PmcRowCorrections {...scope} errors={errors} fields={fields} applied={[]} ignoredRows={[]} replaced={[{ field: "modelCode", from: "a", to: "A" }]} language="en" />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Leave this row out" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Analyse again with these corrections" }));
+    expect(state.mutate).toHaveBeenCalledWith({ ...scope, edits: { cells: [], ignoreRows: [3], replace: [{ field: "modelCode", from: "a", to: "A" }] } });
+  });
 });

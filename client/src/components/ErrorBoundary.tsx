@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import React, { Component, ReactNode } from "react";
+import { failureCode, reportRenderFailure } from "@/components/RouteBoundary";
 
 interface Props {
   children: ReactNode;
@@ -8,6 +9,8 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  /** Q-68 (1): the short code the person can read out (the same one the server logs), as on a page's own error screen */
+  code: string;
 }
 
 /**
@@ -18,23 +21,24 @@ interface State {
  */
 /** The copy of the last-resort screen. It sits above the language provider, so it shows each language in turn: Arabic, English, Urdu. */
 const COPY = {
-  ar: { title: "حدث خطأ غير متوقع", body: "تعذّر عرض الصفحة. بياناتك لم تتأثر. أعد تحميل الصفحة، وإن تكرر الخطأ فأبلغ فريق الدعم.", reload: "إعادة تحميل الصفحة" },
-  en: { title: "An unexpected error occurred", body: "The page could not be shown. Your data was not affected. Reload the page, and if it happens again contact support.", reload: "Reload page" },
-  ur: { title: "ایک غیر متوقع خرابی پیش آئی", body: "صفحہ دکھایا نہیں جا سکا۔ آپ کا ڈیٹا متاثر نہیں ہوا۔ صفحہ دوبارہ لوڈ کریں، اور خرابی دوبارہ ہو تو سپورٹ سے رابطہ کریں۔", reload: "صفحہ دوبارہ لوڈ کریں" },
+  ar: { title: "حدث خطأ غير متوقع", body: "تعذّر عرض الصفحة. بياناتك لم تتأثر. أعد تحميل الصفحة، وإن تكرر الخطأ فأبلغ فريق الدعم.", reload: "إعادة تحميل الصفحة", code: "الرمز" },
+  en: { title: "An unexpected error occurred", body: "The page could not be shown. Your data was not affected. Reload the page, and if it happens again contact support.", reload: "Reload page", code: "Code" },
+  ur: { title: "ایک غیر متوقع خرابی پیش آئی", body: "صفحہ دکھایا نہیں جا سکا۔ آپ کا ڈیٹا متاثر نہیں ہوا۔ صفحہ دوبارہ لوڈ کریں، اور خرابی دوبارہ ہو تو سپورٹ سے رابطہ کریں۔", reload: "صفحہ دوبارہ لوڈ کریں", code: "کوڈ" },
 };
 
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, code: "" };
   }
 
   static getDerivedStateFromError(): State {
-    return { hasError: true };
+    return { hasError: true, code: failureCode() };
   }
 
   componentDidCatch(error: Error) {
-    console.error("[App] render failed", error.name);
+    console.error("[App] render failed", error.name, this.state.code);
+    void reportRenderFailure({ code: this.state.code, errorName: error.name, route: typeof window === "undefined" ? "" : window.location.pathname, chunk: false });
   }
 
   render() {
@@ -53,6 +57,7 @@ class ErrorBoundary extends Component<Props, State> {
               <h3 className="text-base font-medium mb-1">{COPY.ur.title}</h3>
               <p className="text-sm text-muted-foreground">{COPY.ur.body}</p>
             </div>
+            <p className="mb-4 text-xs text-muted-foreground">{COPY.ar.code} · {COPY.en.code} · {COPY.ur.code} <bdi dir="ltr" data-failure-code="" className="font-mono font-semibold">{this.state.code}</bdi></p>
             <button
               onClick={() => window.location.reload()}
               className={cn(
