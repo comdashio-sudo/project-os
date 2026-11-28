@@ -129,4 +129,16 @@ describe.skipIf(!isUrl(process.env.TEST_DATABASE_URL))("PMC site plan on a real 
     await expect(none.pmc.unitCard({ ...scope, unitNumber: 1 })).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
     await expect(reader.pmc.siteMap({ tenantId: T, projectId: P_OTHER })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
   }, 60_000);
+
+  it("Q-63: the progress board — the actual (25: villa 1 at 100, the rest 0), no baseline so planned and SPI unknown, counts, and each villa — closed without the PMC read and to another company's project", async () => {
+    const reader = callerFor(users.reader, "pmcp-reader");
+    const board = await reader.pmc.progressBoard(scope);
+    expect(board.hasBaseline).toBe(false);
+    expect(board.kpi).toMatchObject({ actual: 25, plannedToday: null, variance: null, spi: null, monthTarget: null, perWeekNeeded: null });
+    expect(board.counts).toEqual({ villas: 4, done: 1, inProgress: 0, notStarted: 3, unknown: 0 });
+    expect(board.units.map(u => [u.unitNumber, u.blockCode, u.progressPercent, u.hasGeometry])).toEqual([[1, "B1", 100, true], [2, "B1", 0, true], [3, "B1", 0, true], [4, "B1", 0, false]]);
+    const none = callerFor(users.none, "pmcp-none");
+    await expect(none.pmc.progressBoard(scope)).rejects.toThrow("PROJECT_OS_PERMISSION_DENIED");
+    await expect(reader.pmc.progressBoard({ tenantId: T, projectId: P_OTHER })).rejects.toThrow("PROJECT_OS_PROJECT_NOT_FOUND");
+  }, 60_000);
 });

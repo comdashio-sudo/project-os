@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activitiesMatrix, approvals, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, programme, siteMap, stagesView, unitCard, zones, type PmcDataset } from "./pmcScreens";
+import { activitiesMatrix, approvals, filterDataset, freshnessOf, inspections, latestUpdates, pendingAtVerifier, periodReport, programme, progressBoard, siteMap, stagesView, unitCard, zones, type PmcDataset } from "./pmcScreens";
 
 // The dataset and every expected number below are worked by hand in
 // docs/PMC_PHASE_C_HAND_CHECKS.md. Four units of one model (WALLS 60, PAINT 40).
@@ -174,6 +174,21 @@ describe("PMC screens, checked against the hand calculations", () => {
     expect(unrecorded.progressFromCells).toBe(75); // ... while the cells say 75: the gap is visible, not hidden
   });
 
+  it("Q-63 progress board: actual, planned today (inside the month), variance, SPI, the month's target and the weekly pace — by hand", () => {
+    const board = progressBoard(ds);
+    // plan: 30 at the end of September, 68 at the end of October; on 15 Oct 12:00, 14.5 of 31 days are gone -> 30 + 38 x 14.5/31 = 47.7742
+    expect(board.kpi).toEqual({ actual: 65, plannedToday: 47.7742, variance: 17.2258, spi: 1.3606, monthTarget: 68, perWeekNeeded: 1.2727, thisMonth: 55 });
+    expect(board.counts.villas).toBe(4);
+    expect(board.counts.done + board.counts.inProgress + board.counts.notStarted + board.counts.unknown).toBe(4);
+    // what October added to each villa sums to the month's actual (unit weights are equal here)
+    expect(board.units.reduce((sum, u) => sum + (u.thisMonthPercent ?? 0), 0) / 4).toBeCloseTo(55, 4);
+  });
+
+  it("NEGATIVE Q-63: without a baseline, planned, variance, SPI and the targets are unknown (null, shown «—»), never 0 — the actual stays", () => {
+    const board = progressBoard({ ...ds, baselines: new Map() });
+    expect(board.hasBaseline).toBe(false);
+    expect(board.kpi).toMatchObject({ actual: 65, plannedToday: null, variance: null, spi: null, monthTarget: null, perWeekNeeded: null });
+  });
   // Q-68: the «latest updates» screen is the PMC page's first tab. One engineer who has made tens of thousands of updates (a project's whole history, as the owner's will be) must not make it
   // wait: the old code copied the engineer's whole list for every update (quadratic), 95,000 updates took 52 seconds.
   it("screen 1 with 60,000 updates by one engineer answers in well under a second, with the same numbers", () => {
