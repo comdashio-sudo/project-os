@@ -48,17 +48,61 @@ type Translate = (rows: NormalizedRow[]) => TranslatedFile;
 const exclude = (file: TranslatedFile, row: NormalizedRow, reason: string) => { file.excluded.push({ rowNumber: row.rowNumber, reason }); };
 const blank = (module: ImportModuleCode): TranslatedFile => ({ module, headers: importTemplateHeaders[module].en, rows: [], excluded: [], notes: [] });
 
+/** Q-66 (4): the nearest parent of each code among the file's codes — the longest other code that is a prefix ending at a separator (1.2.3 → 1.2, GC-1.01 →
+ * GC-1); none for a root. Codes that do not nest (1.1 and 1.2 with no «1») have no parents. */
+export function parentsOfCodes(codes: string[]): Map<string, string> {
+  const all = new Set(codes); const parents = new Map<string, string>();
+  for (const code of codes) for (let index = code.length - 1; index > 0; index--) if (/[.\-/]/.test(code[index]) && all.has(code.slice(0, index))) { parents.set(code, code.slice(0, index)); break; }
+  return parents;
+}
+const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
 const boq: Translate = rows => {
   const file = blank("wbs");
   const seen = new Set<string>();
+  const items: Array<{ row: NormalizedRow; code: string; name: string; amount: number | null }> = [];
   for (const row of rows) {
     const code = text(row.values.code); const name = text(row.values.name);
     if (!code || !name) { exclude(file, row, !code ? "MISSING:code" : "MISSING:name"); continue; }
     if (seen.has(code)) { exclude(file, row, `DUPLICATE_CODE:${code}`); continue; }
     seen.add(code);
     const quantity = num(row.values.quantity); const rate = num(row.values.rate);
-    const amount = num(row.values.amount) ?? (quantity !== null && rate !== null ? Math.round(quantity * rate * 100) / 100 : 0);
-    file.rows.push([code, name, Math.max(0, amount)]);
+    items.push({ row, code, name, amount: num(row.values.amount) ?? (quantity !== null && rate !== null ? round2(quantity * rate) : null) });
+  }
+  // Q-66 (4): a bill whose codes nest (1 → 1.1 → 1.1.1) keeps every row — the WBS is a tree — but a section's own amount is its items' subtotal: written as well,
+  // the plan would count it twice. A section with an amount below it is written with 0 (the leaves carry the value); a section whose written amount differs from
+  // the sum below it is SAID with both numbers and neither is changed; a section with nothing below keeps its own amount.
+  const parents = parentsOfCodes(items.map(item => item.code));
+  const children = new Map<string, string[]>();
+  for (const [child, parent] of Array.from(parents)) children.set(parent, [...(children.get(parent) ?? []), child]);
+  const byCode = new Map(items.map(item => [item.code, item]));
+  const totals = new Map<string, number | null>();
+  const totalOf = (code: string): number | null => {
+    if (totals.has(code)) return totals.get(code)!;
+    const below = children.get(code) ?? [];
+    let total: number | null;
+    // a credit line (a negative amount) is written as 0, like every BOQ line: the total adds what is written, and the credit is named below (review of #591, C)
+    if (!below.length) { const own = byCode.get(code)!.amount; total = own === null ? null : Math.max(0, own); }
+    else { const sums = below.map(totalOf).filter((value): value is number => value !== null); total = sums.length ? round2(sums.reduce((a, b) => a + b, 0)) : byCode.get(code)!.amount; }
+    totals.set(code, total); return total;
+  };
+  let sections = 0;
+  for (const item of items) {
+    const below = children.get(item.code) ?? [];
+    const belowTotal = below.length ? (() => { const sums = below.map(totalOf).filter((value): value is number => value !== null); return sums.length ? round2(sums.reduce((a, b) => a + b, 0)) : null; })() : null;
+    if (belowTotal !== null) {
+      sections += 1;
+      if (item.amount !== null && Math.abs(item.amount - belowTotal) > 0.005) file.notes.push(`BOQ_SECTION_DIFFERS:${item.code}:${item.amount}:${belowTotal}`);
+      file.rows.push([item.code, item.name, 0]);
+    } else {
+      if (item.amount !== null && item.amount < 0) file.notes.push(`BOQ_NEGATIVE_NOT_WRITTEN:${item.code}:${item.amount}`);
+      file.rows.push([item.code, item.name, Math.max(0, item.amount ?? 0)]);
+    }
+  }
+  if (sections) {
+    file.notes.push(`BOQ_SECTIONS_AS_SUBTOTALS:${sections}`);
+    const roots = items.filter(item => !parents.has(item.code)).map(item => totalOf(item.code) ?? 0);
+    file.notes.push(`BOQ_TREE_TOTAL:${round2(roots.reduce((a, b) => a + b, 0))}`);
   }
   file.notes.push("BOQ_QUANTITY_AND_RATE_NOT_CARRIED");
   return file;
